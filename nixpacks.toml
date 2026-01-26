@@ -1,0 +1,12 @@
+[variables]
+DJANGO_SETTINGS_MODULE = "estimate_site.settings_railway"
+STORAGE_TYPE = "local"
+# Unset AWS credentials during build to prevent S3 errors
+AWS_ACCESS_KEY_ID = ""
+AWS_SECRET_ACCESS_KEY = ""
+
+[phases.setup]
+aptPkgs = ["poppler-utils"]
+
+[phases.release]
+cmds = ["python manage.py migrate --noinput", "python manage.py collectstatic --noinput"]
