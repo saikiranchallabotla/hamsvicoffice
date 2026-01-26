@@ -6,8 +6,9 @@
 import multiprocessing
 import os
 
-# Server socket
-bind = "127.0.0.1:8000"
+# Server socket - Use PORT from environment (Railway/Heroku) or default to 8000
+port = os.environ.get("PORT", "8000")
+bind = f"0.0.0.0:{port}"
 backlog = 2048
 
 # Worker processes
@@ -23,9 +24,9 @@ max_requests_jitter = 50
 # Process naming
 proc_name = "hamsvic"
 
-# Logging
-accesslog = "/var/log/gunicorn/hamsvic_access.log"
-errorlog = "/var/log/gunicorn/hamsvic_error.log"
+# Logging - Use stdout/stderr for cloud platforms
+accesslog = "-"  # stdout
+errorlog = "-"   # stderr
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(L)s'
 
@@ -35,10 +36,10 @@ limit_request_fields = 100
 limit_request_field_size = 8190
 
 # Server mechanics
-daemon = False  # Let systemd manage the process
-pidfile = "/run/gunicorn/hamsvic.pid"
-user = "ubuntu"
-group = "ubuntu"
+daemon = False  # Let container manage the process
+pidfile = None  # No pidfile in containers
+user = None     # Run as current user
+group = None
 tmp_upload_dir = None
 
 # Environment
