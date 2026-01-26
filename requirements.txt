@@ -52,3 +52,5 @@ django-cors-headers>=4.3.0  # CORS handling for API
 # SMS & Payment
 twilio>=8.10.0  # Twilio SMS for OTP
 razorpay>=1.4.1  # Razorpay payment gateway
+
+pandas>=2.0.0
