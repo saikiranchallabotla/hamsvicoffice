@@ -45,5 +45,9 @@ RUN python manage.py collectstatic --noinput || true
 # Expose port
 EXPOSE 8000
 
-# Run with gunicorn - use shell form for variable expansion
-CMD ["/bin/sh", "-c", "gunicorn estimate_site.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 300"]
+# Copy and make start script executable
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Run startup script
+CMD ["/app/start.sh"]
