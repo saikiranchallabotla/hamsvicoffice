@@ -45,5 +45,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Run with gunicorn in production
-CMD ["gunicorn", "--config", "deploy/gunicorn.conf.py", "estimate_site.wsgi:application"]
+# Run with gunicorn - Railway provides PORT env variable
+CMD gunicorn estimate_site.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 300
