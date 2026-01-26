@@ -1,10 +1,12 @@
 #!/bin/bash
 # Start script for Railway deployment
 
+export DJANGO_SETTINGS_MODULE=estimate_site.settings_railway
+
 # Default to port 8000 if PORT not set
 PORT="${PORT:-8000}"
 
-echo "Starting gunicorn on port $PORT..."
+echo "Starting HAMSVIC on port $PORT..."
 
 # Run migrations
 python manage.py migrate --noinput

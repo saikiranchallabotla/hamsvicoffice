@@ -4,7 +4,7 @@ FROM python:3.13-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV DJANGO_SETTINGS_MODULE=estimate_site.settings
+ENV DJANGO_SETTINGS_MODULE=estimate_site.settings_railway
 
 # Set work directory
 WORKDIR /app
