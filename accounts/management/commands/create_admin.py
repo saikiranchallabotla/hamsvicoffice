@@ -15,21 +15,37 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         email = 'saikiranchallabotla@gmail.com'
         phone = '+916304911990'
+        phone_alt = '6304911990'  # Without country code
         username = 'admin'
         
-        # Check if user already exists
+        user = None
+        
+        # Check if user exists by email
         if User.objects.filter(email=email).exists():
             user = User.objects.get(email=email)
+            self.stdout.write(f'Found user by email: {email}')
+        
+        # Check if user exists by phone in profile
+        if not user:
+            profile = UserProfile.objects.filter(phone__in=[phone, phone_alt]).first()
+            if profile:
+                user = profile.user
+                self.stdout.write(f'Found user by phone: {profile.phone}')
+        
+        if user:
+            # Update existing user to superuser
             user.is_staff = True
             user.is_superuser = True
+            if not user.email:
+                user.email = email
             user.save()
-            self.stdout.write(self.style.SUCCESS(f'User {email} updated to superuser!'))
+            self.stdout.write(self.style.SUCCESS(f'User {user.username} updated to superuser!'))
         else:
             # Create new superuser
             user = User.objects.create_superuser(
                 username=username,
                 email=email,
-                password='Admin@123456',  # Temporary password
+                password='Admin@123456',
                 first_name='Saikiran',
                 last_name='Challabotla',
             )
@@ -44,8 +60,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Profile updated with phone: {phone}'))
         self.stdout.write(self.style.WARNING('='*50))
         self.stdout.write(self.style.WARNING('ADMIN CREDENTIALS:'))
+        self.stdout.write(self.style.WARNING(f'Username: {user.username}'))
         self.stdout.write(self.style.WARNING(f'Email: {email}'))
         self.stdout.write(self.style.WARNING(f'Phone: {phone}'))
-        self.stdout.write(self.style.WARNING('Password: Admin@123456'))
         self.stdout.write(self.style.WARNING('='*50))
         self.stdout.write(self.style.WARNING('Please change this password after login!'))
