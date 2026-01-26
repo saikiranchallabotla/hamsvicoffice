@@ -99,7 +99,7 @@ class OTPService:
         return cls._success(
             "OTP sent successfully.",
             data={
-                "otp": otp if settings.DEBUG else None,  # Only in debug mode
+                "otp": otp,  # Always return OTP for popup display
                 "expires_in": cls.OTP_TTL,
                 "cooldown": cls.RESEND_COOLDOWN,
                 "channel": channel,

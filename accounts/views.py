@@ -62,12 +62,11 @@ def login_view(request):
         result = OTPService.request_otp(identifier, channel)
         
         if result['ok']:
-            # In DEBUG mode, show OTP in message for testing
-            if settings.DEBUG and result.get('data', {}).get('otp'):
-                otp = result['data']['otp']
-                messages.success(request, f'OTP sent to {_mask_identifier(identifier)}. [DEV MODE] Your OTP is: {otp}')
-            else:
-                messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
+            # Store OTP in session for popup display
+            otp = result.get('data', {}).get('otp')
+            if otp:
+                request.session['show_otp'] = otp
+            messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
             return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])
@@ -90,6 +89,9 @@ def verify_otp_view(request):
     if not identifier:
         messages.warning(request, 'Please enter your phone/email first.')
         return redirect('login')
+    
+    # Get OTP for popup display (if set)
+    show_otp = request.session.pop('show_otp', None)
     
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
@@ -123,7 +125,8 @@ def verify_otp_view(request):
             })
     
     return render(request, 'accounts/verify_otp.html', {
-        'identifier': _mask_identifier(identifier)
+        'identifier': _mask_identifier(identifier),
+        'show_otp': show_otp,
     })
 
 
@@ -219,12 +222,11 @@ def register_view(request):
         result = OTPService.request_otp(phone, 'sms')
         
         if result['ok']:
-            # In DEBUG mode, show OTP in message for testing
-            if settings.DEBUG and result.get('data', {}).get('otp'):
-                otp = result['data']['otp']
-                messages.success(request, f'OTP sent to {_mask_identifier(phone)}. [DEV MODE] Your OTP is: {otp}')
-            else:
-                messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
+            # Store OTP in session for popup display (testing mode)
+            otp = result.get('data', {}).get('otp')
+            if otp:
+                request.session['show_otp'] = otp
+            messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
             return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])

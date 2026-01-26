@@ -4,6 +4,84 @@
 {% block title %}Verify OTP - SSR Estimation{% endblock %}
 
 {% block auth_content %}
+<!-- OTP Popup Modal -->
+{% if show_otp %}
+<div id="otpPopup" class="otp-popup-overlay">
+    <div class="otp-popup-modal">
+        <div class="otp-popup-header">
+            <span class="otp-popup-icon">🔐</span>
+            <h3>Your OTP Code</h3>
+        </div>
+        <div class="otp-popup-code">{{ show_otp }}</div>
+        <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
+        <button type="button" class="otp-popup-btn" onclick="closeOtpPopup()">Got it!</button>
+    </div>
+</div>
+<style>
+.otp-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.otp-popup-modal {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    max-width: 320px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: popupIn 0.3s ease;
+}
+@keyframes popupIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.otp-popup-header { margin-bottom: 1rem; }
+.otp-popup-icon { font-size: 3rem; }
+.otp-popup-header h3 { margin: 0.5rem 0 0; color: #333; }
+.otp-popup-code {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 8px;
+    color: #6366f1;
+    background: #f3f4f6;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin: 1rem 0;
+    font-family: monospace;
+}
+.otp-popup-note {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+.otp-popup-btn {
+    background: #6366f1;
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.otp-popup-btn:hover { background: #4f46e5; }
+</style>
+<script>
+function closeOtpPopup() {
+    document.getElementById('otpPopup').style.display = 'none';
+}
+</script>
+{% endif %}
+
 <div class="auth-card">
     <div class="auth-header">
         <div class="otp-icon">
