@@ -38,12 +38,12 @@ USER appuser
 # Collect static files
 RUN python manage.py collectstatic --noinput || true
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || exit 1
+# Health check - disabled for Railway (they have their own)
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+#     CMD curl -f http://localhost:8000/health/ || exit 1
 
 # Expose port
 EXPOSE 8000
 
-# Run with gunicorn - Railway provides PORT env variable
-CMD gunicorn estimate_site.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 300
+# Run with gunicorn - use shell form for variable expansion
+CMD ["/bin/sh", "-c", "gunicorn estimate_site.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 300"]
