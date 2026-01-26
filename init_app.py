@@ -64,18 +64,14 @@ def create_admin():
 
 def seed_modules():
     """Seed modules if not exist."""
-    if Module.objects.exists():
-        print(f'[INIT] Modules already exist: {Module.objects.count()} modules')
-        return
-    
     modules_data = [
-        {'code': 'new_estimate', 'name': 'New Estimate', 'description': 'Create new estimates', 'url_name': 'datas', 'icon': '📝', 'color': '#3B82F6', 'display_order': 1},
-        {'code': 'estimate', 'name': 'Estimate', 'description': 'Manage estimates', 'url_name': 'estimate', 'icon': '📊', 'color': '#6366F1', 'display_order': 2},
-        {'code': 'workslip', 'name': 'Workslip', 'description': 'Generate work slips', 'url_name': 'workslip', 'icon': '📋', 'color': '#10B981', 'display_order': 3},
-        {'code': 'bill', 'name': 'Bill', 'description': 'Create bills', 'url_name': 'bill', 'icon': '💰', 'color': '#F59E0B', 'display_order': 4},
-        {'code': 'self_formatted', 'name': 'Self Formatted', 'description': 'Custom documents', 'url_name': 'self_formatted_form_page', 'icon': '📄', 'color': '#8B5CF6', 'display_order': 5},
-        {'code': 'temp_works', 'name': 'Temporary Works', 'description': 'Temp project management', 'url_name': 'tempworks_home', 'icon': '🔧', 'color': '#EF4444', 'display_order': 6},
-        {'code': 'amc', 'name': 'AMC', 'description': 'Annual Maintenance Contract', 'url_name': 'amc_home', 'icon': '📅', 'color': '#8B5CF6', 'display_order': 7},
+        {'code': 'new_estimate', 'name': 'New Estimate', 'description': 'Create new estimates', 'url_name': 'datas', 'icon': 'file-earmark-plus', 'color': '#3B82F6', 'display_order': 1},
+        {'code': 'estimate', 'name': 'Estimate', 'description': 'Manage estimates', 'url_name': 'estimate', 'icon': 'file-earmark-bar-graph', 'color': '#6366F1', 'display_order': 2},
+        {'code': 'workslip', 'name': 'Workslip', 'description': 'Generate work slips', 'url_name': 'workslip', 'icon': 'clipboard-check', 'color': '#10B981', 'display_order': 3},
+        {'code': 'bill', 'name': 'Bill', 'description': 'Create bills', 'url_name': 'bill', 'icon': 'receipt', 'color': '#F59E0B', 'display_order': 4},
+        {'code': 'self_formatted', 'name': 'Self Formatted', 'description': 'Custom documents', 'url_name': 'self_formatted_form_page', 'icon': 'file-earmark-text', 'color': '#8B5CF6', 'display_order': 5},
+        {'code': 'temp_works', 'name': 'Temporary Works', 'description': 'Temp project management', 'url_name': 'tempworks_home', 'icon': 'tools', 'color': '#EF4444', 'display_order': 6},
+        {'code': 'amc', 'name': 'AMC', 'description': 'Annual Maintenance Contract', 'url_name': 'amc_home', 'icon': 'calendar-check', 'color': '#8B5CF6', 'display_order': 7},
     ]
     
     for data in modules_data:
@@ -87,7 +83,7 @@ def seed_modules():
                 defaults={'base_price': base, 'sale_price': sale}
             )
     
-    print(f'[INIT] Created {len(modules_data)} modules with pricing')
+    print(f'[INIT] Created/Updated {len(modules_data)} modules with pricing')
 
 
 if __name__ == '__main__':
