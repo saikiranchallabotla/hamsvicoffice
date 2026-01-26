@@ -1,0 +1,121 @@
+[
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 2,
+  "fields": {
+    "module": 5,
+    "category": "civil",
+    "name": "T.G Civ SOR 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/civil.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T15:50:41.724Z",
+    "updated_at": "2026-01-24T15:50:41.724Z"
+  }
+},
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 9,
+  "fields": {
+    "module": 5,
+    "category": "electrical",
+    "name": "A.P SOR EI 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/amc_electrical_2025-26.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-26T15:20:15.381Z",
+    "updated_at": "2026-01-26T15:20:15.381Z"
+  }
+},
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 3,
+  "fields": {
+    "module": 5,
+    "category": "electrical",
+    "name": "T.G EE SOR 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/SOR_2025-26_EI_DATAS.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T15:53:14.447Z",
+    "updated_at": "2026-01-26T15:19:40.217Z"
+  }
+},
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 5,
+  "fields": {
+    "module": 6,
+    "category": "civil",
+    "name": "T.G CIV SOR 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/temp_civil_URuRJDS.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T16:56:18.890Z",
+    "updated_at": "2026-01-24T16:56:18.890Z"
+  }
+},
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 4,
+  "fields": {
+    "module": 6,
+    "category": "electrical",
+    "name": "T.G EE SOR 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/temp_civil.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T16:55:10.647Z",
+    "updated_at": "2026-01-24T16:55:32.292Z"
+  }
+},
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 7,
+  "fields": {
+    "module": 7,
+    "category": "civil",
+    "name": "T.G AMC CIV SOR 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/amc_civil.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T16:57:09.750Z",
+    "updated_at": "2026-01-24T16:57:09.750Z"
+  }
+},
+{
+  "model": "subscriptions.modulebackend",
+  "pk": 6,
+  "fields": {
+    "module": 7,
+    "category": "electrical",
+    "name": "T.G EE AMC SOR 2025-26",
+    "code": "",
+    "description": "",
+    "file": "module_backends/amc_electrical_zZ4ebha.xlsx",
+    "display_order": 0,
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T16:56:42.504Z",
+    "updated_at": "2026-01-24T16:56:42.504Z"
+  }
+}
+]

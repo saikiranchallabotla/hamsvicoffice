@@ -86,8 +86,29 @@ def seed_modules():
     print(f'[INIT] Created/Updated {len(modules_data)} modules with pricing')
 
 
+def load_fixtures():
+    """Load Django fixtures if they exist."""
+    from django.core.management import call_command
+    import os
+    
+    fixtures_dir = os.path.join(os.path.dirname(__file__), 'fixtures')
+    
+    # Only load states fixture (module backends require Excel files which aren't in git)
+    fixture_files = ['states.json']
+    
+    for fixture_file in fixture_files:
+        fixture_path = os.path.join(fixtures_dir, fixture_file)
+        if os.path.exists(fixture_path):
+            try:
+                call_command('loaddata', fixture_path, verbosity=0)
+                print(f'[INIT] Loaded fixture: {fixture_file}')
+            except Exception as e:
+                print(f'[INIT] Warning: Could not load {fixture_file}: {e}')
+
+
 if __name__ == '__main__':
     print('[INIT] Running startup initialization...')
     create_admin()
     seed_modules()
+    load_fixtures()
     print('[INIT] Initialization complete!')

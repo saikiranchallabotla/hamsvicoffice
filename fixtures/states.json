@@ -1,0 +1,152 @@
+[
+{
+  "model": "datasets.state",
+  "pk": 1,
+  "fields": {
+    "code": "TS",
+    "name": "Telangana",
+    "full_name": "State of Telangana",
+    "display_order": 1,
+    "flag_icon": "🏛️",
+    "is_active": true,
+    "is_default": true,
+    "created_at": "2026-01-24T15:01:20.753Z",
+    "updated_at": "2026-01-24T15:01:20.753Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 2,
+  "fields": {
+    "code": "AP",
+    "name": "Andhra Pradesh",
+    "full_name": "State of Andhra Pradesh",
+    "display_order": 2,
+    "flag_icon": "🏛️",
+    "is_active": true,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.760Z",
+    "updated_at": "2026-01-24T15:01:20.760Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 3,
+  "fields": {
+    "code": "KA",
+    "name": "Karnataka",
+    "full_name": "State of Karnataka",
+    "display_order": 3,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.761Z",
+    "updated_at": "2026-01-24T15:01:20.761Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 4,
+  "fields": {
+    "code": "MH",
+    "name": "Maharashtra",
+    "full_name": "State of Maharashtra",
+    "display_order": 4,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.763Z",
+    "updated_at": "2026-01-24T15:01:20.763Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 5,
+  "fields": {
+    "code": "TN",
+    "name": "Tamil Nadu",
+    "full_name": "State of Tamil Nadu",
+    "display_order": 5,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.765Z",
+    "updated_at": "2026-01-24T15:01:20.765Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 6,
+  "fields": {
+    "code": "KL",
+    "name": "Kerala",
+    "full_name": "State of Kerala",
+    "display_order": 6,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.767Z",
+    "updated_at": "2026-01-24T15:01:20.767Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 7,
+  "fields": {
+    "code": "GJ",
+    "name": "Gujarat",
+    "full_name": "State of Gujarat",
+    "display_order": 7,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.769Z",
+    "updated_at": "2026-01-24T15:01:20.769Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 8,
+  "fields": {
+    "code": "RJ",
+    "name": "Rajasthan",
+    "full_name": "State of Rajasthan",
+    "display_order": 8,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.770Z",
+    "updated_at": "2026-01-24T15:01:20.770Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 9,
+  "fields": {
+    "code": "MP",
+    "name": "Madhya Pradesh",
+    "full_name": "State of Madhya Pradesh",
+    "display_order": 9,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.772Z",
+    "updated_at": "2026-01-24T15:01:20.772Z"
+  }
+},
+{
+  "model": "datasets.state",
+  "pk": 10,
+  "fields": {
+    "code": "UP",
+    "name": "Uttar Pradesh",
+    "full_name": "State of Uttar Pradesh",
+    "display_order": 10,
+    "flag_icon": "🏛️",
+    "is_active": false,
+    "is_default": false,
+    "created_at": "2026-01-24T15:01:20.774Z",
+    "updated_at": "2026-01-24T15:01:20.774Z"
+  }
+}
+]

@@ -1,0 +1,338 @@
+[
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 1,
+  "fields": {
+    "module": 5,
+    "duration_months": 1,
+    "base_price": "199.00",
+    "sale_price": "149.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.280Z",
+    "updated_at": "2026-01-03T12:13:42.280Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 2,
+  "fields": {
+    "module": 5,
+    "duration_months": 3,
+    "base_price": "499.00",
+    "sale_price": "399.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.325Z",
+    "updated_at": "2026-01-03T12:13:42.325Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 3,
+  "fields": {
+    "module": 5,
+    "duration_months": 12,
+    "base_price": "1499.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.348Z",
+    "updated_at": "2026-01-03T12:13:42.348Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 4,
+  "fields": {
+    "module": 6,
+    "duration_months": 1,
+    "base_price": "199.00",
+    "sale_price": "149.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.369Z",
+    "updated_at": "2026-01-03T12:13:42.369Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 5,
+  "fields": {
+    "module": 6,
+    "duration_months": 3,
+    "base_price": "499.00",
+    "sale_price": "399.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.390Z",
+    "updated_at": "2026-01-03T12:13:42.390Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 6,
+  "fields": {
+    "module": 6,
+    "duration_months": 12,
+    "base_price": "1499.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.409Z",
+    "updated_at": "2026-01-03T12:13:42.409Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 7,
+  "fields": {
+    "module": 1,
+    "duration_months": 1,
+    "base_price": "199.00",
+    "sale_price": "149.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.429Z",
+    "updated_at": "2026-01-03T12:13:42.429Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 8,
+  "fields": {
+    "module": 1,
+    "duration_months": 3,
+    "base_price": "499.00",
+    "sale_price": "399.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.450Z",
+    "updated_at": "2026-01-03T12:13:42.450Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 9,
+  "fields": {
+    "module": 1,
+    "duration_months": 12,
+    "base_price": "1499.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.471Z",
+    "updated_at": "2026-01-03T12:13:42.471Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 10,
+  "fields": {
+    "module": 2,
+    "duration_months": 1,
+    "base_price": "199.00",
+    "sale_price": "149.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.492Z",
+    "updated_at": "2026-01-03T12:13:42.492Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 11,
+  "fields": {
+    "module": 2,
+    "duration_months": 3,
+    "base_price": "499.00",
+    "sale_price": "399.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.511Z",
+    "updated_at": "2026-01-03T12:13:42.511Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 12,
+  "fields": {
+    "module": 2,
+    "duration_months": 12,
+    "base_price": "1499.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.531Z",
+    "updated_at": "2026-01-03T12:13:42.531Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 13,
+  "fields": {
+    "module": 3,
+    "duration_months": 1,
+    "base_price": "199.00",
+    "sale_price": "149.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.552Z",
+    "updated_at": "2026-01-03T12:13:42.552Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 14,
+  "fields": {
+    "module": 3,
+    "duration_months": 3,
+    "base_price": "499.00",
+    "sale_price": "399.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.573Z",
+    "updated_at": "2026-01-03T12:13:42.573Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 15,
+  "fields": {
+    "module": 3,
+    "duration_months": 12,
+    "base_price": "1499.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.595Z",
+    "updated_at": "2026-01-03T12:13:42.595Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 16,
+  "fields": {
+    "module": 4,
+    "duration_months": 1,
+    "base_price": "199.00",
+    "sale_price": "149.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.615Z",
+    "updated_at": "2026-01-03T12:13:42.615Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 17,
+  "fields": {
+    "module": 4,
+    "duration_months": 3,
+    "base_price": "499.00",
+    "sale_price": "399.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.636Z",
+    "updated_at": "2026-01-03T12:13:42.636Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 18,
+  "fields": {
+    "module": 4,
+    "duration_months": 12,
+    "base_price": "1499.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-03T12:13:42.656Z",
+    "updated_at": "2026-01-03T12:13:42.656Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 19,
+  "fields": {
+    "module": 7,
+    "duration_months": 1,
+    "base_price": "299.00",
+    "sale_price": "199.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-25T15:52:50.495Z",
+    "updated_at": "2026-01-25T15:52:50.495Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 20,
+  "fields": {
+    "module": 7,
+    "duration_months": 3,
+    "base_price": "999.00",
+    "sale_price": "499.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-25T15:52:50.511Z",
+    "updated_at": "2026-01-25T15:52:50.511Z"
+  }
+},
+{
+  "model": "subscriptions.modulepricing",
+  "pk": 21,
+  "fields": {
+    "module": 7,
+    "duration_months": 12,
+    "base_price": "3599.00",
+    "sale_price": "999.00",
+    "gst_percent": "18.00",
+    "usage_limit": 0,
+    "is_active": true,
+    "is_popular": false,
+    "created_at": "2026-01-25T15:52:50.528Z",
+    "updated_at": "2026-01-25T15:52:50.528Z"
+  }
+}
+]
