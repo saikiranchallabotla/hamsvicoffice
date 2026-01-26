@@ -1,0 +1,178 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}{{ category|title }} - Groups{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-folder2 me-2"></i>{{ category|title }} – Select Group
+{% endblock %}
+
+{% block content %}
+<style>
+    .groups-container {
+        max-width: 900px;
+    }
+    
+    .intro-card {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border-left: 4px solid #667eea;
+    }
+    
+    .intro-card h3 {
+        color: #667eea;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .intro-card p {
+        color: #4a5568;
+        margin: 0;
+    }
+    
+    .groups-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+    
+    .group-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem 1.5rem;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .group-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+        border-color: #667eea;
+    }
+    
+    .group-icon {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    
+    .group-info {
+        flex: 1;
+    }
+    
+    .group-name {
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .group-hint {
+        color: #a0aec0;
+        font-size: 0.8rem;
+    }
+    
+    .group-arrow {
+        color: #667eea;
+        font-size: 1.25rem;
+        opacity: 0;
+        transform: translateX(-10px);
+        transition: all 0.3s ease;
+    }
+    
+    .group-card:hover .group-arrow {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    
+    .stats-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%);
+        color: #11998e;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-top: 2rem;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        color: #e2e8f0;
+        margin-bottom: 1rem;
+    }
+    
+    .empty-state h3 {
+        color: #4a5568;
+        margin-bottom: 0.5rem;
+    }
+    
+    .empty-state p {
+        color: #a0aec0;
+    }
+</style>
+
+<div class="groups-container">
+    <div class="intro-card">
+        <h3>
+            <i class="bi bi-info-circle-fill"></i>
+            Select a Group
+        </h3>
+        <p>Choose a group below to view and select items for your estimate.</p>
+    </div>
+    
+    {% if groups %}
+        <div class="groups-grid">
+            {% for g in groups %}
+                <a href="{% url 'datas_items' category g %}" class="group-card">
+                    <div class="group-icon">
+                        <i class="bi bi-folder-fill"></i>
+                    </div>
+                    <div class="group-info">
+                        <div class="group-name">{{ g }}</div>
+                        <div class="group-hint">Click to view items</div>
+                    </div>
+                    <i class="bi bi-arrow-right group-arrow"></i>
+                </a>
+            {% endfor %}
+        </div>
+        
+        <div class="stats-badge">
+            <i class="bi bi-database-check"></i>
+            {{ count_items_detected }} items detected in Master Datas
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="bi bi-folder-x"></i>
+            <h3>No Groups Found</h3>
+            <p>No groups were detected in this category.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

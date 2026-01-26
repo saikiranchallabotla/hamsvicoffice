@@ -1,0 +1,41 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}Temporary Works - Hamsvic{% endblock %}
+{% block page_title %}Temporary Works{% endblock %}
+{% block page_badge %}<span class="badge" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">Temp</span>{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-modern">
+    <a href="{% url 'dashboard' %}">Dashboard</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">Temporary Works</span>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-lightbulb me-2"></i>
+        Select Category
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-4">Choose a category to prepare temporary lighting or hiring estimates.</p>
+        
+        <div class="action-grid" style="max-width: 500px;">
+            <a href="{% url 'temp_groups' 'temp_electrical' %}" class="action-card">
+                <div class="icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                    <i class="bi bi-lightning-charge"></i>
+                </div>
+                <h3>Temporary Electrical</h3>
+                <p>Temporary lighting & electrical works</p>
+            </a>
+            
+            <a href="{% url 'temp_groups' 'temp_civil' %}" class="action-card">
+                <div class="icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <i class="bi bi-cone-striped"></i>
+                </div>
+                <h3>Temporary Civil</h3>
+                <p>Temporary structures & civil works</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

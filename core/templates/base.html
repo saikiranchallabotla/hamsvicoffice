@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Hamsvic{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        }
+        .app-toast {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+            background: white;
+            border-left: 4px solid #6366f1;
+        }
+        .app-toast.success { border-left-color: #22c55e; }
+        .app-toast.error { border-left-color: #ef4444; }
+        .app-toast.warning { border-left-color: #f59e0b; }
+        .app-toast.info { border-left-color: #3b82f6; }
+        .app-toast .toast-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .app-toast.success .toast-icon { background: #dcfce7; color: #22c55e; }
+        .app-toast.error .toast-icon { background: #fee2e2; color: #ef4444; }
+        .app-toast.warning .toast-icon { background: #fef3c7; color: #f59e0b; }
+        .app-toast.info .toast-icon { background: #dbeafe; color: #3b82f6; }
+        .app-toast .toast-content { flex: 1; }
+        .app-toast .toast-title { font-weight: 600; color: #1e293b; margin-bottom: 2px; }
+        .app-toast .toast-message { color: #64748b; font-size: 0.9rem; }
+        .app-toast .toast-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 12px;
+        }
+        .app-toast .toast-close:hover { color: #64748b; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+        <div class="container-fluid">
+            <a href="{% url 'dashboard' %}" class="btn btn-primary me-3" style="border-radius: 10px;">
+                <i class="bi bi-arrow-left me-1"></i> Dashboard
+            </a>
+            <a class="navbar-brand" href="/dashboard/">Hamsvic</a>
+        </div>
+    </nav>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Global Toast Function -->
+    <script>
+    function showToast(message, type = 'info', title = null, duration = 5000) {
+        const container = document.getElementById('toastContainer') || createToastContainer();
+        
+        const icons = {
+            success: 'bi-check-lg',
+            error: 'bi-x-lg',
+            warning: 'bi-exclamation-lg',
+            info: 'bi-info-lg'
+        };
+        
+        const titles = {
+            success: 'Success',
+            error: 'Error',
+            warning: 'Warning',
+            info: 'Info'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = `app-toast ${type}`;
+        toast.innerHTML = `
+            <div class="toast-icon"><i class="bi ${icons[type] || icons.info}"></i></div>
+            <div class="toast-content">
+                <div class="toast-title">${title || titles[type] || 'Notification'}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.remove()"><i class="bi bi-x"></i></button>
+        `;
+        
+        container.appendChild(toast);
+        
+        // Auto remove after duration
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, duration);
+        
+        return toast;
+    }
+    
+    function createToastContainer() {
+        const container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+        return container;
+    }
+    
+    // Override native alert to use toast
+    window.nativeAlert = window.alert;
+    window.alert = function(message) {
+        showToast(message, 'warning', 'Alert');
+    };
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

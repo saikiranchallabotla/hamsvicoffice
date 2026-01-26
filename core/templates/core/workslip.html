@@ -1,0 +1,1811 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Workslip{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-clipboard-data me-2"></i>Workslip
+{% endblock %}
+
+{% block content %}
+
+<style>
+    /* 3-Panel Layout */
+    .layout-3panel {
+        display: grid;
+        grid-template-columns: 160px 200px 1fr;
+        gap: 0.5rem;
+        height: calc(100vh - 120px);
+    }
+    
+    /* Panel Cards */
+    .panel-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .panel-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.4rem 0.7rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .panel-header i {
+        font-size: 0.8rem;
+    }
+    
+    .panel-header.items-header {
+        background: #38a169;
+    }
+    
+    .panel-header.workslip-header {
+        background: #2d3748;
+    }
+    
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.4rem;
+    }
+    
+    /* Custom Scrollbar */
+    .panel-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .panel-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .panel-body::-webkit-scrollbar-thumb {
+        background: #805ad5;
+        border-radius: 3px;
+    }
+    
+    /* Groups List */
+    .groups-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .groups-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .group-link {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #4a5568;
+        font-weight: 500;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .group-link:hover {
+        background: #edf2f7;
+        border-color: #805ad5;
+        color: #805ad5;
+        transform: translateX(2px);
+    }
+    
+    .group-link.active {
+        background: #2d3748;
+        color: white;
+        box-shadow: 0 1px 4px rgba(45, 55, 72, 0.3);
+    }
+    
+    /* Items List */
+    .items-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .items-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .item-label {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .item-label:hover {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-checkbox {
+        width: 12px;
+        height: 12px;
+        accent-color: #319795;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    
+    .item-name {
+        color: #4a5568;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        line-height: 1.2;
+    }
+    
+    /* Upload Section */
+    .upload-section {
+        background: #f7fafc;
+        border-radius: 5px;
+        padding: 0.3rem 0.5rem;
+        margin-bottom: 0.3rem;
+        border: 1px dashed #805ad5;
+    }
+    
+    .upload-section label {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 0.2rem;
+        font-size: 0.68rem;
+    }
+    
+    .upload-section input[type="file"] {
+        width: 100%;
+        padding: 0.2rem;
+        border: none;
+        background: white;
+        border-radius: 4px;
+        margin-bottom: 0.25rem;
+        font-size: 0.68rem;
+    }
+    
+    /* TP Controls */
+    .tp-controls {
+        display: flex;
+        gap: 0.5rem;
+        background: #f7fafc;
+        padding: 0.3rem 0.5rem;
+        border-radius: 5px;
+        margin-bottom: 0.3rem;
+        align-items: center;
+        flex-wrap: wrap;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .tp-controls label {
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.68rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .tp-input {
+        width: 50px;
+        padding: 0.2rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.68rem;
+    }
+    
+    .tp-select {
+        padding: 0.2rem 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-weight: 600;
+        background: white;
+        font-size: 0.68rem;
+    }
+    
+    .tp-input:focus, .tp-select:focus {
+        outline: none;
+        border-color: #805ad5;
+    }
+    
+    /* Workslip Table */
+    .ws-table-wrapper {
+        border-radius: 6px;
+        overflow: auto;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        margin-bottom: 0.3rem;
+        max-height: calc(100vh - 280px);
+        min-height: 300px;
+        height: 70vh;
+    }
+    
+    .ws-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.7rem;
+    }
+    
+    .ws-table th {
+        background: #2d3748;
+        color: white;
+        padding: 0.2rem 0.15rem;
+        font-weight: 600;
+        text-align: center;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        font-size: 0.68rem;
+    }
+    
+    .ws-table td {
+        padding: 0.12rem 0.1rem;
+        text-align: center;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        line-height: 1.2;
+    }
+    
+    .ws-table tbody tr {
+        transition: all 0.15s ease;
+    }
+    
+    .ws-table tbody tr:hover {
+        background: #faf5ff;
+    }
+    
+    .ws-table td.desc-col {
+        text-align: center;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .supp-heading-row {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.15) 100%) !important;
+    }
+    
+    .supp-heading-row td {
+        font-weight: 700;
+        color: #f57c00;
+        text-align: left !important;
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.7rem;
+    }
+    
+    .qty-input {
+        width: 100%;
+        min-width: 80px;
+        padding: 0.3rem 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 3px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 0.75rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+    }
+    
+    .qty-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+    
+    .amount-cell {
+        font-weight: 600;
+        color: #319795;
+    }
+    
+    /* Total Row */
+    .ws-total-row {
+        background: #faf5ff;
+        padding: 0.6rem 0.9rem;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.6rem;
+        border: 1px solid #e9d8fd;
+    }
+    
+    .total-label {
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.85rem;
+    }
+    
+    .total-amount {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #805ad5;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.68rem;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-action i {
+        font-size: 0.7rem;
+    }
+    
+    .btn-download {
+        background: #d53f8c;
+        color: white;
+        box-shadow: 0 2px 8px rgba(213, 63, 140, 0.25);
+    }
+    
+    .btn-download:hover {
+        background: #b83280;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(213, 63, 140, 0.35);
+    }
+    
+    .btn-upload {
+        background: #805ad5;
+        color: white;
+        box-shadow: 0 2px 8px rgba(128, 90, 213, 0.25);
+    }
+    
+    .btn-upload:hover {
+        background: #6b46c1;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(128, 90, 213, 0.35);
+    }
+    
+    .btn-add-supp {
+        background: #319795;
+        color: white;
+        box-shadow: 0 2px 8px rgba(49, 151, 149, 0.25);
+    }
+    
+    .btn-add-supp:hover {
+        background: #2c7a7b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(49, 151, 149, 0.35);
+    }
+    
+    .btn-clear {
+        background: #718096;
+        color: white;
+        box-shadow: 0 2px 8px rgba(113, 128, 150, 0.25);
+    }
+    
+    .btn-clear:hover {
+        background: #4a5568;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(113, 128, 150, 0.35);
+    }
+    
+    /* Error Message */
+    .error-msg {
+        background: #fff5f5;
+        color: #c53030;
+        padding: 0.6rem;
+        border-radius: 8px;
+        border: 1px solid #feb2b2;
+        margin-bottom: 0.6rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    
+    /* Info Notice */
+    .notice-disabled {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.15) 100%);
+        color: #f57c00;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #a0aec0;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .layout-3panel {
+            grid-template-columns: 200px 250px 1fr;
+        }
+    }
+    
+    @media (max-width: 992px) {
+        .layout-3panel {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        
+        .panel-card {
+            max-height: 400px;
+        }
+    }
+    
+    /* Loading indicator for checkbox */
+    .item-checkbox.loading {
+        pointer-events: none;
+        opacity: 0.5;
+    }
+    
+    .item-label.processing {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-label.processing::after {
+        content: "...";
+        margin-left: 4px;
+        color: #319795;
+        animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Supplemental heading row */
+    .supp-heading-row td {
+        background: #fef3c7 !important;
+        font-weight: 600;
+        color: #92400e;
+    }
+</style>
+
+{% if error %}
+    <div class="error-msg">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        {{ error }}
+    </div>
+{% endif %}
+
+<!-- Work Type, Work Mode & Category Info Bar -->
+<div class="worktype-info-bar mb-2">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="worktype-badge">
+            <i class="bi bi-briefcase me-1"></i>
+            <strong>{{ work_type_display }}</strong>
+        </div>
+        <div class="workmode-badge">
+            <i class="bi bi-{% if work_mode == 'repair' %}bandaid{% else %}plus-circle{% endif %} me-1"></i>
+            {{ work_mode_display }}
+        </div>
+        <div class="category-badge">
+            <i class="bi bi-{% if 'electrical' in category %}lightning-charge{% else %}building{% endif %} me-1"></i>
+            {{ category_display }}
+        </div>
+        <a href="{% url 'workslip' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Change Selection
+        </a>
+    </div>
+</div>
+<style>
+.worktype-info-bar {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+}
+.worktype-badge {
+    background: #166534;
+    color: white;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+}
+.workmode-badge {
+    background: #7c3aed;
+    color: white;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+}
+.category-badge {
+    background: #1e40af;
+    color: white;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+}
+</style>
+
+<!-- SOR Backend Selection Bar -->
+{% if available_backends %}
+<div class="backend-selection-bar mb-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="backend-label">
+            <i class="bi bi-database me-1"></i>
+            <strong>SOR Rates:</strong>
+        </div>
+        <select id="backend-selector" class="form-select form-select-sm" style="max-width: 280px;" onchange="switchBackend(this.value)">
+            {% for backend in available_backends %}
+            <option value="{{ backend.id }}" {% if backend.id == selected_backend_id %}selected{% endif %}>
+                {{ backend.name }}{% if backend.is_default %} (Default){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Changing SOR will reload groups and items
+        </span>
+    </div>
+</div>
+<style>
+.backend-selection-bar {
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    border: 1px solid #c3d9fe;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+}
+.backend-selection-bar .form-select {
+    border-color: #3b82f6;
+    font-weight: 500;
+}
+.backend-selection-bar .form-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+.backend-label {
+    color: #1e40af;
+    font-size: 0.85rem;
+}
+</style>
+{% endif %}
+
+<div class="layout-3panel">
+
+    <!-- LEFT: GROUPS (for supplemental items) -->
+    <div class="panel-card">
+        <div class="panel-header">
+            <i class="bi bi-folder2-open"></i>
+            Groups (Supplemental)
+        </div>
+        <div class="panel-body">
+            {% if groups %}
+                <ul class="groups-list">
+                    {% for g in groups %}
+                        <li>
+                            <a href="{% url 'workslip_main' %}?group={{ g|urlencode }}&preserve=1" 
+                               class="group-link {% if g == current_group %}active{% endif %}">
+                                <i class="bi bi-folder{% if g == current_group %}-fill{% endif %} me-2"></i>
+                                {{ g }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-folder-x"></i>
+                    <p>No groups found.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- MIDDLE: ITEMS (for supplemental items) -->
+    <div class="panel-card">
+        <div class="panel-header items-header">
+            <i class="bi bi-plus-square"></i>
+            Items in {{ current_group }}
+        </div>
+        <div class="panel-body">
+            {% if items_in_group %}
+                <form id="supp-form" method="post" action="{% url 'workslip_main' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_supplemental">
+                    <input type="hidden" name="exec_map" id="supp-exec-map-field">
+                    <input type="hidden" name="tp_percent" id="supp-tp-percent-field">
+                    <input type="hidden" name="tp_type" id="supp-tp-type-field">
+
+                    <ul class="items-list" id="supp-items-list">
+                        {% for name in items_in_group %}
+                            <li>
+                                <label class="item-label">
+                                    <input type="checkbox"
+                                           class="item-checkbox supp-item-checkbox"
+                                           name="supp_items"
+                                           value="{{ name }}"
+                                           data-item-name="{{ name }}"
+                                           {% if name in supp_items_selected %}checked{% endif %}
+                                           {% if not ws_estimate_rows %}disabled{% endif %}>
+                                    <span class="item-name">{{ name }}</span>
+                                </label>
+                            </li>
+                        {% endfor %}
+                    </ul>
+
+                    <button type="submit"
+                            class="btn-action btn-add-supp"
+                            id="btn-add-supp"
+                            style="margin-top: 1rem; width: 100%;"
+                            {% if not ws_estimate_rows %}disabled{% endif %}>
+                        <i class="bi bi-plus-lg"></i>
+                        Add Supplemental Items
+                    </button>
+                </form>
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No items found in this group.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RIGHT: WORKSLIP PREVIEW -->
+    <div class="panel-card">
+        <div class="panel-header workslip-header">
+            <span><i class="bi bi-clipboard-check"></i> Workslip Preview</span>
+            <!-- Removed duplicate Clear All button -->
+        </div>
+        <div class="panel-body">
+            <!-- Unified Upload Form with Target Workslip Selection -->
+            <form method="post" action="{% url 'workslip_main' %}" enctype="multipart/form-data" id="upload-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="upload_combined">
+                <input type="hidden" name="target_workslip" id="target-workslip-hidden" value="{{ target_workslip|default:1 }}">
+                <div class="upload-section" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-color: #22c55e; padding: 0.75rem;">
+                    <!-- Target Workslip Selection -->
+                    <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 1px solid #3b82f6; border-radius: 6px;">
+                        <label style="color: #1e40af; font-weight: 600; font-size: 0.75rem; display: block; margin-bottom: 0.4rem;">
+                            <i class="bi bi-target me-1"></i>
+                            Which Workslip do you want to generate?
+                        </label>
+                        <select id="target-workslip-select" class="tp-select" style="width: 100%; padding: 0.4rem; font-size: 0.75rem; font-weight: 600; background: white; border: 2px solid #3b82f6; border-radius: 4px; color: #1e40af;">
+                            <option value="1" {% if target_workslip == 1 or not target_workslip %}selected{% endif %}>Workslip-1 (First Workslip)</option>
+                            <option value="2" {% if target_workslip == 2 %}selected{% endif %}>Workslip-2</option>
+                            <option value="3" {% if target_workslip == 3 %}selected{% endif %}>Workslip-3</option>
+                            <option value="4" {% if target_workslip == 4 %}selected{% endif %}>Workslip-4</option>
+                            <option value="5" {% if target_workslip == 5 %}selected{% endif %}>Workslip-5</option>
+                            <option value="6" {% if target_workslip == 6 %}selected{% endif %}>Workslip-6</option>
+                            <option value="7" {% if target_workslip == 7 %}selected{% endif %}>Workslip-7</option>
+                            <option value="8" {% if target_workslip == 8 %}selected{% endif %}>Workslip-8</option>
+                            <option value="9" {% if target_workslip == 9 %}selected{% endif %}>Workslip-9</option>
+                            <option value="10" {% if target_workslip == 10 %}selected{% endif %}>Workslip-10</option>
+                        </select>
+                    </div>
+                    
+                    <label style="color: #166534; font-weight: 600; font-size: 0.75rem;">
+                        <i class="bi bi-cloud-upload me-1"></i>
+                        Upload Required Files
+                    </label>
+                    
+                    <!-- Dynamic Upload Fields Container -->
+                    <div id="upload-fields-container" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                        <!-- Estimate (required for Workslip-1, optional for Workslip-2+) -->
+                        <div id="estimate-upload-row" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span id="estimate-label" style="font-size: 0.7rem; color: #166534; width: 95px; font-weight: 500;">
+                                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Estimate:
+                            </span>
+                            <input type="file" name="estimate_file" id="estimate-file-input" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;" required>
+                        </div>
+                        
+                        <!-- Workslip-1 (shown for Workslip-2 and above) -->
+                        <div id="workslip-1-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #f59e0b; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-1:
+                            </span>
+                            <input type="file" name="workslip_file_1" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-2 (shown for Workslip-3 and above) -->
+                        <div id="workslip-2-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #f97316; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-2:
+                            </span>
+                            <input type="file" name="workslip_file_2" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-3 (shown for Workslip-4 and above) -->
+                        <div id="workslip-3-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #ef4444; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-3:
+                            </span>
+                            <input type="file" name="workslip_file_3" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-4 (shown for Workslip-5 and above) -->
+                        <div id="workslip-4-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #8b5cf6; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-4:
+                            </span>
+                            <input type="file" name="workslip_file_4" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-5 (shown for Workslip-6 and above) -->
+                        <div id="workslip-5-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #06b6d4; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-5:
+                            </span>
+                            <input type="file" name="workslip_file_5" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-6 (shown for Workslip-7 and above) -->
+                        <div id="workslip-6-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #10b981; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-6:
+                            </span>
+                            <input type="file" name="workslip_file_6" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-7 (shown for Workslip-8 and above) -->
+                        <div id="workslip-7-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #ec4899; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-7:
+                            </span>
+                            <input type="file" name="workslip_file_7" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-8 (shown for Workslip-9 and above) -->
+                        <div id="workslip-8-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #6366f1; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-8:
+                            </span>
+                            <input type="file" name="workslip_file_8" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                        
+                        <!-- Workslip-9 (shown for Workslip-10) -->
+                        <div id="workslip-9-upload-row" style="display: none; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 0.7rem; color: #84cc16; width: 95px; font-weight: 500;">
+                                <i class="bi bi-layers me-1"></i>Workslip-9:
+                            </span>
+                            <input type="file" name="workslip_file_9" accept=".xlsx,.xlsm,.xls" style="flex: 1; font-size: 0.7rem;">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-action" style="width: 100%; margin-top: 0.6rem; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
+                        <i class="bi bi-upload"></i>
+                        <span id="load-files-btn-text">Load Files</span>
+                    </button>
+                    
+                    <!-- Dynamic Help Text -->
+                    <div id="upload-help-text" style="margin-top: 0.4rem; padding: 0.4rem; background: #fefce8; border: 1px solid #fde047; border-radius: 4px;">
+                        <small style="display: block; color: #854d0e; font-size: 0.6rem; text-align: center;">
+                            <i class="bi bi-lightbulb me-1"></i>
+                            <strong>For Workslip-1:</strong> Upload only the Estimate file.
+                        </small>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Current Phase Indicator -->
+            {% if current_phase > 1 %}
+            <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 1px solid #3b82f6; border-radius: 6px; padding: 0.5rem; margin: 0.5rem 0; text-align: center;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: #1e40af;">
+                    <i class="bi bi-layers-fill me-1"></i>
+                    Currently Working on Workslip-{{ current_phase }}
+                    {% if total_phases > 0 %}
+                    <br><small style="font-weight: 400; color: #3b82f6;">({{ total_phases }} previous workslip{{ total_phases|pluralize }} loaded)</small>
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+
+            <!-- Work Details Section - Only for Workslip-1 -->
+            <div style="margin-bottom: 0.5rem; {% if target_workslip and target_workslip != 1 %}display: none;{% endif %}" id="work-details-editable">
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="collapse" data-bs-target="#workDetailsCollapse" aria-expanded="{% if not ws_metadata.agency_name %}true{% else %}false{% endif %}" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Work Details (Agency, Sanctions, Agreement)
+                    <i class="bi bi-chevron-down ms-1"></i>
+                </button>
+                <div class="collapse {% if not ws_metadata.agency_name %}show{% endif %}" id="workDetailsCollapse">
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-top: 0; border-radius: 0 0 6px 6px; padding: 0.5rem; font-size: 0.7rem;">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label style="font-weight: 500;">Estimate Amount:</label>
+                                <input type="text" id="ws-estimate-amount-input" class="form-control form-control-sm" 
+                                       value="{{ ws_metadata.estimate_amount|default:'' }}" 
+                                       placeholder="e.g., Rs. 10,00,000/-"
+                                       style="font-size: 0.7rem;">
+                            </div>
+                            <div class="col-md-6">
+                                <label style="font-weight: 500;">Name of the Agency:</label>
+                                <input type="text" id="ws-agency-name-input" class="form-control form-control-sm" 
+                                       value="{{ ws_metadata.agency_name|default:'' }}" 
+                                       placeholder="Enter agency name"
+                                       style="font-size: 0.7rem;">
+                            </div>
+                            <div class="col-md-6">
+                                <label style="font-weight: 500;">Ref. to Administrative Sanction:</label>
+                                <input type="text" id="ws-admin-sanction-input" class="form-control form-control-sm" 
+                                       value="{{ ws_metadata.admin_sanction|default:'' }}" 
+                                       placeholder="e.g., Lr.No.XXX dt.XX-XX-XXXX"
+                                       style="font-size: 0.7rem;">
+                            </div>
+                            <div class="col-md-6">
+                                <label style="font-weight: 500;">Ref. to Technical Sanction:</label>
+                                <input type="text" id="ws-tech-sanction-input" class="form-control form-control-sm" 
+                                       value="{{ ws_metadata.tech_sanction|default:'' }}" 
+                                       placeholder="e.g., Lr.No.XXX dt.XX-XX-XXXX"
+                                       style="font-size: 0.7rem;">
+                            </div>
+                            <div class="col-12">
+                                <label style="font-weight: 500;">Ref. to Agreement:</label>
+                                <input type="text" id="ws-agreement-input" class="form-control form-control-sm" 
+                                       value="{{ ws_metadata.agreement|default:'' }}" 
+                                       placeholder="e.g., Agreement No.XXX dt.XX-XX-XXXX"
+                                       style="font-size: 0.7rem;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Workslip form -->
+            <form id="ws-form" method="post" action="{% url 'workslip_main' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="download_workslip">
+                <input type="hidden" name="exec_map" id="ws-exec-map-field">
+                <input type="hidden" name="tp_percent" id="ws-tp-percent-field">
+                <input type="hidden" name="tp_type" id="ws-tp-type-field">
+                <input type="hidden" name="deduct_old_material" id="ws-deduct-old-material-field">
+                <!-- Metadata hidden fields (only used for Workslip-1) -->
+                <input type="hidden" name="ws_estimate_amount" id="ws-estimate-amount-field">
+                <input type="hidden" name="ws_agency_name" id="ws-agency-name-field">
+                <input type="hidden" name="ws_admin_sanction" id="ws-admin-sanction-field">
+                <input type="hidden" name="ws_tech_sanction" id="ws-tech-sanction-field">
+                <input type="hidden" name="ws_agreement" id="ws-agreement-field">
+
+                <!-- Tender Premium controls -->
+                <div class="tp-controls">
+                    <label>
+                        <i class="bi bi-percent"></i>
+                        T.P %:
+                        <input type="number" step="0.01" id="tp-percent-input" class="tp-input" value="{{ tp_percent }}">
+                    </label>
+                    <label>
+                        Type:
+                        <select id="tp-type-select" class="tp-select">
+                            <option value="Excess" {% if tp_type == "Excess" %}selected{% endif %}>Excess</option>
+                            <option value="Less" {% if tp_type == "Less" %}selected{% endif %}>Less</option>
+                        </select>
+                    </label>
+                    <div style="flex:1 1 auto;"></div>
+                    <button type="button" id="btn-clear-all" class="btn-action btn-clear" style="margin: 0; float: right;">
+                        <i class="bi bi-x-circle"></i>
+                        Clear All
+                    </button>
+                </div>
+
+                <div class="ws-table-wrapper">
+                    <table class="ws-table" id="ws-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">Sl.</th>
+                                <th>Item Description</th>
+                                <th style="width: 50px;">Unit</th>
+                                <th style="width: 100px;">Est. Qty</th>
+                                {% for phase_num in previous_phases %}
+                                <th style="width: 90px; background: #fef3c7; color: #92400e;">Workslip-{{ forloop.counter }} Qty</th>
+                                <th style="width: 100px; background: #fef3c7; color: #92400e;">Workslip-{{ forloop.counter }} Amt</th>
+                                {% endfor %}
+                                <th style="width: 110px; background: {% if current_phase > 1 %}#dbeafe{% else %}inherit{% endif %}; color: {% if current_phase > 1 %}#1e40af{% else %}inherit{% endif %}; font-weight: 600;">
+                                    {% if current_phase > 1 %}Workslip-{{ current_phase }} Qty{% else %}Exec. Qty{% endif %}
+                                </th>
+                                <th style="width: 80px;">Rate</th>
+                                <th style="width: 120px; background: {% if current_phase > 1 %}#dbeafe{% else %}inherit{% endif %}; color: {% if current_phase > 1 %}#1e40af{% else %}inherit{% endif %}; font-weight: 600;">
+                                    {% if current_phase > 1 %}Workslip-{{ current_phase }} Amt{% else %}Amount{% endif %}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if preview_rows %}
+                                {% for row in preview_rows %}
+                                    {% if row.row_type == "heading" %}
+                                        <tr class="supp-heading-row" {% if "Previous" in row.label %}style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);"{% elif "Supplemental Items-" in row.label %}style="background: #fffbeb;"{% endif %}>
+                                            <td colspan="{% if previous_phases %}{{ previous_phases|length|add:previous_phases|length|add:7 }}{% else %}7{% endif %}" {% if "Previous" in row.label or "Supplemental Items-" in row.label %}style="color: #92400e; font-weight: 600;"{% endif %}>
+                                                {% if "Previous" in row.label %}
+                                                <i class="bi bi-layers-fill me-2"></i>
+                                                {% elif "Supplemental Items-" in row.label %}
+                                                <i class="bi bi-bookmark-star me-2"></i>
+                                                {% else %}
+                                                <i class="bi bi-bookmark-star-fill me-2"></i>
+                                                {% endif %}
+                                                {{ row.label }}
+                                            </td>
+                                        </tr>
+                                    {% elif row.row_type == "prev_supp" %}
+                                        <tr style="background: #fefce8;" 
+                                            data-row-type="prev_supp" 
+                                            data-row-key="{{ row.key }}"
+                                            data-supp-section="{{ row.supp_section }}"
+                                            data-rate="{{ row.rate|default:0 }}">
+                                            <td style="color: #92400e;">{{ row.sl }}</td>
+                                            <td class="desc-col" title="{{ row.desc }}" style="color: #92400e; text-align: left;">{{ row.name }}</td>
+                                            <td style="color: #92400e;">{{ row.unit|default:"-" }}</td>
+                                            <td style="color: #92400e;">-</td>
+                                            {% for phase_exec in row.previous_phases_exec %}
+                                            <td style="background: #fef3c7; color: #92400e; font-weight: 500;">{{ phase_exec.qty|floatformat:2 }}</td>
+                                            <td style="background: #fef3c7; color: #92400e; font-weight: 500;">
+                                                {% if row.rate %}₹{{ phase_exec.amount|floatformat:2 }}{% else %}-{% endif %}
+                                            </td>
+                                            {% endfor %}
+                                            <td>
+                                                <input type="number"
+                                                       min="0"
+                                                       step="0.01"
+                                                       class="qty-input qty-exec-input"
+                                                       style="background: #fefce8;"
+                                                       value="{% if row.qty_exec %}{{ row.qty_exec }}{% endif %}">
+                                            </td>
+                                            <td class="rate-cell" style="color: #92400e;">{% if row.rate %}₹{{ row.rate|floatformat:2 }}{% else %}-{% endif %}</td>
+                                            <td class="amount-cell" style="color: #92400e;"></td>
+                                        </tr>
+                                    {% else %}
+                                        <tr data-row-type="{{ row.row_type }}"
+                                            data-row-key="{% if row.row_type == 'supp' %}supp:{{ row.name }}{% else %}{{ row.key }}{% endif %}">
+                                            <td>{{ row.sl }}</td>
+                                            <td class="desc-col" title="{{ row.desc }}">{{ row.desc }}</td>
+                                            <td>{{ row.unit }}</td>
+                                            <td>{{ row.qty_est }}</td>
+                                            {% for phase_exec in row.previous_phases_exec %}
+                                            <td style="background: #fffbeb; color: #92400e; font-weight: 500;">
+                                                {{ phase_exec.qty|floatformat:2 }}
+                                            </td>
+                                            <td style="background: #fffbeb; color: #92400e; font-weight: 500;">
+                                                ₹{{ phase_exec.amount|floatformat:2 }}
+                                            </td>
+                                            {% endfor %}
+                                            <td>
+                                                <input type="number"
+                                                       min="0"
+                                                       step="0.01"
+                                                       class="qty-input qty-exec-input"
+                                                       value="{% if row.qty_exec %}{{ row.qty_exec|floatformat:"0" }}{% endif %}">
+                                            </td>
+                                            <td>₹{{ row.rate|floatformat:2 }}</td>
+                                            <td class="amount-cell"></td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="{% if previous_phases %}{{ previous_phases|length|add:previous_phases|length|add:7 }}{% else %}7{% endif %}">
+                                        <div class="empty-state">
+                                            <i class="bi bi-cloud-upload"></i>
+                                            <p>Upload an Estimate to see items here.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+
+                    <!-- Move total and download button just below last item row -->
+                </tbody>
+            </table>
+            <div class="ws-total-row" style="margin-bottom: 0.5rem;">
+                <span class="total-label" style="font-size: 0.75rem; font-weight: 600; color: #4a5568;">
+                    <i class="bi bi-currency-rupee me-1"></i>
+                    Total Executed Amount
+                </span>
+                <span class="total-amount" style="font-size: 0.75rem; font-weight: 600; color: #00b386; float: right;">₹<span id="ws-total">0.00</span></span>
+            </div>
+            
+            <!-- Deduct Old Material Cost (optional) -->
+            <div class="ws-total-row" style="margin-bottom: 0.5rem; background: #fff5f5; border: 1px solid #fc8181; border-radius: 6px; padding: 0.5rem;">
+                <label for="ws-deduct-input" class="total-label" style="font-size: 0.75rem; font-weight: 600; color: #c53030;">
+                    <i class="bi bi-dash-circle me-1"></i>
+                    Deduct Old Material Cost
+                </label>
+                <div style="display: flex; align-items: center; gap: 0.25rem; float: right;">
+                    <span style="font-weight: 600; color: #e53e3e;">₹</span>
+                    <input type="number" 
+                           id="ws-deduct-input"
+                           class="tp-input"
+                           style="width: 90px; font-weight: 700; color: #e53e3e; border-color: #fc8181;"
+                           step="0.01"
+                           min="0"
+                           placeholder="0.00"
+                           value="{{ deduct_old_material|default_if_none:'' }}"
+                           oninput="updateDeductField()">
+                </div>
+            </div>
+            
+            <div class="action-buttons" style="margin-top: 0.5rem;">
+                <button type="submit" class="btn-action btn-download" style="font-size: 0.75rem; padding: 0.4rem 0.9rem;">
+                    <i class="bi bi-download"></i>
+                    Download Workslip
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Hidden Clear All form (outside ws-form to avoid nesting) -->
+    <form id="clear-all-form" method="post" action="{% url 'workslip_main' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="clear_all">
+    </form>
+
+            <!-- Clear All button -->
+            <!-- Clear All button moved to header -->
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- Target Workslip Selection - Dynamic Upload Fields ---
+    function updateUploadFields() {
+        var targetSelect = document.getElementById('target-workslip-select');
+        var targetHidden = document.getElementById('target-workslip-hidden');
+        var helpText = document.getElementById('upload-help-text');
+        var loadBtnText = document.getElementById('load-files-btn-text');
+        
+        if (!targetSelect) return;
+        
+        var targetWorkslip = parseInt(targetSelect.value) || 1;
+        
+        // Update hidden field
+        if (targetHidden) {
+            targetHidden.value = targetWorkslip;
+        }
+        
+        // Show/hide upload rows based on target
+        for (var i = 1; i <= 9; i++) {
+            var row = document.getElementById('workslip-' + i + '-upload-row');
+            if (row) {
+                // Show this row if target > i (e.g., show Workslip-1 row if target >= 2)
+                if (targetWorkslip > i) {
+                    row.style.display = 'flex';
+                    // Only the most recent previous workslip is required
+                    // e.g., for Workslip-3, only Workslip-2 is required
+                    var input = row.querySelector('input[type="file"]');
+                    if (input) {
+                        // Required only if this is the immediately previous workslip
+                        input.required = (i === targetWorkslip - 1);
+                    }
+                } else {
+                    row.style.display = 'none';
+                    var input = row.querySelector('input[type="file"]');
+                    if (input) {
+                        input.required = false;
+                        input.value = '';  // Clear the file input
+                    }
+                }
+            }
+        }
+        
+        // Update help text based on target
+        if (helpText) {
+            var helpMessages = {
+                1: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-1:</strong> Upload only the Estimate file.',
+                2: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-2:</strong> Upload Workslip-1 (Estimate optional).',
+                3: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-3:</strong> Upload at least Workslip-2 (Estimate optional).',
+                4: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-4:</strong> Upload at least Workslip-3 (Estimate optional).',
+                5: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-5:</strong> Upload at least Workslip-4 (Estimate optional).',
+                6: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-6:</strong> Upload at least Workslip-5 (Estimate optional).',
+                7: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-7:</strong> Upload at least Workslip-6 (Estimate optional).',
+                8: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-8:</strong> Upload at least Workslip-7 (Estimate optional).',
+                9: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-9:</strong> Upload at least Workslip-8 (Estimate optional).',
+                10: '<i class="bi bi-lightbulb me-1"></i><strong>For Workslip-10:</strong> Upload at least Workslip-9 (Estimate optional).'
+            };
+            helpText.innerHTML = '<small style="display: block; color: #854d0e; font-size: 0.6rem; text-align: center;">' + 
+                (helpMessages[targetWorkslip] || helpMessages[1]) + '</small>';
+        }
+        
+        // Update load button text
+        if (loadBtnText) {
+            if (targetWorkslip === 1) {
+                loadBtnText.textContent = 'Load Estimate';
+            } else {
+                loadBtnText.textContent = 'Load Files for Workslip-' + targetWorkslip;
+            }
+        }
+        
+        // Hide Work Details for Workslip-2+ (only show for Workslip-1)
+        var editableSection = document.getElementById('work-details-editable');
+        if (editableSection) {
+            editableSection.style.display = (targetWorkslip === 1) ? 'block' : 'none';
+        }
+        
+        // Toggle estimate file required attribute based on target workslip
+        var estimateInput = document.getElementById('estimate-file-input');
+        var estimateLabel = document.getElementById('estimate-label');
+        if (estimateInput) {
+            if (targetWorkslip === 1) {
+                estimateInput.required = true;
+                if (estimateLabel) {
+                    estimateLabel.innerHTML = '<i class="bi bi-file-earmark-spreadsheet me-1"></i>Estimate:';
+                }
+            } else {
+                estimateInput.required = false;
+                if (estimateLabel) {
+                    estimateLabel.innerHTML = '<i class="bi bi-file-earmark-spreadsheet me-1"></i>Estimate <small>(optional)</small>:';
+                }
+            }
+        }
+    }
+    
+    // Attach event listener to target workslip select
+    var targetWorkslipSelect = document.getElementById('target-workslip-select');
+    if (targetWorkslipSelect) {
+        targetWorkslipSelect.addEventListener('change', updateUploadFields);
+        // Initialize on page load
+        updateUploadFields();
+    }
+    
+    // Switch to a different backend (SOR rates file)
+    function switchBackend(backendId) {
+        if (!backendId) return;
+        
+        // Build URL with backend_id parameter (preserve group if selected)
+        var currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('backend_id', backendId);
+        currentUrl.searchParams.set('preserve', '1');  // Keep some session data
+        
+        // Show loading indicator
+        var selector = document.getElementById('backend-selector');
+        if (selector) {
+            selector.disabled = true;
+            selector.style.opacity = '0.6';
+        }
+        
+        // Redirect to reload with new backend
+        window.location.href = currentUrl.toString();
+    }
+
+    // --- Clear All button handler ---
+    var btnClearAll = document.getElementById("btn-clear-all");
+    if (btnClearAll) {
+        btnClearAll.addEventListener("click", function() {
+            document.getElementById("clear-all-form").submit();
+        });
+    }
+
+    // --- Persist TP fields in sessionStorage ---
+    function saveTPFields() {
+        var tpPercentInput = document.getElementById("tp-percent-input");
+        var tpTypeSelect = document.getElementById("tp-type-select");
+        if (tpPercentInput) sessionStorage.setItem("ws_tp_percent", tpPercentInput.value);
+        if (tpTypeSelect) sessionStorage.setItem("ws_tp_type", tpTypeSelect.value);
+    }
+    function restoreTPFields() {
+        var tpPercentInput = document.getElementById("tp-percent-input");
+        var tpTypeSelect = document.getElementById("tp-type-select");
+        var tpPercent = sessionStorage.getItem("ws_tp_percent");
+        var tpType = sessionStorage.getItem("ws_tp_type");
+        if (tpPercentInput && tpPercent !== null) tpPercentInput.value = tpPercent;
+        if (tpTypeSelect && tpType !== null) tpTypeSelect.value = tpType;
+    }
+    // Restore on page load
+    restoreTPFields();
+    // Save on change
+    var tpPercentInput = document.getElementById("tp-percent-input");
+    var tpTypeSelect = document.getElementById("tp-type-select");
+    if (tpPercentInput) tpPercentInput.addEventListener("input", saveTPFields);
+    if (tpTypeSelect) tpTypeSelect.addEventListener("change", saveTPFields);
+
+    // --- AJAX Toggle for Supplemental Items (remove on uncheck) ---
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    var ajaxToggleSuppUrl = "{% url 'workslip_ajax_toggle_supp' %}";
+    
+    // Queue for processing checkbox changes
+    var suppToggleQueue = [];
+    var suppProcessing = false;
+    
+    function processSuppQueue() {
+        if (suppProcessing || suppToggleQueue.length === 0) return;
+        
+        suppProcessing = true;
+        var current = suppToggleQueue.shift();
+        
+        current.checkbox.classList.add('loading');
+        var label = current.checkbox.closest('.item-label');
+        if (label) label.classList.add('processing');
+        
+        fetch(ajaxToggleSuppUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({
+                item: current.item,
+                action: current.action
+            })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            current.checkbox.classList.remove('loading');
+            if (label) label.classList.remove('processing');
+            
+            if (data.status === 'ok') {
+                if (data.action_taken === 'removed') {
+                    removeSuppItemFromTable(current.item);
+                    updateSuppSerialNumbers();
+                    recalcTotal();
+                }
+            } else {
+                // Revert checkbox state on error
+                current.checkbox.checked = !current.checkbox.checked;
+                console.error('Toggle failed:', data.message);
+            }
+            
+            suppProcessing = false;
+            processSuppQueue();
+        })
+        .catch(function(err) {
+            current.checkbox.classList.remove('loading');
+            if (label) label.classList.remove('processing');
+            current.checkbox.checked = !current.checkbox.checked;
+            console.error('Fetch error:', err);
+            suppProcessing = false;
+            processSuppQueue();
+        });
+    }
+    
+    function removeSuppItemFromTable(itemName) {
+        var key = "supp:" + itemName;
+        var row = document.querySelector('#ws-table tbody tr[data-row-key="' + key + '"]');
+        if (row) {
+            row.remove();
+        }
+        
+        // Check if there are any supp items left - if not, remove heading too
+        var suppRows = document.querySelectorAll('#ws-table tbody tr[data-row-type="supp"]');
+        if (suppRows.length === 0) {
+            var headingRow = document.querySelector('#ws-table tbody tr.supp-heading-row');
+            if (headingRow) {
+                headingRow.remove();
+            }
+        }
+    }
+    
+    function updateSuppSerialNumbers() {
+        var baseRows = document.querySelectorAll('#ws-table tbody tr[data-row-type="base"]');
+        var baseCount = baseRows.length;
+        
+        var suppRows = document.querySelectorAll('#ws-table tbody tr[data-row-type="supp"]');
+        suppRows.forEach(function(row, index) {
+            var slCell = row.cells[0];
+            if (slCell) {
+                slCell.textContent = baseCount + index + 1;
+            }
+        });
+    }
+    
+    // Attach handlers to supplemental checkboxes
+    document.querySelectorAll('.supp-item-checkbox').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function(e) {
+            var itemName = this.getAttribute('data-item-name');
+            var isChecked = this.checked;
+            
+            // Only process via AJAX when UNCHECKING an already added item
+            if (!isChecked) {
+                // Check if this item exists in the preview table
+                var key = "supp:" + itemName;
+                var existingRow = document.querySelector('#ws-table tbody tr[data-row-key="' + key + '"]');
+                
+                if (existingRow) {
+                    // Item is in preview - remove via AJAX
+                    suppToggleQueue.push({
+                        checkbox: this,
+                        item: itemName,
+                        action: 'remove'
+                    });
+                    processSuppQueue();
+                }
+            }
+            // When CHECKING, the form submission with "Add Supplemental Items" button will handle it
+        });
+    });
+
+// Ensure only one IIFE for all logic
+(function() {
+    // --- Auto-save quantities and TP on group navigation ---
+    document.querySelectorAll('.group-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();  // Prevent immediate navigation
+            
+            var targetUrl = this.href;
+            
+            // Collect ALL quantities (both base and supplemental)
+            var allMap = {};
+            document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+                if (row.classList.contains("supp-heading-row")) return;
+                var rowType = row.getAttribute("data-row-type");
+                var rowKey  = row.getAttribute("data-row-key");
+                if (!rowType || !rowKey) return;
+                var qtyInput = row.querySelector(".qty-exec-input");
+                if (!qtyInput) return;
+                var val = qtyInput.value;
+                if (val !== "") {
+                    allMap[rowKey] = val;
+                }
+            });
+            
+            // Get TP values
+            var tpPercentInput = document.getElementById("tp-percent-input");
+            var tpTypeSelect = document.getElementById("tp-type-select");
+            var tpPercent = tpPercentInput ? tpPercentInput.value : "";
+            var tpType = tpTypeSelect ? tpTypeSelect.value : "Excess";
+            
+            // Save to session via AJAX before navigating
+            var formData = new FormData();
+            formData.append('action', 'update_preview');
+            formData.append('exec_map', JSON.stringify(allMap));
+            formData.append('tp_percent', tpPercent);
+            formData.append('tp_type', tpType);
+            formData.append('csrfmiddlewaretoken', csrfToken);
+            
+            fetch('{% url "workslip_main" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                redirect: 'manual'
+            })
+            .then(function() {
+                // Navigate to the group URL after saving
+                window.location.href = targetUrl;
+            })
+            .catch(function(err) {
+                console.error('Error saving quantities:', err);
+                // Navigate anyway even if save failed
+                window.location.href = targetUrl;
+            });
+        });
+    });
+    // --- Helper: recalc a single row amount ---
+    function recalcRow(row) {
+        var qtyInput = row.querySelector(".qty-exec-input");
+        if (!qtyInput) return;
+        
+        // Find the rate cell - it's the cell before the amount-cell
+        var amtCell = row.querySelector(".amount-cell");
+        if (!amtCell) return;
+        
+        // Get the cell index of amount cell and rate is one before it
+        var cells = Array.from(row.cells);
+        var amtIndex = cells.indexOf(amtCell);
+        var rateCell = row.cells[amtIndex - 1]; // Rate is right before Amount
+        if (!rateCell) return;
+
+        var rateText = rateCell.textContent.replace("₹", "").trim();
+        var rate = parseFloat(rateText || "0");
+        var qty  = parseFloat(qtyInput.value || "0");
+        if (isNaN(rate)) rate = 0;
+        if (isNaN(qty)) qty = 0;
+
+        var amount = rate * qty;
+        var amtCell = row.querySelector(".amount-cell");
+        if (amtCell) {
+            amtCell.textContent = amount > 0 ? "₹" + amount.toFixed(2) : "";
+        }
+    }
+
+    // --- Helper: recalc total --- (Global for AJAX updates)
+    function recalcTotal() {
+        var total = 0;
+        document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+            if (row.classList.contains("supp-heading-row")) return;
+            var amtCell = row.querySelector(".amount-cell");
+            if (!amtCell) return;
+            var text = amtCell.textContent.replace("₹", "").trim();
+            var val = parseFloat(text || "0");
+            if (!isNaN(val)) total += val;
+        });
+        var span = document.getElementById("ws-total");
+        if (span) {
+            span.textContent = total.toFixed(2);
+        }
+    }
+    window.recalcTotal = recalcTotal; // Make accessible globally
+
+    // Attach listeners to qty inputs
+    document.querySelectorAll(".qty-exec-input").forEach(function(inp) {
+        inp.addEventListener("input", function() {
+            var row = inp.closest("tr");
+            recalcRow(row);
+            recalcTotal();
+        });
+    });
+    
+    // Keyboard navigation for quantity inputs (Enter / Arrow Down = next, Arrow Up = previous)
+    function setupQtyKeyboardNav() {
+        var table = document.getElementById("ws-table");
+        if (!table) return;
+        
+        table.addEventListener("keydown", function(e) {
+            var target = e.target;
+            if (!target.classList.contains("qty-exec-input")) return;
+            
+            var row = target.closest("tr");
+            if (!row) return;
+            
+            var allRows = Array.from(table.querySelectorAll("tbody tr:not(.supp-heading-row)"));
+            var currentIndex = allRows.indexOf(row);
+            
+            if (e.key === "Enter" || e.key === "ArrowDown") {
+                e.preventDefault();
+                // Move to next row's qty input
+                for (var i = currentIndex + 1; i < allRows.length; i++) {
+                    var nextInput = allRows[i].querySelector(".qty-exec-input");
+                    if (nextInput) {
+                        nextInput.focus();
+                        nextInput.select();
+                        break;
+                    }
+                }
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                // Move to previous row's qty input
+                for (var i = currentIndex - 1; i >= 0; i--) {
+                    var prevInput = allRows[i].querySelector(".qty-exec-input");
+                    if (prevInput) {
+                        prevInput.focus();
+                        prevInput.select();
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    setupQtyKeyboardNav();
+
+    // Initial calculation after page load
+    document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+        if (!row.classList.contains("supp-heading-row")) {
+            recalcRow(row);
+        }
+    });
+    recalcTotal();
+
+    // --- Serialize exec_map + TP before Workslip download ---
+    var wsForm = document.getElementById("ws-form");
+    if (wsForm) {
+        wsForm.addEventListener("submit", function() {
+            var map = {};
+            document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+                if (row.classList.contains("supp-heading-row")) return;
+                var rowType = row.getAttribute("data-row-type");
+                var rowKey  = row.getAttribute("data-row-key");
+                if (!rowType || !rowKey) return;
+                var key = rowKey;
+                var qtyInput = row.querySelector(".qty-exec-input");
+                if (!qtyInput) return;
+                var val = qtyInput.value;
+                if (val !== "") {
+                    map[key] = val;
+                }
+            });
+            var execField = document.getElementById("ws-exec-map-field");
+            if (execField) {
+                execField.value = JSON.stringify(map);
+            }
+            var tpPercentInput = document.getElementById("tp-percent-input");
+            var tpTypeSelect   = document.getElementById("tp-type-select");
+            var tpPercentField = document.getElementById("ws-tp-percent-field");
+            var tpTypeField    = document.getElementById("ws-tp-type-field");
+            if (tpPercentField && tpPercentInput) {
+                tpPercentField.value = tpPercentInput.value;
+            }
+            if (tpTypeField && tpTypeSelect) {
+                tpTypeField.value = tpTypeSelect.value;
+            }
+            // Deduct Old Material Cost
+            var deductInput = document.getElementById("ws-deduct-input");
+            var deductField = document.getElementById("ws-deduct-old-material-field");
+            if (deductField && deductInput) {
+                deductField.value = deductInput.value || "";
+            }
+            
+            // Populate metadata hidden fields (only if inputs exist - Workslip-1 only)
+            var estimateAmountInput = document.getElementById("ws-estimate-amount-input");
+            var estimateAmountField = document.getElementById("ws-estimate-amount-field");
+            if (estimateAmountField && estimateAmountInput) {
+                estimateAmountField.value = estimateAmountInput.value || "";
+            }
+            
+            var agencyNameInput = document.getElementById("ws-agency-name-input");
+            var agencyNameField = document.getElementById("ws-agency-name-field");
+            if (agencyNameField && agencyNameInput) {
+                agencyNameField.value = agencyNameInput.value || "";
+            }
+            
+            var adminSanctionInput = document.getElementById("ws-admin-sanction-input");
+            var adminSanctionField = document.getElementById("ws-admin-sanction-field");
+            if (adminSanctionField && adminSanctionInput) {
+                adminSanctionField.value = adminSanctionInput.value || "";
+            }
+            
+            var techSanctionInput = document.getElementById("ws-tech-sanction-input");
+            var techSanctionField = document.getElementById("ws-tech-sanction-field");
+            if (techSanctionField && techSanctionInput) {
+                techSanctionField.value = techSanctionInput.value || "";
+            }
+            
+            var agreementInput = document.getElementById("ws-agreement-input");
+            var agreementField = document.getElementById("ws-agreement-field");
+            if (agreementField && agreementInput) {
+                agreementField.value = agreementInput.value || "";
+            }
+        });
+    }
+    
+    // Update deduct hidden field on input
+    function updateDeductField() {
+        var deductInput = document.getElementById("ws-deduct-input");
+        var deductField = document.getElementById("ws-deduct-old-material-field");
+        if (deductField && deductInput) {
+            deductField.value = deductInput.value || "";
+        }
+    }
+
+    // --- Before submitting supplemental form, also carry exec_map + TP ---
+    var suppForm = document.getElementById("supp-form");
+        if (suppForm) {
+            suppForm.addEventListener("submit", function() {
+                var map = {};
+                document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+                    if (row.classList.contains("supp-heading-row")) return;
+                    var rowType = row.getAttribute("data-row-type");
+                    var rowKey  = row.getAttribute("data-row-key");
+                    if (!rowType || !rowKey) return;
+                    var key = rowKey;
+                    var qtyInput = row.querySelector(".qty-exec-input");
+                    if (!qtyInput) return;
+                    var val = qtyInput.value;
+                    if (val !== "") {
+                        map[key] = val;
+                    }
+                });
+                var execField = document.getElementById("supp-exec-map-field");
+                if (execField) {
+                    execField.value = JSON.stringify(map);
+                }
+                var tpPercentInput = document.getElementById("tp-percent-input");
+                var tpTypeSelect   = document.getElementById("tp-type-select");
+                var tpPercentField = document.getElementById("supp-tp-percent-field");
+                var tpTypeField    = document.getElementById("supp-tp-type-field");
+                if (tpPercentField && tpPercentInput) {
+                    tpPercentField.value = tpPercentInput.value;
+                }
+                if (tpTypeField && tpTypeSelect) {
+                    tpTypeField.value = tpTypeSelect.value;
+                }
+            });
+        }
+            link.addEventListener('click', function(e) {
+                // Only auto-save if there are unsaved changes, but allow navigation to proceed
+                var map = {};
+                document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+                    if (row.classList.contains("supp-heading-row")) return;
+                    var rowType = row.getAttribute("data-row-type");
+                    var rowKey  = row.getAttribute("data-row-key");
+                    if (!rowType || !rowKey) return;
+                    var key = rowKey;
+                    var qtyInput = row.querySelector(".qty-exec-input");
+                    if (!qtyInput) return;
+                    var val = qtyInput.value;
+                    if (val !== "") {
+                        map[key] = val;
+                    }
+                });
+                var tpPercentInput = document.getElementById("tp-percent-input");
+                var tpTypeSelect   = document.getElementById("tp-type-select");
+                // --- Also update supplemental form hidden fields ---
+                var execField = document.getElementById("supp-exec-map-field");
+                if (execField) {
+                    execField.value = JSON.stringify(map);
+                }
+                var tpPercentField = document.getElementById("supp-tp-percent-field");
+                var tpTypeField    = document.getElementById("supp-tp-type-field");
+                if (tpPercentField && tpPercentInput) {
+                    tpPercentField.value = tpPercentInput.value;
+                }
+                if (tpTypeField && tpTypeSelect) {
+                    tpTypeField.value = tpTypeSelect.value;
+                }
+                // Do not block navigation
+            });
+    if (suppForm) {
+        suppForm.addEventListener("submit", function() {
+            var map = {};
+            document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+                if (row.classList.contains("supp-heading-row")) return;
+                var rowType = row.getAttribute("data-row-type");
+                var rowKey  = row.getAttribute("data-row-key");
+                if (!rowType || !rowKey) return;
+                var key = rowKey;
+                var qtyInput = row.querySelector(".qty-exec-input");
+                if (!qtyInput) return;
+                var val = qtyInput.value;
+                if (val !== "") {
+                    map[key] = val;
+                }
+            });
+            var execField = document.getElementById("supp-exec-map-field");
+            if (execField) {
+                execField.value = JSON.stringify(map);
+            }
+            var tpPercentInput = document.getElementById("tp-percent-input");
+            var tpTypeSelect   = document.getElementById("tp-type-select");
+            var tpPercentField = document.getElementById("supp-tp-percent-field");
+            var tpTypeField    = document.getElementById("supp-tp-type-field");
+            if (tpPercentField && tpPercentInput) {
+                tpPercentField.value = tpPercentInput.value;
+            }
+            if (tpTypeField && tpTypeSelect) {
+                tpTypeField.value = tpTypeSelect.value;
+            }
+        });
+    }
+
+})();
+
+// Helper function to collect exec_map from the UI
+function collectExecMap() {
+    const execMap = {};
+    // Collect from base item rows
+    document.querySelectorAll('tr[data-row-key]').forEach(row => {
+        const key = row.getAttribute('data-row-key');
+        const input = row.querySelector('.exec-qty-input');
+        if (key && input && input.value) {
+            execMap[key] = parseFloat(input.value) || 0;
+        }
+    });
+    // Collect from supplemental rows
+    document.querySelectorAll('tr[data-supp-name]').forEach(row => {
+        const name = row.getAttribute('data-supp-name');
+        const input = row.querySelector('.exec-qty-input');
+        if (name && input && input.value) {
+            execMap['supp:' + name] = parseFloat(input.value) || 0;
+        }
+    });
+    return execMap;
+}
+
+// Quick save function for workslip - saves directly if there's already a current work
+function quickSaveWorkslip() {
+    const saveBtn = document.querySelector('.save-work-btn');
+    if (saveBtn) {
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+        saveBtn.disabled = true;
+    }
+    
+    // First, save current execution quantities to session
+    const execMap = collectExecMap();
+    const tpPercent = document.getElementById('tp-percent-input')?.value || '0';
+    const tpType = document.getElementById('tp-type-select')?.value || 'Excess';
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                      document.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+    
+    // Save session data first via update_preview action
+    const sessionFormData = new FormData();
+    sessionFormData.append('action', 'update_preview');
+    sessionFormData.append('exec_map', JSON.stringify(execMap));
+    sessionFormData.append('tp_percent', tpPercent);
+    sessionFormData.append('tp_type', tpType);
+    sessionFormData.append('csrfmiddlewaretoken', csrfToken);
+    
+    fetch('/workslip/', {
+        method: 'POST',
+        body: sessionFormData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        redirect: 'manual'  // Don't follow the redirect
+    })
+    .then(() => {
+        // Now check if there's already a saved work we're continuing from
+        return fetch('/saved-works/modal-data/');
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.current_work && data.current_work.id) {
+            // There's already a current work - save directly without modal
+            const formData = new FormData();
+            formData.append('work_type', 'workslip');
+            formData.append('category', 'electrical');
+            formData.append('work_id', data.current_work.id);
+            formData.append('work_name', data.current_work.name);
+            if (data.current_work.folder_id) {
+                formData.append('folder_id', data.current_work.folder_id);
+            }
+            formData.append('notes', data.current_work.notes || '');
+            formData.append('csrfmiddlewaretoken', csrfToken);
+            
+            return fetch('/saved-works/save/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            }).then(res => res.json());
+        } else {
+            // No current work - show the modal to get work name
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+                saveBtn.disabled = false;
+            }
+            const modal = new bootstrap.Modal(document.getElementById('saveWorkModal'));
+            modal.show();
+            return null;
+        }
+    })
+    .then(result => {
+        if (result) {
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+                saveBtn.disabled = false;
+            }
+            if (result.success) {
+                showToast(result.message || 'Work saved successfully!', 'success');
+            } else {
+                showToast(result.error || 'Failed to save work', 'error');
+            }
+        }
+    })
+    .catch(err => {
+        if (saveBtn) {
+            saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+            saveBtn.disabled = false;
+        }
+        showToast('An error occurred. Please try again.', 'error');
+    });
+}
+</script>
+
+<!-- Save Work Button -->
+<button class="save-work-btn" onclick="quickSaveWorkslip()" title="Save your work">
+    <i class="bi bi-save"></i>
+    <span>Save Work</span>
+</button>
+{% include 'core/saved_works/save_modal.html' with work_type='workslip' category='electrical' %}
+
+{% endblock %}

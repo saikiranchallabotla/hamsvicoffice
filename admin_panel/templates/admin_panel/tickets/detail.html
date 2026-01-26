@@ -1,0 +1,202 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Ticket #{{ ticket.id }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_ticket_list' %}">Tickets</a></li>
+<li class="breadcrumb-item active">#{{ ticket.id }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Ticket Content -->
+    <div class="col-lg-8 mb-4">
+        <div class="admin-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge {% if ticket.priority == 'urgent' %}bg-danger{% elif ticket.priority == 'high' %}bg-warning text-dark{% elif ticket.priority == 'medium' %}bg-info{% else %}bg-secondary{% endif %} me-2">
+                        {{ ticket.get_priority_display }}
+                    </span>
+                    <span class="badge {% if ticket.status == 'open' %}bg-danger{% elif ticket.status == 'in_progress' %}bg-warning text-dark{% elif ticket.status == 'resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                        {{ ticket.get_status_display }}
+                    </span>
+                </div>
+                <small class="text-muted">{{ ticket.created_at|date:"d M Y, h:i A" }}</small>
+            </div>
+            <div class="card-body">
+                <h5 class="mb-3">{{ ticket.subject }}</h5>
+                <div class="mb-4">
+                    {{ ticket.description|linebreaks }}
+                </div>
+                
+                {% if ticket.attachment %}
+                <div class="mb-4">
+                    <strong>Attachment:</strong>
+                    <a href="{{ ticket.attachment.url }}" target="_blank" class="ms-2">
+                        <i class="bi bi-paperclip"></i> {{ ticket.attachment.name }}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Replies -->
+        <div class="admin-card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Conversation</h5>
+            </div>
+            <div class="card-body">
+                {% for reply in replies %}
+                <div class="d-flex mb-4 {% if reply.is_staff %}flex-row-reverse{% endif %}">
+                    <div class="flex-shrink-0">
+                        <div class="rounded-circle {% if reply.is_staff %}bg-primary{% else %}bg-secondary{% endif %} text-white d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
+                            {{ reply.user.first_name|slice:":1"|upper|default:"U" }}
+                        </div>
+                    </div>
+                    <div class="{% if reply.is_staff %}me-3{% else %}ms-3{% endif %} flex-grow-1" style="max-width:80%;">
+                        <div class="{% if reply.is_staff %}bg-primary text-white{% else %}bg-light{% endif %} rounded p-3">
+                            {{ reply.message|linebreaks }}
+                        </div>
+                        <small class="text-muted">
+                            {{ reply.user.get_full_name|default:reply.user.username }} • {{ reply.created_at|timesince }} ago
+                        </small>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center">No replies yet</p>
+                {% endfor %}
+                
+                {% if ticket.status != 'closed' %}
+                <!-- Reply Form -->
+                <hr class="my-4">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reply">
+                    <div class="mb-3">
+                        <label class="form-label">Your Reply</label>
+                        <textarea name="message" class="form-control" rows="4" required placeholder="Type your reply..."></textarea>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="internal" id="internal">
+                            <label class="form-check-label" for="internal">Internal note (not visible to user)</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send me-1"></i> Send Reply
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- User Info -->
+        <div class="admin-card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Requester</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width:48px;height:48px;">
+                        {{ ticket.user.first_name|slice:":1"|upper|default:"U" }}
+                    </div>
+                    <div>
+                        <a href="{% url 'admin_user_detail' ticket.user.id %}" class="fw-semibold text-decoration-none">
+                            {{ ticket.user.get_full_name|default:ticket.user.username }}
+                        </a>
+                        <div class="small text-muted">{{ ticket.user.email }}</div>
+                    </div>
+                </div>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">Total Tickets</td>
+                        <td class="text-end">{{ user_ticket_count }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Member Since</td>
+                        <td class="text-end">{{ ticket.user.date_joined|date:"d M Y" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="admin-card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>Open</option>
+                            <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                            <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>Resolved</option>
+                            <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>Closed</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>Low</option>
+                            <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>Medium</option>
+                            <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>High</option>
+                            <option value="urgent" {% if ticket.priority == 'urgent' %}selected{% endif %}>Urgent</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Assign To</label>
+                        <select name="assigned_to" class="form-select">
+                            <option value="">Unassigned</option>
+                            {% for admin in admins %}
+                            <option value="{{ admin.id }}" {% if ticket.assigned_to_id == admin.id %}selected{% endif %}>
+                                {{ admin.get_full_name|default:admin.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <input type="hidden" name="action" value="update">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-check-lg me-1"></i> Update Ticket
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body d-grid gap-2">
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="assign_me">
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-person-check me-1"></i> Assign to Me
+                    </button>
+                </form>
+                
+                {% if ticket.status != 'closed' %}
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="close">
+                    <button type="submit" class="btn btn-outline-danger w-100">
+                        <i class="bi bi-x-circle me-1"></i> Close Ticket
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2>Edit Saved Format</h2>
+
+{% if error_message %}
+    <p style="color:red; font-weight:bold;">{{ error_message }}</p>
+{% endif %}
+
+<form method="POST" action="" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <label>Format Name:</label><br>
+    <input type="text" name="format_name" value="{{ format.name }}" required><br><br>
+
+    <label>Description (optional):</label><br>
+    <textarea name="format_description" rows="2" cols="80">{{ format.description }}</textarea><br><br>
+
+    <label>Replace Template File (optional)</label><br>
+    <div>Current: {{ format.template_file.name|default:'(none)' }}</div>
+    {% if template_url %}
+        <div style="margin-top:6px">
+            <a href="{{ template_url }}" target="_blank">Open / Download current template</a>
+        </div>
+    {% endif %}
+    {% if preview_text %}
+        <div style="margin-top:8px; border:1px solid #eee; padding:8px; background:#fafafa; max-height:260px; overflow:auto;">
+            <strong>Preview (first lines)</strong>
+            <pre style="white-space:pre-wrap;">{{ preview_text }}</pre>
+        </div>
+    {% endif %}
+    <input type="file" name="format_template_file"><br><br>
+
+    <label>Custom Placeholders</label>
+    <div class="sf-help">One per line: <code>MY_PLACEHOLDER = label text</code></div>
+    <textarea name="format_custom_placeholders" rows="6" cols="80">{{ format.custom_placeholders }}</textarea><br><br>
+
+    <button type="submit">Save Changes</button>
+    <a href="{% url 'self_formatted_form_page' %}">Cancel</a>
+</form>
+
+{% endblock %}

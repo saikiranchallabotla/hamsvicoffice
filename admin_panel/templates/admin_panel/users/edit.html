@@ -1,0 +1,89 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Edit {{ target_user.username }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_user_list' %}">Users</a></li>
+<li class="breadcrumb-item"><a href="{% url 'admin_user_detail' target_user.id %}">{{ target_user.username }}</a></li>
+<li class="breadcrumb-item active">Edit</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>Edit User</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <h6 class="text-muted text-uppercase small mb-3">Account Information</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">First Name</label>
+                            <input type="text" name="first_name" class="form-control" value="{{ target_user.first_name }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Last Name</label>
+                            <input type="text" name="last_name" class="form-control" value="{{ target_user.last_name }}">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ target_user.email }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" name="phone" class="form-control" value="{{ profile.phone|default:'' }}">
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="text-muted text-uppercase small mb-3">Organization</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Company Name</label>
+                        <input type="text" name="company_name" class="form-control" value="{{ profile.company_name|default:'' }}">
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="text-muted text-uppercase small mb-3">Role & Status</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Role</label>
+                            <select name="role" class="form-select">
+                                {% for value, label in roles %}
+                                <option value="{{ value }}" {% if profile.role == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if target_user.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">Account Active</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i> Save Changes
+                        </button>
+                        <a href="{% url 'admin_user_detail' target_user.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

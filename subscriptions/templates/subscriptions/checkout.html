@@ -1,0 +1,826 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - {{ module.name }} | Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        }
+        .app-toast {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+            background: white;
+            border-left: 4px solid #6366f1;
+        }
+        .app-toast.success { border-left-color: #22c55e; }
+        .app-toast.error { border-left-color: #ef4444; }
+        .app-toast.warning { border-left-color: #f59e0b; }
+        .app-toast.info { border-left-color: #3b82f6; }
+        .app-toast .toast-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .app-toast.success .toast-icon { background: #dcfce7; color: #22c55e; }
+        .app-toast.error .toast-icon { background: #fee2e2; color: #ef4444; }
+        .app-toast.warning .toast-icon { background: #fef3c7; color: #f59e0b; }
+        .app-toast.info .toast-icon { background: #dbeafe; color: #3b82f6; }
+        .app-toast .toast-content { flex: 1; }
+        .app-toast .toast-title { font-weight: 600; color: #1e293b; margin-bottom: 2px; }
+        .app-toast .toast-message { color: #64748b; font-size: 0.9rem; }
+        .app-toast .toast-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 12px;
+        }
+        .app-toast .toast-close:hover { color: #64748b; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --success-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+        }
+        
+        .navbar {
+            background: white !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Hero Section */
+        .hero {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 3rem 0;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .hero p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+        
+        .hero .breadcrumb {
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        
+        .hero .breadcrumb-item a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+        }
+        
+        .hero .breadcrumb-item.active {
+            color: white;
+        }
+        
+        .hero .breadcrumb-item + .breadcrumb-item::before {
+            color: rgba(255,255,255,0.6);
+        }
+        
+        /* Checkout Container */
+        .checkout-container {
+            max-width: 1000px;
+            margin: -2rem auto 3rem;
+            padding: 0 1rem;
+            position: relative;
+            z-index: 10;
+        }
+        
+        /* Cards */
+        .checkout-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            height: 100%;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .card-title i {
+            color: #6366f1;
+        }
+        
+        /* Module Info */
+        .module-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 1.5rem;
+        }
+        
+        .module-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: {{ module.color|default:'#6366f1' }}15;
+            color: {{ module.color|default:'#6366f1' }};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+        }
+        
+        .module-info h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 0.25rem;
+        }
+        
+        .module-info .duration-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: #f1f5f9;
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        /* Existing Subscription Notice */
+        .subscription-notice {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .subscription-notice i {
+            color: #d97706;
+            font-size: 1.25rem;
+        }
+        
+        .subscription-notice .text {
+            font-size: 0.9rem;
+            color: #92400e;
+        }
+        
+        /* Order Summary */
+        .order-summary {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+        
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        
+        .order-row:last-child {
+            border-bottom: none;
+        }
+        
+        .order-row .label {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+        
+        .order-row .value {
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .order-row.discount .value {
+            color: #10b981;
+        }
+        
+        .order-row.total {
+            border-top: 2px solid #e2e8f0;
+            border-bottom: none;
+            margin-top: 0.5rem;
+            padding-top: 1rem;
+        }
+        
+        .order-row.total .label {
+            font-weight: 700;
+            color: #1e293b;
+            font-size: 1.1rem;
+        }
+        
+        .order-row.total .value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #6366f1;
+        }
+        
+        /* Features List */
+        .features-list {
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0 0;
+        }
+        
+        .features-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 0;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+        
+        .features-list li i {
+            color: #22c55e;
+            font-size: 1rem;
+        }
+        
+        /* Payment Card */
+        .payment-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            border: 2px solid #6366f1;
+            position: relative;
+        }
+        
+        .payment-card::before {
+            content: 'Secure Checkout';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-gradient);
+            color: white;
+            padding: 0.25rem 1rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .amount-display {
+            text-align: center;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 1.5rem;
+        }
+        
+        .amount-label {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .amount-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #1e293b;
+        }
+        
+        .amount-value small {
+            font-size: 1rem;
+            color: #94a3b8;
+            font-weight: 400;
+        }
+        
+        /* Pay Button */
+        .btn-pay {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            background: var(--primary-gradient);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border: none;
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-pay:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+            color: white;
+        }
+        
+        .btn-pay:disabled {
+            opacity: 0.7;
+            transform: none;
+        }
+        
+        .btn-pay i {
+            font-size: 1.25rem;
+        }
+        
+        /* Payment Methods */
+        .payment-methods {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.25rem;
+            flex-wrap: wrap;
+        }
+        
+        .payment-method {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+        
+        .payment-method i {
+            font-size: 1rem;
+        }
+        
+        /* Security Badge */
+        .security-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #f1f5f9;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+        
+        .security-badge i {
+            color: #22c55e;
+        }
+        
+        /* Back Link */
+        .back-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+        
+        .back-link a {
+            color: #6366f1;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s;
+        }
+        
+        .back-link a:hover {
+            color: #4f46e5;
+            gap: 0.5rem;
+        }
+        
+        /* Trust Badges */
+        .trust-section {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .trust-badges {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .trust-badge {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+            color: #64748b;
+        }
+        
+        .trust-badge i {
+            font-size: 1.5rem;
+            color: #6366f1;
+        }
+        
+        .trust-badge span {
+            font-size: 0.75rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .checkout-container {
+                margin-top: -1.5rem;
+            }
+            
+            .checkout-card, .payment-card {
+                padding: 1.5rem;
+            }
+            
+            .amount-value {
+                font-size: 2rem;
+            }
+            
+            .module-header {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'home' %}">🏗️ Hamsvic</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'module_access' module_code=module.code %}">Plans</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'logout' %}">Logout</a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'login' %}">Login</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'module_access' module_code=module.code %}">{{ module.name }}</a></li>
+                    <li class="breadcrumb-item active">Checkout</li>
+                </ol>
+            </nav>
+            <h1><i class="bi bi-shield-check me-2"></i>Secure Checkout</h1>
+            <p>Complete your purchase to unlock {{ module.name }}</p>
+        </div>
+    </section>
+    
+    <!-- Checkout Content -->
+    <div class="checkout-container">
+        <div class="row g-4">
+            <!-- Left Column - Order Details -->
+            <div class="col-lg-7">
+                <div class="checkout-card">
+                    <h4 class="card-title">
+                        <i class="bi bi-receipt"></i>
+                        Order Details
+                    </h4>
+                    
+                    <!-- Module Header -->
+                    <div class="module-header">
+                        <div class="module-icon">
+                            <i class="bi bi-{{ module.icon|default:'box' }}"></i>
+                        </div>
+                        <div class="module-info">
+                            <h3>{{ module.name }}</h3>
+                            <span class="duration-badge">
+                                <i class="bi bi-calendar3"></i>
+                                {{ pricing.get_duration_months_display }} Subscription
+                            </span>
+                        </div>
+                    </div>
+                    
+                    {% if existing_subscription %}
+                    <!-- Existing Subscription Notice -->
+                    <div class="subscription-notice">
+                        <i class="bi bi-info-circle-fill"></i>
+                        <div class="text">
+                            <strong>Current Plan:</strong> Trial Access · Expires {{ existing_subscription.expires_at|date:"d M Y" }}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Order Summary -->
+                    <div class="order-summary">
+                        <div class="order-row">
+                            <span class="label">{{ module.name }} - {{ pricing.get_duration_months_display }}</span>
+                            <span class="value">₹{{ pricing.base_price|floatformat:0 }}</span>
+                        </div>
+                        {% if pricing.discount_percent > 0 %}
+                        <div class="order-row discount">
+                            <span class="label">
+                                <i class="bi bi-tag-fill me-1"></i>
+                                Discount ({{ pricing.discount_percent|floatformat:0 }}% off)
+                            </span>
+                            <span class="value">- ₹{{ pricing.discount_amount|floatformat:0 }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="order-row">
+                            <span class="label">GST ({{ pricing.gst_percent|floatformat:0 }}%)</span>
+                            <span class="value">₹{{ pricing.gst_amount|floatformat:0 }}</span>
+                        </div>
+                        <div class="order-row total">
+                            <span class="label">Total Amount</span>
+                            <span class="value">₹{{ pricing.total_price|floatformat:0 }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Features -->
+                    <ul class="features-list">
+                        <li><i class="bi bi-check-circle-fill"></i> Unlimited module usage</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Export to Excel & MS Word</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Priority email support</li>
+                        <li><i class="bi bi-check-circle-fill"></i> All future updates included</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Right Column - Payment -->
+            <div class="col-lg-5">
+                <div class="payment-card">
+                    <h4 class="card-title" style="justify-content: center;">
+                        <i class="bi bi-credit-card-2-front"></i>
+                        Payment
+                    </h4>
+                    
+                    <div class="amount-display">
+                        <div class="amount-label">Amount to Pay</div>
+                        <div class="amount-value">
+                            ₹{{ pricing.total_price|floatformat:0 }}
+                            <small>INR</small>
+                        </div>
+                    </div>
+                    
+                    <button id="payBtn" class="btn-pay">
+                        <i class="bi bi-lock-fill"></i>
+                        Pay Securely
+                    </button>
+                    
+                    <div class="payment-methods">
+                        <span class="payment-method"><i class="bi bi-phone"></i> UPI</span>
+                        <span class="payment-method"><i class="bi bi-credit-card"></i> Cards</span>
+                        <span class="payment-method"><i class="bi bi-bank"></i> Netbanking</span>
+                        <span class="payment-method"><i class="bi bi-wallet2"></i> Wallets</span>
+                    </div>
+                    
+                    <div class="security-badge">
+                        <i class="bi bi-shield-lock-fill"></i>
+                        <span>256-bit SSL Encrypted · Powered by Razorpay</span>
+                    </div>
+                    
+                    <div class="back-link">
+                        <a href="{% url 'module_access' module_code=module.code %}">
+                            <i class="bi bi-arrow-left"></i>
+                            Back to Plans
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Trust Badges -->
+                <div class="trust-section">
+                    <div class="trust-badges">
+                        <div class="trust-badge">
+                            <i class="bi bi-shield-check"></i>
+                            <span>Secure Payment</span>
+                        </div>
+                        <div class="trust-badge">
+                            <i class="bi bi-arrow-repeat"></i>
+                            <span>Instant Access</span>
+                        </div>
+                        <div class="trust-badge">
+                            <i class="bi bi-headset"></i>
+                            <span>24/7 Support</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        // Toast notification function
+        function showToast(message, type = 'info', title = null, duration = 5000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            
+            const icons = {
+                success: 'bi-check-lg',
+                error: 'bi-x-lg',
+                warning: 'bi-exclamation-lg',
+                info: 'bi-info-lg'
+            };
+            
+            const titles = {
+                success: 'Success',
+                error: 'Error',
+                warning: 'Warning',
+                info: 'Info'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `app-toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon"><i class="bi ${icons[type] || icons.info}"></i></div>
+                <div class="toast-content">
+                    <div class="toast-title">${title || titles[type] || 'Notification'}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()"><i class="bi bi-x"></i></button>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.animation = 'slideOut 0.3s ease-out forwards';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, duration);
+        }
+        
+        const payBtn = document.getElementById('payBtn');
+        payBtn && payBtn.addEventListener('click', async function() {
+            payBtn.disabled = true;
+            payBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+            
+            try {
+                const res = await fetch("{% url 'create_order' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: `pricing_id={{ pricing.id }}`
+                });
+                const data = await res.json();
+                
+                if (!data.ok) {
+                    showToast(data.reason || 'Failed to create order', 'error', 'Order Failed');
+                    resetButton();
+                    return;
+                }
+                
+                // DEV MODE: If order_id starts with 'order_mock_', skip Razorpay and verify directly
+                if (data.order_id && data.order_id.startsWith('order_mock_')) {
+                    console.log('DEV MODE: Simulating payment for mock order');
+                    payBtn.innerHTML = '<i class="bi bi-check-circle"></i> Verifying...';
+                    
+                    const verify = await fetch("{% url 'verify_payment' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: data.order_id,
+                            razorpay_payment_id: 'pay_mock_' + Date.now(),
+                            razorpay_signature: 'mock_signature_dev_mode'
+                        })
+                    });
+                    const v = await verify.json();
+                    
+                    if (v.ok) {
+                        payBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Success!';
+                        payBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
+                        setTimeout(() => {
+                            window.location.href = '{% url "dashboard" %}';
+                        }, 1000);
+                    } else {
+                        showToast(v.reason || 'Payment verification failed', 'error', 'Payment Failed');
+                        resetButton();
+                    }
+                    return;
+                }
+                
+                // PRODUCTION: Use Razorpay checkout
+                const options = {
+                    key: data.key,
+                    amount: data.amount,
+                    currency: data.currency,
+                    order_id: data.order_id,
+                    name: 'Hamsvic',
+                    description: '{{ module.name }} - {{ pricing.get_duration_months_display }}',
+                    image: '',
+                    prefill: {
+                        name: '{{ user.get_full_name|default:user.username }}',
+                        email: '{{ user.email }}'
+                    },
+                    theme: {
+                        color: '{{ module.color|default:"#6366f1" }}'
+                    },
+                    handler: async function(resp) {
+                        payBtn.innerHTML = '<i class="bi bi-check-circle"></i> Verifying...';
+                        
+                        const verify = await fetch("{% url 'verify_payment' %}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id: resp.razorpay_order_id,
+                                razorpay_payment_id: resp.razorpay_payment_id,
+                                razorpay_signature: resp.razorpay_signature
+                            })
+                        });
+                        const v = await verify.json();
+                        
+                        if (v.ok) {
+                            payBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Success!';
+                            payBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
+                            setTimeout(() => {
+                                window.location.href = '{% url "dashboard" %}';
+                            }, 1000);
+                        } else {
+                            showToast(v.reason || 'Payment verification failed', 'error', 'Payment Failed');
+                            resetButton();
+                        }
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            resetButton();
+                        }
+                    }
+                };
+                
+                const rzp = new Razorpay(options);
+                rzp.open();
+                
+            } catch (err) {
+                console.error(err);
+                showToast('Unable to start payment. Please try again.', 'error', 'Payment Error');
+                resetButton();
+            }
+            
+            function resetButton() {
+                payBtn.disabled = false;
+                payBtn.innerHTML = '<i class="bi bi-lock-fill"></i> Pay Securely';
+            }
+        });
+    </script>
+</body>
+</html>

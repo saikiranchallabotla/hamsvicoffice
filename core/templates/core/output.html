@@ -1,0 +1,46 @@
+{% extends "core/base.html" %}
+{% block content %}
+
+<h2>Output Panel - {{ category|title }}</h2>
+
+{% if items %}
+<p>Items fetched:</p>
+<ul style="font-size:18px; line-height:1.8;">
+    {% for item in items %}
+    <li>{{ item }}</li>
+    {% endfor %}
+</ul>
+
+<p>
+    <a href="{% url 'download_output' category %}"
+       style="background:#17a2b8; color:white; padding:8px 14px; border-radius:4px; text-decoration:none;">
+       ⬇ Download Output Excel
+    </a>
+</p>
+
+<p>
+    <a href="{% url 'save_project' category %}"
+       style="background:#007bff; color:white; padding:8px 14px; border-radius:4px; text-decoration:none;">
+       💾 Save Project
+    </a>
+</p>
+
+<p>
+    <a href="{% url 'clear_output' category %}"
+       style="background:#dc3545; color:white; padding:8px 14px; border-radius:4px; text-decoration:none;">
+       ❌ Clear Output
+    </a>
+</p>
+{% else %}
+<p>No items fetched yet.</p>
+{% endif %}
+
+
+<!-- ✅ Back to group selection -->
+<p>
+    <a href="{% url 'datas_groups' category %}">
+        ← Back to Groups
+    </a>
+</p>
+
+{% endblock %}

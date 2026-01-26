@@ -1,0 +1,181 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}My Document Templates{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-file-earmark-text me-2"></i>My Document Templates</h2>
+                <a href="{% url 'template_upload' %}" class="btn btn-primary">
+                    <i class="bi bi-upload me-2"></i>Upload New Template
+                </a>
+            </div>
+            
+            <div class="alert alert-info mb-4">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Upload your own templates!</strong> 
+                These templates will be used when generating Covering Letters and Movement Slips in the Bill module.
+                Upload Word documents (.docx) with your officer names and formatting.
+            </div>
+            
+            <div class="row">
+                <!-- Covering Letter Card -->
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 {% if covering_letter %}border-success{% else %}border-warning{% endif %}">
+                        <div class="card-header {% if covering_letter %}bg-success text-white{% else %}bg-warning{% endif %}">
+                            <h5 class="mb-0">
+                                <i class="bi bi-envelope me-2"></i>Covering Letter
+                                {% if covering_letter %}
+                                    <span class="badge bg-light text-success float-end">Active</span>
+                                {% else %}
+                                    <span class="badge bg-light text-warning float-end">Not Set</span>
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if covering_letter %}
+                                <p class="card-text">
+                                    <strong>Template:</strong> {{ covering_letter.name }}<br>
+                                    <small class="text-muted">
+                                        Uploaded: {{ covering_letter.updated_at|date:"M d, Y H:i" }}
+                                    </small>
+                                </p>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'template_download' covering_letter.id %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </a>
+                                    <a href="{% url 'template_upload' %}?type=covering_letter" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Replace
+                                    </a>
+                                    <form action="{% url 'template_delete' covering_letter.id %}" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-trash me-1"></i>Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            {% else %}
+                                <p class="card-text text-muted">
+                                    No covering letter template uploaded yet.
+                                </p>
+                                <a href="{% url 'template_upload' %}?type=covering_letter" class="btn btn-warning">
+                                    <i class="bi bi-upload me-2"></i>Upload Template
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Movement Slip Card -->
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 {% if movement_slip %}border-success{% else %}border-warning{% endif %}">
+                        <div class="card-header {% if movement_slip %}bg-success text-white{% else %}bg-warning{% endif %}">
+                            <h5 class="mb-0">
+                                <i class="bi bi-file-text me-2"></i>Movement Slip
+                                {% if movement_slip %}
+                                    <span class="badge bg-light text-success float-end">Active</span>
+                                {% else %}
+                                    <span class="badge bg-light text-warning float-end">Not Set</span>
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if movement_slip %}
+                                <p class="card-text">
+                                    <strong>Template:</strong> {{ movement_slip.name }}<br>
+                                    <small class="text-muted">
+                                        Uploaded: {{ movement_slip.updated_at|date:"M d, Y H:i" }}
+                                    </small>
+                                </p>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'template_download' movement_slip.id %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </a>
+                                    <a href="{% url 'template_upload' %}?type=movement_slip" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Replace
+                                    </a>
+                                    <form action="{% url 'template_delete' movement_slip.id %}" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-trash me-1"></i>Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            {% else %}
+                                <p class="card-text text-muted">
+                                    No movement slip template uploaded yet.
+                                </p>
+                                <a href="{% url 'template_upload' %}?type=movement_slip" class="btn btn-warning">
+                                    <i class="bi bi-upload me-2"></i>Upload Template
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Template History -->
+            {% if templates.count > 0 %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>All Templates</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Uploaded</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for template in templates %}
+                            <tr>
+                                <td>{{ template.name }}</td>
+                                <td>{{ template.get_template_type_display }}</td>
+                                <td>
+                                    {% if template.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ template.updated_at|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'template_download' template.id %}" class="btn btn-outline-primary" title="Download">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                        {% if not template.is_active %}
+                                        <form action="{% url 'template_activate' template.id %}" method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-success" title="Set as Active">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        <form action="{% url 'template_delete' template.id %}" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

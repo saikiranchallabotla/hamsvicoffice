@@ -1,0 +1,1259 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Temporary Works{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-tools me-2"></i>Temporary Works
+{% endblock %}
+
+{% block content %}
+
+<style>
+    /* 3-Panel Layout - Compact like Workslip */
+    .layout-3panel {
+        display: grid;
+        grid-template-columns: 160px 200px 1fr;
+        gap: 0.5rem;
+        height: calc(100vh - 120px);
+    }
+    
+    /* Panel Cards */
+    .panel-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .panel-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.4rem 0.7rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .panel-header i {
+        font-size: 0.8rem;
+    }
+    
+    .panel-header.items-header {
+        background: #38a169;
+    }
+    
+    .panel-header.estimate-header {
+        background: #2d3748;
+    }
+    
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.4rem;
+    }
+    
+    /* Custom Scrollbar for Panels */
+    .panel-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .panel-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .panel-body::-webkit-scrollbar-thumb {
+        background: #805ad5;
+        border-radius: 3px;
+    }
+    
+    /* Groups List */
+    .groups-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .groups-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .group-link {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #4a5568;
+        font-weight: 500;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .group-link:hover {
+        background: #edf2f7;
+        border-color: #805ad5;
+        color: #805ad5;
+        transform: translateX(2px);
+    }
+    
+    .group-link.active {
+        background: #2d3748;
+        color: white;
+        box-shadow: 0 1px 4px rgba(45, 55, 72, 0.3);
+    }
+    
+    /* Items List */
+    .items-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .items-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .item-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+    }
+    
+    .item-row:hover {
+        background: #e6fffa;
+        border-color: #38a169;
+    }
+    
+    .item-name {
+        color: #4a5568;
+        font-size: 0.7rem;
+        flex: 1;
+        line-height: 1.2;
+    }
+    
+    .btn-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
+        padding: 0.15rem 0.4rem;
+        background: #38a169;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-add:hover {
+        transform: scale(1.05);
+        background: #2f855a;
+    }
+    
+    /* Estimate Panel */
+    .work-name-input {
+        width: 100%;
+        padding: 0.3rem 0.5rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        margin-bottom: 0.4rem;
+    }
+    
+    .work-name-input:focus {
+        outline: none;
+        border-color: #38a169;
+        box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.1);
+    }
+    
+    .work-name-label {
+        display: block;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 0.2rem;
+        font-size: 0.7rem;
+    }
+    
+    /* Estimate Table */
+    .estimate-table-wrapper {
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+        margin-bottom: 0.4rem;
+        max-height: calc(100vh - 320px);
+        overflow-y: auto;
+    }
+    
+    .estimate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.7rem;
+    }
+    
+    .estimate-table th {
+        background: #2d3748;
+        color: white;
+        padding: 0.35rem 0.25rem;
+        font-weight: 600;
+        text-align: center;
+        font-size: 0.68rem;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    
+    .estimate-table td {
+        padding: 0.25rem 0.2rem;
+        text-align: center;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        font-size: 0.7rem;
+    }
+    
+    .estimate-table tbody tr {
+        transition: all 0.15s ease;
+    }
+    
+    .estimate-table tbody tr:hover {
+        background: #f0fff4;
+    }
+    
+    .estimate-table td.desc-col {
+        text-align: center;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .qty-input, .days-input {
+        width: 100%;
+        min-width: 70px;
+        padding: 0.3rem 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 0.75rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+    }
+    
+    .qty-input:focus, .days-input:focus {
+        outline: none;
+        border-color: #38a169;
+        box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.1);
+    }
+    
+    .rate-cell {
+        font-weight: 600;
+        color: #2d3748;
+    }
+    
+    .rate-missing {
+        color: #e53e3e !important;
+        font-weight: 600;
+    }
+    
+    .amount-cell {
+        font-weight: 600;
+        color: #38a169;
+    }
+    
+    .remove-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        background: #e53e3e;
+        color: white;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 0.65rem;
+        transition: all 0.2s ease;
+    }
+    
+    .remove-link:hover {
+        transform: scale(1.1);
+        background: #c53030;
+    }
+    
+    /* Total Row */
+    .estimate-total-row {
+        background: #f0fff4;
+        padding: 0.4rem 0.6rem;
+        border-radius: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.4rem;
+        border: 1px solid #c6f6d5;
+    }
+    
+    .total-label {
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 0.75rem;
+    }
+    
+    .total-amount {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #38a169;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.7rem;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-action i {
+        font-size: 0.75rem;
+    }
+    
+    .btn-download {
+        background: #38a169;
+        color: white;
+        box-shadow: 0 2px 6px rgba(56, 161, 105, 0.3);
+    }
+    
+    .btn-download:hover {
+        transform: translateY(-1px);
+        background: #2f855a;
+    }
+    
+    .btn-clear:hover {
+        transform: translateY(-1px);
+        background: #c53030;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 0.75rem;
+        color: #a0aec0;
+    }
+    
+    .empty-state i {
+        font-size: 1.5rem;
+        margin-bottom: 0.3rem;
+        opacity: 0.5;
+    }
+    
+    .empty-state p {
+        font-size: 0.7rem;
+        margin: 0;
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .layout-3panel {
+            grid-template-columns: 140px 180px 1fr;
+        }
+    }
+    
+    @media (max-width: 992px) {
+        .layout-3panel {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        
+        .panel-card {
+            max-height: 350px;
+        }
+    }
+    
+    /* Drag and Drop Styles */
+    .estimate-table tbody tr.draggable {
+        cursor: grab;
+    }
+    
+    .estimate-table tbody tr.draggable:active {
+        cursor: grabbing;
+    }
+    
+    .estimate-table tbody tr.dragging {
+        opacity: 0.5;
+        background: #e6fffa !important;
+    }
+    
+    .estimate-table tbody tr.drag-over {
+        border-top: 2px solid #319795;
+    }
+    
+    .drag-handle {
+        cursor: grab;
+        color: #a0aec0;
+        padding: 0 4px;
+        font-size: 0.8rem;
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    .drag-handle:hover {
+        color: #319795;
+    }
+    
+    .sl-cell {
+        text-align: center;
+        vertical-align: middle;
+        font-weight: 600;
+    }
+    
+    .unit-cell, .rate-cell, .amount-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    /* Loading indicator for add button */
+    .btn-add.loading {
+        pointer-events: none;
+        opacity: 0.5;
+    }
+    
+    .item-row.processing {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-row.processing::after {
+        content: "...";
+        margin-left: 4px;
+        color: #319795;
+        animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+
+<!-- SOR Backend Selection Bar -->
+{% if available_backends %}
+<div class="backend-selection-bar mb-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="backend-label">
+            <i class="bi bi-database me-1"></i>
+            <strong>SOR Rates:</strong>
+        </div>
+        <select id="backend-selector" class="form-select form-select-sm" style="max-width: 280px;" onchange="switchBackend(this.value)">
+            {% for backend in available_backends %}
+            <option value="{{ backend.id }}" {% if backend.id == selected_backend_id %}selected{% endif %}>
+                {{ backend.name }}{% if backend.is_default %} (Default){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Changing SOR will reload groups and items
+        </span>
+    </div>
+</div>
+<style>
+.backend-selection-bar {
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    border: 1px solid #c3d9fe;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+}
+.backend-selection-bar .form-select {
+    border-color: #3b82f6;
+    font-weight: 500;
+}
+.backend-selection-bar .form-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+.backend-label {
+    color: #1e40af;
+    font-size: 0.85rem;
+}
+</style>
+{% endif %}
+
+<div class="layout-3panel">
+
+    <!-- LEFT: GROUPS -->
+    <div class="panel-card">
+        <div class="panel-header">
+            <i class="bi bi-folder2-open"></i>
+            Groups
+        </div>
+        <div class="panel-body">
+            <ul class="groups-list">
+                {% for g in groups %}
+                    <li>
+                        <a href="#" 
+                           data-nav-url="{% url 'temp_items' category g %}"
+                           onclick="saveAndNavigate(this.getAttribute('data-nav-url')); return false;"
+                           class="group-link {% if g == group %}active{% endif %}">
+                            <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
+                            {{ g }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- MIDDLE: ITEMS -->
+    <div class="panel-card">
+        <div class="panel-header items-header">
+            <i class="bi bi-plus-square"></i>
+            Items in {{ group }}
+        </div>
+        <div class="panel-body">
+            {% if items_info %}
+                <ul class="items-list">
+                    {% for info in items_info %}
+                        <li>
+                            <div class="item-row">
+                                <span class="item-name">{{ info.name }}</span>
+                                <a class="btn-add"
+                                   href="#"
+                                   data-add-url="{% url 'temp_add_item' category group info.name %}"
+                                   onclick="saveAndAdd(this); return false;">
+                                    <i class="bi bi-plus-lg"></i>
+                                    Add
+                                </a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No items found in this group.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RIGHT: ESTIMATE PREVIEW -->
+    <div class="panel-card">
+        <div class="panel-header estimate-header">
+            <i class="bi bi-calculator"></i>
+            Temporary Works Estimate
+        </div>
+        <div class="panel-body">
+            <form id="temp-estimate-form"
+                  method="post"
+                  action="{% url 'temp_download_output' category %}">
+                {% csrf_token %}
+                <input type="hidden" name="entries_json" id="entries-json-field">
+                <input type="hidden" name="grand_total" id="grand-total-field">
+
+                <!-- Name of the work field -->
+                <label class="work-name-label">
+                    <i class="bi bi-pencil-square me-1"></i>
+                    Name of the Work
+                </label>
+                <input type="text"
+                       id="work-name-input"
+                       name="work_name"
+                       class="work-name-input"
+                       placeholder="Enter work name..."
+                       value="{{ work_name|default_if_none:'' }}">
+
+                <div class="estimate-table-wrapper">
+                    <table class="estimate-table" id="estimate-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 24px;"></th>
+                                <th style="width: 40px;">Sl.No</th>
+                                <th style="max-width: 180px;">Item Description</th>
+                                <th style="width: 45px;">Unit</th>
+                                <th style="width: 90px;">Qty</th>
+                                <th style="width: 80px;">Days</th>
+                                <th style="width: 70px;">Rate</th>
+                                <th style="width: 110px;">Amount</th>
+                                <th style="width: 32px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if entries %}
+                                {% for row in entries %}
+                                    <tr data-entry-id="{{ row.id }}"
+                                        data-item-name="{{ row.name }}"
+                                        class="draggable" draggable="true">
+                                        <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
+                                        <td class="sl-cell">{{ row.sl }}</td>
+                                        <td class="desc-col" title="{{ row.name }}">{{ row.name }}</td>
+                                        <td>{{ row.unit }}</td>
+                                        <td>
+                                            <input type="number"
+                                                   min="0"
+                                                   step="0.01"
+                                                   class="qty-input"
+                                                   value="{{ row.qty|default_if_none:'' }}">
+                                        </td>
+                                        <td>
+                                            <input type="number"
+                                                   min="1"
+                                                   max="365"
+                                                   class="days-input"
+                                                   value="{{ row.days|default:'1' }}">
+                                        </td>
+                                        <td class="rate-cell"></td>
+                                        <td class="amount-cell"></td>
+                                        <td>
+                                            <a class="remove-link btn-remove"
+                                               href="#"
+                                               onclick="removeEntry('{{ row.id }}'); return false;"
+                                               title="Remove item">
+                                                <i class="bi bi-x-lg"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="9">
+                                        <div class="empty-state">
+                                            <i class="bi bi-clipboard-x"></i>
+                                            <p>No items added yet.<br>Add items from the list.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="estimate-total-row">
+                    <span class="total-label">
+                        <i class="bi bi-currency-rupee me-1"></i>
+                        ECV Amount
+                    </span>
+                    <span class="total-amount">₹<span id="estimate-total">0.00</span></span>
+                </div>
+
+                <!-- Grand Total Input -->
+                <div class="estimate-total-row" style="background: #e6fffa; border-color: #38b2ac;">
+                    <label for="grand-total-input" class="total-label" style="color: #234e52;">
+                        <i class="bi bi-calculator me-1"></i>
+                        Grand Total (Manual Entry)
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <span style="font-weight: 600; color: #319795;">₹</span>
+                        <input type="number" 
+                               id="grand-total-input"
+                               class="qty-input"
+                               style="width: 100px; font-weight: 700; color: #319795; border-color: #38b2ac;"
+                               step="0.01"
+                               min="0"
+                               placeholder="Enter amount"
+                               value="{{ grand_total|default_if_none:'' }}">
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="action-buttons">
+                    <button type="submit" class="btn-action btn-download">
+                        <i class="bi bi-download"></i>
+                        Download Estimate
+                    </button>
+
+                    <a href="{% url 'temp_clear_items' category group %}"
+                       class="btn-action btn-clear">
+                        <i class="bi bi-x-circle"></i>
+                        Clear All
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+{# ✅ SAFE JSON INJECTION (fixes VSCode red + parsing issues) #}
+<script id="day-rates-json" type="application/json">
+{{ day_rates_json|default:"{}"|safe }}
+</script>
+
+<script>
+// Switch to a different backend (SOR rates file)
+function switchBackend(backendId) {
+    if (!backendId) return;
+    
+    // Build URL with backend_id parameter
+    var currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('backend_id', backendId);
+    
+    // Show loading indicator
+    var selector = document.getElementById('backend-selector');
+    if (selector) {
+        selector.disabled = true;
+        selector.style.opacity = '0.6';
+    }
+    
+    // Redirect to reload with new backend
+    window.location.href = currentUrl.toString();
+}
+</script>
+
+<script>
+(function () {
+  function normalizeName(s) {
+    return String(s || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function readDayRates() {
+    const el = document.getElementById("day-rates-json");
+    if (!el) return {};
+    const raw = el.textContent || "{}";
+    try {
+      const obj = JSON.parse(raw);
+      // Normalize keys for safer matching
+      const out = {};
+      Object.keys(obj || {}).forEach((k) => {
+        out[normalizeName(k)] = obj[k];
+      });
+      return out;
+    } catch (e) {
+      console.error("Invalid day_rates_json:", e, raw);
+      return {};
+    }
+  }
+
+  const DAY_RATES = readDayRates();
+
+  function getRate(itemName, days) {
+    const key = normalizeName(itemName);
+    const itemMap = DAY_RATES[key] || null;
+    if (!itemMap) return null;
+
+    // days can be 1..N; map keys can be "1", 1, etc.
+    const d1 = String(days);
+    let rate = itemMap[d1];
+    if (rate == null) rate = itemMap[days];
+
+    if (rate == null) return null;
+
+    // If rate comes like "1,016.00" -> remove commas
+    if (typeof rate === "string") {
+      rate = rate.replace(/,/g, "").trim();
+    }
+
+    const num = parseFloat(rate);
+    if (isNaN(num)) return null;
+    return num;
+  }
+
+  function recalcRow(row) {
+    const qtyInput  = row.querySelector(".qty-input");
+    const daysInput = row.querySelector(".days-input");
+    const rateCell  = row.querySelector(".rate-cell");
+    const amtCell   = row.querySelector(".amount-cell");
+
+    if (!qtyInput || !daysInput || !rateCell || !amtCell) return;
+
+    const itemName = row.getAttribute("data-item-name") || "";
+    let days = parseInt(daysInput.value || "1", 10);
+    if (isNaN(days) || days < 1) days = 1;
+
+    const rate = getRate(itemName, days);
+
+    if (rate == null) {
+      rateCell.textContent = "₹0.00";
+      rateCell.classList.add("rate-missing");
+    } else {
+      rateCell.textContent = "₹" + rate.toFixed(2);
+      rateCell.classList.remove("rate-missing");
+    }
+
+    let qty = parseFloat(qtyInput.value || "0");
+    if (isNaN(qty)) qty = 0;
+
+    const amt = (rate || 0) * qty;
+    amtCell.textContent = (amt > 0) ? "₹" + amt.toFixed(2) : "";
+  }
+
+  function recalcTotal() {
+    let total = 0;
+    document.querySelectorAll("#estimate-table tbody tr").forEach((row) => {
+      const cell = row.querySelector(".amount-cell");
+      if (!cell) return;
+      const text = cell.textContent.replace("₹", "").trim();
+      const v = parseFloat(text || "0");
+      if (!isNaN(v)) total += v;
+    });
+    const totalSpan = document.getElementById("estimate-total");
+    if (totalSpan) totalSpan.textContent = total.toFixed(2);
+  }
+
+  // Bind + initial
+  document.querySelectorAll("#estimate-table tbody tr").forEach((row) => {
+    const qtyInput  = row.querySelector(".qty-input");
+    const daysInput = row.querySelector(".days-input");
+
+    if (qtyInput) {
+      qtyInput.addEventListener("input", () => {
+        recalcRow(row);
+        recalcTotal();
+      });
+    }
+    if (daysInput) {
+      daysInput.addEventListener("input", () => {
+        recalcRow(row);
+        recalcTotal();
+      });
+      daysInput.addEventListener("change", () => {
+        recalcRow(row);
+        recalcTotal();
+      });
+    }
+
+    recalcRow(row);
+  });
+  recalcTotal();
+  
+  // Keyboard navigation for quantity inputs (Enter / Arrow Down = next, Arrow Up = previous)
+  function setupQtyKeyboardNav() {
+      var table = document.getElementById("estimate-table");
+      if (!table) return;
+      
+      table.addEventListener("keydown", function(e) {
+          var target = e.target;
+          if (!target.classList.contains("qty-input") && !target.classList.contains("days-input")) return;
+          
+          var row = target.closest("tr");
+          if (!row) return;
+          
+          var allRows = Array.from(table.querySelectorAll("tbody tr"));
+          var currentIndex = allRows.indexOf(row);
+          var inputClass = target.classList.contains("qty-input") ? ".qty-input" : ".days-input";
+          
+          if (e.key === "Enter" || e.key === "ArrowDown") {
+              e.preventDefault();
+              // Move to next row's same input type
+              for (var i = currentIndex + 1; i < allRows.length; i++) {
+                  var nextInput = allRows[i].querySelector(inputClass);
+                  if (nextInput) {
+                      nextInput.focus();
+                      nextInput.select();
+                      break;
+                  }
+              }
+          } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              // Move to previous row's same input type
+              for (var i = currentIndex - 1; i >= 0; i--) {
+                  var prevInput = allRows[i].querySelector(inputClass);
+                  if (prevInput) {
+                      prevInput.focus();
+                      prevInput.select();
+                      break;
+                  }
+              }
+          }
+      });
+  }
+  setupQtyKeyboardNav();
+
+    // Helpers to save current entries to session before navigation
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? v.pop() : '';
+    }
+
+    async function saveState() {
+      const list = [];
+      document.querySelectorAll('#estimate-table tbody tr[data-entry-id]').forEach((row) => {
+        const id = row.getAttribute('data-entry-id');
+        const name = row.getAttribute('data-item-name');
+        const qtyInput = row.querySelector('.qty-input');
+        const daysInput = row.querySelector('.days-input');
+        const qty = qtyInput ? parseFloat(qtyInput.value || '0') : 0;
+        const days = daysInput ? parseInt(daysInput.value || '1', 10) : 1;
+        list.push({ id: id, name: name, qty: qty, days: days });
+      });
+      const workName = (document.getElementById('work-name-input') || {}).value || '';
+      const grandTotal = (document.getElementById('grand-total-input') || {}).value || '';
+
+      // Try to read CSRF token from hidden input first (more reliable in some setups)
+      const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      const csrftoken = tokenInput ? tokenInput.value : getCookie('csrftoken');
+
+      try {
+        const resp = await fetch('{% url "temp_save_state" category %}', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken,
+          },
+          body: JSON.stringify({ entries: list, work_name: workName, grand_total: grandTotal }),
+        });
+        if (!resp.ok) {
+          console.warn('saveState responded with', resp.status);
+        }
+        return resp.ok;
+      } catch (e) {
+        console.error('Failed to save state', e);
+        return false;
+      }
+    }
+
+    // AJAX URL for adding items
+    var ajaxAddUrl = "{% url 'temp_ajax_add_item' category %}";
+    var ajaxReorderUrl = "{% url 'temp_ajax_reorder_items' category %}";
+    
+    // ========================================
+    // QUEUED ITEM ADD SYSTEM
+    // ========================================
+    var addQueue = [];
+    var isProcessingAddQueue = false;
+    
+    function addToAddQueue(itemName, buttonEl) {
+        addQueue.push({ item: itemName, button: buttonEl });
+        buttonEl.classList.add('loading');
+        var itemRow = buttonEl.closest('.item-row');
+        if (itemRow) itemRow.classList.add('processing');
+        
+        if (!isProcessingAddQueue) {
+            processAddQueue();
+        }
+    }
+    
+    async function processAddQueue() {
+        if (addQueue.length === 0) {
+            isProcessingAddQueue = false;
+            return;
+        }
+        
+        isProcessingAddQueue = true;
+        var current = addQueue.shift();
+        
+        var workName = (document.getElementById('work-name-input') || {}).value || '';
+        const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        const csrftoken = tokenInput ? tokenInput.value : getCookie('csrftoken');
+        
+        try {
+            const resp = await fetch(ajaxAddUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    item: current.item,
+                    work_name: workName
+                })
+            });
+            
+            const data = await resp.json();
+            
+            current.button.classList.remove('loading');
+            var itemRow = current.button.closest('.item-row');
+            if (itemRow) itemRow.classList.remove('processing');
+            
+            if (data.status === 'ok') {
+                addEntryToTable(current.item, data.entry_id, data.item_info);
+                updateSerialNumbers();
+                recalcTotal();
+            } else {
+                console.error('Add failed:', data.message);
+            }
+        } catch (err) {
+            current.button.classList.remove('loading');
+            var itemRow = current.button.closest('.item-row');
+            if (itemRow) itemRow.classList.remove('processing');
+            console.error('Add error:', err);
+        }
+        
+        processAddQueue();
+    }
+    
+    function addEntryToTable(itemName, entryId, itemInfo) {
+        var tbody = document.querySelector("#estimate-table tbody");
+        if (!tbody) return;
+        
+        var emptyRow = tbody.querySelector('tr td[colspan]');
+        if (emptyRow) {
+            emptyRow.closest('tr').remove();
+        }
+        
+        var newRow = document.createElement('tr');
+        newRow.setAttribute('data-entry-id', entryId);
+        newRow.setAttribute('data-item-name', itemName);
+        newRow.classList.add('draggable');
+        newRow.setAttribute('draggable', 'true');
+        
+        var sl = tbody.querySelectorAll('tr[data-entry-id]').length + 1;
+        
+        // Extract unit from itemInfo
+        var unit = (itemInfo && itemInfo.unit) ? itemInfo.unit : 'Nos';
+        
+        newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
+                           '<td class="sl-cell">' + sl + '</td>' +
+                           '<td class="desc-col" title="' + itemName + '">' + itemName + '</td>' +
+                           '<td class="unit-cell">' + unit + '</td>' +
+                           '<td><input type="number" min="0" step="0.01" class="qty-input" value=""></td>' +
+                           '<td><input type="number" min="1" step="1" class="days-input" value="1"></td>' +
+                           '<td class="rate-cell"></td>' +
+                           '<td class="amount-cell"></td>' +
+                           '<td><a class="btn-remove" href="#" onclick="removeEntry(\'' + entryId + '\'); return false;" title="Remove item"><i class="bi bi-x-lg"></i></a></td>';
+        
+        tbody.appendChild(newRow);
+        attachRowListeners(newRow);
+        attachDragListeners(newRow);
+    }
+    
+    var ajaxRemoveUrl = "{% url 'temp_ajax_remove_item' category %}";
+    
+    function removeEntry(entryId) {
+        var row = document.querySelector('#estimate-table tbody tr[data-entry-id="' + entryId + '"]');
+        if (!row) return;
+        
+        // Immediately remove from UI for responsiveness
+        row.remove();
+        updateSerialNumbers();
+        recalcTotal();
+        
+        // Update session via AJAX
+        var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+        fetch(ajaxRemoveUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ entry_id: entryId })
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.status !== 'ok') {
+                console.error('Remove failed:', data.message);
+            }
+        })
+        .catch(function(err) {
+            console.error('Remove error:', err);
+        });
+        
+        // Show empty state if no items left
+        var tbody = document.querySelector('#estimate-table tbody');
+        if (tbody && tbody.querySelectorAll('tr[data-entry-id]').length === 0) {
+            var emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="9"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items added yet.<br>Add items from the list.</p></div></td>';
+            tbody.appendChild(emptyRow);
+        }
+    }
+    window.removeEntry = removeEntry;
+    
+    function updateSerialNumbers() {
+        var rows = document.querySelectorAll('#estimate-table tbody tr[data-entry-id]');
+        rows.forEach(function(row, index) {
+            var slCell = row.querySelector('.sl-cell');
+            if (slCell) {
+                slCell.textContent = index + 1;
+            }
+        });
+    }
+    
+    function attachRowListeners(row) {
+        var qtyInput = row.querySelector('.qty-input');
+        var daysInput = row.querySelector('.days-input');
+        
+        if (qtyInput) {
+            qtyInput.addEventListener('input', function() {
+                recalcRow(row);
+                recalcTotal();
+            });
+        }
+        if (daysInput) {
+            daysInput.addEventListener('input', function() {
+                recalcRow(row);
+                recalcTotal();
+            });
+            daysInput.addEventListener('change', function() {
+                recalcRow(row);
+                recalcTotal();
+            });
+        }
+    }
+    
+    // ========================================
+    // DRAG AND DROP REORDERING
+    // ========================================
+    var draggedRow = null;
+    
+    function attachDragListeners(row) {
+        row.addEventListener('dragstart', function(e) {
+            draggedRow = row;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-entry-id'));
+        });
+        
+        row.addEventListener('dragend', function() {
+            row.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(function(el) {
+                el.classList.remove('drag-over');
+            });
+            draggedRow = null;
+            updateSerialNumbers();
+            saveNewOrder();
+        });
+        
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (draggedRow && draggedRow !== row) {
+                row.classList.add('drag-over');
+            }
+        });
+        
+        row.addEventListener('dragleave', function() {
+            row.classList.remove('drag-over');
+        });
+        
+        row.addEventListener('drop', function(e) {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            
+            if (draggedRow && draggedRow !== row) {
+                var tbody = row.parentNode;
+                var rows = Array.from(tbody.querySelectorAll('tr[data-entry-id]'));
+                var draggedIndex = rows.indexOf(draggedRow);
+                var targetIndex = rows.indexOf(row);
+                
+                if (draggedIndex < targetIndex) {
+                    tbody.insertBefore(draggedRow, row.nextSibling);
+                } else {
+                    tbody.insertBefore(draggedRow, row);
+                }
+            }
+        });
+    }
+    
+    async function saveNewOrder() {
+        var entries = [];
+        document.querySelectorAll('#estimate-table tbody tr[data-entry-id]').forEach(function(row) {
+            entries.push({
+                id: row.getAttribute('data-entry-id'),
+                name: row.getAttribute('data-item-name')
+            });
+        });
+        
+        const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        const csrftoken = tokenInput ? tokenInput.value : getCookie('csrftoken');
+        
+        try {
+            await fetch(ajaxReorderUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrftoken
+                },
+                body: JSON.stringify({ entries: entries })
+            });
+        } catch (err) {
+            console.error('Reorder error:', err);
+        }
+    }
+    
+    // Initialize drag listeners for existing rows
+    document.querySelectorAll('#estimate-table tbody tr.draggable').forEach(attachDragListeners);
+    
+    // New saveAndAdd using AJAX queue
+    async function saveAndAdd(el) {
+      const itemName = el.closest('.item-row').querySelector('.item-name').textContent.trim();
+      addToAddQueue(itemName, el);
+    }
+
+    async function saveAndNavigate(url) {
+      await saveState();
+      window.location = url;
+    }
+
+    // Expose helpers for inline onclick handlers
+    window.saveAndAdd = saveAndAdd;
+    window.saveAndNavigate = saveAndNavigate;
+
+  // Submit → entries_json (send qty+days for each selected row)
+  const form = document.getElementById("temp-estimate-form");
+  const entriesField = document.getElementById("entries-json-field");
+  const grandTotalField = document.getElementById("grand-total-field");
+
+  if (form && entriesField) {
+    form.addEventListener("submit", function () {
+      const list = [];
+      document.querySelectorAll("#estimate-table tbody tr").forEach((row) => {
+        const itemName = row.getAttribute("data-item-name");
+        if (!itemName) return;
+
+        const qtyInput = row.querySelector(".qty-input");
+        const daysInput = row.querySelector(".days-input");
+        if (!qtyInput || !daysInput) return;
+
+        let qty = parseFloat(qtyInput.value || "0");
+        if (isNaN(qty) || qty <= 0) return;
+
+        let days = parseInt(daysInput.value || "1", 10);
+        if (isNaN(days) || days < 1) days = 1;
+
+        list.push({ name: itemName, qty: qty, days: days });
+      });
+
+      entriesField.value = JSON.stringify(list);
+      
+      // Set grand total hidden field
+      const gtInput = document.getElementById("grand-total-input");
+      if (grandTotalField && gtInput) {
+        grandTotalField.value = gtInput.value || "";
+      }
+    });
+  }
+})();
+</script>
+
+<!-- Save Work Button (Fixed position) -->
+<button class="save-work-btn" data-bs-toggle="modal" data-bs-target="#saveWorkModal" title="Save your work">
+    <i class="bi bi-save"></i>
+    <span>Save Work</span>
+</button>
+
+<!-- Include Save Work Modal -->
+{% include 'core/saved_works/save_modal.html' with work_type='temporary_works' category=category %}
+
+{% endblock %}

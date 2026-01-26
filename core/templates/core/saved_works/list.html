@@ -1,0 +1,907 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}My Saved Works - Hamsvic{% endblock %}
+
+{% block nav_saved_works %}active{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-folder-fill me-2"></i>My Saved Works
+{% endblock %}
+
+{% block content %}
+
+<style>
+    /* Windows Explorer Style File Manager */
+    .explorer {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        display: flex;
+        min-height: 75vh;
+        overflow: hidden;
+    }
+    
+    /* Left Sidebar - Folder Tree */
+    .explorer-sidebar {
+        width: 250px;
+        background: #f8f9fa;
+        border-right: 1px solid #e0e0e0;
+        padding: 0;
+        overflow-y: auto;
+    }
+    
+    .sidebar-header {
+        padding: 12px 16px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #555;
+        background: #f0f0f0;
+        border-bottom: 1px solid #e0e0e0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .folder-tree {
+        padding: 8px 0;
+    }
+    
+    .tree-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 16px;
+        cursor: pointer;
+        color: #333;
+        text-decoration: none;
+        font-size: 0.9rem;
+        border-left: 3px solid transparent;
+        transition: all 0.15s;
+    }
+    
+    .tree-item:hover {
+        background: #e8e8e8;
+        color: #333;
+    }
+    
+    .tree-item.active {
+        background: #e3f2fd;
+        border-left-color: #1976d2;
+        color: #1976d2;
+        font-weight: 500;
+    }
+    
+    .tree-item i {
+        margin-right: 10px;
+        font-size: 1rem;
+    }
+    
+    .tree-item .badge {
+        margin-left: auto;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+    }
+    
+    /* Main Content Area */
+    .explorer-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    
+    /* Toolbar */
+    .explorer-toolbar {
+        display: flex;
+        align-items: center;
+        padding: 10px 16px;
+        background: #fafafa;
+        border-bottom: 1px solid #e0e0e0;
+        gap: 12px;
+    }
+    
+    .breadcrumb-nav {
+        display: flex;
+        align-items: center;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 6px 12px;
+        flex: 1;
+        font-size: 0.9rem;
+    }
+    
+    .breadcrumb-nav a {
+        color: #1976d2;
+        text-decoration: none;
+    }
+    
+    .breadcrumb-nav a:hover {
+        text-decoration: underline;
+    }
+    
+    .breadcrumb-nav .separator {
+        margin: 0 8px;
+        color: #999;
+    }
+    
+    .breadcrumb-nav .current {
+        color: #333;
+        font-weight: 500;
+    }
+    
+    .toolbar-btn {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s;
+    }
+    
+    .toolbar-btn:hover {
+        background: #f0f0f0;
+        border-color: #ccc;
+    }
+    
+    .toolbar-btn.primary {
+        background: #1976d2;
+        color: white;
+        border-color: #1976d2;
+    }
+    
+    .toolbar-btn.primary:hover {
+        background: #1565c0;
+    }
+    
+    /* File List View */
+    .file-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    .file-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .file-table thead {
+        background: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .file-table th {
+        padding: 10px 16px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #555;
+        border-bottom: 1px solid #e0e0e0;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+    
+    .file-table th:first-child {
+        width: 50%;
+    }
+    
+    .file-table tbody tr {
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    
+    .file-table tbody tr:hover {
+        background: #f5f8ff;
+    }
+    
+    .file-table tbody tr.selected {
+        background: #e3f2fd;
+    }
+    
+    .file-table td {
+        padding: 10px 16px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+        color: #333;
+    }
+    
+    .file-name {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .file-icon {
+        font-size: 1.3rem;
+    }
+    
+    .file-icon.folder {
+        color: #f59e0b;
+    }
+    
+    .file-icon.estimate {
+        color: #2563eb;
+    }
+    
+    .file-icon.workslip {
+        color: #16a34a;
+    }
+    
+    .file-icon.bill {
+        color: #dc2626;
+    }
+    
+    .file-icon.temp {
+        color: #d97706;
+    }
+    
+    .file-icon.amc {
+        color: #0891b2;
+    }
+    
+    .file-name-text {
+        font-weight: 500;
+    }
+    
+    .file-type {
+        color: #666;
+    }
+    
+    .file-date {
+        color: #666;
+        font-size: 0.85rem;
+    }
+    
+    .file-actions {
+        text-align: right;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .file-actions .btn {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+    }
+    
+    /* Empty State */
+    .empty-folder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: #888;
+    }
+    
+    .empty-folder i {
+        font-size: 4rem;
+        margin-bottom: 16px;
+        opacity: 0.4;
+    }
+    
+    .empty-folder h5 {
+        color: #555;
+        margin-bottom: 8px;
+    }
+    
+    /* Context Menu */
+    .context-menu {
+        position: fixed;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        padding: 4px 0;
+        z-index: 1000;
+        display: none;
+        min-width: 180px;
+    }
+    
+    .context-menu.show {
+        display: block;
+    }
+    
+    .context-menu-item {
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .context-menu-item:hover {
+        background: #f0f0f0;
+    }
+    
+    .context-menu-item.danger {
+        color: #dc2626;
+    }
+    
+    .context-menu-divider {
+        height: 1px;
+        background: #e0e0e0;
+        margin: 4px 0;
+    }
+    
+    /* Status bar */
+    .explorer-statusbar {
+        padding: 8px 16px;
+        background: #f5f5f5;
+        border-top: 1px solid #e0e0e0;
+        font-size: 0.8rem;
+        color: #666;
+    }
+</style>
+
+<div class="explorer">
+    <!-- Left Sidebar - Folder Tree -->
+    <div class="explorer-sidebar">
+        <div class="sidebar-header">
+            <i class="bi bi-folder me-2"></i>Folders
+        </div>
+        <div class="folder-tree">
+            <a href="{% url 'saved_works_list' %}" class="tree-item {% if not current_folder %}active{% endif %}">
+                <i class="bi bi-house-door-fill"></i>
+                <span>All Saved Works</span>
+            </a>
+            
+            <div style="padding-left: 16px;">
+                {% for folder in folders %}
+                <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}" 
+                   class="tree-item {% if current_folder.id == folder.id %}active{% endif %}">
+                    <i class="bi bi-folder-fill" style="color: {{ folder.color }}"></i>
+                    <span>{{ folder.name }}</span>
+                    <span class="badge bg-secondary">{{ folder.get_works_count }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="explorer-main">
+        <!-- Toolbar -->
+        <div class="explorer-toolbar">
+            {% if current_folder %}
+            <a href="{% if current_folder.parent %}{% url 'saved_works_list' %}?folder={{ current_folder.parent.id }}{% else %}{% url 'saved_works_list' %}{% endif %}" class="toolbar-btn" title="Go Back">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            {% endif %}
+            <div class="breadcrumb-nav">
+                <i class="bi bi-folder2-open me-2" style="color: #f59e0b;"></i>
+                <a href="{% url 'saved_works_list' %}">My Saved Works</a>
+                {% for folder in breadcrumb_path %}
+                    <span class="separator">›</span>
+                    {% if forloop.last %}
+                        <span class="current">{{ folder.name }}</span>
+                    {% else %}
+                        <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}">{{ folder.name }}</a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            
+            <button class="toolbar-btn primary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                <i class="bi bi-folder-plus"></i> New Folder
+            </button>
+        </div>
+        
+        <!-- File List -->
+        <div class="file-list">
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Date Modified</th>
+                        <th>Items</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Show folders first -->
+                    {% for folder in folders %}
+                    <tr ondblclick="window.location.href='{% url 'saved_works_list' %}?folder={{ folder.id }}'" 
+                        oncontextmenu="showFolderMenu(event, {{ folder.id }}, '{{ folder.name }}')">
+                        <td>
+                            <div class="file-name">
+                                <i class="bi bi-folder-fill file-icon folder" style="color: {{ folder.color }}"></i>
+                                <span class="file-name-text">{{ folder.name }}</span>
+                            </div>
+                        </td>
+                        <td class="file-type">Folder</td>
+                        <td class="file-date">{{ folder.created_at|date:"M d, Y h:i A" }}</td>
+                        <td>{{ folder.get_works_count }} item(s), {{ folder.get_children_count }} folder(s)</td>
+                        <td class="file-actions">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}" class="btn btn-outline-primary" title="Open">
+                                    <i class="bi bi-folder2-open"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-secondary" title="Rename" onclick="renameFolder({{ folder.id }}, '{{ folder.name }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteFolder({{ folder.id }}, '{{ folder.name }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    
+                    <!-- Show works -->
+                    {% for work in works %}
+                    <tr ondblclick="window.location.href='{% url 'resume_saved_work' work.id %}'"
+                        oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name }}')">
+                        <td>
+                            <div class="file-name">
+                                <i class="bi {% if work.work_type == 'new_estimate' %}bi-file-earmark-bar-graph file-icon estimate{% elif work.work_type == 'workslip' %}bi-file-earmark-text file-icon workslip{% elif work.work_type == 'bill' %}bi-receipt file-icon bill{% elif work.work_type == 'temporary_works' %}bi-tools file-icon temp{% else %}bi-wrench-adjustable file-icon amc{% endif %}"></i>
+                                <span class="file-name-text">{{ work.name }}</span>
+                                {% if work.parent %}
+                                <small class="text-muted ms-2">(from: {{ work.parent.name }})</small>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="file-type">
+                            {{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %}
+                            {% if work.status == 'completed' %}<span class="badge bg-success ms-1">✓</span>{% endif %}
+                        </td>
+                        <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>
+                        <td>-</td>
+                        <td class="file-actions">
+                            <div class="btn-group btn-group-sm">
+                                {% if module_access|default_if_none:"{}"|dictsort:"0" %}
+                                    {% with work_type=work.work_type %}
+                                        {% if work_type == 'new_estimate' and module_access.new_estimate %}
+                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
+                                            <i class="bi bi-play-fill"></i>
+                                        </a>
+                                        {% elif work_type == 'temporary_works' and module_access.temporary_works %}
+                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
+                                            <i class="bi bi-play-fill"></i>
+                                        </a>
+                                        {% elif work_type == 'amc' and module_access.amc %}
+                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
+                                            <i class="bi bi-play-fill"></i>
+                                        </a>
+                                        {% elif work_type == 'workslip' and module_access.workslip %}
+                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
+                                            <i class="bi bi-play-fill"></i>
+                                        </a>
+                                        {% else %}
+                                        <a href="{% url 'module_access' work_type %}" class="btn btn-secondary" title="Subscribe to access">
+                                            <i class="bi bi-lock-fill"></i>
+                                        </a>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
+                                    <i class="bi bi-play-fill"></i>
+                                </a>
+                                {% endif %}
+                                {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
+                                    {% if module_access.can_generate_workslip %}
+                                    <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success" title="Generate Workslip">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                    </a>
+                                    {% else %}
+                                    <a href="{% url 'module_access' 'workslip' %}" class="btn btn-secondary" title="Subscribe to generate workslip">
+                                        <i class="bi bi-lock-fill"></i>
+                                    </a>
+                                    {% endif %}
+                                {% endif %}
+                                {% if work.work_type == 'workslip' and work.status == 'completed' %}
+                                    {% if module_access.can_generate_workslip %}
+                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info" title="Generate Workslip-{{ work.workslip_number|add:1 }}">
+                                        <i class="bi bi-arrow-right-circle"></i> WS-{{ work.workslip_number|add:1 }}
+                                    </a>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    {% if not folders %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-folder">
+                                <i class="bi bi-folder2-open"></i>
+                                <h5>This folder is empty</h5>
+                                <p>Create a folder or save works to this location.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if not folders and not works and not current_folder %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-folder">
+                                <i class="bi bi-folder-plus"></i>
+                                <h5>No saved works yet</h5>
+                                <p>Create a folder to organize your works, then start a New Estimate or Workslip.</p>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                                        <i class="bi bi-folder-plus me-1"></i> Create Folder
+                                    </button>
+                                    <a href="{% url 'datas' %}" class="btn btn-outline-primary ms-2">
+                                        <i class="bi bi-plus me-1"></i> New Estimate
+                                    </a>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="explorer-statusbar">
+            {{ folders|length }} folder(s), {{ works|length }} work(s){% if current_folder %} in "{{ current_folder.name }}"{% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Context Menu for Folders -->
+<div class="context-menu" id="folderContextMenu">
+    <div class="context-menu-item" onclick="openFolder()">
+        <i class="bi bi-folder2-open"></i> Open
+    </div>
+    <div class="context-menu-item" onclick="createSubfolder()">
+        <i class="bi bi-folder-plus"></i> Create Subfolder
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="renameSelectedFolder()">
+        <i class="bi bi-pencil"></i> Rename
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item danger" onclick="deleteSelectedFolder()">
+        <i class="bi bi-trash"></i> Delete
+    </div>
+</div>
+
+<!-- Context Menu for Works -->
+<div class="context-menu" id="workContextMenu">
+    <div class="context-menu-item" onclick="resumeWork()">
+        <i class="bi bi-play-fill"></i> Resume Work
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="moveWork()">
+        <i class="bi bi-folder-symlink"></i> Move to Folder
+    </div>
+    <div class="context-menu-item" onclick="duplicateSelectedWork()">
+        <i class="bi bi-copy"></i> Duplicate
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item danger" onclick="deleteSelectedWork()">
+        <i class="bi bi-trash"></i> Delete
+    </div>
+</div>
+
+<!-- New Folder Modal -->
+<div class="modal fade" id="newFolderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-folder-plus me-2"></i>New Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newFolderForm">
+                    {% csrf_token %}
+                    {% if current_folder %}
+                    <input type="hidden" name="parent_id" value="{{ current_folder.id }}">
+                    <div class="alert alert-info py-2 mb-3">
+                        <i class="bi bi-info-circle me-1"></i> Creating folder inside <strong>{{ current_folder.name }}</strong>
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" name="name" id="folderName" required placeholder="New Folder" autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Folder Color</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <input type="radio" name="color" value="#f59e0b" id="c1" checked class="d-none">
+                            <label for="c1" class="color-btn" style="background:#f59e0b"></label>
+                            <input type="radio" name="color" value="#6366f1" id="c2" class="d-none">
+                            <label for="c2" class="color-btn" style="background:#6366f1"></label>
+                            <input type="radio" name="color" value="#22c55e" id="c3" class="d-none">
+                            <label for="c3" class="color-btn" style="background:#22c55e"></label>
+                            <input type="radio" name="color" value="#ef4444" id="c4" class="d-none">
+                            <label for="c4" class="color-btn" style="background:#ef4444"></label>
+                            <input type="radio" name="color" value="#8b5cf6" id="c5" class="d-none">
+                            <label for="c5" class="color-btn" style="background:#8b5cf6"></label>
+                            <input type="radio" name="color" value="#06b6d4" id="c6" class="d-none">
+                            <label for="c6" class="color-btn" style="background:#06b6d4"></label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createFolder()">
+                    <i class="bi bi-folder-plus me-1"></i>Create
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .color-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid transparent;
+        transition: all 0.2s;
+    }
+    .color-btn:hover {
+        transform: scale(1.1);
+    }
+    input[type="radio"]:checked + .color-btn {
+        border-color: #333;
+        box-shadow: 0 0 0 2px white, 0 0 0 4px #333;
+    }
+</style>
+
+<!-- Move to Folder Modal -->
+<div class="modal fade" id="moveFolderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-folder-symlink me-2"></i>Move to Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="moveFolderForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="work_id" id="moveWorkId">
+                    <div class="mb-3">
+                        <label class="form-label">Select destination folder:</label>
+                        <select class="form-select" name="folder_id" id="targetFolder">
+                            <option value="none">📁 Root (Unfiled)</option>
+                            {% for folder in all_folders %}
+                            <option value="{{ folder.id }}">📁 {{ folder.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="moveToFolder()">Move</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedFolderId = null;
+    let selectedFolderName = null;
+    let selectedWorkId = null;
+    let selectedWorkName = null;
+    
+    // Hide context menus on click elsewhere
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.context-menu').forEach(m => m.classList.remove('show'));
+    });
+    
+    // Folder context menu
+    function showFolderMenu(event, folderId, folderName) {
+        event.preventDefault();
+        selectedFolderId = folderId;
+        selectedFolderName = folderName;
+        
+        const menu = document.getElementById('folderContextMenu');
+        menu.style.left = event.pageX + 'px';
+        menu.style.top = event.pageY + 'px';
+        menu.classList.add('show');
+    }
+    
+    // Work context menu
+    function showWorkMenu(event, workId, workName) {
+        event.preventDefault();
+        selectedWorkId = workId;
+        selectedWorkName = workName;
+        
+        const menu = document.getElementById('workContextMenu');
+        menu.style.left = event.pageX + 'px';
+        menu.style.top = event.pageY + 'px';
+        menu.classList.add('show');
+    }
+    
+    // Folder actions
+    function openFolder() {
+        window.location.href = `/saved-works/?folder=${selectedFolderId}`;
+    }
+    
+    function createSubfolder() {
+        const folderName = prompt('Enter new subfolder name:');
+        if (folderName && folderName.trim()) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch('/saved-works/folder/create/', {
+                method: 'POST',
+                body: new URLSearchParams({ 
+                    name: folderName.trim(),
+                    parent_id: selectedFolderId,
+                    color: '#6366f1'
+                }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to create subfolder');
+            });
+        }
+    }
+    
+    function renameSelectedFolder() {
+        const newName = prompt('Enter new folder name:', selectedFolderName);
+        if (newName && newName !== selectedFolderName) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/folder/${selectedFolderId}/rename/`, {
+                method: 'POST',
+                body: new URLSearchParams({ name: newName }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to rename');
+            });
+        }
+    }
+    
+    // Direct button-based folder actions
+    function deleteFolder(folderId, folderName) {
+        if (confirm(`Are you sure you want to delete folder "${folderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/folder/${folderId}/delete/`, {
+                method: 'POST',
+                body: new URLSearchParams({ permanent: 'true' }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to delete folder');
+            });
+        }
+    }
+    
+    function renameFolder(folderId, folderName) {
+        const newName = prompt('Enter new folder name:', folderName);
+        if (newName && newName !== folderName) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/folder/${folderId}/rename/`, {
+                method: 'POST',
+                body: new URLSearchParams({ name: newName }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to rename folder');
+            });
+        }
+    }
+    
+    function deleteSelectedFolder() {
+        if (confirm(`Are you sure you want to delete folder "${selectedFolderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/folder/${selectedFolderId}/delete/`, {
+                method: 'POST',
+                body: new URLSearchParams({ permanent: 'true' }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to delete folder');
+            });
+        }
+    }
+    
+    // Work actions
+    function resumeWork() {
+        window.location.href = `/saved-works/${selectedWorkId}/resume/`;
+    }
+    
+    function moveWork() {
+        document.getElementById('moveWorkId').value = selectedWorkId;
+        new bootstrap.Modal(document.getElementById('moveFolderModal')).show();
+    }
+    
+    function duplicateSelectedWork() {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        fetch(`/saved-works/${selectedWorkId}/duplicate/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert(data.error || 'Failed to duplicate');
+        });
+    }
+    
+    function deleteSelectedWork() {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        fetch(`/saved-works/${selectedWorkId}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert(data.error || 'Failed to delete');
+        });
+    }
+    
+    // Create folder
+    function createFolder() {
+        const form = document.getElementById('newFolderForm');
+        const formData = new FormData(form);
+        
+        fetch('/saved-works/folder/create/', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert(data.error || 'Failed to create folder');
+        });
+    }
+    
+    // Move to folder
+    function moveToFolder() {
+        const workId = document.getElementById('moveWorkId').value;
+        const folderId = document.getElementById('targetFolder').value;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/saved-works/${workId}/move/`, {
+            method: 'POST',
+            body: new URLSearchParams({ folder_id: folderId }),
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert(data.error || 'Failed to move');
+        });
+    }
+</script>
+
+{% endblock %}

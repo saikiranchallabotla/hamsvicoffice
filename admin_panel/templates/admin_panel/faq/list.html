@@ -1,0 +1,102 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}FAQs{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">FAQs</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">FAQ Management</h4>
+    <div class="d-flex gap-2">
+        <a href="{% url 'admin_faq_category_edit' 0 %}" class="btn btn-outline-primary">
+            <i class="bi bi-folder-plus me-1"></i> Add Category
+        </a>
+        <a href="{% url 'admin_faq_item_edit' 0 %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Add FAQ
+        </a>
+    </div>
+</div>
+
+{% for category in categories %}
+<div class="admin-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-{{ category.icon|default:'folder' }} me-2 text-primary"></i>
+            <h5 class="mb-0">{{ category.name }}</h5>
+            <span class="badge bg-secondary ms-2">{{ category.faqs.count }}</span>
+        </div>
+        <div class="d-flex gap-1">
+            <a href="{% url 'admin_faq_category_edit' category.id %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-pencil"></i>
+            </a>
+            <a href="{% url 'admin_faq_item_edit' 0 %}?category={{ category.id }}" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus"></i>
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <table class="table admin-table mb-0">
+            <thead>
+                <tr>
+                    <th style="width:40px;"></th>
+                    <th>Question</th>
+                    <th>Views</th>
+                    <th>Status</th>
+                    <th>Order</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for faq in category.faqs.all %}
+                <tr>
+                    <td>
+                        <i class="bi bi-grip-vertical text-muted" style="cursor:grab;"></i>
+                    </td>
+                    <td>
+                        <span class="fw-medium">{{ faq.question }}</span>
+                        <div class="small text-muted text-truncate" style="max-width:400px;">{{ faq.answer|striptags|truncatechars:80 }}</div>
+                    </td>
+                    <td>{{ faq.views|default:0 }}</td>
+                    <td>
+                        {% if faq.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Hidden</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ faq.order }}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <a href="{% url 'admin_faq_item_edit' faq.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form action="{% url 'admin_faq_item_delete' faq.id %}" method="post" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this FAQ?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-3 text-muted">No FAQs in this category</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% empty %}
+<div class="admin-card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-question-circle text-muted" style="font-size:3rem;"></i>
+        <p class="text-muted mt-3">No FAQ categories yet</p>
+        <a href="{% url 'admin_faq_category_edit' 0 %}" class="btn btn-primary">Create First Category</a>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

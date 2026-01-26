@@ -1,0 +1,395 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Pricing - {{ module.name }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_module_list' %}">Modules</a></li>
+<li class="breadcrumb-item active">{{ module.name }} Pricing</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pricing-header {
+        background: linear-gradient(135deg, {{ module.color|default:'#6366f1' }} 0%, {{ module.color|default:'#6366f1' }}cc 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        color: white;
+        margin-bottom: 2rem;
+    }
+    
+    .pricing-header h2 {
+        margin: 0;
+        font-weight: 700;
+    }
+    
+    .pricing-header p {
+        margin: 0.5rem 0 0;
+        opacity: 0.9;
+    }
+    
+    .tier-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        overflow: hidden;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .tier-card.enabled {
+        border-color: #10b981;
+    }
+    
+    .tier-card.disabled {
+        opacity: 0.6;
+    }
+    
+    .tier-header {
+        padding: 1.5rem;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .tier-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .tier-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    .tier-icon.monthly { background: #dbeafe; color: #2563eb; }
+    .tier-icon.quarterly { background: #fce7f3; color: #db2777; }
+    .tier-icon.halfyearly { background: #fef3c7; color: #d97706; }
+    .tier-icon.yearly { background: #d1fae5; color: #059669; }
+    
+    .tier-name {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #1e293b;
+    }
+    
+    .tier-duration {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    
+    .tier-body {
+        padding: 1.5rem;
+    }
+    
+    .price-input-group {
+        position: relative;
+    }
+    
+    .price-input-group .currency-symbol {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #64748b;
+        font-weight: 600;
+    }
+    
+    .price-input-group input {
+        padding-left: 32px;
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #334155;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control {
+        border: 1.5px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.65rem 0.9rem;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+    
+    .form-check-input:checked {
+        background-color: #6366f1;
+        border-color: #6366f1;
+    }
+    
+    .enable-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .enable-toggle .form-check-input {
+        width: 3rem;
+        height: 1.5rem;
+        cursor: pointer;
+    }
+    
+    .popular-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.75rem;
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .save-btn {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        border: none;
+        padding: 0.85rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1rem;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .save-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+    }
+    
+    .cancel-btn {
+        padding: 0.85rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+    }
+    
+    .pricing-preview {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+        text-align: center;
+    }
+    
+    .preview-price {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #1e293b;
+    }
+    
+    .preview-original {
+        color: #94a3b8;
+        text-decoration: line-through;
+        font-size: 0.9rem;
+    }
+    
+    .preview-savings {
+        background: #dcfce7;
+        color: #166534;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="pricingForm">
+    {% csrf_token %}
+    
+    <div class="pricing-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2><i class="bi bi-{{ module.icon|default:'box' }} me-2"></i>{{ module.name }} Pricing</h2>
+                <p>Configure subscription pricing for all plans at once</p>
+            </div>
+            <div>
+                <a href="{% url 'admin_module_list' %}" class="btn btn-light cancel-btn me-2">
+                    <i class="bi bi-x-lg me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-light save-btn text-white" style="background: rgba(255,255,255,0.2); border: 2px solid white;">
+                    <i class="bi bi-check-lg me-1"></i> Save All Pricing
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        {% for tier in tiers %}
+        <div class="col-lg-3 col-md-6">
+            <div class="tier-card {% if tier.is_enabled %}enabled{% else %}disabled{% endif %}" id="tierCard{{ tier.months }}">
+                <div class="tier-header">
+                    <div class="tier-title">
+                        <div class="tier-icon {% if tier.months == 1 %}monthly{% elif tier.months == 3 %}quarterly{% elif tier.months == 6 %}halfyearly{% else %}yearly{% endif %}">
+                            <i class="bi bi-{{ tier.icon }}"></i>
+                        </div>
+                        <div>
+                            <div class="tier-name">{{ tier.name }}</div>
+                            <div class="tier-duration">{{ tier.months }} month{% if tier.months > 1 %}s{% endif %}</div>
+                        </div>
+                    </div>
+                    <div class="enable-toggle form-check form-switch">
+                        <input class="form-check-input" type="checkbox" 
+                               name="tier_{{ tier.months }}_enabled" 
+                               id="tier{{ tier.months }}Enabled"
+                               {% if tier.is_enabled %}checked{% endif %}
+                               onchange="toggleTier({{ tier.months }})">
+                    </div>
+                </div>
+                
+                <div class="tier-body" id="tierBody{{ tier.months }}">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Base Price</label>
+                            <div class="price-input-group">
+                                <span class="currency-symbol">₹</span>
+                                <input type="number" 
+                                       class="form-control" 
+                                       name="tier_{{ tier.months }}_base_price" 
+                                       value="{{ tier.base_price|floatformat:0 }}"
+                                       min="0" step="1"
+                                       oninput="updatePreview({{ tier.months }})">
+                            </div>
+                        </div>
+                        
+                        <div class="col-12">
+                            <label class="form-label">Sale Price <small class="text-muted">(optional)</small></label>
+                            <div class="price-input-group">
+                                <span class="currency-symbol">₹</span>
+                                <input type="number" 
+                                       class="form-control" 
+                                       name="tier_{{ tier.months }}_sale_price" 
+                                       value="{{ tier.sale_price|floatformat:0 }}"
+                                       min="0" step="1"
+                                       oninput="updatePreview({{ tier.months }})"
+                                       placeholder="Leave empty for no discount">
+                            </div>
+                        </div>
+                        
+                        <div class="col-6">
+                            <label class="form-label">GST %</label>
+                            <input type="number" 
+                                   class="form-control" 
+                                   name="tier_{{ tier.months }}_gst_percent" 
+                                   value="{{ tier.gst_percent|floatformat:0 }}"
+                                   min="0" max="100" step="0.5">
+                        </div>
+                        
+                        <div class="col-6">
+                            <label class="form-label">Usage Limit</label>
+                            <input type="number" 
+                                   class="form-control" 
+                                   name="tier_{{ tier.months }}_usage_limit" 
+                                   value="{{ tier.usage_limit }}"
+                                   min="0"
+                                   placeholder="0 = unlimited">
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       name="tier_{{ tier.months }}_is_popular"
+                                       id="tier{{ tier.months }}Popular"
+                                       {% if tier.is_popular %}checked{% endif %}>
+                                <label class="form-check-label" for="tier{{ tier.months }}Popular">
+                                    <span class="popular-badge">
+                                        <i class="bi bi-star-fill"></i> Mark as Popular
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="pricing-preview" id="preview{{ tier.months }}">
+                                <div class="preview-price">
+                                    ₹<span id="previewPrice{{ tier.months }}">{{ tier.sale_price|default:tier.base_price|floatformat:0 }}</span>
+                                </div>
+                                <div id="previewSavings{{ tier.months }}" style="{% if tier.base_price <= tier.sale_price or tier.sale_price == 0 %}display:none{% endif %}">
+                                    <span class="preview-original">₹{{ tier.base_price|floatformat:0 }}</span>
+                                    <span class="preview-savings" id="savingsPercent{{ tier.months }}"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="mt-4 text-end">
+        <a href="{% url 'admin_module_list' %}" class="btn btn-outline-secondary cancel-btn me-2">
+            Cancel
+        </a>
+        <button type="submit" class="btn btn-primary save-btn">
+            <i class="bi bi-check-lg me-1"></i> Save All Pricing
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleTier(months) {
+    const checkbox = document.getElementById('tier' + months + 'Enabled');
+    const card = document.getElementById('tierCard' + months);
+    const body = document.getElementById('tierBody' + months);
+    
+    if (checkbox.checked) {
+        card.classList.remove('disabled');
+        card.classList.add('enabled');
+        body.style.opacity = '1';
+        body.querySelectorAll('input').forEach(input => input.disabled = false);
+    } else {
+        card.classList.add('disabled');
+        card.classList.remove('enabled');
+        body.style.opacity = '0.5';
+        body.querySelectorAll('input:not([type="checkbox"])').forEach(input => input.disabled = true);
+    }
+}
+
+function updatePreview(months) {
+    const basePrice = parseFloat(document.querySelector('[name="tier_' + months + '_base_price"]').value) || 0;
+    const salePrice = parseFloat(document.querySelector('[name="tier_' + months + '_sale_price"]').value) || 0;
+    
+    const displayPrice = salePrice > 0 ? salePrice : basePrice;
+    document.getElementById('previewPrice' + months).textContent = displayPrice.toLocaleString('en-IN');
+    
+    const savingsDiv = document.getElementById('previewSavings' + months);
+    if (salePrice > 0 && salePrice < basePrice) {
+        const savings = Math.round((basePrice - salePrice) / basePrice * 100);
+        document.getElementById('savingsPercent' + months).textContent = savings + '% OFF';
+        savingsDiv.style.display = 'block';
+        savingsDiv.querySelector('.preview-original').textContent = '₹' + basePrice.toLocaleString('en-IN');
+    } else {
+        savingsDiv.style.display = 'none';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    [1, 3, 12].forEach(function(months) {
+        toggleTier(months);
+        updatePreview(months);
+    });
+});
+</script>
+{% endblock %}

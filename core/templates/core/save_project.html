@@ -1,0 +1,17 @@
+{% extends "core/base.html" %}
+{% block content %}
+
+<h2>Save Project</h2>
+
+<form method="POST">
+    {% csrf_token %}
+    <label>Project Name:</label>
+    <input type="text" name="project_name" required>
+    <button type="submit" style="padding:6px 12px; background:#007bff; color:white; border:none; border-radius:4px;">
+        Save
+    </button>
+</form>
+
+<p><a href="{% url 'output_panel' category %}">← Back</a></p>
+
+{% endblock %}

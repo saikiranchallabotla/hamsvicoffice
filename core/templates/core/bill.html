@@ -1,0 +1,827 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Bill Generator{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Bill Generator
+{% endblock %}
+
+{% block content %}
+<style>
+    /* Common Card */
+    .common-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+
+    .common-header {
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .common-header h2 {
+        margin: 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .common-tagline {
+        font-size: 0.68rem;
+        margin-top: 0.15rem;
+        opacity: 0.9;
+    }
+
+    .common-body {
+        padding: 0.6rem 0.75rem;
+    }
+    
+    .common-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+    }
+    
+    @media (max-width: 900px) {
+        .common-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .common-left, .common-right {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    /* Field Groups */
+    .field-group {
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.5rem 0.6rem;
+        margin-bottom: 0.5rem;
+        background: #f7fafc;
+    }
+
+    .field-group-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #805ad5;
+        margin-bottom: 0.35rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .field-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .field-row label {
+        font-size: 0.68rem;
+        color: #4a5568;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .field-row input,
+    .field-row select {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+        min-width: 70px;
+        background: white;
+        transition: all 0.2s;
+    }
+
+    .field-row input:focus,
+    .field-row select:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+
+    .note {
+        font-size: 0.68rem;
+        color: #718096;
+        margin-top: 0.3rem;
+    }
+
+    /* Error Alert */
+    .bill-error {
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        color: #c53030;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* Sections Grid */
+    .sections-container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    @media (max-width: 1024px) {
+        .sections-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Section Cards */
+    .section-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+
+    .section-header {
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-header.blue { background: #2d3748; color: white; }
+    .section-header.teal { background: #319795; color: white; }
+    .section-header.orange { background: #dd6b20; color: white; }
+    .section-header.purple { background: #805ad5; color: white; }
+
+    .section-badge {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.85rem;
+    }
+
+    .section-info h2 {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .section-tagline {
+        font-size: 0.72rem;
+        opacity: 0.9;
+        margin-top: 0.15rem;
+    }
+
+    .section-body {
+        padding: 1rem;
+    }
+
+    /* Upload Blocks */
+    .upload-block {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+        background: #f7fafc;
+    }
+
+    .upload-block:last-child {
+        margin-bottom: 0;
+    }
+
+    .upload-block h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.82rem;
+        color: #2d3748;
+        font-weight: 600;
+    }
+
+    .upload-block label {
+        font-size: 0.75rem;
+        color: #4a5568;
+        display: block;
+        margin-bottom: 0.35rem;
+    }
+
+    .upload-block input[type="file"] {
+        font-size: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Buttons */
+    .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    .bill-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .bill-btn-primary {
+        background: #805ad5;
+        color: white;
+    }
+
+    .bill-btn-primary:hover {
+        background: #6b46c1;
+    }
+
+    .bill-btn-secondary {
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+
+    .bill-btn-secondary:hover {
+        background: #cbd5e0;
+    }
+
+    .bill-btn-teal {
+        background: #319795;
+        color: white;
+    }
+
+    .bill-btn-teal:hover {
+        background: #2c7a7b;
+    }
+
+    .bill-btn-orange {
+        background: #dd6b20;
+        color: white;
+    }
+
+    .bill-btn-orange:hover {
+        background: #c05621;
+    }
+
+    .bill-btn:disabled {
+        background: #cbd5e0;
+        cursor: not-allowed;
+    }
+</style>
+
+{% if error %}
+<div class="bill-error">
+    <i class="bi bi-exclamation-circle"></i>
+    {{ error }}
+</div>
+{% endif %}
+
+<!-- COMMON DETAILS -->
+<div class="common-card">
+    <div class="common-header">
+        <h2><i class="bi bi-gear-fill"></i> Common MB / Date Details & Bill Type</h2>
+        <div class="common-tagline">
+            These details are used for ALL Bills and ALL Documents (LS, Covering Letter, Movement Slip).
+        </div>
+    </div>
+    <div class="common-body">
+        <div class="common-grid">
+            <!-- Left Column: MB Details, Dates, Bill Type -->
+            <div class="common-left">
+                <div class="field-group">
+                    <div class="field-group-label"><i class="bi bi-book"></i> MB Details</div>
+                    <div class="field-row">
+                        <label>M.B.No <input type="text" id="common_mb_measure_no" style="width:60px" /></label>
+                        <label>From P. <input type="text" id="common_mb_measure_p_from" style="width:50px" /></label>
+                        <label>To P. <input type="text" id="common_mb_measure_p_to" style="width:50px" /></label>
+                        <label>Abs.M.B.No <input type="text" id="common_mb_abstract_no" style="width:60px" /></label>
+                        <label>From P. <input type="text" id="common_mb_abstract_p_from" style="width:50px" /></label>
+                        <label>To P. <input type="text" id="common_mb_abstract_p_to" style="width:50px" /></label>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <div class="field-group-label"><i class="bi bi-calendar3"></i> Dates</div>
+                    <div class="field-row">
+                        <label>DOI <input type="text" id="common_doi" style="width:75px" /></label>
+                        <label>DOC <input type="text" id="common_doc" style="width:75px" /></label>
+                        <label>DOMR <input type="text" id="common_domr" style="width:75px" /></label>
+                        <label>DOBR <input type="text" id="common_dobr" style="width:75px" /></label>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <div class="field-group-label"><i class="bi bi-hash"></i> Bill Type</div>
+                    <div class="field-row">
+                        <label>Nth Bill No. <input type="number" id="common_nth_number" min="2" step="1" style="width:55px" /></label>
+                        <label>Bill Type
+                            <select id="common_action" style="min-width:160px">
+                                <option value="">-- Select --</option>
+                                <option value="estimate_first_part">First & Part</option>
+                                <option value="estimate_first_final">First & Final</option>
+                                <option value="firstpart_nth_part">Nth & Part (from 1st)</option>
+                                <option value="firstpart_2nd_final">2nd & Final (from 1st)</option>
+                                <option value="nth_nth_part">Nth & Part (from Nth)</option>
+                                <option value="nth_nth_final">Nth & Final (from Nth)</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Template Uploads -->
+            <div class="common-right">
+                <div class="field-group" style="background: #f0fff4; border-color: #9ae6b4;">
+                    <div class="field-group-label" style="color: #276749;"><i class="bi bi-file-earmark-text"></i> Covering Letter Template</div>
+                    {% if covering_letter_template %}
+                    <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.72rem; flex-wrap:wrap;">
+                        <span style="color:#276749;"><i class="bi bi-check-circle-fill"></i> {{ covering_letter_template.name }}</span>
+                        <a href="{% url 'template_download' covering_letter_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.65rem; text-decoration:none;">
+                            <i class="bi bi-download"></i>
+                        </a>
+                    </div>
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center; margin-top:0.35rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="template_type" value="covering_letter">
+                        <input type="hidden" name="name" value="Covering Letter">
+                        <input type="hidden" name="next" value="bill">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.65rem; flex:1;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.2rem 0.45rem; font-size:0.65rem;">
+                            <i class="bi bi-arrow-repeat"></i> Replace
+                        </button>
+                    </form>
+                    {% else %}
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center;">
+                        {% csrf_token %}
+                        <input type="hidden" name="template_type" value="covering_letter">
+                        <input type="hidden" name="name" value="Covering Letter">
+                        <input type="hidden" name="next" value="bill">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.68rem; flex:1;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.25rem 0.5rem; font-size:0.68rem;">
+                            <i class="bi bi-upload"></i> Upload
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                
+                <div class="field-group" style="background: #fffaf0; border-color: #fbd38d;">
+                    <div class="field-group-label" style="color: #c05621;"><i class="bi bi-file-earmark-text"></i> Movement Slip Template</div>
+                    {% if movement_slip_template %}
+                    <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.72rem; flex-wrap:wrap;">
+                        <span style="color:#c05621;"><i class="bi bi-check-circle-fill"></i> {{ movement_slip_template.name }}</span>
+                        <a href="{% url 'template_download' movement_slip_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.65rem; text-decoration:none;">
+                            <i class="bi bi-download"></i>
+                        </a>
+                    </div>
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center; margin-top:0.35rem;">
+                        {% csrf_token %}
+                        <input type="hidden" name="template_type" value="movement_slip">
+                        <input type="hidden" name="name" value="Movement Slip">
+                        <input type="hidden" name="next" value="bill">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.65rem; flex:1;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.2rem 0.45rem; font-size:0.65rem;">
+                            <i class="bi bi-arrow-repeat"></i> Replace
+                        </button>
+                    </form>
+                    {% else %}
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center;">
+                        {% csrf_token %}
+                        <input type="hidden" name="template_type" value="movement_slip">
+                        <input type="hidden" name="name" value="Movement Slip">
+                        <input type="hidden" name="next" value="bill">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.68rem; flex:1;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.25rem 0.5rem; font-size:0.68rem;">
+                            <i class="bi bi-upload"></i> Upload
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                
+                <p class="note" style="margin-top:0.2rem;">
+                    <i class="bi bi-info-circle"></i> Upload Word (.docx) with your officer names.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FOUR BILL SECTIONS -->
+<div class="sections-container">
+
+    <!-- SECTION 1: Bill from Estimate -->
+    <div class="section-card">
+        <div class="section-header blue">
+            <div class="section-badge">1</div>
+            <div class="section-info">
+                <h2>Bill from Estimate</h2>
+                <div class="section-tagline">Generate CC First & Part / First & Final from Estimate.</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <form method="post" enctype="multipart/form-data" class="bill-form">
+                {% csrf_token %}
+                <!-- hidden common fields -->
+                <input type="hidden" name="mb_measure_no">
+                <input type="hidden" name="mb_measure_p_from">
+                <input type="hidden" name="mb_measure_p_to">
+                <input type="hidden" name="mb_abstract_no">
+                <input type="hidden" name="mb_abstract_p_from">
+                <input type="hidden" name="mb_abstract_p_to">
+                <input type="hidden" name="doi">
+                <input type="hidden" name="doc">
+                <input type="hidden" name="domr">
+                <input type="hidden" name="dobr">
+                <input type="hidden" name="nth_number">
+                <input type="hidden" name="action" />
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-earmark-spreadsheet me-1"></i>Upload Estimate Excel</h3>
+                    <label>
+                        Select Estimate file:
+                        <input type="file" name="bill_file" accept=".xlsx,.xls" required>
+                    </label>
+                    <p class="note">
+                        Estimate format: A: Sl.No, B: Quantity, C: Unit, D: Item Description, E: Rate, H: Amount.
+                    </p>
+                    <div class="btn-row">
+                        <button type="submit" name="action" value="estimate_first_part" class="bill-btn bill-btn-primary">
+                            <i class="bi bi-file-earmark-plus"></i> CC First & Part
+                        </button>
+                        <button type="submit" name="action" value="estimate_first_final" class="bill-btn bill-btn-secondary">
+                            <i class="bi bi-file-earmark-check"></i> CC First & Final
+                        </button>
+                    </div>
+                </div>
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-text me-1"></i>Documents from Estimate</h3>
+                    <p class="note">Generate LS Form / Covering Letter / Movement Slip with common MB details.</p>
+                    <div class="btn-row">
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_part" class="bill-btn bill-btn-teal">
+                            L.S. (Part)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_final" class="bill-btn bill-btn-secondary">
+                            L.S. (Final)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="covering" class="bill-btn bill-btn-secondary">
+                            Covering
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="movement" class="bill-btn bill-btn-secondary">
+                            Movement
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SECTION 2: Bill from WorkSlip -->
+    <div class="section-card">
+        <div class="section-header teal">
+            <div class="section-badge">2</div>
+            <div class="section-info">
+                <h2>Bill from WorkSlip</h2>
+                <div class="section-tagline">Use executed quantities & T.P from WorkSlip.</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <form method="post" enctype="multipart/form-data" class="bill-form">
+                {% csrf_token %}
+                <input type="hidden" name="mb_measure_no">
+                <input type="hidden" name="mb_measure_p_from">
+                <input type="hidden" name="mb_measure_p_to">
+                <input type="hidden" name="mb_abstract_no">
+                <input type="hidden" name="mb_abstract_p_from">
+                <input type="hidden" name="mb_abstract_p_to">
+                <input type="hidden" name="doi">
+                <input type="hidden" name="doc">
+                <input type="hidden" name="domr">
+                <input type="hidden" name="dobr">
+                <input type="hidden" name="nth_number">
+                <input type="hidden" name="action" />
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-earmark-spreadsheet me-1"></i>Upload WorkSlip Excel</h3>
+                    <label>
+                        Select WorkSlip file:
+                        <input type="file" name="bill_file" accept=".xlsx,.xls" required>
+                    </label>
+                    <p class="note">
+                        WorkSlip: B: Description, C: Unit, G: Qty(Exec), H: Rate(Exec), I: Amount(Exec).
+                    </p>
+                    <div class="btn-row">
+                        <button type="submit" name="action" value="workslip_first_part" class="bill-btn bill-btn-teal">
+                            <i class="bi bi-file-earmark-plus"></i> CC First & Part
+                        </button>
+                        <button type="submit" name="action" value="workslip_first_final" class="bill-btn bill-btn-secondary">
+                            <i class="bi bi-file-earmark-check"></i> CC First & Final
+                        </button>
+                    </div>
+                </div>
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-text me-1"></i>Documents from WorkSlip</h3>
+                    <p class="note">Generate LS Form, Covering Letter & Movement Slip.</p>
+                    <div class="btn-row">
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_part" class="bill-btn bill-btn-primary">
+                            L.S. (Part)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_final" class="bill-btn bill-btn-secondary">
+                            L.S. (Final)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="covering" class="bill-btn bill-btn-secondary">
+                            Covering
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="movement" class="bill-btn bill-btn-secondary">
+                            Movement
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SECTION 3: Nth & Part / 2nd & Final from First Bill -->
+    <div class="section-card">
+        <div class="section-header orange">
+            <div class="section-badge">3</div>
+            <div class="section-info">
+                <h2>Nth / 2nd & Final from First Bill</h2>
+                <div class="section-tagline">Upload First & Part / First & Final to generate Nth Bill.</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <form method="post" enctype="multipart/form-data" class="bill-form">
+                {% csrf_token %}
+                <input type="hidden" name="mb_measure_no">
+                <input type="hidden" name="mb_measure_p_from">
+                <input type="hidden" name="mb_measure_p_to">
+                <input type="hidden" name="mb_abstract_no">
+                <input type="hidden" name="mb_abstract_p_from">
+                <input type="hidden" name="mb_abstract_p_to">
+                <input type="hidden" name="doi">
+                <input type="hidden" name="doc">
+                <input type="hidden" name="domr">
+                <input type="hidden" name="dobr">
+                <input type="hidden" name="nth_number">
+                <input type="hidden" name="action" />
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-earmark-arrow-up me-1"></i>Upload First & Part / First & Final Bill</h3>
+                    <label>
+                        Select Bill file:
+                        <input type="file" name="bill_file" accept=".xlsx,.xls" required>
+                    </label>
+                    <p class="note">
+                        Format: A: Sl.No, B: Quantity, C: Unit, D: Item, E: Rate, F: Per, G: Unit, H: Amount.
+                    </p>
+                    <div class="btn-row">
+                        <button type="submit" name="action" value="firstpart_nth_part" class="bill-btn bill-btn-orange">
+                            <i class="bi bi-file-earmark-plus"></i> CC Nth & Part
+                        </button>
+                        <button type="submit" name="action" value="firstpart_2nd_final" class="bill-btn bill-btn-secondary">
+                            <i class="bi bi-file-earmark-check"></i> CC 2nd & Final
+                        </button>
+                    </div>
+                </div>
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-text me-1"></i>Documents from First Bill</h3>
+                    <p class="note">Generate LS Form, Covering Letter & Movement Slip.</p>
+                    <div class="btn-row">
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_part" class="bill-btn bill-btn-primary">
+                            L.S. (Part)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_final" class="bill-btn bill-btn-secondary">
+                            L.S. (Final)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="covering" class="bill-btn bill-btn-secondary">
+                            Covering
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="movement" class="bill-btn bill-btn-secondary">
+                            Movement
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SECTION 4: Nth & Part / Nth & Final from Nth Bill -->
+    <div class="section-card">
+        <div class="section-header purple">
+            <div class="section-badge">4</div>
+            <div class="section-info">
+                <h2>Nth / Nth & Final from Nth Bill</h2>
+                <div class="section-tagline">Chain from previous Nth & Part to next Nth Bill.</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <form method="post" enctype="multipart/form-data" class="bill-form">
+                {% csrf_token %}
+                <input type="hidden" name="mb_measure_no">
+                <input type="hidden" name="mb_measure_p_from">
+                <input type="hidden" name="mb_measure_p_to">
+                <input type="hidden" name="mb_abstract_no">
+                <input type="hidden" name="mb_abstract_p_from">
+                <input type="hidden" name="mb_abstract_p_to">
+                <input type="hidden" name="doi">
+                <input type="hidden" name="doc">
+                <input type="hidden" name="domr">
+                <input type="hidden" name="dobr">
+                <input type="hidden" name="nth_number">
+                <input type="hidden" name="action" />
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-earmark-arrow-up me-1"></i>Upload Previous Nth & Part Bill</h3>
+                    <label>
+                        Select Nth & Part Bill file:
+                        <input type="file" name="bill_file" accept=".xlsx,.xls" required>
+                    </label>
+                    <p class="note">
+                        Format: C: Quantity Till Date, D: Rate per Unit, E: Total Value till date.
+                    </p>
+                    <div class="btn-row">
+                        <button type="submit" name="action" value="nth_nth_part" class="bill-btn bill-btn-primary">
+                            <i class="bi bi-file-earmark-plus"></i> CC Nth & Part
+                        </button>
+                        <button type="submit" name="action" value="nth_nth_final" class="bill-btn bill-btn-secondary">
+                            <i class="bi bi-file-earmark-check"></i> CC Nth & Final
+                        </button>
+                    </div>
+                </div>
+
+                <div class="upload-block">
+                    <h3><i class="bi bi-file-text me-1"></i>Documents from Nth Bill</h3>
+                    <p class="note">Generate LS Form, Covering Letter & Movement Slip.</p>
+                    <div class="btn-row">
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_part" class="bill-btn bill-btn-teal">
+                            L.S. (Part)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="ls_final" class="bill-btn bill-btn-secondary">
+                            L.S. (Final)
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="covering" class="bill-btn bill-btn-secondary">
+                            Covering
+                        </button>
+                        <button type="submit" formaction="{% url 'bill_document' %}" name="doc_kind" value="movement" class="bill-btn bill-btn-secondary">
+                            Movement
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // Copy common inputs into each bill/doc form just before submit
+    function syncCommonToForm(form) {
+        const fields = [
+            "mb_measure_no",
+            "mb_measure_p_from",
+            "mb_measure_p_to",
+            "mb_abstract_no",
+            "mb_abstract_p_from",
+            "mb_abstract_p_to",
+            "doi",
+            "doc",
+            "domr",
+            "dobr",
+            "nth_number"
+        ];
+
+        fields.forEach(function (name) {
+            const common = document.getElementById("common_" + name);
+            const target = form.querySelector('input[name="' + name + '"]');
+            if (common && target) {
+                target.value = common.value;
+            }
+        });
+
+        // Copy common bill-type (for docs CC header only)
+        const commonAction = document.getElementById("common_action");
+        const hiddenAction = form.querySelector('input[name="action"][type="hidden"]');
+        if (commonAction && hiddenAction) {
+            hiddenAction.value = commonAction.value;
+        }
+
+        // Also add bill_type field for bill generation (not for docs)
+        // Only add if not already present (for documents, we don't need this)
+        if (!form.querySelector('input[name="bill_type"]')) {
+            const billTypeInput = document.createElement('input');
+            billTypeInput.type = 'hidden';
+            billTypeInput.name = 'bill_type';
+            billTypeInput.value = commonAction ? commonAction.value : '';
+            form.appendChild(billTypeInput);
+        }
+    }
+
+    /**
+     * Handle form submission with job polling
+     * @param {HTMLFormElement} form - The form being submitted
+     * @param {HTMLButtonElement} submitButton - The button that was clicked
+     */
+    async function handleFormSubmitWithPolling(form, submitButton) {
+        // Check if this is a document generation (uses bill_document endpoint)
+        const isDocumentGeneration = submitButton.formaction && 
+                                      submitButton.formaction.includes('bill_document');
+
+        if (isDocumentGeneration) {
+            // For async document generation
+            syncCommonToForm(form);
+            
+            // Show loading modal
+            const modal = JobPoller.createLoadingModal('processing');
+            modal.show();
+
+            // Submit form asynchronously
+            const job = await JobPoller.submitFormAsync(form);
+            
+            if (!job) {
+                modal.setMessage('Error: Failed to start job');
+                setTimeout(() => modal.hide(), 2000);
+                return;
+            }
+
+            // Poll for job completion
+            JobPoller.pollUntilComplete(
+                job.job_id,
+                job.status_url,
+                {
+                    onProgress: (data) => {
+                        const percent = data.progress || 0;
+                        const step = data.current_step || 'Processing...';
+                        modal.setProgress(percent);
+                        modal.setMessage(step);
+                    },
+                    onComplete: (data) => {
+                        modal.hide();
+                        setTimeout(() => {
+                            modal.remove();
+                            JobPoller.showResultModal(data);
+                        }, 500);
+                    },
+                    onError: (error) => {
+                        modal.setMessage('Error: ' + error);
+                        setTimeout(() => modal.hide(), 3000);
+                    },
+                },
+                1000  // Poll every second
+            );
+        } else {
+            // For regular bill generation, just sync and submit normally
+            syncCommonToForm(form);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        // Handle form submissions with job polling
+        document.querySelectorAll("form.bill-form").forEach(function (form) {
+            // Track which button was clicked
+            let clickedButton = null;
+
+            // Update clickedButton when any button in the form is clicked
+            form.querySelectorAll('button[type="submit"]').forEach(function (btn) {
+                btn.addEventListener('click', function (e) {
+                    clickedButton = this;
+                });
+            });
+
+            // Handle form submission
+            form.addEventListener("submit", async function (e) {
+                if (clickedButton && clickedButton.formaction && 
+                    clickedButton.formaction.includes('bill_document')) {
+                    // This is a document generation - handle with polling
+                    e.preventDefault();
+                    await handleFormSubmitWithPolling(form, clickedButton);
+                } else {
+                    // Regular submission
+                    syncCommonToForm(form);
+                }
+            });
+        });
+    });
+</script>
+
+{% endblock %}

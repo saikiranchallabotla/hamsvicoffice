@@ -1,0 +1,138 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}{% if module.id %}Edit {{ module.name }}{% else %}Add Module{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_module_list' %}">Modules</a></li>
+<li class="breadcrumb-item active">{% if module.id %}Edit{% else %}Add{% endif %}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>{% if module.id %}Edit Module{% else %}Add New Module{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Module Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" value="{{ module.name|default:'' }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Code <span class="text-danger">*</span></label>
+                            <input type="text" name="code" class="form-control" value="{{ module.code|default:'' }}" required {% if module.id %}readonly{% endif %}>
+                            <div class="form-text">Unique identifier (e.g., ESTIMATE, WORKSLIP)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="3">{{ module.description|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">URL Name</label>
+                        <input type="text" name="url_name" class="form-control" value="{{ module.url_name|default:'' }}" placeholder="e.g., amc_home, datas">
+                        <div class="form-text">Django URL name for this module's landing page</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Icon</label>
+                            <input type="text" name="icon" class="form-control" value="{{ module.icon|default:'box' }}" placeholder="box">
+                            <div class="form-text">Bootstrap Icons name or emoji</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Color</label>
+                            <input type="color" name="color" class="form-control form-control-color" value="{{ module.color|default:'#6366f1' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Display Order</label>
+                            <input type="number" name="display_order" class="form-control" value="{{ module.display_order|default:0 }}" min="0">
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="text-muted text-uppercase small mb-3">Pricing & Trial</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Trial Days</label>
+                            <input type="number" name="trial_days" class="form-control" value="{{ module.trial_days|default:7 }}" min="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Free Tier Limit</label>
+                            <input type="number" name="free_tier_limit" class="form-control" value="{{ module.free_tier_limit|default:5 }}" min="0">
+                            <div class="form-text">0 = unlimited</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if module.is_active or not module.id %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">Module Active</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_free" id="is_free" {% if module.is_free %}checked{% endif %}>
+                                <label class="form-check-label" for="is_free">Free Module</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="text-muted text-uppercase small mb-3">Backend Data Sheet (Optional)</h6>
+                    <p class="text-muted small">For modules like AMC that use custom backend data sheets (similar to New Estimate)</p>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Backend Sheet Name</label>
+                            <input type="text" name="backend_sheet_name" class="form-control" value="{{ module.backend_sheet_name|default:'' }}" placeholder="e.g., amc_electrical">
+                            <div class="form-text">Identifier for the backend sheet (used in URL paths)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Backend Excel File</label>
+                            <input type="file" name="backend_sheet_file" class="form-control" accept=".xlsx,.xls">
+                            {% if module.backend_sheet_file %}
+                            <div class="form-text text-success">
+                                <i class="bi bi-check-circle me-1"></i> Current file: {{ module.backend_sheet_file.name|cut:"module_backends/" }}
+                            </div>
+                            {% else %}
+                            <div class="form-text">Upload an Excel file with Master Datas sheet</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="text-muted text-uppercase small mb-3">Features</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Features (one per line or JSON array)</label>
+                        <textarea name="features" class="form-control" rows="4" placeholder='["Feature 1", "Feature 2"]'>{% if module.features %}{{ module.features|safe }}{% endif %}</textarea>
+                        <div class="form-text">List features displayed on pricing page</div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i> {% if module.id %}Save Changes{% else %}Create Module{% endif %}
+                        </button>
+                        <a href="{% url 'admin_module_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

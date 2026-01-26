@@ -1,0 +1,191 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Payment {{ payment.order_id }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_payment_list' %}">Payments</a></li>
+<li class="breadcrumb-item active">{{ payment.order_id|truncatechars:20 }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="admin-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Payment Details</h5>
+                <span class="badge {% if payment.status == 'completed' %}bg-success{% elif payment.status == 'pending' %}bg-warning text-dark{% elif payment.status == 'failed' %}bg-danger{% else %}bg-secondary{% endif %} fs-6">
+                    {{ payment.get_status_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <td class="text-muted" style="width:40%;">Order ID</td>
+                                <td><code>{{ payment.order_id }}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Payment ID</td>
+                                <td><code>{{ payment.payment_id|default:"-" }}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Gateway</td>
+                                <td>{{ payment.gateway|default:"Razorpay"|title }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Method</td>
+                                <td>{{ payment.method|default:"-"|title }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <td class="text-muted" style="width:40%;">Amount</td>
+                                <td><span class="fs-4 fw-bold text-success">₹{{ payment.amount|floatformat:0 }}</span></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Currency</td>
+                                <td>{{ payment.currency|default:"INR" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Created</td>
+                                <td>{{ payment.created_at|date:"d M Y, h:i A" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Completed</td>
+                                <td>{{ payment.completed_at|date:"d M Y, h:i A"|default:"-" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                {% if payment.subscription %}
+                <hr>
+                <h6 class="text-muted text-uppercase small mb-3">Subscription Created</h6>
+                <div class="bg-light rounded p-3">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="small text-muted">Module</div>
+                            <div class="fw-medium">{{ payment.subscription.module.name }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Plan</div>
+                            <div class="fw-medium">{{ payment.subscription.plan.name|default:"-" }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Valid Until</div>
+                            <div class="fw-medium">{{ payment.subscription.expires_at|date:"d M Y" }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if payment.gateway_response %}
+                <hr>
+                <h6 class="text-muted text-uppercase small mb-3">Gateway Response</h6>
+                <pre class="bg-dark text-light p-3 rounded small" style="max-height:200px;overflow:auto;">{{ payment.gateway_response|pprint }}</pre>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- User -->
+        <div class="admin-card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">User</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" style="width:48px;height:48px;">
+                        {{ payment.user.first_name|slice:":1"|upper|default:"U" }}
+                    </div>
+                    <div>
+                        <a href="{% url 'admin_user_detail' payment.user.id %}" class="fw-semibold text-decoration-none">
+                            {{ payment.user.get_full_name|default:payment.user.username }}
+                        </a>
+                        <div class="small text-muted">{{ payment.user.email }}</div>
+                    </div>
+                </div>
+                <a href="{% url 'admin_user_detail' payment.user.id %}" class="btn btn-outline-primary btn-sm w-100">
+                    View User Profile
+                </a>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body d-grid gap-2">
+                {% if payment.status == 'completed' %}
+                <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#refundModal">
+                    <i class="bi bi-arrow-return-left me-1"></i> Process Refund
+                </button>
+                {% endif %}
+                
+                <a href="#" class="btn btn-outline-secondary" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i> Print Receipt
+                </a>
+                
+                {% if payment.invoice_url %}
+                <a href="{{ payment.invoice_url }}" class="btn btn-outline-primary" target="_blank">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Download Invoice
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if payment.status == 'completed' %}
+<!-- Refund Modal -->
+<div class="modal fade" id="refundModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="refund">
+                <div class="modal-header">
+                    <h5 class="modal-title">Process Refund</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        This will refund ₹{{ payment.amount|floatformat:0 }} to the user's original payment method.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Refund Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" name="refund_amount" class="form-control" value="{{ payment.amount|floatformat:0 }}" max="{{ payment.amount|floatformat:0 }}" min="1" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <textarea name="reason" class="form-control" rows="2" required placeholder="Reason for refund..."></textarea>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="revoke_subscription" id="revokeSubscription" checked>
+                        <label class="form-check-label" for="revokeSubscription">
+                            Revoke associated subscription
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Process Refund</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

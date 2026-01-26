@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Hamsvic</title>
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+
+        header {
+            background: #333;
+            color: #fff;
+            padding: 14px;
+            text-align: center;
+        }
+
+        nav {
+            background: #444;
+            padding: 10px;
+            text-align: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 15px;
+        }
+
+        nav a:hover { text-decoration: underline; }
+
+        .container { padding: 20px; }
+
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Hamsvic</h1>
+</header>
+
+<nav>
+    <a href="{% url 'dashboard' %}">← Back to Dashboard</a>
+</nav>
+
+
+<div class="container">
+    {% block content %}
+    {% endblock %}
+</div>
+
+<footer>
+    <p>© 2026 Hamsvic</p>
+</footer>
+
+</body>
+</html>

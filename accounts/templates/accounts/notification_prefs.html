@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification Preferences - Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .settings-container {
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 50px;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-btn:hover {
+            background: rgba(255,255,255,0.25);
+            color: white;
+            transform: translateX(-5px);
+        }
+        
+        .settings-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            overflow: hidden;
+        }
+        
+        .settings-header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .settings-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2.5rem;
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+        }
+        
+        .settings-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem;
+        }
+        
+        .settings-header p {
+            opacity: 0.8;
+            margin: 0;
+            font-size: 0.95rem;
+        }
+        
+        .settings-body {
+            padding: 2rem;
+        }
+        
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #f1f5f9;
+        }
+        
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+        
+        .section-icon.email {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+        }
+        
+        .section-icon.sms {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .section-title h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .notification-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding: 1.25rem;
+            background: #f8fafc;
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .notification-item:hover {
+            background: #f1f5f9;
+            border-color: #e2e8f0;
+        }
+        
+        .notification-item.disabled {
+            opacity: 0.7;
+        }
+        
+        .notification-info {
+            flex: 1;
+            padding-right: 1rem;
+        }
+        
+        .notification-info h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .notification-info p {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin: 0;
+            line-height: 1.5;
+        }
+        
+        .required-badge {
+            font-size: 0.65rem;
+            padding: 3px 8px;
+            background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            color: white;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Custom Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 56px;
+            height: 30px;
+            flex-shrink: 0;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #cbd5e1;
+            transition: 0.4s;
+            border-radius: 30px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 24px;
+            width: 24px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            transition: 0.4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        
+        .toggle-switch input:disabled + .toggle-slider {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        
+        .toggle-switch input:disabled:checked + .toggle-slider {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+        }
+        
+        .divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent 0%, #e2e8f0 50%, transparent 100%);
+            margin: 1.5rem 0;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn-save {
+            flex: 1;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+            cursor: pointer;
+        }
+        
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn-cancel {
+            padding: 1rem 2rem;
+            background: white;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        
+        .btn-cancel:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+        }
+        
+        .toast-notification {
+            display: flex;
+            align-items: center;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .toast-notification i {
+            font-size: 1.25rem;
+            margin-right: 12px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 576px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .settings-header {
+                padding: 1.5rem;
+            }
+            
+            .settings-body {
+                padding: 1.5rem;
+            }
+            
+            .notification-item {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .notification-info {
+                padding-right: 0;
+            }
+            
+            .action-buttons {
+                flex-direction: column-reverse;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-container">
+        <a href="{% url 'profile' %}" class="back-btn">
+            <i class="bi bi-arrow-left"></i>
+            Back to Profile
+        </a>
+        
+        <div class="settings-card">
+            <div class="settings-header">
+                <div class="settings-icon">
+                    <i class="bi bi-bell"></i>
+                </div>
+                <h1>Notification Preferences</h1>
+                <p>Manage how you receive updates and alerts</p>
+            </div>
+            
+            <div class="settings-body">
+                <form method="post" id="notificationForm">
+                    {% csrf_token %}
+                    
+                    <!-- Email Notifications Section -->
+                    <div class="section-title">
+                        <div class="section-icon email">
+                            <i class="bi bi-envelope-fill"></i>
+                        </div>
+                        <h3>Email Notifications</h3>
+                    </div>
+                    
+                    <div class="notification-item">
+                        <div class="notification-info">
+                            <h4><i class="bi bi-calendar-event text-primary"></i> Subscription Expiry Reminders</h4>
+                            <p>Get reminded before your subscriptions expire so you never lose access</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="email_subscription_expiry" 
+                                   {% if form.email_subscription_expiry.value %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="notification-item">
+                        <div class="notification-info">
+                            <h4><i class="bi bi-receipt text-success"></i> Payment Receipts</h4>
+                            <p>Receive receipts and invoices for all your payments automatically</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="email_payment_receipts" 
+                                   {% if form.email_payment_receipts.value %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="notification-item">
+                        <div class="notification-info">
+                            <h4><i class="bi bi-stars text-warning"></i> Product Updates & Features</h4>
+                            <p>Stay informed about new features, improvements, and updates</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="email_product_updates" 
+                                   {% if form.email_product_updates.value %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="notification-item">
+                        <div class="notification-info">
+                            <h4><i class="bi bi-lightbulb text-info"></i> Tips & Tutorials</h4>
+                            <p>Get helpful tips and tutorials to use the platform more effectively</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="email_tips_tutorials" 
+                                   {% if form.email_tips_tutorials.value %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <!-- SMS Notifications Section -->
+                    <div class="section-title">
+                        <div class="section-icon sms">
+                            <i class="bi bi-phone-fill"></i>
+                        </div>
+                        <h3>SMS Notifications</h3>
+                    </div>
+                    
+                    <div class="notification-item disabled">
+                        <div class="notification-info">
+                            <h4>
+                                <i class="bi bi-shield-lock text-secondary"></i> 
+                                SMS for OTP
+                                <span class="required-badge">Required</span>
+                            </h4>
+                            <p>Required for secure login verification and account security</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked disabled>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <a href="{% url 'profile' %}" class="btn-cancel">
+                            <i class="bi bi-x-lg"></i>
+                            Cancel
+                        </a>
+                        <button type="submit" class="btn-save">
+                            <i class="bi bi-check-lg"></i>
+                            Save Preferences
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script>
+        {% if messages %}
+            {% for message in messages %}
+                showToast('{{ message }}');
+            {% endfor %}
+        {% endif %}
+        
+        function showToast(message) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + message;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

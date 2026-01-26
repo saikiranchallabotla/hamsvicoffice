@@ -1,0 +1,358 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}{{ work.name }} - Saved Work{% endblock %}
+
+{% block nav_saved_works %}active{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-file-earmark-text me-2"></i>Work Details
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .work-detail-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .work-header {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .work-icon-large {
+        width: 70px;
+        height: 70px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-right: 1.5rem;
+        flex-shrink: 0;
+    }
+    
+    .work-icon-large.primary { background: #dbeafe; color: #2563eb; }
+    .work-icon-large.success { background: #dcfce7; color: #16a34a; }
+    .work-icon-large.warning { background: #fef3c7; color: #d97706; }
+    .work-icon-large.info { background: #cffafe; color: #0891b2; }
+    
+    .work-title-large {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 0.5rem;
+    }
+    
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .info-item {
+        padding: 1rem;
+        background: #f8fafc;
+        border-radius: 8px;
+    }
+    
+    .info-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+    
+    .info-value {
+        font-size: 1rem;
+        color: #1e293b;
+        font-weight: 500;
+    }
+    
+    .progress-section {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    
+    .progress-bar-large {
+        height: 10px;
+        background: #e2e8f0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+    
+    .progress-bar-large .fill {
+        height: 100%;
+        background: linear-gradient(90deg, #6366f1, #8b5cf6);
+        transition: width 0.3s;
+    }
+    
+    .notes-section {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    
+    .data-preview {
+        background: #f1f5f9;
+        padding: 1rem;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 0.85rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+    }
+</style>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'saved_works_list' %}">Saved Works</a></li>
+        {% if work.folder %}
+        <li class="breadcrumb-item"><a href="{% url 'saved_works_list' %}?folder={{ work.folder.id }}">{{ work.folder.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">{{ work.name }}</li>
+    </ol>
+</nav>
+
+<div class="work-detail-card">
+    <div class="work-header">
+        <div class="work-icon-large {{ work.get_work_type_color }}">
+            <i class="{{ work.get_work_type_icon }}"></i>
+        </div>
+        <div class="flex-grow-1">
+            <h1 class="work-title-large">{{ work.name }}</h1>
+            <div class="d-flex gap-2 flex-wrap">
+                <span class="badge bg-{{ work.get_work_type_color }}">{{ work.get_work_type_display }}</span>
+                <span class="badge {% if work.status == 'in_progress' %}bg-warning{% elif work.status == 'completed' %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ work.get_status_display }}
+                </span>
+                {% if work.folder %}
+                <span class="badge bg-light text-dark">
+                    <i class="bi bi-folder-fill me-1" style="color: {{ work.folder.color }}"></i>
+                    {{ work.folder.name }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary">
+                <i class="bi bi-play-fill me-1"></i>Resume Work
+            </a>
+        </div>
+    </div>
+    
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="info-label">Category</div>
+            <div class="info-value">{{ work.category|title }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Created</div>
+            <div class="info-value">{{ work.created_at|date:"M d, Y g:i A" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Last Updated</div>
+            <div class="info-value">{{ work.updated_at|date:"M d, Y g:i A" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Last Step</div>
+            <div class="info-value">{{ work.last_step|default:"Not started" }}</div>
+        </div>
+    </div>
+    
+    <div class="progress-section">
+        <h6 class="mb-3">Progress</h6>
+        <div class="progress-bar-large">
+            <div class="fill" style="width: {{ work.progress_percent }}%"></div>
+        </div>
+        <div class="d-flex justify-content-between">
+            <small class="text-muted">{{ work.last_step|default:"Getting started..." }}</small>
+            <small class="text-muted">{{ work.progress_percent }}% Complete</small>
+        </div>
+    </div>
+    
+    {% if work.notes %}
+    <div class="notes-section">
+        <h6 class="mb-3">Notes</h6>
+        <p class="text-muted">{{ work.notes }}</p>
+    </div>
+    {% endif %}
+    
+    <div class="notes-section">
+        <h6 class="mb-3">Work Data Preview</h6>
+        <div class="data-preview">
+            <pre>{{ work.work_data|pprint }}</pre>
+        </div>
+    </div>
+    
+    <div class="action-buttons">
+        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-play-fill me-1"></i>Resume Work
+        </a>
+        <button class="btn btn-outline-primary btn-lg" onclick="duplicateWork()">
+            <i class="bi bi-copy me-1"></i>Duplicate
+        </button>
+        <button class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal" data-bs-target="#editModal">
+            <i class="bi bi-pencil me-1"></i>Edit Details
+        </button>
+        <button class="btn btn-outline-danger btn-lg ms-auto" data-bs-toggle="modal" data-bs-target="#deleteModal">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Work Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Work Name</label>
+                        <input type="text" class="form-control" name="name" value="{{ work.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Folder</label>
+                        <select class="form-select" name="folder_id">
+                            <option value="none" {% if not work.folder %}selected{% endif %}>Unfiled (No Folder)</option>
+                            {% for folder in folders %}
+                            <option value="{{ folder.id }}" {% if work.folder and work.folder.id == folder.id %}selected{% endif %}>
+                                {{ folder.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" name="status">
+                            <option value="in_progress" {% if work.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                            <option value="completed" {% if work.status == 'completed' %}selected{% endif %}>Completed</option>
+                            <option value="archived" {% if work.status == 'archived' %}selected{% endif %}>Archived</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="3">{{ work.notes }}</textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveChanges()">
+                    <i class="bi bi-check me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete Work</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete "<strong>{{ work.name }}</strong>"?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="deleteWork()">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function saveChanges() {
+        const form = document.getElementById('editForm');
+        const formData = new FormData(form);
+        
+        fetch('{% url "update_saved_work" work.id %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.error || 'Failed to save changes');
+            }
+        });
+    }
+    
+    function duplicateWork() {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch('{% url "duplicate_saved_work" work.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/saved-works/' + data.work_id + '/';
+            } else {
+                alert(data.error || 'Failed to duplicate work');
+            }
+        });
+    }
+    
+    function deleteWork() {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch('{% url "delete_saved_work" work.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '{% url "saved_works_list" %}';
+            } else {
+                alert(data.error || 'Failed to delete work');
+            }
+        });
+    }
+</script>
+
+{% endblock %}

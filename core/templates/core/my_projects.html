@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+{% block content %}
+
+<style>
+  .projects-wrapper {
+      max-width: 900px;
+      margin: 20px auto;
+  }
+
+  .projects-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+  }
+
+  .projects-header h2 {
+      margin: 0;
+  }
+
+  .btn-new-project {
+      background: #28a745;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+  }
+
+  .btn-new-project:hover {
+      opacity: 0.9;
+  }
+
+  table.projects-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+  }
+
+  table.projects-table th,
+  table.projects-table td {
+      border: 1px solid #ddd;
+      padding: 6px 8px;
+      text-align: left;
+  }
+
+  table.projects-table th {
+      background: #f0f0f0;
+  }
+
+  .projects-actions {
+      display: flex;
+      gap: 6px;
+  }
+
+  .btn-open, .btn-delete {
+      padding: 4px 10px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+  }
+
+  .btn-open {
+      background: #007bff;
+      color: #fff;
+  }
+
+  .btn-open:hover {
+      opacity: 0.9;
+  }
+
+  .btn-delete {
+      background: #dc3545;
+      color: #fff;
+  }
+
+  .btn-delete:hover {
+      opacity: 0.9;
+  }
+
+  .no-projects {
+      margin-top: 10px;
+      font-style: italic;
+  }
+</style>
+
+<div class="projects-wrapper">
+    <div class="projects-header">
+        <h2>My Projects</h2>
+
+        {# New project = go to Datas / category selection; we start from scratch there #}
+        <a href="{% url 'datas' %}" class="btn-new-project">
+            + New Project
+        </a>
+    </div>
+
+    {% if projects %}
+        <table class="projects-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Project Name</th>
+                    <th>Category</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in projects %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ p.name }}</td>
+                        <td>{{ p.category|default:"-" }}</td>
+                        <td>
+                            <div class="projects-actions">
+                                {# Open / continue project #}
+                                <a href="{% url 'load_project' p.id %}" class="btn-open">
+                                    Open
+                                </a>
+
+                                {# Delete project #}
+                                <form method="post" action="{% url 'delete_project' p.id %}"
+                                      onsubmit="return confirm('Delete this project permanently?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-delete">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="no-projects">No projects saved yet.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

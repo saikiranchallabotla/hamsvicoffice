@@ -1,0 +1,70 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}AMC {{ category|title }} - Groups{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-calendar-check me-2"></i>AMC - {{ category|title }}
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-modern">
+    <a href="{% url 'dashboard' %}">Dashboard</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <a href="{% url 'amc_home' %}">AMC</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">{{ category|title }}</span>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    {{ error }}
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <h5>How to set up AMC backend data:</h5>
+        <ol>
+            <li>Go to <strong>Admin Panel</strong></li>
+            <li>Click on <strong>Modules</strong></li>
+            <li>Find or create the <strong>AMC</strong> module</li>
+            <li>Set the <strong>Backend Sheet Name</strong> to <code>{{ category }}</code></li>
+            <li>Upload the <strong>Backend Excel File</strong> (must contain "Master Datas" and "Groups" sheets)</li>
+            <li>Save the module</li>
+        </ol>
+        <a href="{% url 'amc_home' %}" class="btn btn-primary mt-3">
+            <i class="bi bi-arrow-left me-2"></i>Back to AMC
+        </a>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-folder2-open me-2"></i>
+        Select a Group
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for group in groups %}
+            <div class="col-md-4 col-lg-3 mb-3">
+                <a href="{% url 'amc_items' category group %}" class="action-card d-block h-100">
+                    <div class="icon" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                        <i class="bi bi-folder"></i>
+                    </div>
+                    <h4>{{ group }}</h4>
+                </a>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    No groups found in the backend Excel file.
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

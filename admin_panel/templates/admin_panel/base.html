@@ -1,0 +1,547 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin Panel{% endblock %} - Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --admin-primary: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            --admin-accent: #3b82f6;
+            --admin-accent-light: #60a5fa;
+            --admin-bg: linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%);
+            --card-shadow: 0 4px 24px 0 rgba(37,99,235,0.08), 0 1.5px 6px 0 rgba(30,41,59,0.04);
+            --card-shadow-hover: 0 8px 32px 0 rgba(37,99,235,0.13), 0 2px 8px 0 rgba(30,41,59,0.06);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--admin-bg);
+            min-height: 100vh;
+        }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 380px;
+        }
+        .toast-notification {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+            backdrop-filter: blur(10px);
+        }
+        .toast-notification.hiding {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .toast-notification.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .toast-notification.error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        .toast-notification.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        .toast-notification.info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        .toast-icon {
+            font-size: 1.25rem;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .toast-content { flex: 1; }
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .toast-message {
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }
+        .toast-close {
+            background: none;
+            border: none;
+            color: white;
+            opacity: 0.7;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 12px;
+            font-size: 1.25rem;
+        }
+        .toast-close:hover { opacity: 1; }
+        
+        /* Sidebar */
+        .admin-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--admin-primary);
+            color: white;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 4px 0 32px 0 rgba(30,41,59,0.10);
+        }
+        
+        .admin-sidebar .brand {
+            padding: 1.5rem 1.25rem;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            background: rgba(59,130,246,0.08);
+        }
+        
+        .admin-sidebar .brand h5 {
+            margin: 0;
+            font-weight: 800;
+            color: #f8fafc;
+            font-size: 1.25rem;
+            letter-spacing: -0.5px;
+        }
+        
+        .admin-sidebar .brand small {
+            display: block;
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+        }
+        
+        .admin-nav {
+            padding: 1.2rem 0;
+        }
+        
+        .admin-nav .nav-section {
+            padding: 1rem 1.35rem 0.5rem;
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: rgba(255,255,255,0.38);
+            font-weight: 700;
+        }
+        
+        .admin-nav .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.72rem 1.35rem;
+            color: rgba(255,255,255,0.72);
+            text-decoration: none;
+            font-size: 0.92rem;
+            font-weight: 500;
+            transition: all 0.18s;
+            border-left: 3px solid transparent;
+            border-radius: 0 24px 24px 0;
+            margin-right: 0.7rem;
+        }
+        
+        .admin-nav .nav-link:hover {
+            background: rgba(59,130,246,0.13);
+            color: #fff;
+        }
+        
+        .admin-nav .nav-link.active {
+            background: linear-gradient(90deg, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0.08) 100%);
+            color: #fff;
+            border-left-color: var(--admin-accent-light);
+            font-weight: 700;
+        }
+        
+        .admin-nav .nav-link i {
+            width: 22px;
+            margin-right: 0.85rem;
+            font-size: 1.13rem;
+            opacity: 0.85;
+        }
+        
+        .admin-nav .nav-link .badge {
+            margin-left: auto;
+            font-size: 0.68rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 0.22em 0.7em;
+        }
+        
+        /* Main Content */
+        .admin-main {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            background: var(--admin-bg);
+        }
+        
+        /* Top Bar */
+        .admin-topbar {
+            background: linear-gradient(90deg, #fff 80%, #f1f5f9 100%);
+            padding: 0.9rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px 0 rgba(30,41,59,0.04);
+        }
+        
+        .admin-topbar .breadcrumb {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+        
+        .admin-topbar .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+        
+        .admin-topbar .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--admin-accent) 60%, var(--admin-accent-light) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            box-shadow: 0 2px 8px 0 rgba(59,130,246,0.18);
+        }
+        
+        /* Content Area */
+        .admin-content {
+            padding: 2rem 2.2rem;
+        }
+        
+        /* Cards */
+        .admin-card {
+            background: linear-gradient(120deg, #fff 60%, #f8fafc 100%);
+            border-radius: 18px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 1.8rem;
+            transition: box-shadow 0.2s;
+        }
+        .admin-card:hover {
+            box-shadow: var(--card-shadow-hover);
+        }
+        
+        .admin-card .card-header {
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            background: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-card .card-header h5 {
+            margin: 0;
+            font-size: 1.08rem;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        
+        .admin-card .card-body {
+            padding: 1.5rem;
+        }
+        
+        /* Stats */
+        .stat-card {
+            background: linear-gradient(120deg, #fff 60%, #f1f5f9 100%);
+            border-radius: 16px;
+            padding: 1.5rem 1.3rem;
+            box-shadow: var(--card-shadow);
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .stat-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-2px) scale(1.01);
+        }
+        
+        .stat-card .stat-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 2px 8px 0 rgba(59,130,246,0.10);
+        }
+        
+        .stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #1e293b;
+            letter-spacing: -1px;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+        
+        /* Tables */
+        .admin-table {
+            margin: 0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .admin-table th {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            font-weight: 700;
+            border-bottom: 2px solid #e2e8f0;
+            background: #f8fafc;
+        }
+        
+        .admin-table td {
+            vertical-align: middle;
+            font-size: 0.92rem;
+        }
+        
+        .admin-table tbody tr {
+            transition: background 0.15s;
+        }
+        .admin-table tbody tr:hover {
+            background: #f1f5f9;
+        }
+        
+        /* Status Badges */
+        .status-active { background: #dcfce7; color: #16a34a; font-weight: 600; border-radius: 8px; }
+        .status-trial { background: #fef3c7; color: #d97706; font-weight: 600; border-radius: 8px; }
+        .status-expired { background: #fee2e2; color: #dc2626; font-weight: 600; border-radius: 8px; }
+        .status-cancelled { background: #f1f5f9; color: #64748b; font-weight: 600; border-radius: 8px; }
+        .status-pending { background: #dbeafe; color: #2563eb; font-weight: 600; border-radius: 8px; }
+        .status-success { background: #dcfce7; color: #16a34a; font-weight: 600; border-radius: 8px; }
+        .status-failed { background: #fee2e2; color: #dc2626; font-weight: 600; border-radius: 8px; }
+        
+        /* Priority Badges */
+        .priority-low { background: #f1f5f9; color: #64748b; font-weight: 600; border-radius: 8px; }
+        .priority-medium { background: #fef3c7; color: #d97706; font-weight: 600; border-radius: 8px; }
+        .priority-high { background: #fee2e2; color: #dc2626; font-weight: 600; border-radius: 8px; }
+        .priority-urgent { background: #fce7f3; color: #db2777; font-weight: 600; border-radius: 8px; }
+        
+        /* Buttons */
+        .btn {
+            border-radius: 10px;
+            font-weight: 600;
+            transition: box-shadow 0.15s, transform 0.12s;
+        }
+        .btn:hover {
+            box-shadow: 0 2px 8px 0 rgba(59,130,246,0.10);
+            transform: translateY(-1px);
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, var(--admin-accent) 60%, var(--admin-accent-light) 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(90deg, var(--admin-accent-light) 0%, var(--admin-accent) 100%);
+        }
+        
+        /* Responsive */
+        @media (max-width: 991px) {
+            .admin-sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+            .admin-sidebar.show {
+                transform: translateX(0);
+            }
+            .admin-main {
+                margin-left: 0;
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+        <div class="brand">
+            <div>
+                <h5>🏗️ Hamsvic</h5>
+                <small>Admin Panel</small>
+            </div>
+        </div>
+        
+        <nav class="admin-nav">
+            <div class="nav-section">Overview</div>
+            <a href="{% url 'admin_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a href="{% url 'admin_analytics' %}" class="nav-link {% if 'analytics' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-graph-up"></i> Analytics
+            </a>
+            
+            <div class="nav-section">Management</div>
+            <a href="{% url 'admin_user_list' %}" class="nav-link {% if 'user' in request.resolver_match.url_name and 'analytics' not in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{% url 'admin_module_list' %}" class="nav-link {% if 'module' in request.resolver_match.url_name or 'pricing' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-boxes"></i> Modules
+            </a>
+            <a href="{% url 'admin_subscription_list' %}" class="nav-link {% if 'subscription' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-credit-card"></i> Subscriptions
+            </a>
+            <a href="{% url 'admin_payment_list' %}" class="nav-link {% if 'payment' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-currency-rupee"></i> Payments
+            </a>
+            
+            <div class="nav-section">System</div>
+            <a href="{% url 'admin_data_management' %}" class="nav-link {% if 'data' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-database"></i> Backend Data
+            </a>
+            
+            <div class="nav-section">Support</div>
+            <a href="{% url 'admin_ticket_list' %}" class="nav-link {% if 'ticket' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-ticket"></i> Tickets
+                {% if open_tickets_count %}<span class="badge bg-danger">{{ open_tickets_count }}</span>{% endif %}
+            </a>
+            
+            <div class="nav-section">Content</div>
+            <a href="{% url 'admin_announcement_list' %}" class="nav-link {% if 'announcement' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-megaphone"></i> Announcements
+            </a>
+            <a href="{% url 'admin_faq_list' %}" class="nav-link {% if 'faq' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-question-circle"></i> FAQs
+            </a>
+            
+            <div class="nav-section">Quick Links</div>
+            <a href="{% url 'dashboard' %}" class="nav-link">
+                <i class="bi bi-box-arrow-left"></i> Back to App
+            </a>
+            <a href="{% url 'logout' %}" class="nav-link text-danger">
+                <i class="bi bi-power"></i> Logout
+            </a>
+        </nav>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="admin-main">
+        <!-- Top Bar -->
+        <div class="admin-topbar">
+            <div class="d-flex align-items-center gap-3">
+                <a href="{% url 'dashboard' %}" class="btn btn-outline-primary btn-sm" style="border-radius: 8px;">
+                    <i class="bi bi-arrow-left me-1"></i> User Dashboard
+                </a>
+                <nav aria-label="breadcrumb" class="mb-0">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Admin</a></li>
+                        {% block breadcrumb %}{% endblock %}
+                    </ol>
+                </nav>
+            </div>
+            
+            <div class="user-info">
+                <span class="d-none d-md-inline text-muted small">{{ user.email }}</span>
+                <div class="user-avatar">
+                    {{ user.first_name|slice:":1"|upper|default:"A" }}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Content -->
+        <div class="admin-content">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script>
+    // Global Toast notification function
+    function showToast(message, type = 'info', title = null, duration = 5000) {
+        const container = document.getElementById('toastContainer');
+        const icons = {
+            success: 'bi-check-circle-fill',
+            error: 'bi-x-circle-fill',
+            warning: 'bi-exclamation-triangle-fill',
+            info: 'bi-info-circle-fill'
+        };
+        const titles = {
+            success: 'Success',
+            error: 'Error',
+            warning: 'Warning',
+            info: 'Info'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type}`;
+        toast.innerHTML = `
+            <i class="bi ${icons[type]} toast-icon"></i>
+            <div class="toast-content">
+                <div class="toast-title">${title || titles[type]}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.classList.add('hiding'); setTimeout(() => this.parentElement.remove(), 300);">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, duration);
+    }
+    
+    // Override default alert to use toast
+    window.alert = function(message) {
+        showToast(message, 'info');
+    };
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,208 @@
+{% extends "accounts/auth_base.html" %}
+{% load static %}
+
+{% block title %}SOR Rate Preferences{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header -->
+            <div class="mb-4">
+                <a href="{% url 'settings' %}" class="text-decoration-none text-muted">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Settings
+                </a>
+                <h2 class="mt-3 mb-1"><i class="bi bi-geo-alt me-2"></i>SOR Rate Preferences</h2>
+                <p class="text-muted">
+                    Select which state's Schedule of Rates (SOR) to use for your estimates and bills.
+                    You can set different preferences for each module.
+                </p>
+            </div>
+
+            {% if not module_backends %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                No backend rate files are available yet. Contact your administrator to add state-wise SOR files.
+            </div>
+            {% else %}
+            
+            <!-- Module Preference Cards -->
+            {% for item in module_backends %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-dark text-white py-3">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3" style="width:40px;height:40px;background:rgba(255,255,255,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                            <i class="bi {% if item.module.icon %}{{ item.module.icon }}{% else %}bi-box{% endif %}"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">{{ item.module.name }}</h5>
+                            <small class="text-white-50">Select your preferred rates</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Electrical -->
+                        {% if item.electrical_backends %}
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-lightning text-primary me-1"></i>Electrical Rates
+                            </label>
+                            <div class="backend-options" data-module="{{ item.module.code }}" data-category="electrical">
+                                {% for backend in item.electrical_backends %}
+                                <div class="form-check backend-option">
+                                    <input class="form-check-input" type="radio" 
+                                           name="electrical_{{ item.module.code }}" 
+                                           id="backend_{{ backend.pk }}"
+                                           value="{{ backend.pk }}"
+                                           data-backend-id="{{ backend.pk }}"
+                                           {% if item.current_electrical == backend.pk %}checked{% endif %}
+                                           {% if backend.is_default and not item.current_electrical %}checked{% endif %}>
+                                    <label class="form-check-label" for="backend_{{ backend.pk }}">
+                                        {{ backend.name }}
+                                        {% if backend.is_default %}
+                                        <span class="badge bg-success ms-1">Default</span>
+                                        {% endif %}
+                                        {% if item.current_electrical == backend.pk %}
+                                        <span class="badge bg-primary ms-1">Selected</span>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Civil -->
+                        {% if item.civil_backends %}
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-building text-warning me-1"></i>Civil Rates
+                            </label>
+                            <div class="backend-options" data-module="{{ item.module.code }}" data-category="civil">
+                                {% for backend in item.civil_backends %}
+                                <div class="form-check backend-option">
+                                    <input class="form-check-input" type="radio" 
+                                           name="civil_{{ item.module.code }}" 
+                                           id="backend_{{ backend.pk }}"
+                                           value="{{ backend.pk }}"
+                                           data-backend-id="{{ backend.pk }}"
+                                           {% if item.current_civil == backend.pk %}checked{% endif %}
+                                           {% if backend.is_default and not item.current_civil %}checked{% endif %}>
+                                    <label class="form-check-label" for="backend_{{ backend.pk }}">
+                                        {{ backend.name }}
+                                        {% if backend.is_default %}
+                                        <span class="badge bg-success ms-1">Default</span>
+                                        {% endif %}
+                                        {% if item.current_civil == backend.pk %}
+                                        <span class="badge bg-primary ms-1">Selected</span>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Toast for notifications -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="preferenceToast" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <strong class="me-auto">Preference Updated</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            Your preference has been saved.
+        </div>
+    </div>
+</div>
+
+<style>
+    .backend-option {
+        padding: 0.75rem 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .backend-option:hover {
+        border-color: #94a3b8;
+        background: #f8fafc;
+    }
+    .backend-option:has(input:checked) {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+    .form-check-input:checked {
+        background-color: #3b82f6;
+        border-color: #3b82f6;
+    }
+    .card {
+        border-radius: 16px;
+        border: none;
+        overflow: hidden;
+    }
+    .card-header {
+        border-bottom: none;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toast = new bootstrap.Toast(document.getElementById('preferenceToast'));
+    const toastMessage = document.getElementById('toastMessage');
+    
+    // Handle radio button changes
+    document.querySelectorAll('.backend-option input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const backendId = this.dataset.backendId;
+            
+            // Send AJAX request
+            fetch('{% url "set_backend_preference" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: `backend_id=${backendId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.ok) {
+                    toastMessage.textContent = data.message;
+                    toast.show();
+                    
+                    // Update UI - remove "Selected" badge from siblings
+                    const container = this.closest('.backend-options');
+                    container.querySelectorAll('.badge.bg-primary').forEach(badge => badge.remove());
+                    
+                    // Add "Selected" badge to this option
+                    const label = this.nextElementSibling;
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-primary ms-1';
+                    badge.textContent = 'Selected';
+                    label.appendChild(badge);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to update preference');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}{{ target_user.username }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_user_list' %}">Users</a></li>
+<li class="breadcrumb-item active">{{ target_user.username }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center">
+        <div class="user-avatar me-3" style="width:56px;height:56px;background:linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:1.5rem;font-weight:600;">
+            {{ target_user.first_name|slice:":1"|upper }}{{ target_user.last_name|slice:":1"|upper|default:"U" }}
+        </div>
+        <div>
+            <h4 class="mb-0">{{ target_user.get_full_name|default:target_user.username }}</h4>
+            <span class="text-muted">@{{ target_user.username }}</span>
+            {% if not target_user.is_active %}
+                <span class="badge bg-danger ms-2">Inactive</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'admin_user_edit' target_user.id %}" class="btn btn-primary">
+            <i class="bi bi-pencil me-1"></i> Edit
+        </a>
+        <a href="{% url 'admin_grant_subscription' target_user.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-gift me-1"></i> Grant Subscription
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- User Info -->
+    <div class="col-lg-4 mb-4">
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>User Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" style="width:40%">Email</td>
+                        <td>{{ target_user.email|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Phone</td>
+                        <td>{{ profile.phone|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Role</td>
+                        <td>
+                            <span class="badge bg-secondary">{{ profile.get_role_display|default:"User" }}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Company</td>
+                        <td>{{ profile.company_name|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">GSTIN</td>
+                        <td>{{ profile.gstin|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Joined</td>
+                        <td>{{ target_user.date_joined|date:"d M Y, h:i A" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Last Login</td>
+                        <td>{{ target_user.last_login|date:"d M Y, h:i A"|default:"Never" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <form action="{% url 'admin_user_toggle_status' target_user.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn {% if target_user.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %} w-100">
+                            <i class="bi bi-{% if target_user.is_active %}x-circle{% else %}check-circle{% endif %} me-1"></i>
+                            {% if target_user.is_active %}Deactivate Account{% else %}Activate Account{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Subscriptions & Payments -->
+    <div class="col-lg-8">
+        <!-- Subscriptions -->
+        <div class="admin-card mb-4">
+            <div class="card-header">
+                <h5>Subscriptions</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table admin-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th>Usage</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sub in subscriptions %}
+                        <tr>
+                            <td>
+                                <span class="fw-semibold">{{ sub.module.name }}</span>
+                            </td>
+                            <td>
+                                <span class="badge status-{{ sub.status }}">{{ sub.get_status_display }}</span>
+                            </td>
+                            <td>
+                                {{ sub.expires_at|date:"d M Y" }}
+                                {% if sub.days_remaining <= 7 and sub.days_remaining > 0 %}
+                                    <span class="badge bg-warning text-dark">{{ sub.days_remaining }}d left</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if sub.usage_limit > 0 %}
+                                    {{ sub.usage_count }}/{{ sub.usage_limit }}
+                                {% else %}
+                                    Unlimited
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if sub.status in 'active,trial' %}
+                                <form action="{% url 'admin_revoke_subscription' sub.id %}" method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Revoke this subscription?')">
+                                        Revoke
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-3 text-muted">No subscriptions</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Payments -->
+        <div class="admin-card mb-4">
+            <div class="card-header">
+                <h5>Recent Payments</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table admin-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_payment_detail' payment.id %}">{{ payment.order_id|truncatechars:20 }}</a>
+                            </td>
+                            <td>₹{{ payment.amount|floatformat:0 }}</td>
+                            <td>
+                                <span class="badge status-{{ payment.status }}">{{ payment.get_status_display }}</span>
+                            </td>
+                            <td>{{ payment.created_at|date:"d M Y" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-3 text-muted">No payments</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Active Sessions -->
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>Active Sessions</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table admin-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Device</th>
+                            <th>Browser</th>
+                            <th>IP Address</th>
+                            <th>Last Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in sessions %}
+                        <tr>
+                            <td>
+                                <i class="bi bi-{% if session.device_type == 'mobile' %}phone{% else %}laptop{% endif %} me-1"></i>
+                                {{ session.device_type|title }}
+                            </td>
+                            <td>{{ session.browser|default:"-" }}</td>
+                            <td><code>{{ session.ip_address }}</code></td>
+                            <td>{{ session.last_activity|date:"d M, h:i A" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-3 text-muted">No active sessions</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,412 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Workslip - Select Work Type{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-clipboard-data me-2"></i>Workslip
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .selection-container {
+        max-width: 900px;
+        margin: 2rem auto;
+        padding: 2rem;
+    }
+    
+    .selection-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .selection-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .selection-title i {
+        color: #805ad5;
+    }
+    
+    .step-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.3s ease;
+    }
+    
+    .step.active {
+        background: #805ad5;
+        color: white;
+    }
+    
+    .step.completed {
+        background: #38a169;
+        color: white;
+    }
+    
+    .step.pending {
+        background: #e2e8f0;
+        color: #718096;
+    }
+    
+    .step-connector {
+        width: 40px;
+        height: 2px;
+        background: #e2e8f0;
+    }
+    
+    .step-connector.completed {
+        background: #38a169;
+    }
+    
+    .option-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .option-card {
+        background: #f8f9fa;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .option-card:hover {
+        border-color: #805ad5;
+        background: #f0ebff;
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(128, 90, 213, 0.2);
+    }
+    
+    .option-card.selected {
+        border-color: #805ad5;
+        background: linear-gradient(135deg, #805ad5 0%, #6b46c1 100%);
+        color: white;
+    }
+    
+    .option-card.selected .option-icon {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+    
+    .option-card.selected .option-name {
+        color: white;
+    }
+    
+    .option-card.selected .option-desc {
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .option-icon {
+        width: 60px;
+        height: 60px;
+        background: #e9d8fd;
+        color: #805ad5;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 1.5rem;
+    }
+    
+    .option-name {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #2d3748;
+        margin-bottom: 0.5rem;
+    }
+    
+    .option-desc {
+        font-size: 0.85rem;
+        color: #718096;
+    }
+    
+    .btn-back {
+        background: #718096;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+    }
+    
+    .btn-back:hover {
+        background: #5a6778;
+        transform: translateY(-2px);
+    }
+</style>
+
+<div class="selection-container">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step" id="step1-indicator">
+            <i class="bi bi-1-circle-fill"></i>
+            Work Type
+        </div>
+        <div class="step-connector" id="connector1"></div>
+        <div class="step pending" id="step2-indicator">
+            <i class="bi bi-2-circle"></i>
+            Work Mode
+        </div>
+        <div class="step-connector" id="connector2"></div>
+        <div class="step pending" id="step3-indicator">
+            <i class="bi bi-3-circle"></i>
+            Category
+        </div>
+    </div>
+    
+    <!-- Selection Card -->
+    <div class="selection-card">
+        <!-- Step 1: Work Type (New Estimate / AMC / Temporary Works) -->
+        <div id="step1" class="step-content">
+            <h2 class="selection-title">
+                <i class="bi bi-briefcase"></i>
+                Select Work Type
+            </h2>
+            <div class="option-grid">
+                <div class="option-card" data-value="new_estimate" onclick="selectWorkType(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-file-earmark-plus"></i>
+                    </div>
+                    <div class="option-name">New Estimate</div>
+                    <div class="option-desc">Standard electrical/civil works</div>
+                </div>
+                <div class="option-card" data-value="amc" onclick="selectWorkType(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-calendar-check"></i>
+                    </div>
+                    <div class="option-name">AMC</div>
+                    <div class="option-desc">Annual Maintenance Contract</div>
+                </div>
+                <div class="option-card" data-value="tempworks" onclick="selectWorkType(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-tools"></i>
+                    </div>
+                    <div class="option-name">Temporary Works</div>
+                    <div class="option-desc">Temporary/provisional works</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 2: Work Mode (Original / Repair) -->
+        <div id="step2" class="step-content" style="display: none;">
+            <h2 class="selection-title">
+                <i class="bi bi-wrench-adjustable"></i>
+                Select Work Mode
+            </h2>
+            <div class="option-grid">
+                <div class="option-card" data-value="original" onclick="selectWorkMode(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div class="option-name">Original</div>
+                    <div class="option-desc">New installation / fresh work</div>
+                </div>
+                <div class="option-card" data-value="repair" onclick="selectWorkMode(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-bandaid"></i>
+                    </div>
+                    <div class="option-name">Repair</div>
+                    <div class="option-desc">Maintenance / repair work</div>
+                </div>
+            </div>
+            <button class="btn-back" onclick="goBackToStep1()">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+        
+        <!-- Step 3: Category (Electrical / Civil) -->
+        <div id="step3" class="step-content" style="display: none;">
+            <h2 class="selection-title">
+                <i class="bi bi-grid"></i>
+                Select Category
+            </h2>
+            <div class="option-grid">
+                <div class="option-card" data-value="electrical" onclick="selectCategory(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-lightning-charge"></i>
+                    </div>
+                    <div class="option-name">Electrical</div>
+                    <div class="option-desc">Electrical works & installations</div>
+                </div>
+                <div class="option-card" data-value="civil" onclick="selectCategory(this)">
+                    <div class="option-icon">
+                        <i class="bi bi-building"></i>
+                    </div>
+                    <div class="option-name">Civil</div>
+                    <div class="option-desc">Civil construction works</div>
+                </div>
+            </div>
+            <button class="btn-back" onclick="goBackToStep2()">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedWorkType = '';
+let selectedWorkMode = '';
+let selectedCategory = '';
+
+function selectWorkType(element) {
+    // Remove selection from all
+    document.querySelectorAll('#step1 .option-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Add selection to clicked
+    element.classList.add('selected');
+    selectedWorkType = element.dataset.value;
+    
+    // Short delay then move to step 2
+    setTimeout(() => {
+        showStep2();
+    }, 300);
+}
+
+function selectWorkMode(element) {
+    // Remove selection from all
+    document.querySelectorAll('#step2 .option-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Add selection to clicked
+    element.classList.add('selected');
+    selectedWorkMode = element.dataset.value;
+    
+    // Short delay then move to step 3
+    setTimeout(() => {
+        showStep3();
+    }, 300);
+}
+
+function selectCategory(element) {
+    // Remove selection from all
+    document.querySelectorAll('#step3 .option-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Add selection to clicked
+    element.classList.add('selected');
+    selectedCategory = element.dataset.value;
+    
+    // Short delay then proceed to workslip
+    setTimeout(() => {
+        proceedToWorkslip();
+    }, 300);
+}
+
+function showStep2() {
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    
+    // Update indicators
+    document.getElementById('step1-indicator').classList.remove('active');
+    document.getElementById('step1-indicator').classList.add('completed');
+    document.getElementById('step2-indicator').classList.remove('pending');
+    document.getElementById('step2-indicator').classList.add('active');
+    document.getElementById('connector1').classList.add('completed');
+}
+
+function showStep3() {
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step3').style.display = 'block';
+    
+    // Update indicators
+    document.getElementById('step2-indicator').classList.remove('active');
+    document.getElementById('step2-indicator').classList.add('completed');
+    document.getElementById('step3-indicator').classList.remove('pending');
+    document.getElementById('step3-indicator').classList.add('active');
+    document.getElementById('connector2').classList.add('completed');
+}
+
+function goBackToStep1() {
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step1').style.display = 'block';
+    
+    // Update indicators
+    document.getElementById('step1-indicator').classList.remove('completed');
+    document.getElementById('step1-indicator').classList.add('active');
+    document.getElementById('step2-indicator').classList.remove('active');
+    document.getElementById('step2-indicator').classList.add('pending');
+    document.getElementById('connector1').classList.remove('completed');
+    
+    // Clear work mode selection
+    selectedWorkMode = '';
+    document.querySelectorAll('#step2 .option-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+}
+
+function goBackToStep2() {
+    document.getElementById('step3').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    
+    // Update indicators
+    document.getElementById('step2-indicator').classList.remove('completed');
+    document.getElementById('step2-indicator').classList.add('active');
+    document.getElementById('step3-indicator').classList.remove('active');
+    document.getElementById('step3-indicator').classList.add('pending');
+    document.getElementById('connector2').classList.remove('completed');
+    
+    // Clear category selection
+    selectedCategory = '';
+    document.querySelectorAll('#step3 .option-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+}
+
+function proceedToWorkslip() {
+    if (!selectedWorkType || !selectedWorkMode || !selectedCategory) {
+        alert('Please complete all selections');
+        return;
+    }
+    
+    // Build URL with parameters
+    const url = `{% url 'workslip_main' %}?work_type=${selectedWorkType}&work_mode=${selectedWorkMode}&category=${selectedCategory}`;
+    window.location.href = url;
+}
+
+// Initialize - set step 1 as active
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('step1-indicator').classList.add('active');
+});
+</script>
+
+{% endblock %}

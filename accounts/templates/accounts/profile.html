@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - SSR Estimation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6366f1 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .profile-page {
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        
+        .back-link {
+            position: fixed;
+            top: 1.5rem;
+            left: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.75rem 1.25rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+            transform: translateX(-3px);
+        }
+        
+        .profile-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding-top: 3rem;
+        }
+        
+        /* Profile Hero */
+        .profile-hero {
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .profile-hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .avatar-wrapper {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 1rem;
+        }
+        
+        .avatar-circle {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8ecf8 100%);
+            border: 5px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            font-size: 42px;
+            font-weight: 700;
+            color: #6366f1;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+        
+        .profile-name {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0.5rem 0 0.25rem;
+        }
+        
+        .profile-role {
+            color: #64748b;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .profile-badges {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .badge-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #f1f5f9;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            color: #475569;
+        }
+        
+        .badge-item i.text-success {
+            color: #10b981 !important;
+        }
+        
+        .edit-profile-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.875rem 2rem;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+        
+        .edit-profile-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+            color: white;
+        }
+        
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Info Card */
+        .info-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .info-section {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .info-section:last-child {
+            border-bottom: none;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7c3aed;
+            font-size: 1.1rem;
+        }
+        
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.875rem 0;
+            border-bottom: 1px solid #f8fafc;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        
+        .info-value {
+            color: #1e293b;
+            font-weight: 500;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .info-value .verified-badge {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+        
+        .change-btn {
+            background: #f1f5f9;
+            color: #6366f1;
+            border: none;
+            padding: 0.375rem 0.875rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        
+        .change-btn:hover {
+            background: #e2e8f0;
+            color: #4f46e5;
+        }
+        
+        /* Quick Links Card */
+        .quick-links-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .quick-links-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .quick-links-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .quick-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            color: #475569;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid #f8fafc;
+        }
+        
+        .quick-link:last-child {
+            border-bottom: none;
+        }
+        
+        .quick-link:hover {
+            background: #f8fafc;
+            color: #6366f1;
+        }
+        
+        .quick-link-content {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .quick-link-icon {
+            width: 36px;
+            height: 36px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6366f1;
+            font-size: 1rem;
+        }
+        
+        .quick-link.danger {
+            color: #ef4444;
+        }
+        
+        .quick-link.danger:hover {
+            background: #fef2f2;
+        }
+        
+        .quick-link.danger .quick-link-icon {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+        
+        /* Account Info Card */
+        .account-info-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .account-stats {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        
+        .stat-item {
+            padding: 0.5rem;
+        }
+        
+        .stat-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+        
+        @media (max-width: 576px) {
+            .back-link {
+                top: 1rem;
+                left: 1rem;
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem;
+            }
+            
+            .profile-hero {
+                padding: 2rem 1.5rem;
+            }
+            
+            .avatar-circle {
+                width: 100px;
+                height: 100px;
+                font-size: 36px;
+            }
+            
+            .profile-name {
+                font-size: 1.5rem;
+            }
+            
+            .info-section {
+                padding: 1.25rem 1.5rem;
+            }
+            
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-page">
+        <a href="{% url 'dashboard' %}" class="back-link">
+            <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+        
+        <div class="profile-container">
+            <!-- Profile Hero -->
+            <div class="profile-hero">
+                <div class="avatar-wrapper">
+                    <div class="avatar-circle">
+                        {{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}
+                    </div>
+                </div>
+                <h1 class="profile-name">{{ user.get_full_name|default:user.username }}</h1>
+                <p class="profile-role">{{ profile.role|title|default:"Member" }}</p>
+                
+                <div class="profile-badges">
+                    {% if profile.phone %}
+                    <span class="badge-item">
+                        <i class="bi bi-phone-fill"></i> {{ profile.phone }}
+                        {% if profile.phone_verified %}<i class="bi bi-patch-check-fill text-success"></i>{% endif %}
+                    </span>
+                    {% endif %}
+                    {% if user.email %}
+                    <span class="badge-item">
+                        <i class="bi bi-envelope-fill"></i> {{ user.email }}
+                        {% if profile.email_verified %}<i class="bi bi-patch-check-fill text-success"></i>{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <a href="{% url 'profile_edit' %}" class="edit-profile-btn">
+                    <i class="bi bi-pencil"></i> Edit Profile
+                </a>
+            </div>
+            
+            <!-- Content Grid -->
+            <div class="content-grid">
+                <!-- Main Info Card -->
+                <div class="info-card">
+                    <!-- Contact Information -->
+                    <div class="info-section">
+                        <div class="section-header">
+                            <div class="section-icon"><i class="bi bi-telephone"></i></div>
+                            <h2 class="section-title">Contact Information</h2>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Phone Number</span>
+                            <span class="info-value">
+                                {{ profile.phone|default:"Not set" }}
+                                {% if profile.phone_verified %}<span class="verified-badge">Verified</span>{% endif %}
+                                <a href="{% url 'change_phone' %}" class="change-btn">Change</a>
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email Address</span>
+                            <span class="info-value">
+                                {{ user.email|default:"Not set" }}
+                                {% if profile.email_verified %}<span class="verified-badge">Verified</span>{% endif %}
+                                <a href="{% url 'change_email' %}" class="change-btn">Change</a>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Personal Information -->
+                    <div class="info-section">
+                        <div class="section-header">
+                            <div class="section-icon"><i class="bi bi-person"></i></div>
+                            <h2 class="section-title">Personal Information</h2>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Full Name</span>
+                            <span class="info-value">{{ user.get_full_name|default:"-" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Company</span>
+                            <span class="info-value">{{ profile.company_name|default:"-" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Designation</span>
+                            <span class="info-value">{{ profile.designation|default:"-" }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Address -->
+                    <div class="info-section">
+                        <div class="section-header">
+                            <div class="section-icon"><i class="bi bi-geo-alt"></i></div>
+                            <h2 class="section-title">Address</h2>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Street Address</span>
+                            <span class="info-value">
+                                {{ profile.address_line1|default:"-" }}
+                                {% if profile.address_line2 %}, {{ profile.address_line2 }}{% endif %}
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">City</span>
+                            <span class="info-value">{{ profile.city|default:"-" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">State</span>
+                            <span class="info-value">{{ profile.state|default:"-" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">PIN Code</span>
+                            <span class="info-value">{{ profile.pincode|default:"-" }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Business Information -->
+                    <div class="info-section">
+                        <div class="section-header">
+                            <div class="section-icon"><i class="bi bi-building"></i></div>
+                            <h2 class="section-title">Business Information</h2>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">GSTIN</span>
+                            <span class="info-value">{{ profile.gstin|default:"-" }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sidebar -->
+                <div class="sidebar">
+                    <!-- Quick Links -->
+                    <div class="quick-links-card">
+                        <div class="quick-links-header">
+                            <h3><i class="bi bi-lightning-charge"></i> Quick Actions</h3>
+                        </div>
+                        <a href="{% url 'active_sessions' %}" class="quick-link">
+                            <div class="quick-link-content">
+                                <div class="quick-link-icon"><i class="bi bi-phone"></i></div>
+                                <span>Active Sessions</span>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                        <a href="{% url 'notification_prefs' %}" class="quick-link">
+                            <div class="quick-link-content">
+                                <div class="quick-link-icon"><i class="bi bi-bell"></i></div>
+                                <span>Notifications</span>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                        <a href="{% url 'settings' %}" class="quick-link">
+                            <div class="quick-link-content">
+                                <div class="quick-link-icon"><i class="bi bi-gear"></i></div>
+                                <span>Settings</span>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                        <a href="{% url 'export_data' %}" class="quick-link">
+                            <div class="quick-link-content">
+                                <div class="quick-link-icon"><i class="bi bi-download"></i></div>
+                                <span>Export Data</span>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                        <a href="{% url 'delete_account' %}" class="quick-link danger">
+                            <div class="quick-link-content">
+                                <div class="quick-link-icon"><i class="bi bi-trash3"></i></div>
+                                <span>Delete Account</span>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </div>
+                    
+                    <!-- Account Info -->
+                    <div class="account-info-card">
+                        <div class="account-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">{{ user.date_joined|date:"d M Y" }}</div>
+                                <div class="stat-label">Member Since</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">{{ user.last_login|date:"d M Y"|default:"-" }}</div>
+                                <div class="stat-label">Last Login</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Grant Subscription{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_user_list' %}">Users</a></li>
+<li class="breadcrumb-item"><a href="{% url 'admin_user_detail' target_user.id %}">{{ target_user.username }}</a></li>
+<li class="breadcrumb-item active">Grant Subscription</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>Grant Subscription</h5>
+            </div>
+            <div class="card-body">
+                <!-- User Info -->
+                <div class="d-flex align-items-center mb-4 p-3 bg-light rounded">
+                    <div class="user-avatar me-3" style="width:48px;height:48px;background:linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;font-weight:600;">
+                        {{ target_user.first_name|slice:":1"|upper|default:"U" }}
+                    </div>
+                    <div>
+                        <div class="fw-semibold">{{ target_user.get_full_name|default:target_user.username }}</div>
+                        <div class="text-muted small">{{ target_user.email }}</div>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Module <span class="text-danger">*</span></label>
+                        <select name="module" class="form-select" required>
+                            <option value="">Select Module</option>
+                            {% for m in modules %}
+                            <option value="{{ m.id }}" {% if selected_module == m.code %}selected{% endif %}>{{ m.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Subscription Type <span class="text-danger">*</span></label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="sub_type" id="type_trial" value="trial">
+                            <label class="btn btn-outline-secondary" for="type_trial">
+                                <i class="bi bi-clock me-1"></i> Trial
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="sub_type" id="type_active" value="active" checked>
+                            <label class="btn btn-outline-secondary" for="type_active">
+                                <i class="bi bi-star me-1"></i> Full Access
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Duration</label>
+                            <select name="duration" class="form-select">
+                                <option value="7">7 days</option>
+                                <option value="30" selected>30 days</option>
+                                <option value="90">90 days (3 months)</option>
+                                <option value="180">180 days (6 months)</option>
+                                <option value="365">365 days (1 year)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="customDaysContainer" style="display:none;">
+                            <label class="form-label">Custom Days</label>
+                            <input type="number" name="custom_days" class="form-control" min="1" max="1825" placeholder="Enter days">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Usage Limit</label>
+                        <input type="number" name="usage_limit" class="form-control" value="0" min="0">
+                        <div class="form-text">0 = unlimited uses</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">Admin Note</label>
+                        <textarea name="note" class="form-control" rows="2" placeholder="Optional note for audit log..."></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-gift me-1"></i> Grant Subscription
+                        </button>
+                        <a href="{% url 'admin_user_detail' target_user.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelector('select[name="duration"]').addEventListener('change', function() {
+    document.getElementById('customDaysContainer').style.display = this.value === 'custom' ? 'block' : 'none';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,2247 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}{{ category|title }} - {{ group }}{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-list-check me-2"></i>{{ category|title }} → {{ group }}
+{% endblock %}
+
+{% block content %}
+
+<style>
+    /* 3-Panel Layout */
+    .layout-3panel {
+        display: grid;
+        grid-template-columns: 160px 200px 1fr;
+        gap: 0.5rem;
+        height: calc(100vh - 120px);
+    }
+    
+    /* Panel Cards */
+    .panel-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .panel-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.4rem 0.7rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .panel-header i {
+        font-size: 0.8rem;
+    }
+    
+    .panel-header.items-header {
+        background: #38a169;
+    }
+    
+    .panel-header.estimate-header {
+        background: #2d3748;
+    }
+    
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.4rem;
+    }
+    
+    /* Custom Scrollbar for Panels */
+    .panel-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .panel-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .panel-body::-webkit-scrollbar-thumb {
+        background: #805ad5;
+        border-radius: 3px;
+    }
+    
+    /* Groups List */
+    .groups-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .groups-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .group-link {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #4a5568;
+        font-weight: 500;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .group-link:hover {
+        background: #edf2f7;
+        border-color: #805ad5;
+        color: #805ad5;
+        transform: translateX(2px);
+    }
+    
+    .group-link.active {
+        background: #2d3748;
+        color: white;
+        box-shadow: 0 1px 4px rgba(45, 55, 72, 0.3);
+    }
+    
+    /* Items List */
+    .items-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .items-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .item-label {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .item-label:hover {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-checkbox {
+        width: 12px;
+        height: 12px;
+        accent-color: #319795;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    
+    .item-checkbox:checked + .item-name {
+        color: #319795;
+        font-weight: 600;
+    }
+    
+    .item-name {
+        color: #4a5568;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        line-height: 1.2;
+    }
+    
+    /* Estimate Panel */
+    .work-name-input {
+        width: 100%;
+        padding: 0.3rem 0.5rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        margin-bottom: 0.3rem;
+    }
+    
+    .work-name-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+    
+    .work-name-label {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 0.2rem;
+        font-size: 0.68rem;
+    }
+    
+    /* Estimate Table Wrapper - now wraps everything including totals and buttons */
+    .estimate-table-wrapper {
+        border-radius: 6px;
+        overflow: auto;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        margin-bottom: 0.3rem;
+        max-height: calc(100vh - 200px);
+        min-height: 300px;
+    }
+    
+    .estimate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.7rem;
+    }
+    
+    .estimate-table th {
+        background: #2d3748;
+        color: white;
+        padding: 0.2rem 0.15rem;
+        font-weight: 600;
+        text-align: center;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        font-size: 0.68rem;
+    }
+    
+    .estimate-table td {
+        padding: 0.12rem 0.1rem;
+        text-align: center;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        line-height: 1.2;
+    }
+    
+    .estimate-table tbody tr {
+        transition: all 0.15s ease;
+    }
+    
+    .estimate-table tbody tr:hover {
+        background: #faf5ff;
+    }
+    
+    .estimate-table td.desc-col {
+        text-align: center;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .unit-select {
+        width: 100%;
+        min-width: 60px;
+        padding: 0.25rem 0.3rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 3px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 0.72rem;
+        font-family: inherit;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .unit-select:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+    
+    .unit-select:hover {
+        border-color: #a0aec0;
+    }
+    
+    .qty-input {
+        width: 100%;
+        min-width: 80px;
+        padding: 0.3rem 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 3px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 0.75rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+    }
+    
+    .qty-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+    
+    .amount-cell {
+        font-weight: 600;
+        color: #319795;
+    }
+    
+    /* Total Row */
+    .estimate-total-row {
+        background: #faf5ff;
+        padding: 0.3rem 0.5rem;
+        border-radius: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.3rem;
+        border: 1px solid #e9d8fd;
+    }
+    
+    .total-label {
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.7rem;
+    }
+    
+    .total-amount {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #805ad5;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.68rem;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-action i {
+        font-size: 0.7rem;
+    }
+    
+    .btn-download {
+        background: #319795;
+        color: white;
+        box-shadow: 0 2px 8px rgba(49, 151, 149, 0.25);
+    }
+    
+    .btn-download:hover {
+        background: #2c7a7b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(49, 151, 149, 0.35);
+    }
+    
+    .btn-save {
+        background: #805ad5;
+        color: white;
+        box-shadow: 0 2px 8px rgba(128, 90, 213, 0.25);
+    }
+    
+    .btn-save:hover {
+        background: #6b46c1;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(128, 90, 213, 0.35);
+    }
+    
+    .btn-clear {
+        background: #e53e3e;
+        color: white;
+        box-shadow: 0 2px 8px rgba(229, 62, 62, 0.25);
+    }
+    
+    .btn-clear:hover {
+        background: #c53030;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(229, 62, 62, 0.35);
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 1rem;
+        color: #a0aec0;
+    }
+    
+    .empty-state i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        opacity: 0.5;
+    }
+    
+    .empty-state p {
+        font-size: 0.7rem;
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .layout-3panel {
+            grid-template-columns: 160px 200px 1fr;
+        }
+    }
+    
+    @media (max-width: 992px) {
+        .layout-3panel {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        
+        .panel-card {
+            max-height: 350px;
+        }
+    }
+    
+    /* Drag and Drop Styles */
+    .estimate-table tbody tr.draggable {
+        cursor: grab;
+    }
+    
+    .estimate-table tbody tr.draggable:active {
+        cursor: grabbing;
+    }
+    
+    .estimate-table tbody tr.dragging {
+        opacity: 0.5;
+        background: #e6fffa !important;
+    }
+    
+    .estimate-table tbody tr.drag-over {
+        border-top: 2px solid #319795;
+    }
+    
+    .drag-handle {
+        cursor: grab;
+        color: #a0aec0;
+        padding: 0 4px !important;
+        font-size: 0.8rem;
+        text-align: center;
+        width: 24px;
+        min-width: 24px;
+    }
+    
+    .drag-handle:hover {
+        color: #319795;
+    }
+    
+    .sl-cell {
+        text-align: center;
+        font-weight: 600;
+        color: #4a5568;
+    }
+    
+    .unit-cell, .rate-cell, .amount-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    /* Loading indicator for checkbox */
+    .item-checkbox.loading {
+        pointer-events: none;
+        opacity: 0.5;
+    }
+    
+    .item-label.processing {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-label.processing::after {
+        content: "...";
+        margin-left: 4px;
+        color: #319795;
+        animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Item with subtypes indicator */
+    .item-label.has-subtypes {
+        cursor: pointer;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border-color: #f59e0b;
+    }
+    
+    .item-label.has-subtypes:hover {
+        background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+        border-color: #d97706;
+    }
+    
+    .item-label.has-subtypes .item-name::after {
+        content: " ▼";
+        font-size: 0.6rem;
+        color: #d97706;
+    }
+    
+    .item-label.has-subtypes .subtype-badge {
+        background: #f59e0b;
+        color: white;
+        font-size: 0.6rem;
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin-left: 4px;
+    }
+    
+    /* Subtypes Dropdown Popup */
+    .subtypes-popup {
+        display: none;
+        position: absolute;
+        z-index: 1000;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        min-width: 220px;
+        max-width: 320px;
+        max-height: 250px;
+        overflow: hidden;
+        animation: popupFadeIn 0.15s ease;
+    }
+    
+    .subtypes-popup.active {
+        display: block;
+    }
+    
+    @keyframes popupFadeIn {
+        from {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    .subtypes-popup-header {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        padding: 0.4rem 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .subtypes-popup-header span {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .subtypes-popup-close {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+    
+    .subtypes-popup-close:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .subtypes-popup-body {
+        padding: 0.4rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    .subtypes-popup-body::-webkit-scrollbar {
+        width: 4px;
+    }
+    
+    .subtypes-popup-body::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 2px;
+    }
+    
+    .subtypes-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .subtypes-list li {
+        margin-bottom: 0.25rem;
+    }
+    
+    .subtypes-list li:last-child {
+        margin-bottom: 0;
+    }
+    
+    .subtype-option {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.5rem;
+        background: #f8f9fa;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.15s;
+        width: 100%;
+        text-align: left;
+        font-size: 0.75rem;
+    }
+    
+    .subtype-option:hover {
+        background: #e6fffa;
+        border-color: #38a169;
+    }
+    
+    .subtype-option.selected {
+        background: #c6f6d5;
+        border-color: #38a169;
+    }
+    
+    .subtype-option i {
+        color: #38a169;
+        font-size: 0.85rem;
+    }
+    
+    .subtype-name {
+        flex: 1;
+        font-size: 0.72rem;
+        color: #2d3748;
+        line-height: 1.3;
+    }
+</style>
+
+<!-- Subtypes Selection Popup -->
+<div class="subtypes-popup" id="subtypes-modal">
+    <div class="subtypes-popup-header">
+        <span><i class="bi bi-list-ul"></i> <span id="modal-parent-name">Select Type</span></span>
+        <button class="subtypes-popup-close" onclick="closeSubtypesModal()">&times;</button>
+    </div>
+    <div class="subtypes-popup-body">
+        <ul class="subtypes-list" id="subtypes-list">
+            <!-- Subtypes will be populated dynamically -->
+        </ul>
+    </div>
+</div>
+
+<!-- SOR Backend Selection Bar -->
+{% if available_backends %}
+<div class="backend-selection-bar mb-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="backend-label">
+            <i class="bi bi-database me-1"></i>
+            <strong>SOR Rates:</strong>
+        </div>
+        <select id="backend-selector" class="form-select form-select-sm" style="max-width: 280px;" onchange="switchBackend(this.value)">
+            {% for backend in available_backends %}
+            <option value="{{ backend.id }}" {% if backend.id == selected_backend_id %}selected{% endif %}>
+                {{ backend.name }}{% if backend.is_default %} (Default){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Changing SOR will reload groups and items
+        </span>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.backend-selection-bar {
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    border: 1px solid #c3d9fe;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+}
+.backend-selection-bar .form-select {
+    border-color: #3b82f6;
+    font-weight: 500;
+}
+.backend-selection-bar .form-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+.backend-label {
+    color: #1e40af;
+    font-size: 0.85rem;
+}
+</style>
+
+<div class="layout-3panel">
+
+    <!-- LEFT: GROUPS -->
+    <div class="panel-card">
+        <div class="panel-header">
+            <i class="bi bi-folder2-open"></i>
+            Groups
+        </div>
+        <div class="panel-body">
+            <ul class="groups-list">
+                {% for g in groups %}
+                    <li>
+                        <a href="{% url 'datas_items' category g %}" 
+                           class="group-link {% if g == group %}active{% endif %}">
+                            <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
+                            {{ g }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- MIDDLE: ITEMS -->
+    <div class="panel-card">
+        <div class="panel-header items-header">
+            <i class="bi bi-check2-square"></i>
+            Items in {{ group }}
+        </div>
+        <div class="panel-body">
+            {% if items_info %}
+                <ul class="items-list">
+                    {% for info in items_info %}
+                        <li>
+                            {% if info.has_subtypes %}
+                                <!-- Item with subtypes - show as clickable to open modal -->
+                                <label class="item-label has-subtypes"
+                                       data-parent-name="{{ info.name }}"
+                                       data-subtypes-index="{{ forloop.counter0 }}"
+                                       onclick="openSubtypesModal(this)">
+                                    <span class="item-name">{{ info.name }}</span>
+                                    <span class="subtype-badge">{{ info.subtypes_count }} types</span>
+                                </label>
+                            {% else %}
+                                <!-- Regular item without subtypes -->
+                                <label class="item-label">
+                                    <input type="checkbox"
+                                           class="item-checkbox"
+                                           data-item-name="{{ info.name }}"
+                                           data-fetch-url="{% url 'fetch_item' category group info.name %}"
+                                           {% if info.name in fetched %}checked{% endif %}>
+                                    <span class="item-name">{{ info.name }}</span>
+                                </label>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No items found in this group.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RIGHT: ESTIMATE PREVIEW -->
+    <div class="panel-card">
+        <div class="panel-header estimate-header">
+            <i class="bi bi-calculator"></i>
+            Estimate Preview
+        </div>
+        <div class="panel-body">
+            <form id="estimate-form" method="post" action="{% url 'download_output' category %}">
+                {% csrf_token %}
+                <input type="hidden" name="qty_map" id="qty-map-field">
+                <input type="hidden" name="unit_map" id="unit-map-field">
+                <input type="hidden" name="project_name" id="project-name-field">
+                <input type="hidden" name="grand_total" id="grand-total-field">
+                <input type="hidden" name="work_type" id="work-type-field" value="{{ work_type|default:'original' }}">
+                <input type="hidden" name="excess_tp_enabled" id="excess-tp-enabled-field" value="">
+                <input type="hidden" name="excess_tp_percent" id="excess-tp-percent-field" value="">
+                <input type="hidden" name="ls_special_enabled" id="ls-special-enabled-field" value="">
+                <input type="hidden" name="ls_special_name" id="ls-special-name-field" value="">
+                <input type="hidden" name="ls_special_amount" id="ls-special-amount-field" value="">
+                <input type="hidden" name="deduct_old_material" id="deduct-old-material-field" value="">
+
+                <!-- Name of the work field -->
+                <label class="work-name-label">
+                    <i class="bi bi-pencil-square me-1"></i>
+                    Name of the Work
+                </label>
+                <input type="text"
+                       id="work-name-input"
+                       name="work_name"
+                       class="work-name-input"
+                       placeholder="Enter work name..."
+                       value="{{ work_name|default_if_none:'' }}">
+
+                <div class="estimate-table-wrapper">
+                    <table class="estimate-table" id="estimate-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th style="width: 50px;">Sl.No</th>
+                                <th>Item Description</th>
+                                <th style="width: 70px;">Unit</th>
+                                <th style="width: 120px;">Qty</th>
+                                <th style="width: 80px;">Rate</th>
+                                <th style="width: 120px;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if estimate_rows %}
+                                {% for row in estimate_rows %}
+                                    <tr data-item-name="{{ row.name }}" data-unit="{{ row.unit }}" class="draggable" draggable="true">
+                                        <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
+                                        <td class="sl-cell">{{ row.sl }}</td>
+                                        <td class="desc-col" title="{{ row.name }}">{{ row.name }}</td>
+                                        <td class="unit-cell">{{ row.unit }}</td>
+                                        <td>
+                                            <input type="number"
+                                                   min="0"
+                                                   step="0.01"
+                                                   class="qty-input"
+                                                   value="{{ row.qty|default_if_none:'' }}"
+                                                   data-rate="{{ row.rate|default_if_none:0 }}">
+                                        </td>
+                                        <td>
+                                            {% if row.rate is not None %}
+                                                ₹{{ row.rate }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="amount-cell"></td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="empty-state">
+                                            <i class="bi bi-clipboard-x"></i>
+                                            <p>No items selected yet.<br>Select items from the list.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+
+                <div class="estimate-total-row">
+                    <span class="total-label">
+                        <i class="bi bi-currency-rupee me-1"></i>
+                        ECV Amount
+                    </span>
+                    <span class="total-amount">₹<span id="estimate-total">0.00</span></span>
+                </div>
+
+                <!-- Deduct Old Material Cost (Repair Work Only) -->
+                {% if work_type == 'repair' %}
+                <div class="estimate-total-row" style="background: #fff5f5; border-color: #fc8181;">
+                    <label for="deduct-old-material-input" class="total-label" style="color: #c53030;">
+                        <i class="bi bi-dash-circle me-1"></i>
+                        Deduct Old Material Cost
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <span style="font-weight: 600; color: #e53e3e;">₹</span>
+                        <input type="number" 
+                               id="deduct-old-material-input"
+                               class="qty-input"
+                               style="width: 100px; font-weight: 700; color: #e53e3e; border-color: #fc8181;"
+                               step="0.01"
+                               min="0"
+                               placeholder="Amount"
+                               oninput="updateDeductField()"
+                               value="{{ deduct_old_material|default_if_none:'' }}">
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Grand Total Input -->
+                <div class="estimate-total-row" style="background: #e6fffa; border-color: #38b2ac;">
+                    <label for="grand-total-input" class="total-label" style="color: #234e52;">
+                        <i class="bi bi-calculator me-1"></i>
+                        Grand Total (Manual Entry)
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <span style="font-weight: 600; color: #319795;">₹</span>
+                        <input type="number" 
+                               id="grand-total-input"
+                               class="qty-input"
+                               style="width: 100px; font-weight: 700; color: #319795; border-color: #38b2ac;"
+                               step="0.01"
+                               min="0"
+                               placeholder="Enter amount"
+                               value="{{ grand_total|default_if_none:'' }}">
+                    </div>
+                </div>
+
+                <!-- Additional Options -->
+                <div style="margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 10px 14px; border-bottom: 1px solid #e2e8f0;">
+                        <span style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="bi bi-plus-circle me-1"></i>Additional Options
+                        </span>
+                    </div>
+                    <div style="padding: 12px 14px; background: white;">
+                        <!-- Excess T.P Option -->
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                                <input type="checkbox" id="excess-tp-checkbox" onchange="toggleExcessTP()" 
+                                       style="width: 14px; height: 14px; cursor: pointer; accent-color: #6366f1; border-radius: 3px;"
+                                       {% if excess_tp_percent %}checked{% endif %}>
+                                <span style="font-size: 0.75rem; color: #475569;">Add Excess T.P?</span>
+                            </label>
+                            <div id="excess-tp-fields" style="display: {% if excess_tp_percent %}block{% else %}none{% endif %}; margin-top: 8px; margin-left: 22px; padding: 8px 10px; background: #fafafa; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 0.7rem; color: #6b7280;">Percentage:</span>
+                                    <input type="number" id="excess-tp-percent-input" class="qty-input"
+                                           style="width: 55px; font-size: 0.75rem; padding: 3px 6px; text-align: center;"
+                                           step="0.01" min="0" max="100" placeholder="5"
+                                           value="{{ excess_tp_percent|default_if_none:'' }}">
+                                    <span style="font-size: 0.7rem; color: #6b7280;">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- L.S Provision towards Special Items -->
+                        <div>
+                            <label style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                                <input type="checkbox" id="ls-special-checkbox" onchange="toggleLSSpecial()" 
+                                       style="width: 14px; height: 14px; cursor: pointer; accent-color: #6366f1; border-radius: 3px;"
+                                       {% if ls_special_name or ls_special_amount %}checked{% endif %}>
+                                <span style="font-size: 0.75rem; color: #475569;">L.S. Provision towards Special Items?</span>
+                            </label>
+                            <div id="ls-special-fields" style="display: {% if ls_special_name or ls_special_amount %}block{% else %}none{% endif %}; margin-top: 8px; margin-left: 22px; padding: 8px 10px; background: #fafafa; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                    <span style="font-size: 0.7rem; color: #6b7280; min-width: 55px;">Name:</span>
+                                    <input type="text" id="ls-special-name-input" class="qty-input"
+                                           style="flex: 1; font-size: 0.75rem; padding: 3px 6px;"
+                                           placeholder="Special Equipment"
+                                           value="{{ ls_special_name|default_if_none:'' }}">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 0.7rem; color: #6b7280; min-width: 55px;">Amount:</span>
+                                    <span style="font-size: 0.7rem; color: #6b7280;">₹</span>
+                                    <input type="number" id="ls-special-amount-input" class="qty-input"
+                                           style="width: 80px; font-size: 0.75rem; padding: 3px 6px;"
+                                           step="0.01" min="0" placeholder="50000"
+                                           value="{{ ls_special_amount|default_if_none:'' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="action-buttons">
+                    <button type="submit" class="btn-action btn-download">
+                        <i class="bi bi-download"></i>
+                        Download Estimate
+                    </button>
+                    
+                    <button type="button" class="btn-action btn-download" onclick="downloadSpecificationReport()" style="background:linear-gradient(135deg, #38a169 0%, #2f855a 100%);">
+                        <i class="bi bi-file-earmark-word"></i>
+                        Specification Report
+                    </button>
+
+                    <a href="{% url 'clear_output' category %}?group={{ group }}"
+                       class="btn-action btn-clear">
+                        <i class="bi bi-x-circle"></i>
+                        Clear All
+                    </a>
+                    
+                    <button type="button" class="btn-action btn-save" data-bs-toggle="modal" data-bs-target="#saveWorkModal">
+                        <i class="bi bi-save"></i>
+                        Save Work
+                    </button>
+                </div>
+                </div><!-- End of estimate-table-wrapper -->
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script src="{% static 'js/job-polling.js' %}"></script>
+<script>
+// Switch to a different backend (SOR rates file)
+function switchBackend(backendId) {
+    if (!backendId) return;
+    
+    // Build URL with backend_id parameter
+    var currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('backend_id', backendId);
+    
+    // Show loading indicator
+    var selector = document.getElementById('backend-selector');
+    if (selector) {
+        selector.disabled = true;
+        selector.style.opacity = '0.6';
+    }
+    
+    // Redirect to reload with new backend
+    window.location.href = currentUrl.toString();
+}
+
+// Toggle functions for additional options
+function toggleExcessTP() {
+    var checkbox = document.getElementById('excess-tp-checkbox');
+    var fields = document.getElementById('excess-tp-fields');
+    fields.style.display = checkbox.checked ? 'block' : 'none';
+    if (!checkbox.checked) {
+        document.getElementById('excess-tp-percent-input').value = '';
+    }
+}
+
+function toggleLSSpecial() {
+    var checkbox = document.getElementById('ls-special-checkbox');
+    var fields = document.getElementById('ls-special-fields');
+    fields.style.display = checkbox.checked ? 'block' : 'none';
+    if (!checkbox.checked) {
+        document.getElementById('ls-special-name-input').value = '';
+        document.getElementById('ls-special-amount-input').value = '';
+    }
+}
+
+// Populate hidden fields for additional options
+function populateAdditionalOptions() {
+    // Excess T.P
+    var excessTPEnabled = document.getElementById('excess-tp-checkbox').checked;
+    document.getElementById('excess-tp-enabled-field').value = excessTPEnabled ? 'true' : '';
+    if (excessTPEnabled) {
+        document.getElementById('excess-tp-percent-field').value = document.getElementById('excess-tp-percent-input').value || '';
+    } else {
+        document.getElementById('excess-tp-percent-field').value = '';
+    }
+    
+    // L.S Special Items
+    var lsSpecialEnabled = document.getElementById('ls-special-checkbox').checked;
+    document.getElementById('ls-special-enabled-field').value = lsSpecialEnabled ? 'true' : '';
+    if (lsSpecialEnabled) {
+        document.getElementById('ls-special-name-field').value = document.getElementById('ls-special-name-input').value || '';
+        document.getElementById('ls-special-amount-field').value = document.getElementById('ls-special-amount-input').value || '';
+    } else {
+        document.getElementById('ls-special-name-field').value = '';
+        document.getElementById('ls-special-amount-field').value = '';
+    }
+    
+    // Deduct Old Material Cost (Repair Work)
+    var deductInput = document.getElementById('deduct-old-material-input');
+    if (deductInput) {
+        document.getElementById('deduct-old-material-field').value = deductInput.value || '';
+    }
+}
+
+// Update deduct old material hidden field
+function updateDeductField() {
+    var deductInput = document.getElementById('deduct-old-material-input');
+    if (deductInput) {
+        document.getElementById('deduct-old-material-field').value = deductInput.value || '';
+    }
+}
+
+// ========================================
+// SUBTYPES DATA (indexed by position)
+// ========================================
+var subtypesData = {
+    {% for info in items_info %}
+    {% if info.has_subtypes %}
+    {{ forloop.counter0 }}: {{ info.subtypes|safe }},
+    {% endif %}
+    {% endfor %}
+};
+
+// Helper function to get currently fetched items from the estimate table
+function getCurrentFetchedItems() {
+    var items = [];
+    document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+        var itemName = row.getAttribute('data-item-name');
+        if (itemName) {
+            items.push(itemName);
+        }
+    });
+    return items;
+}
+
+// ========================================
+// SUBTYPES MODAL FUNCTIONS
+// ========================================
+var currentParentLabel = null;
+
+function openSubtypesModal(labelElement) {
+    var parentName = labelElement.getAttribute('data-parent-name');
+    var subtypesIndex = labelElement.getAttribute('data-subtypes-index');
+    
+    try {
+        // Get subtypes from global data object
+        var subtypes = subtypesData[subtypesIndex] || [];
+        
+        currentParentLabel = labelElement;
+        
+        // Set modal header
+        document.getElementById('modal-parent-name').textContent = parentName;
+        
+        // Populate subtypes list
+        var subtypesList = document.getElementById('subtypes-list');
+        subtypesList.innerHTML = '';
+        
+        // Get currently fetched items from the table (dynamic check)
+        var fetchedItems = getCurrentFetchedItems();
+        
+        subtypes.forEach(function(subtype) {
+            var li = document.createElement('li');
+            var isSelected = fetchedItems.indexOf(subtype) !== -1;
+            
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'subtype-option' + (isSelected ? ' selected' : '');
+            button.setAttribute('data-subtype-name', subtype);
+            button.onclick = function() {
+                selectSubtype(subtype, button);
+            };
+            
+            // Extract the type part (after colon)
+            var typePart = subtype.includes(' : ') ? subtype.split(' : ')[1] : subtype;
+            
+            button.innerHTML = '<i class="bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle') + '"></i>' +
+                               '<span class="subtype-name">' + typePart + '</span>';
+            
+            li.appendChild(button);
+            subtypesList.appendChild(li);
+        });
+        
+        // Position popup next to the clicked item
+        var popup = document.getElementById('subtypes-modal');
+        var rect = labelElement.getBoundingClientRect();
+        
+        // Position to the right of the item
+        popup.style.position = 'fixed';
+        popup.style.top = rect.top + 'px';
+        popup.style.left = (rect.right + 5) + 'px';
+        
+        // Check if popup would go off screen to the right
+        var popupWidth = 280;
+        if (rect.right + popupWidth + 10 > window.innerWidth) {
+            // Position to the left of the item instead
+            popup.style.left = (rect.left - popupWidth - 5) + 'px';
+        }
+        
+        // Check if popup would go off screen at bottom
+        var popupHeight = 200;
+        if (rect.top + popupHeight > window.innerHeight) {
+            popup.style.top = (window.innerHeight - popupHeight - 10) + 'px';
+        }
+        
+        // Show popup
+        popup.classList.add('active');
+        
+    } catch (e) {
+        console.error('Error parsing subtypes:', e);
+    }
+}
+
+function closeSubtypesModal() {
+    document.getElementById('subtypes-modal').classList.remove('active');
+    currentParentLabel = null;
+}
+
+function selectSubtype(subtypeName, buttonElement) {
+    // Toggle selection
+    var isCurrentlySelected = buttonElement.classList.contains('selected');
+    var action = isCurrentlySelected ? 'remove' : 'add';
+    
+    // Show loading state
+    buttonElement.classList.add('processing');
+    var icon = buttonElement.querySelector('i');
+    var originalClass = icon.className;
+    icon.className = 'bi bi-hourglass-split';
+    
+    // Add to fetch queue via AJAX
+    var category = "{{ category }}";
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch("/datas/" + category + "/ajax_toggle_item/", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            item: subtypeName,
+            work_name: document.getElementById('work-name-input') ? document.getElementById('work-name-input').value : ''
+        })
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        buttonElement.classList.remove('processing');
+        
+        if (data.status === 'ok') {
+            if (action === 'add') {
+                buttonElement.classList.add('selected');
+                icon.className = 'bi bi-check-circle-fill';
+                // Add to table (use window global)
+                if (data.item_info && typeof window.addItemToTable === 'function') {
+                    window.addItemToTable(subtypeName, data.item_info);
+                }
+            } else {
+                buttonElement.classList.remove('selected');
+                icon.className = 'bi bi-circle';
+                // Remove from table (use window global)
+                if (typeof window.removeItemFromTable === 'function') {
+                    window.removeItemFromTable(subtypeName);
+                }
+            }
+            if (typeof window.updateSerialNumbers === 'function') {
+                window.updateSerialNumbers();
+            }
+            if (typeof window.recalcTotal === 'function') {
+                window.recalcTotal();
+            }
+            // Close modal after successful selection
+            closeSubtypesModal();
+        } else {
+            // Restore original state
+            icon.className = originalClass;
+            alert('Error: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(function(error) {
+        buttonElement.classList.remove('processing');
+        icon.className = originalClass;
+        console.error('Error toggling subtype:', error);
+        alert('Network error. Please try again.');
+    });
+}
+
+// Close popup when clicking outside
+document.addEventListener('click', function(e) {
+    var popup = document.getElementById('subtypes-modal');
+    if (!popup.classList.contains('active')) return;
+    
+    // Check if click is outside popup and not on a has-subtypes label
+    if (!popup.contains(e.target) && !e.target.closest('.has-subtypes')) {
+        closeSubtypesModal();
+    }
+});
+
+// Close popup with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeSubtypesModal();
+    }
+});
+</script>
+
+<script>
+(function() {
+    // Handle form submission with job polling
+    var form = document.getElementById("estimate-form");
+    if (!form) return;
+    
+    var originalAction = form.action;
+    
+    form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+        
+        // Build qty map before submission
+        var m = buildQtyMap();
+        document.getElementById("qty-map-field").value = JSON.stringify(m);
+        
+        // Build unit map before submission
+        var um = buildUnitMap();
+        document.getElementById("unit-map-field").value = JSON.stringify(um);
+        
+        // Set grand total value
+        var gtInput = document.getElementById("grand-total-input");
+        var gtField = document.getElementById("grand-total-field");
+        if (gtInput && gtField) {
+            gtField.value = gtInput.value || "";
+        }
+        
+        // Populate additional options
+        populateAdditionalOptions();
+        
+        // Check if this is a download request or save project
+        var isDownload = form.action === originalAction && form.action.includes('download_output');
+        
+        if (isDownload) {
+            // Show loading modal
+            const modal = JobPoller.createLoadingModal('estimating');
+            modal.show();
+            
+            // Submit form asynchronously
+            const job = await JobPoller.submitFormAsync(form);
+            
+            if (!job) {
+                modal.setMessage('Error: Failed to start generation');
+                setTimeout(() => modal.hide(), 2000);
+                return;
+            }
+            
+            // Poll for completion
+            JobPoller.pollUntilComplete(
+                job.job_id,
+                job.status_url,
+                {
+                    onProgress: (data) => {
+                        modal.setProgress(data.progress || 0);
+                        modal.setMessage(data.current_step || 'Processing...');
+                    },
+                    onComplete: (data) => {
+                        modal.hide();
+                        setTimeout(() => {
+                            modal.remove();
+                            JobPoller.showResultModal(data);
+                        }, 500);
+                    },
+                    onError: (error) => {
+                        modal.setMessage('Error: ' + error);
+                        setTimeout(() => modal.hide(), 3000);
+                    },
+                },
+                1000
+            );
+        } else {
+            // Regular form submission (for save project, etc.)
+            form.submit();
+        }
+    });
+
+    // Utility function to build qty map
+    function buildQtyMap() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var qtyInput = row.querySelector(".qty-input");
+            if (!itemName || !qtyInput) return;
+            var val = qtyInput.value;
+            if (val !== "" && !isNaN(parseFloat(val))) {
+                map[itemName] = val;
+            }
+        });
+        return map;
+    }
+    
+    // Utility function to build unit map
+    function buildUnitMap() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var unitSelect = row.querySelector(".unit-select");
+            if (!itemName || !unitSelect) return;
+            var selectedUnit = unitSelect.value;
+            if (selectedUnit) {
+                map[itemName] = selectedUnit;
+            }
+        });
+        return map;
+    }
+    
+    // Utility function to get grand total value
+    function getGrandTotal() {
+        var gtInput = document.getElementById("grand-total-input");
+        return gtInput ? gtInput.value : "";
+    }
+    
+    // Set grand total hidden field before form submission
+    var gtField = document.getElementById("grand-total-field");
+    if (gtField) {
+        var gtInput = document.getElementById("grand-total-input");
+        if (gtInput) {
+            gtInput.addEventListener("input", function() {
+                gtField.value = gtInput.value;
+            });
+        }
+    }
+})();
+</script>
+
+<script>
+(function() {
+    // URLs for AJAX operations
+    var saveQtyMapUrl = "{% url 'save_qty_map' category %}";
+    var ajaxToggleUrl = "{% url 'ajax_toggle_item' category %}";
+    var ajaxReorderUrl = "{% url 'ajax_reorder_items' category %}";
+    var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+    
+    // ========================================
+    // QUEUED ITEM FETCH SYSTEM
+    // ========================================
+    var fetchQueue = [];
+    var isProcessingQueue = false;
+    
+    function addToFetchQueue(itemName, action, checkbox) {
+        // Add to queue
+        fetchQueue.push({ item: itemName, action: action, checkbox: checkbox });
+        
+        // Mark checkbox as processing
+        checkbox.classList.add('loading');
+        checkbox.closest('.item-label').classList.add('processing');
+        
+        // Process queue if not already processing
+        if (!isProcessingQueue) {
+            processQueue();
+        }
+    }
+    
+    function processQueue() {
+        if (fetchQueue.length === 0) {
+            isProcessingQueue = false;
+            return;
+        }
+        
+        isProcessingQueue = true;
+        var current = fetchQueue.shift();
+        
+        var workInput = document.getElementById("work-name-input");
+        var workName = workInput ? workInput.value : "";
+        
+        fetch(ajaxToggleUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({
+                item: current.item,
+                action: current.action,
+                work_name: workName
+            })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            // Remove processing state
+            current.checkbox.classList.remove('loading');
+            current.checkbox.closest('.item-label').classList.remove('processing');
+            
+            if (data.status === 'ok') {
+                // Update the estimate table based on action
+                if (data.action_taken === 'added') {
+                    addItemToTable(current.item, data.item_info);
+                } else if (data.action_taken === 'removed') {
+                    removeItemFromTable(current.item);
+                }
+                updateSerialNumbers();
+                recalcTotal();
+            } else {
+                // Revert checkbox state
+                current.checkbox.checked = !current.checkbox.checked;
+                console.error('Toggle failed:', data.message);
+            }
+            
+            // Process next item in queue
+            processQueue();
+        })
+        .catch(function(err) {
+            current.checkbox.classList.remove('loading');
+            current.checkbox.closest('.item-label').classList.remove('processing');
+            current.checkbox.checked = !current.checkbox.checked;
+            console.error('Fetch error:', err);
+            processQueue();
+        });
+    }
+    
+    function addItemToTable(itemName, itemInfo) {
+        var tbody = document.querySelector("#estimate-table tbody");
+        if (!tbody) return;
+        
+        // Remove empty state row if exists
+        var emptyRow = tbody.querySelector('tr td[colspan]');
+        if (emptyRow) {
+            emptyRow.closest('tr').remove();
+        }
+        
+        // Check if item already exists
+        if (tbody.querySelector('tr[data-item-name="' + itemName + '"]')) {
+            return;
+        }
+        
+        // Get item details from response
+        var unit = (itemInfo && itemInfo.unit) ? itemInfo.unit : 'Nos';
+        var rate = (itemInfo && itemInfo.rate !== null) ? itemInfo.rate : '';
+        var rateDisplay = rate !== '' ? '₹' + rate : '';
+        var rateValue = rate !== '' ? rate : 0;
+        
+        // Create new row
+        var newRow = document.createElement('tr');
+        newRow.setAttribute('data-item-name', itemName);
+        newRow.classList.add('draggable');
+        newRow.setAttribute('draggable', 'true');
+        
+        var sl = tbody.querySelectorAll('tr[data-item-name]').length + 1;
+        
+        newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
+                           '<td class="sl-cell">' + sl + '</td>' +
+                           '<td class="desc-col" title="' + itemName + '">' + itemName + '</td>' +
+                           '<td class="unit-cell">' + unit + '</td>' +
+                           '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '"></td>' +
+                           '<td class="rate-cell">' + rateDisplay + '</td>' +
+                           '<td class="amount-cell"></td>';
+        
+        tbody.appendChild(newRow);
+        
+        // Attach event listeners to new row
+        attachRowListeners(newRow);
+        attachDragListeners(newRow);
+    }
+    
+    function removeItemFromTable(itemName) {
+        var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + itemName + '"]');
+        if (row) {
+            row.remove();
+        }
+        
+        // Show empty state if no items left
+        var tbody = document.querySelector("#estimate-table tbody");
+        if (tbody && tbody.querySelectorAll('tr[data-item-name]').length === 0) {
+            var emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="7"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items selected yet.<br>Select items from the list.</p></div></td>';
+            tbody.appendChild(emptyRow);
+        }
+    }
+    
+    function updateSerialNumbers() {
+        var rows = document.querySelectorAll('#estimate-table tbody tr[data-item-name]');
+        rows.forEach(function(row, index) {
+            var slCell = row.querySelector('.sl-cell');
+            if (slCell) {
+                slCell.textContent = index + 1;
+            }
+        });
+    }
+    
+    function attachRowListeners(row) {
+        var qtyInput = row.querySelector('.qty-input');
+        if (qtyInput) {
+            qtyInput.addEventListener('input', function() {
+                recalcRow(row);
+                recalcTotal();
+            });
+        }
+    }
+    
+    // Build qty map from table
+    function buildQtyMapForSave() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var qtyInput = row.querySelector(".qty-input");
+            if (!itemName || !qtyInput) return;
+            var val = qtyInput.value;
+            if (val !== "" && !isNaN(parseFloat(val))) {
+                map[itemName] = val;
+            }
+        });
+        return map;
+    }
+    
+    // Build unit map from table
+    function buildUnitMapForSave() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var unitSelect = row.querySelector(".unit-select");
+            if (!itemName || !unitSelect) return;
+            var selectedUnit = unitSelect.value;
+            var defaultUnit = unitSelect.getAttribute("data-default-unit") || "";
+            // Only store if different from default
+            if (selectedUnit && selectedUnit !== defaultUnit) {
+                map[itemName] = selectedUnit;
+            }
+        });
+        return map;
+    }
+    
+    // Save quantities and units to session via AJAX, then navigate
+    function saveAndNavigate(targetUrl) {
+        var qtyMap = buildQtyMapForSave();
+        var unitMap = buildUnitMapForSave();
+        var workInput = document.getElementById("work-name-input");
+        var grandTotalInput = document.getElementById("grand-total-input");
+        
+        var formData = new FormData();
+        formData.append("qty_map", JSON.stringify(qtyMap));
+        formData.append("unit_map", JSON.stringify(unitMap));
+        formData.append("work_name", workInput ? workInput.value : "");
+        formData.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+        formData.append("csrfmiddlewaretoken", csrfToken);
+        
+        fetch(saveQtyMapUrl, {
+            method: "POST",
+            body: formData
+        }).then(function() {
+            window.location.href = targetUrl;
+        }).catch(function() {
+            window.location.href = targetUrl;
+        });
+    }
+    
+    // --- Checkbox behaviour: queued AJAX toggle ---
+    var checkboxes = document.querySelectorAll(".item-checkbox");
+    checkboxes.forEach(function(cb) {
+        cb.addEventListener("change", function() {
+            var itemName = cb.getAttribute("data-item-name");
+            if (!itemName) return;
+            
+            var action = cb.checked ? "add" : "remove";
+            addToFetchQueue(itemName, action, cb);
+        });
+    });
+    
+    // --- Group link behaviour: save quantities before navigating ---
+    var groupLinks = document.querySelectorAll(".group-link");
+    groupLinks.forEach(function(link) {
+        link.addEventListener("click", function(e) {
+            e.preventDefault();
+            var url = link.getAttribute("href");
+            saveAndNavigate(url);
+        });
+    });
+    
+    // ========================================
+    // DRAG AND DROP REORDERING
+    // ========================================
+    var draggedRow = null;
+    
+    function attachDragListeners(row) {
+        row.addEventListener('dragstart', function(e) {
+            draggedRow = row;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-item-name'));
+        });
+        
+        row.addEventListener('dragend', function() {
+            row.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(function(el) {
+                el.classList.remove('drag-over');
+            });
+            draggedRow = null;
+            
+            // Update serial numbers after drag
+            updateSerialNumbers();
+            
+            // Save new order to server
+            saveNewOrder();
+        });
+        
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (draggedRow && draggedRow !== row) {
+                row.classList.add('drag-over');
+            }
+        });
+        
+        row.addEventListener('dragleave', function() {
+            row.classList.remove('drag-over');
+        });
+        
+        row.addEventListener('drop', function(e) {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            
+            if (draggedRow && draggedRow !== row) {
+                var tbody = row.parentNode;
+                var rows = Array.from(tbody.querySelectorAll('tr[data-item-name]'));
+                var draggedIndex = rows.indexOf(draggedRow);
+                var targetIndex = rows.indexOf(row);
+                
+                if (draggedIndex < targetIndex) {
+                    tbody.insertBefore(draggedRow, row.nextSibling);
+                } else {
+                    tbody.insertBefore(draggedRow, row);
+                }
+            }
+        });
+    }
+    
+    function saveNewOrder() {
+        var items = [];
+        document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+            items.push(row.getAttribute('data-item-name'));
+        });
+        
+        fetch(ajaxReorderUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({ items: items })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.status !== 'ok') {
+                console.error('Reorder failed:', data.message);
+            }
+        })
+        .catch(function(err) {
+            console.error('Reorder error:', err);
+        });
+    }
+    
+    // Initialize drag listeners for existing rows
+    document.querySelectorAll('#estimate-table tbody tr.draggable').forEach(attachDragListeners);
+
+
+    function recalcRow(row) {
+        var qtyInput = row.querySelector(".qty-input");
+        if (!qtyInput) return;
+        var rate = parseFloat(qtyInput.dataset.rate || "0");
+        var qty  = parseFloat(qtyInput.value || "0");
+        if (isNaN(rate)) rate = 0;
+        if (isNaN(qty)) qty = 0;
+
+        var amount = rate * qty;
+        var cell = row.querySelector(".amount-cell");
+        if (cell) {
+            cell.textContent = amount > 0 ? amount.toFixed(2) : "";
+        }
+    }
+
+    function recalcTotal() {
+        var total = 0;
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var cell = row.querySelector(".amount-cell");
+            if (!cell) return;
+            var val = parseFloat(cell.textContent || "0");
+            if (!isNaN(val)) {
+                total += val;
+            }
+        });
+        var totalSpan = document.getElementById("estimate-total");
+        if (totalSpan) {
+            totalSpan.textContent = total.toFixed(2);
+        }
+    }
+
+    // Attach listeners to quantity inputs
+    document.querySelectorAll(".qty-input").forEach(function(inp) {
+        inp.addEventListener("input", function() {
+            recalcRow(inp.closest("tr"));
+            recalcTotal();
+        });
+    });
+    
+    // Keyboard navigation for quantity inputs (Enter / Arrow Down = next, Arrow Up = previous)
+    function setupQtyKeyboardNav() {
+        var table = document.getElementById("estimate-table");
+        if (!table) return;
+        
+        table.addEventListener("keydown", function(e) {
+            var target = e.target;
+            if (!target.classList.contains("qty-input")) return;
+            
+            var row = target.closest("tr");
+            if (!row) return;
+            
+            var allRows = Array.from(table.querySelectorAll("tbody tr"));
+            var currentIndex = allRows.indexOf(row);
+            
+            if (e.key === "Enter" || e.key === "ArrowDown") {
+                e.preventDefault();
+                // Move to next row's qty input
+                for (var i = currentIndex + 1; i < allRows.length; i++) {
+                    var nextInput = allRows[i].querySelector(".qty-input");
+                    if (nextInput) {
+                        nextInput.focus();
+                        nextInput.select();
+                        break;
+                    }
+                }
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                // Move to previous row's qty input
+                for (var i = currentIndex - 1; i >= 0; i--) {
+                    var prevInput = allRows[i].querySelector(".qty-input");
+                    if (prevInput) {
+                        prevInput.focus();
+                        prevInput.select();
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    setupQtyKeyboardNav();
+
+    // Initial calculation
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+        recalcRow(row);
+    });
+    recalcTotal();
+
+    // ---- Serialize quantities and units before form submit ----
+    var form = document.getElementById("estimate-form");
+    var qtyMapField = document.getElementById("qty-map-field");
+    var unitMapField = document.getElementById("unit-map-field");
+    var projectNameField = document.getElementById("project-name-field");
+    var saveBtn = document.getElementById("save-project-btn");
+
+    function buildQtyMap() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var qtyInput = row.querySelector(".qty-input");
+            if (!itemName || !qtyInput) return;
+            var val = qtyInput.value;
+            if (val !== "" && !isNaN(parseFloat(val))) {
+                map[itemName] = val;
+            }
+        });
+        return map;
+    }
+    
+    function buildUnitMapLocal() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var unitSelect = row.querySelector(".unit-select");
+            if (!itemName || !unitSelect) return;
+            var selectedUnit = unitSelect.value;
+            if (selectedUnit) {
+                map[itemName] = selectedUnit;
+            }
+        });
+        return map;
+    }
+
+    if (form && qtyMapField) {
+        form.addEventListener("submit", function() {
+            var m = buildQtyMap();
+            qtyMapField.value = JSON.stringify(m);
+            if (unitMapField) {
+                var um = buildUnitMapLocal();
+                unitMapField.value = JSON.stringify(um);
+            }
+        });
+    }
+
+    // ---- Save Project button: prompt name, then POST to save_project ----
+    if (saveBtn && form && projectNameField && qtyMapField) {
+        saveBtn.addEventListener("click", function(e) {
+            e.preventDefault();
+            var projName = window.prompt("Enter project name to save:");
+            if (!projName) {
+                return;
+            }
+            projectNameField.value = projName;
+
+            var m = buildQtyMap();
+            qtyMapField.value = JSON.stringify(m);
+            
+            if (unitMapField) {
+                var um = buildUnitMapLocal();
+                unitMapField.value = JSON.stringify(um);
+            }
+
+            form.action = "{% url 'save_project' category %}";
+            form.submit();
+        });
+    }
+    
+    // ---- Download Specification Report ----
+    window.downloadSpecificationReport = function() {
+        // Collect items from the estimate table
+        var items = [];
+        var workName = document.getElementById("work-name-input").value || "{{NAME_OF_WORK}}";
+        // Use grand total input instead of ECV amount
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var totalAmount = grandTotalInput ? grandTotalInput.value : "0.00";
+        if (!totalAmount || totalAmount === "") {
+            totalAmount = document.getElementById("estimate-total").textContent || "0.00";
+        }
+        
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            if (!itemName) return;
+            
+            // Get unit from data-unit attribute first, fallback to unit-cell (cells[3])
+            var unit = row.getAttribute("data-unit") || "";
+            if (!unit) {
+                var unitCell = row.querySelector(".unit-cell") || row.cells[3];
+                unit = unitCell ? unitCell.textContent.trim() : "";
+            }
+            var qtyInput = row.querySelector(".qty-input");
+            var qty = qtyInput ? qtyInput.value : "";
+            
+            if (itemName && qty && parseFloat(qty) > 0) {
+                items.push({
+                    desc: itemName,
+                    qty: qty,
+                    unit: unit
+                });
+            }
+        });
+        
+        if (items.length === 0) {
+            alert("Please add items with quantities to generate specification report");
+            return;
+        }
+        
+        // Submit to backend
+        var form = document.createElement("form");
+        form.method = "POST";
+        form.action = "{% url 'download_specification_report_live' category %}";
+        form.style.display = "none";
+        
+        var csrfInput = document.createElement("input");
+        csrfInput.type = "hidden";
+        csrfInput.name = "csrfmiddlewaretoken";
+        csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        form.appendChild(csrfInput);
+        
+        var itemsInput = document.createElement("input");
+        itemsInput.type = "hidden";
+        itemsInput.name = "items";
+        itemsInput.value = JSON.stringify(items);
+        form.appendChild(itemsInput);
+        
+        var workNameInput = document.createElement("input");
+        workNameInput.type = "hidden";
+        workNameInput.name = "work_name";
+        workNameInput.value = workName;
+        form.appendChild(workNameInput);
+        
+        var totalInput = document.createElement("input");
+        totalInput.type = "hidden";
+        totalInput.name = "total_amount";
+        totalInput.value = totalAmount;
+        form.appendChild(totalInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    };
+    
+    // Expose functions to global scope for subtypes modal
+    window.addItemToTable = addItemToTable;
+    window.removeItemFromTable = removeItemFromTable;
+    window.updateSerialNumbers = updateSerialNumbers;
+    window.recalcTotal = recalcTotal;
+    window.attachRowListeners = attachRowListeners;
+    window.attachDragListeners = attachDragListeners;
+})();
+</script>
+
+<!-- Save Work Modal -->
+<div class="modal fade" id="saveWorkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                <h5 class="modal-title"><i class="bi bi-save me-2"></i>Save Your Work</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="saveWorkForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="work_type" value="new_estimate">
+                    <input type="hidden" name="category" value="{{ category }}">
+                    <input type="hidden" name="group" value="{{ group }}">
+                    <input type="hidden" name="work_id" id="saveWorkId" value="">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Work Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="work_name" id="saveWorkName" 
+                               required placeholder="Enter a name for this work"
+                               style="border-radius: 8px;">
+                        <small class="text-muted">Give your work a descriptive name so you can find it later.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Folder</label>
+                        <div class="d-flex gap-2">
+                            <select class="form-select" name="folder_id" id="saveWorkFolder" style="border-radius: 8px;">
+                                <option value="">No Folder (Unfiled)</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" onclick="showNewFolderInput()" title="Create New Folder" style="border-radius: 8px;">
+                                <i class="bi bi-folder-plus"></i>
+                            </button>
+                        </div>
+                        <div id="newFolderSection" class="mt-2" style="display: none;">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="newFolderName" placeholder="Enter folder name..." style="border-radius: 8px 0 0 8px;">
+                                <button type="button" class="btn btn-success" onclick="createNewFolder()" style="border-radius: 0 8px 8px 0;">
+                                    <i class="bi bi-check"></i> Create
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="hideNewFolderInput()" style="border-radius: 0 8px 8px 0; margin-left: 4px;">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted">Organize your work in folders for easy access.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Notes (Optional)</label>
+                        <textarea class="form-control" name="notes" id="saveWorkNotes" rows="2" 
+                                  placeholder="Add any notes about this work..."
+                                  style="border-radius: 8px;"></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info d-flex align-items-center" style="border-radius: 8px;">
+                        <i class="bi bi-info-circle me-2 fs-5"></i>
+                        <div>
+                            <strong>Tip:</strong> You can access your saved works anytime from 
+                            <a href="/saved-works/">My Saved Works</a>.
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCurrentWork()" id="saveWorkBtn">
+                    <i class="bi bi-save me-1"></i>Save Work
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toast notification for save success
+function showSaveToast(message) {
+    // Create toast container if not exists
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        container.style.zIndex = '1100';
+        document.body.appendChild(container);
+    }
+    
+    // Create toast
+    const toastId = 'toast-' + Date.now();
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white bg-success border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle-fill me-2"></i>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    
+    const toastEl = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    toast.show();
+    
+    // Remove from DOM after hidden
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+function showNewFolderInput() {
+    document.getElementById('newFolderSection').style.display = 'block';
+    document.getElementById('newFolderName').focus();
+}
+
+function hideNewFolderInput() {
+    document.getElementById('newFolderSection').style.display = 'none';
+    document.getElementById('newFolderName').value = '';
+}
+
+// Global buildQtyMap function for save work
+function getQtyMapForSave() {
+    var map = {};
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+        var itemName = row.getAttribute("data-item-name");
+        var qtyInput = row.querySelector(".qty-input");
+        if (!itemName || !qtyInput) return;
+        var val = qtyInput.value;
+        if (val !== "" && !isNaN(parseFloat(val))) {
+            map[itemName] = val;
+        }
+    });
+    return map;
+}
+
+// Global buildUnitMap function for save work
+function getUnitMapForSave() {
+    var map = {};
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+        var itemName = row.getAttribute("data-item-name");
+        var unitSelect = row.querySelector(".unit-select");
+        if (!itemName || !unitSelect) return;
+        var selectedUnit = unitSelect.value;
+        var defaultUnit = unitSelect.getAttribute("data-default-unit") || "";
+        // Store all custom units (including when same as default)
+        if (selectedUnit) {
+            map[itemName] = selectedUnit;
+        }
+    });
+    return map;
+}
+
+function createNewFolder() {
+    const folderName = document.getElementById('newFolderName').value.trim();
+    if (!folderName) {
+        alert('Please enter a folder name');
+        return;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('/saved-works/folder/create/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ name: folderName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Add the new folder to dropdown and select it
+            const select = document.getElementById('saveWorkFolder');
+            const option = document.createElement('option');
+            option.value = data.folder_id;
+            option.textContent = data.folder_name;
+            option.selected = true;
+            select.appendChild(option);
+            hideNewFolderInput();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to create folder'));
+        }
+    })
+    .catch(error => {
+        alert('Error creating folder: ' + error);
+    });
+}
+
+function saveCurrentWork() {
+    const form = document.getElementById('saveWorkForm');
+    const formData = new FormData(form);
+    const btn = document.getElementById('saveWorkBtn');
+    const csrfToken = formData.get('csrfmiddlewaretoken');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+    
+    // First, collect and save quantities to session
+    const qtyMap = getQtyMapForSave();
+    const unitMap = getUnitMapForSave();
+    // Get grand total from the manual entry field, NOT the calculated ECV amount
+    const grandTotalInput = document.getElementById('grand-total-input');
+    const grandTotal = grandTotalInput ? grandTotalInput.value : '';
+    const workNameField = document.getElementById('work-name-input');
+    const workName = workNameField ? workNameField.value : '';
+    
+    // Get additional fields
+    const excessTpInput = document.getElementById('excess-tp-percent-input');
+    const excessTpPercent = excessTpInput ? excessTpInput.value : '';
+    const lsSpecialNameInput = document.getElementById('ls-special-name-input');
+    const lsSpecialName = lsSpecialNameInput ? lsSpecialNameInput.value : '';
+    const lsSpecialAmountInput = document.getElementById('ls-special-amount-input');
+    const lsSpecialAmount = lsSpecialAmountInput ? lsSpecialAmountInput.value : '';
+    const deductOldMaterialInput = document.getElementById('deduct-old-material-input');
+    const deductOldMaterial = deductOldMaterialInput ? deductOldMaterialInput.value : '';
+    const workTypeInput = document.querySelector('input[name="work_type"]:checked');
+    const workType = workTypeInput ? workTypeInput.value : 'original';
+    
+    // Save quantities and units to session first
+    const saveQtyData = new FormData();
+    saveQtyData.append('csrfmiddlewaretoken', csrfToken);
+    saveQtyData.append('qty_map', JSON.stringify(qtyMap));
+    saveQtyData.append('unit_map', JSON.stringify(unitMap));
+    saveQtyData.append('grand_total', grandTotal);
+    saveQtyData.append('work_name', workName);
+    saveQtyData.append('excess_tp_percent', excessTpPercent);
+    saveQtyData.append('ls_special_name', lsSpecialName);
+    saveQtyData.append('ls_special_amount', lsSpecialAmount);
+    saveQtyData.append('deduct_old_material', deductOldMaterial);
+    saveQtyData.append('work_type', workType);
+    
+    // First save qty_map to session
+    fetch('/datas/{{ category }}/save_qty_map/', {
+        method: 'POST',
+        body: saveQtyData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(qtyData => {
+        // Now save the work
+        fetch('/saved-works/save/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('saveWorkModal'));
+                modal.hide();
+                // Show toast notification instead of alert
+                showSaveToast(data.message || 'Work saved successfully!');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to save work'));
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+        })
+        .catch(error => {
+            alert('Error saving work: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+        });
+    })
+    .catch(error => {
+        alert('Error saving quantities: ' + error);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+    });
+}
+
+// Load folders and current work data when modal opens
+document.getElementById('saveWorkModal').addEventListener('show.bs.modal', function() {
+    fetch('/saved-works/modal-data/')
+        .then(response => response.json())
+        .then(data => {
+            // Populate folders dropdown
+            const select = document.getElementById('saveWorkFolder');
+            select.innerHTML = '<option value="">No Folder (Unfiled)</option>';
+            if (data.folders) {
+                data.folders.forEach(folder => {
+                    select.innerHTML += `<option value="${folder.id}">${folder.name}</option>`;
+                });
+            }
+            
+            // If there's a current work (resumed from saved), pre-populate the form
+            if (data.current_work) {
+                document.getElementById('saveWorkId').value = data.current_work.id;
+                document.getElementById('saveWorkName').value = data.current_work.name;
+                document.getElementById('saveWorkNotes').value = data.current_work.notes || '';
+                if (data.current_work.folder_id) {
+                    select.value = data.current_work.folder_id;
+                }
+                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
+            } else {
+                document.getElementById('saveWorkId').value = '';
+                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+            }
+        });
+});
+</script>
+
+{% endblock %}

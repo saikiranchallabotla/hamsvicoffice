@@ -1,0 +1,336 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Dashboard</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.10);
+    }
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #1e293b;
+        letter-spacing: -1px;
+    }
+    .stat-card .stat-label {
+        font-size: 0.85rem;
+        color: #64748b;
+        font-weight: 600;
+    }
+    .stat-card .stat-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .dashboard-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    .dashboard-card:hover {
+        box-shadow: 0 8px 30px rgba(0,0,0,0.10);
+    }
+    .dashboard-card .card-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .dashboard-card .card-header h5 {
+        margin: 0;
+        font-weight: 700;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .dashboard-card .table {
+        margin: 0;
+    }
+    .dashboard-card .table thead th {
+        font-weight: 700;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        padding: 1rem 1.25rem;
+        background: #f8fafc;
+    }
+    .dashboard-card .table tbody td {
+        padding: 1rem 1.25rem;
+        vertical-align: middle;
+    }
+    .dashboard-card .table tbody tr:hover {
+        background: #f8fafc;
+    }
+    .quick-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .quick-actions .btn {
+        border-radius: 10px;
+        padding: 0.6rem 1.25rem;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .quick-actions .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .status-badge, .priority-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.78rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Dashboard</h4>
+    <span class="text-muted">Last updated: {{ now|date:"d M Y, h:i A" }}</span>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="stat-value">{{ stats.total_users }}</div>
+                    <div class="stat-label">Total Users</div>
+                </div>
+                <div class="stat-icon" style="background: #dbeafe; color: #2563eb;">
+                    <i class="bi bi-people"></i>
+                </div>
+            </div>
+            <div class="mt-2 small">
+                <span class="text-success"><i class="bi bi-arrow-up"></i> {{ stats.new_users_week }}</span>
+                <span class="text-muted">this week</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="stat-value">{{ stats.active_subscriptions }}</div>
+                    <div class="stat-label">Active Subscriptions</div>
+                </div>
+                <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+            <div class="mt-2 small">
+                <span class="text-warning">{{ stats.trial_subscriptions }} trials</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="stat-value">₹{{ stats.month_revenue|floatformat:0 }}</div>
+                    <div class="stat-label">Revenue (30 days)</div>
+                </div>
+                <div class="stat-icon" style="background: #f3e8ff; color: #9333ea;">
+                    <i class="bi bi-currency-rupee"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="stat-value">{{ stats.open_tickets }}</div>
+                    <div class="stat-label">Open Tickets</div>
+                </div>
+                <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
+                    <i class="bi bi-ticket"></i>
+                </div>
+            </div>
+            {% if stats.open_tickets > 0 %}
+            <div class="mt-2 small">
+                <a href="{% url 'admin_ticket_list' %}?status=open" class="text-decoration-none">View all →</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Users -->
+    <div class="col-lg-6 mb-4">
+        <div class="dashboard-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-people me-2"></i>Recent Users</h5>
+                <a href="{% url 'admin_user_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table admin-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in recent_users %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_user_detail' u.id %}">
+                                    {{ u.get_full_name|default:u.username }}
+                                </a>
+                            </td>
+                            <td class="text-muted">{{ u.email }}</td>
+                            <td class="text-muted">{{ u.date_joined|date:"d M" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-muted text-center py-3">No recent users</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Payments -->
+    <div class="col-lg-6 mb-4">
+        <div class="dashboard-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-currency-rupee me-2"></i>Recent Payments</h5>
+                <a href="{% url 'admin_payment_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table admin-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in recent_payments %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'admin_user_detail' p.user.id %}">
+                                    {{ p.user.username }}
+                                </a>
+                            </td>
+                            <td>₹{{ p.total_amount|floatformat:0 }}</td>
+                            <td class="text-muted">{{ p.created_at|date:"d M" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-muted text-center py-3">No recent payments</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Tickets -->
+<div class="dashboard-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5><i class="bi bi-ticket me-2"></i>Recent Support Tickets</h5>
+        <a href="{% url 'admin_ticket_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table admin-table mb-0">
+            <thead>
+                <tr>
+                    <th>Ticket</th>
+                    <th>User</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in recent_tickets %}
+                <tr>
+                    <td>
+                        <a href="{% url 'admin_ticket_detail' t.id %}">#{{ t.ticket_number }}</a>
+                    </td>
+                    <td>{{ t.user.username }}</td>
+                    <td>{{ t.subject|truncatewords:6 }}</td>
+                    <td>
+                        <span class="badge status-{{ t.status }}">{{ t.get_status_display }}</span>
+                    </td>
+                    <td>
+                        <span class="badge priority-{{ t.priority }}">{{ t.get_priority_display }}</span>
+                    </td>
+                    <td class="text-muted">{{ t.created_at|date:"d M" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-muted text-center py-3">No recent tickets</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <h5 class="mb-3 fw-bold">Quick Actions</h5>
+        <div class="quick-actions">
+            <a href="{% url 'admin_analytics' %}" class="btn btn-success">
+                <i class="bi bi-graph-up me-1"></i> Analytics Dashboard
+            </a>
+            <a href="{% url 'admin_data_management' %}" class="btn btn-warning">
+                <i class="bi bi-database me-1"></i> Manage Backend Data
+            </a>
+            <a href="{% url 'admin_module_list' %}" class="btn btn-primary">
+                <i class="bi bi-boxes me-1"></i> Manage Modules
+            </a>
+            <a href="{% url 'admin_announcement_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-megaphone me-1"></i> Announcements
+            </a>
+            <a href="{% url 'admin_faq_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-question-circle me-1"></i> FAQs
+            </a>
+            <a href="/admin/" class="btn btn-outline-secondary">
+                <i class="bi bi-gear me-1"></i> Django Admin
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

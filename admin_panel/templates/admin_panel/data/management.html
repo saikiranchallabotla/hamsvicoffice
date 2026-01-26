@@ -1,0 +1,826 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Backend Data Management{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item active">Data Management</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .data-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        transition: all 0.3s ease;
+    }
+    .data-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .data-card h5 {
+        margin-bottom: 0.75rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .module-section {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 10px;
+        padding: 0.85rem;
+        margin-bottom: 1rem;
+        color: #fff;
+    }
+    .module-section h4 {
+        color: #fff;
+        font-weight: 700;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .module-section .module-icon {
+        width: 28px;
+        height: 28px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+    }
+    .backend-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.5rem;
+    }
+    .backend-card {
+        background: #fff;
+        border-radius: 8px;
+        padding: 0.6rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        transition: all 0.2s;
+    }
+    .backend-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+        transform: translateY(-1px);
+    }
+    .backend-card.default {
+        border: 2px solid #10b981;
+    }
+    .backend-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 0.35rem;
+    }
+    .backend-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+    }
+    .backend-icon.electrical {
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        color: #2563eb;
+    }
+    .backend-icon.civil {
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        color: #d97706;
+    }
+    .backend-name {
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #1e293b;
+        line-height: 1.2;
+    }
+    .backend-meta {
+        font-size: 0.65rem;
+        color: #64748b;
+    }
+    .backend-actions {
+        display: flex;
+        gap: 0.25rem;
+        margin-top: 0.35rem;
+        flex-wrap: wrap;
+    }
+    .backend-actions .btn {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.7rem;
+        border-radius: 5px;
+    }
+    .default-badge {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #fff;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .add-backend-btn {
+        background: rgba(255,255,255,0.1);
+        border: 2px dashed rgba(255,255,255,0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        color: rgba(255,255,255,0.7);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80px;
+    }
+    .add-backend-btn:hover {
+        background: rgba(255,255,255,0.15);
+        border-color: rgba(255,255,255,0.5);
+        color: #fff;
+    }
+    .add-backend-btn i {
+        font-size: 1.25rem;
+        margin-bottom: 0.25rem;
+    }
+    .category-label {
+        display: inline-block;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .category-label.electrical {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    .category-label.civil {
+        background: #fef3c7;
+        color: #b45309;
+    }
+    .file-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s;
+    }
+    .file-info:hover {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    }
+    .file-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        color: #16a34a;
+        box-shadow: 0 2px 6px rgba(22, 163, 74, 0.15);
+    }
+    .file-icon.civil { 
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
+        color: #d97706;
+        box-shadow: 0 2px 6px rgba(217, 119, 6, 0.15);
+    }
+    .file-icon.electrical { 
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); 
+        color: #2563eb;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+    }
+    .file-details {
+        flex: 1;
+    }
+    .file-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #1e293b;
+    }
+    .file-meta {
+        font-size: 0.7rem;
+        color: #64748b;
+    }
+    .file-actions {
+        display: flex;
+        gap: 0.35rem;
+    }
+    .file-actions .btn {
+        border-radius: 6px;
+        padding: 0.3rem 0.6rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        transition: all 0.2s;
+    }
+    .file-actions .btn:hover {
+        transform: translateY(-1px);
+    }
+    .warning-banner {
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border: 1px solid #fcd34d;
+        border-radius: 8px;
+        padding: 0.65rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        box-shadow: 0 2px 6px rgba(252, 211, 77, 0.15);
+        font-size: 0.8rem;
+    }
+    .warning-banner i {
+        color: #d97706;
+        font-size: 1rem;
+    }
+    .warning-banner strong {
+        color: #92400e;
+    }
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    .no-backends {
+        text-align: center;
+        padding: 1rem;
+        color: rgba(255,255,255,0.6);
+        font-size: 0.8rem;
+    }
+    .category-section {
+        margin-bottom: 0.75rem;
+    }
+    .category-section h6 {
+        color: rgba(255,255,255,0.9);
+        font-weight: 600;
+        font-size: 0.8rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .backup-item {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s;
+    }
+    .backup-item:last-child {
+        border-bottom: none;
+    }
+    .backup-item:hover {
+        background: #f8fafc;
+    }
+    .backup-icon {
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+    .backup-icon.civil { 
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
+        color: #d97706; 
+    }
+    .backup-icon.electrical { 
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); 
+        color: #2563eb; 
+    }
+    .backup-name {
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #1e293b;
+    }
+    .backup-meta {
+        font-size: 0.65rem;
+        color: #64748b;
+    }
+    .backup-details {
+        flex: 1;
+    }
+    .no-file {
+        padding: 1rem;
+        text-align: center;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        border-radius: 8px;
+        color: #dc2626;
+        font-size: 0.8rem;
+    }
+    .table {
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 0.8rem;
+    }
+    .table thead th {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 0.5rem 0.75rem;
+        font-weight: 700;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+    }
+    .table tbody td {
+        padding: 0.5rem 0.75rem;
+        vertical-align: middle;
+    }
+    .table tbody tr:hover {
+        background: #f8fafc;
+    }
+    .btn-group-sm .btn {
+        border-radius: 5px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    .nav-tabs-custom {
+        border: none;
+        margin-bottom: 0.75rem;
+    }
+    .nav-tabs-custom .nav-link {
+        border: none;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #64748b;
+        background: #f1f5f9;
+        border-radius: 6px;
+        margin-right: 0.5rem;
+    }
+    .nav-tabs-custom .nav-link.active {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #fff;
+    }
+    
+    /* Custom Confirmation Modal */
+    .confirm-modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.2s ease;
+    }
+    .confirm-modal-backdrop.show {
+        display: flex;
+    }
+    .confirm-modal {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        max-width: 320px;
+        width: 90%;
+        padding: 1.25rem;
+        text-align: center;
+        animation: slideUp 0.3s ease;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .confirm-modal-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+    }
+    .confirm-modal-icon i {
+        font-size: 1.25rem;
+        color: #dc2626;
+    }
+    .confirm-modal h5 {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #1e293b;
+        margin-bottom: 0.5rem;
+    }
+    .confirm-modal p {
+        color: #64748b;
+        margin-bottom: 1rem;
+        font-size: 0.8rem;
+    }
+    .confirm-modal-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+    .confirm-modal-actions .btn {
+        padding: 0.4rem 1rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        min-width: 80px;
+    }
+    .btn-cancel {
+        background: #f1f5f9;
+        color: #64748b;
+        border: none;
+    }
+    .btn-cancel:hover {
+        background: #e2e8f0;
+        color: #475569;
+    }
+    .btn-confirm-delete {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        border: none;
+    }
+    .btn-confirm-delete:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0"><i class="bi bi-database me-2"></i>Backend Data Management</h5>
+</div>
+
+<div class="warning-banner">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+        <strong>Important:</strong> Backend data files contain SOR rates used for estimates and bills. 
+        You can add multiple rate files per module (e.g., Telangana SOR, AP SOR, Karnataka SOR). 
+        Users will be able to select which rates to use.
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs-custom" id="dataTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="backends-tab" data-bs-toggle="tab" data-bs-target="#backends" type="button" role="tab">
+            <i class="bi bi-layers me-1"></i>Module Backends
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates" type="button" role="tab">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Bill Templates
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="backups-tab" data-bs-toggle="tab" data-bs-target="#backups" type="button" role="tab">
+            <i class="bi bi-archive me-1"></i>Backups
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="dataTabsContent">
+    <!-- Module Backends Tab -->
+    <div class="tab-pane fade show active" id="backends" role="tabpanel">
+        {% for item in module_backends_data %}
+        <div class="module-section">
+            <div class="section-header">
+                <h4>
+                    <div class="module-icon">
+                        <i class="bi bi-{{ item.module.icon|default:'box' }}"></i>
+                    </div>
+                    {{ item.module.name }}
+                </h4>
+                <a href="{% url 'admin_add_module_backend' item.module.code %}" class="btn btn-light btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+                    <i class="bi bi-plus-lg me-1"></i>Add
+                </a>
+            </div>
+            
+            <div class="row">
+                <!-- Electrical Backends -->
+                <div class="col-md-6">
+                    <div class="category-section">
+                        <h6><i class="bi bi-lightning"></i> Electrical</h6>
+                        {% if item.electrical_backends %}
+                        <div class="backend-grid">
+                            {% for backend in item.electrical_backends %}
+                            <div class="backend-card {% if backend.is_default %}default{% endif %}">
+                                <div class="backend-header">
+                                    <div class="backend-icon electrical">
+                                        <i class="bi bi-lightning"></i>
+                                    </div>
+                                    <div>
+                                        <div class="backend-name">{{ backend.name }}</div>
+                                        <div class="backend-meta">
+                                            {% if backend.code %}{{ backend.code }} • {% endif %}
+                                            {{ backend.updated_at|date:"d M Y" }}
+                                        </div>
+                                    </div>
+                                    {% if backend.is_default %}
+                                    <span class="default-badge ms-auto">Default</span>
+                                    {% endif %}
+                                </div>
+                                <div class="backend-actions">
+                                    <a href="{% url 'admin_preview_module_backend' backend.pk %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'admin_download_module_backend' backend.pk %}" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    <a href="{% url 'admin_edit_module_backend' backend.pk %}" class="btn btn-outline-warning btn-sm">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    {% if not backend.is_default %}
+                                    <form action="{% url 'admin_toggle_backend_default' backend.pk %}" method="post" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-success btn-sm" title="Set as Default">
+                                            <i class="bi bi-check-circle"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <form action="{% url 'admin_delete_module_backend' backend.pk %}" method="post" style="display:inline;" class="delete-form">
+                                        {% csrf_token %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                onclick="showDeleteConfirm(this, 'Delete Backend', 'Are you sure you want to delete this backend? This action cannot be undone.')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="no-backends">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No electrical backends yet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Civil Backends -->
+                <div class="col-md-6">
+                    <div class="category-section">
+                        <h6><i class="bi bi-building"></i> Civil</h6>
+                        {% if item.civil_backends %}
+                        <div class="backend-grid">
+                            {% for backend in item.civil_backends %}
+                            <div class="backend-card {% if backend.is_default %}default{% endif %}">
+                                <div class="backend-header">
+                                    <div class="backend-icon civil">
+                                        <i class="bi bi-building"></i>
+                                    </div>
+                                    <div>
+                                        <div class="backend-name">{{ backend.name }}</div>
+                                        <div class="backend-meta">
+                                            {% if backend.code %}{{ backend.code }} • {% endif %}
+                                            {{ backend.updated_at|date:"d M Y" }}
+                                        </div>
+                                    </div>
+                                    {% if backend.is_default %}
+                                    <span class="default-badge ms-auto">Default</span>
+                                    {% endif %}
+                                </div>
+                                <div class="backend-actions">
+                                    <a href="{% url 'admin_preview_module_backend' backend.pk %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'admin_download_module_backend' backend.pk %}" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    <a href="{% url 'admin_edit_module_backend' backend.pk %}" class="btn btn-outline-warning btn-sm">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    {% if not backend.is_default %}
+                                    <form action="{% url 'admin_toggle_backend_default' backend.pk %}" method="post" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-success btn-sm" title="Set as Default">
+                                            <i class="bi bi-check-circle"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <form action="{% url 'admin_delete_module_backend' backend.pk %}" method="post" style="display:inline;" class="delete-form">
+                                        {% csrf_token %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm"
+                                                onclick="showDeleteConfirm(this, 'Delete Backend', 'Are you sure you want to delete this backend? This action cannot be undone.')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="no-backends">
+                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No civil backends yet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-box-seam" style="font-size: 3rem;"></i>
+            <p class="mt-3">No modules configured. Please add modules first.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Bill Templates Tab -->
+    <div class="tab-pane fade" id="templates" role="tabpanel">
+        <div class="row">
+            {% for card in bill_templates %}
+            <div class="col-lg-6 mb-4">
+                <div class="data-card">
+                    <h5><i class="bi {{ card.icon }} me-2" style="color: {{ card.color }};"></i>{{ card.title }}</h5>
+                    {% if card.file %}
+                    <div class="file-info">
+                        <div class="file-icon {{ card.icon_class }}">
+                            <i class="bi bi-file-earmark-excel"></i>
+                        </div>
+                        <div class="file-details">
+                            <div class="file-name">{{ card.file.name }}</div>
+                            <div class="file-meta">
+                                {{ card.file.size_readable }} •
+                                Modified: {{ card.file.modified|date:"d M Y, h:i A" }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <a href="{% url 'admin_preview_file' card.key %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye me-1"></i>Preview
+                        </a>
+                        <a href="{% url 'admin_download_file' card.key %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-download me-1"></i>Download
+                        </a>
+                        <form id="replace-form-{{ card.key }}" action="{% url 'admin_upload_file' card.key %}" method="post" enctype="multipart/form-data" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="file" name="file" id="file-input-{{ card.key }}" accept=".xlsx,.xls" style="display: none;" 
+                                   onchange="document.getElementById('replace-form-{{ card.key }}').submit();">
+                            <button type="button" class="btn {{ card.btn_class }} btn-sm" 
+                                    onclick="document.getElementById('file-input-{{ card.key }}').click();">
+                                <i class="bi bi-arrow-repeat me-1"></i>Replace
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="no-file">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        No {{ card.key }}.xlsx file found
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Backups Tab -->
+    <div class="tab-pane fade" id="backups" role="tabpanel">
+        <div class="data-card">
+            <h5><i class="bi bi-archive me-2"></i>Backup History</h5>
+            <p class="text-muted small mb-3">
+                Backups are automatically created before each replacement. You can restore any previous version.
+            </p>
+            
+            {% if backups %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Category</th>
+                            <th>Size</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for backup in backups %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="backup-icon {{ backup.category }}">
+                                        <i class="bi bi-file-earmark-excel"></i>
+                                    </div>
+                                    <span class="backup-name">{{ backup.name }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge {% if backup.category == 'civil' %}bg-warning{% else %}bg-primary{% endif %}">
+                                    {{ backup.category|title }}
+                                </span>
+                            </td>
+                            <td>{{ backup.size_readable }}</td>
+                            <td>{{ backup.modified|date:"d M Y, h:i A" }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'admin_download_backup' backup.name %}" class="btn btn-outline-secondary" title="Download">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    <form action="{% url 'admin_restore_backup' backup.name %}" method="post" style="display:inline;" class="delete-form">
+                                        {% csrf_token %}
+                                        <button type="button" class="btn btn-outline-success" title="Restore" 
+                                                onclick="showDeleteConfirm(this, 'Restore Backup', 'Restore this backup? Current data will be backed up first.')">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                    <form action="{% url 'admin_delete_backup' backup.name %}" method="post" style="display:inline;" class="delete-form">
+                                        {% csrf_token %}
+                                        <button type="button" class="btn btn-outline-danger" title="Delete"
+                                                onclick="showDeleteConfirm(this, 'Delete Backup', 'Delete this backup permanently? This cannot be undone.')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-archive" style="font-size: 2rem;"></i>
+                <p class="mt-2 mb-0">No backups yet. Backups will be created automatically when you replace files.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Custom Confirmation Modal -->
+<div class="confirm-modal-backdrop" id="confirmModal">
+    <div class="confirm-modal">
+        <div class="confirm-modal-icon">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <h5 id="confirmModalTitle">Confirm Delete</h5>
+        <p id="confirmModalMessage">Are you sure you want to delete this item?</p>
+        <div class="confirm-modal-actions">
+            <button type="button" class="btn btn-cancel" onclick="hideDeleteConfirm()">Cancel</button>
+            <button type="button" class="btn btn-confirm-delete" id="confirmDeleteBtn">Delete</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentForm = null;
+    
+    function showDeleteConfirm(button, title, message) {
+        currentForm = button.closest('form');
+        document.getElementById('confirmModalTitle').textContent = title || 'Confirm Delete';
+        document.getElementById('confirmModalMessage').textContent = message || 'Are you sure you want to delete this item?';
+        document.getElementById('confirmModal').classList.add('show');
+    }
+    
+    function hideDeleteConfirm() {
+        document.getElementById('confirmModal').classList.remove('show');
+        currentForm = null;
+    }
+    
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (currentForm) {
+            currentForm.submit();
+        }
+        hideDeleteConfirm();
+    });
+    
+    // Close modal on backdrop click
+    document.getElementById('confirmModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDeleteConfirm();
+        }
+    });
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideDeleteConfirm();
+        }
+    });
+</script>
+{% endblock %}

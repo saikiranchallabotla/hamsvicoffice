@@ -1,0 +1,838 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help Center - Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+        }
+        
+        .hero {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 4rem 0;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .search-box {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .search-box .form-control {
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            border: none;
+        }
+        
+        .search-box .btn {
+            border-radius: 50px;
+            padding: 0.75rem 2rem;
+        }
+        
+        .category-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+            height: 100%;
+        }
+        
+        .category-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+        }
+        
+        .category-card .icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin: 0 auto 1rem;
+            background: #f1f5f9;
+            color: #6366f1;
+        }
+        
+        .faq-item {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .guide-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+        
+        .guide-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+        }
+        
+        .guide-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        }
+        
+        .guide-card .card-body {
+            padding: 1.5rem;
+        }
+        
+        .navbar {
+            background: white !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .contact-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        /* Module Guides Accordion */
+        .accordion-item {
+            border-radius: 12px !important;
+            overflow: hidden;
+        }
+        
+        .accordion-button {
+            padding: 1.25rem 1.5rem;
+            font-size: 1rem;
+            background: white;
+        }
+        
+        .accordion-button:not(.collapsed) {
+            background: #f8fafc;
+            color: #1e293b;
+            box-shadow: none;
+        }
+        
+        .accordion-button:focus {
+            box-shadow: none;
+            border-color: transparent;
+        }
+        
+        .accordion-body {
+            padding: 1.5rem;
+            background: #fafafa;
+        }
+        
+        .accordion-body h6 {
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        
+        .accordion-body ol {
+            padding-left: 1.25rem;
+        }
+        
+        .accordion-body ol li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        
+        .accordion-body table {
+            font-size: 0.875rem;
+        }
+        
+        .accordion-body table td:first-child {
+            width: 200px;
+            color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'home' %}">🏗️ Hamsvic</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'my_tickets' %}">My Tickets</a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'login' %}">Login</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <h1>How can we help you?</h1>
+            <p class="mb-4">Search our knowledge base or browse categories below</p>
+            
+            <form action="{% url 'search_help' %}" method="get" class="search-box">
+                <div class="input-group">
+                    <input type="text" name="q" class="form-control" placeholder="Search for answers...">
+                    <button type="submit" class="btn btn-light">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+    
+    <!-- Categories -->
+    <section class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-4">Browse by Category</h2>
+            <div class="row g-4">
+                {% for category in categories %}
+                <div class="col-md-4 col-lg-3">
+                    <a href="{% url 'faq_category' category.slug %}" class="text-decoration-none">
+                        <div class="category-card">
+                            <div class="icon">
+                                <i class="bi bi-{% if category.icon %}{{ category.icon }}{% else %}folder{% endif %}"></i>
+                            </div>
+                            <h5 class="fw-bold text-dark">{{ category.name }}</h5>
+                            <p class="text-muted small mb-0">{{ category.faq_items.count }} articles</p>
+                        </div>
+                    </a>
+                </div>
+                {% empty %}
+                <div class="col-md-4">
+                    <div class="category-card">
+                        <div class="icon"><i class="bi bi-question-circle"></i></div>
+                        <h5 class="fw-bold">Getting Started</h5>
+                        <p class="text-muted small mb-0">Learn the basics</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="category-card">
+                        <div class="icon"><i class="bi bi-credit-card"></i></div>
+                        <h5 class="fw-bold">Billing & Payments</h5>
+                        <p class="text-muted small mb-0">Subscription help</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="category-card">
+                        <div class="icon"><i class="bi bi-tools"></i></div>
+                        <h5 class="fw-bold">Troubleshooting</h5>
+                        <p class="text-muted small mb-0">Fix common issues</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    
+    <!-- Module Guides Section -->
+    <section class="py-5 bg-white">
+        <div class="container">
+            <h2 class="text-center mb-2">Module Guides</h2>
+            <p class="text-center text-muted mb-4">Learn how each module works and what to avoid</p>
+            
+            <div class="accordion" id="moduleGuides">
+                <!-- New Estimate Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideNewEstimate">
+                            <i class="bi bi-calculator-fill me-3 text-primary" style="font-size: 1.5rem;"></i>
+                            <div>
+                                <strong>New Estimate</strong>
+                                <small class="d-block text-muted">Create estimates by selecting items from backend data</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideNewEstimate" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p><strong>3-Panel Layout:</strong></p>
+                                <ul>
+                                    <li><strong>Left Panel (Groups):</strong> Shows all available item groups (e.g., Lighting Fixtures, Cables, Motor Pumpsets)</li>
+                                    <li><strong>Middle Panel (Items):</strong> Shows items belonging to the selected group with checkboxes</li>
+                                    <li><strong>Right Panel (Preview):</strong> Shows your selected items with Sl.No, Description, Unit, Qty, Rate, Amount</li>
+                                </ul>
+                                <p><strong>Workflow:</strong></p>
+                                <ol>
+                                    <li>Select <strong>Work Type</strong> (Original/Repair) → Select <strong>Category</strong> (Electrical/Civil)</li>
+                                    <li>Click a <strong>Group</strong> from the left panel to load its items</li>
+                                    <li><strong>Check items</strong> you need - they appear in the preview panel automatically</li>
+                                    <li>Enter <strong>Quantity</strong> for each item - Amount calculates as Qty × Rate</li>
+                                    <li><strong>Drag items</strong> using the grip handle (⋮⋮) to reorder them</li>
+                                    <li>Optionally enter <strong>Name of the Work</strong> and <strong>Grand Total</strong></li>
+                                    <li>Click <strong>Download Estimate</strong> to generate the Excel document</li>
+                                </ol>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> rapidly click multiple checkboxes - wait for each item to load (items queue automatically but patience ensures accuracy)</li>
+                                <li><strong>DON'T</strong> leave Quantity empty if you want Amount to calculate</li>
+                                <li><strong>DON'T</strong> refresh the page while items are loading - you'll lose selections</li>
+                                <li><strong>DON'T</strong> enter negative quantities - only positive numbers work</li>
+                                <li><strong>DON'T</strong> expect items to persist after logging out - selections are session-based</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>Uncheck an item to remove it from the preview</li>
+                                <li>Use the <strong>Clear All</strong> button to start fresh</li>
+                                <li>Hover over truncated item names to see the full description</li>
+                                <li>The ECV (Estimate Total) updates automatically as you enter quantities</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Estimate Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideEstimate">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-3 text-success" style="font-size: 1.5rem;"></i>
+                            <div>
+                                <strong>Estimate (Upload)</strong>
+                                <small class="d-block text-muted">Upload your own Excel data sheet to generate estimate</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideEstimate" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p>This module lets you upload your own prepared Excel file to generate a formatted estimate document.</p>
+                                <ol>
+                                    <li>Prepare an Excel file with your item data</li>
+                                    <li>Upload the file using the upload button</li>
+                                    <li>System reads and processes your data</li>
+                                    <li>Download the formatted estimate output</li>
+                                </ol>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> upload files larger than 10MB</li>
+                                <li><strong>DON'T</strong> upload files other than .xlsx or .xls format</li>
+                                <li><strong>DON'T</strong> have empty rows in the middle of your data</li>
+                                <li><strong>DON'T</strong> use special characters (like ₹, %, etc.) in item names</li>
+                                <li><strong>DON'T</strong> merge cells in your Excel file - this breaks the import</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>Keep your data starting from Row 1 or Row 2 with headers</li>
+                                <li>Standard columns: Description, Unit, Qty, Rate</li>
+                                <li>Clean your data before uploading for best results</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Workslip Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideWorkslip">
+                            <i class="bi bi-clipboard-check-fill me-3 text-info" style="font-size: 1.5rem;"></i>
+                            <div>
+                                <strong>Workslip</strong>
+                                <small class="d-block text-muted">Track executed quantities against estimated quantities</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideWorkslip" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p><strong>Purpose:</strong> Compare estimated quantities with actual executed quantities on site.</p>
+                                <p><strong>Table Columns:</strong></p>
+                                <ul>
+                                    <li><strong>Sl.</strong> - Serial number</li>
+                                    <li><strong>Item Description</strong> - Item name from estimate</li>
+                                    <li><strong>Unit</strong> - Measurement unit</li>
+                                    <li><strong>Est. Qty</strong> - Original estimated quantity (read-only)</li>
+                                    <li><strong>Exec. Qty</strong> - Actual executed quantity (you enter this)</li>
+                                    <li><strong>Rate</strong> - Unit rate</li>
+                                    <li><strong>Amount</strong> - Exec. Qty × Rate</li>
+                                </ul>
+                                <p><strong>Workflow:</strong></p>
+                                <ol>
+                                    <li>Upload your estimate file first</li>
+                                    <li>Enter <strong>Executed Quantity</strong> for each item</li>
+                                    <li>Set <strong>T.P % (Tender Premium)</strong> and type (Excess/Less)</li>
+                                    <li>Click <strong>Add Supplemental Items</strong> to add extra items not in estimate</li>
+                                    <li>Click <strong>Download Workslip</strong> to generate the document</li>
+                                </ol>
+                            </div>
+                            
+                            <h6 class="text-info"><i class="bi bi-file-earmark-excel me-2"></i>Upload File Format (Estimate Excel)</h6>
+                            <div class="mb-4 p-3 bg-light rounded">
+                                <p class="mb-2"><strong>File Type:</strong> .xlsx or .xls only</p>
+                                <p class="mb-2"><strong>Header Row:</strong> Row 3 must contain column headers</p>
+                                <p class="mb-2"><strong>Required Column Layout:</strong></p>
+                                <table class="table table-sm table-bordered mb-2">
+                                    <thead class="table-secondary">
+                                        <tr><th>Column</th><th>Header Text</th><th>Data</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>A</td><td>Sl.No</td><td>Serial numbers</td></tr>
+                                        <tr><td>B</td><td>Quantity (Unit)</td><td>Quantity values</td></tr>
+                                        <tr><td>C</td><td>Unit</td><td>Nos, Mtr, Rmt, etc.</td></tr>
+                                        <tr><td>D</td><td>Item Description</td><td>Item name/details</td></tr>
+                                        <tr><td>E</td><td>Rate</td><td>Unit rate</td></tr>
+                                        <tr><td>H</td><td>Amount</td><td>Qty × Rate</td></tr>
+                                    </tbody>
+                                </table>
+                                <p class="mb-0 small text-muted"><i class="bi bi-info-circle me-1"></i>Data rows start from Row 4. Stop at rows containing "Total", "Sub Total", or "ECV".</p>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> enter executed quantity greater than reasonable limits</li>
+                                <li><strong>DON'T</strong> forget to enter T.P % if applicable to your project</li>
+                                <li><strong>DON'T</strong> add supplemental items without checking them in the popup - just opening the popup does nothing</li>
+                                <li><strong>DON'T</strong> expect supplemental items to appear unless you CHECK them and close the popup</li>
+                                <li><strong>DON'T</strong> click Clear All unless you want to remove everything including uploaded estimate</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>To remove a supplemental item, uncheck it from the supplemental items popup</li>
+                                <li>Supplemental items appear in a separate section marked with a header</li>
+                                <li>Total shows only executed amounts (not estimated)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Temporary Works Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideTempWorks">
+                            <i class="bi bi-tools me-3 text-warning" style="font-size: 1.5rem;"></i>
+                            <div>
+                                <strong>Temporary Works</strong>
+                                <small class="d-block text-muted">Day-based costing for temporary equipment and labor</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideTempWorks" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p><strong>Purpose:</strong> Calculate costs for temporary work items where pricing is based on quantity × days × daily rate.</p>
+                                <p><strong>Table Columns:</strong></p>
+                                <ul>
+                                    <li><strong>Sl.No</strong> - Serial number</li>
+                                    <li><strong>Item Description</strong> - Equipment/labor name</li>
+                                    <li><strong>Unit</strong> - Usually "Day" or "Nos"</li>
+                                    <li><strong>Qty</strong> - Number of units (e.g., 2 generators)</li>
+                                    <li><strong>Days</strong> - Number of days needed</li>
+                                    <li><strong>Rate</strong> - Daily rate per unit</li>
+                                    <li><strong>Amount</strong> - Qty × Days × Rate</li>
+                                </ul>
+                                <p><strong>Workflow:</strong></p>
+                                <ol>
+                                    <li>Select <strong>Category</strong> (Temp Electrical / Temp Civil)</li>
+                                    <li>Select a <strong>Group</strong> from left panel</li>
+                                    <li><strong>Click Add</strong> button next to items you need (or check them)</li>
+                                    <li>Enter <strong>Qty</strong> and <strong>Days</strong> for each item</li>
+                                    <li>Amount calculates automatically</li>
+                                    <li>Click <strong>Download</strong> to generate document</li>
+                                </ol>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> enter Days as 0 - minimum is 1 day</li>
+                                <li><strong>DON'T</strong> enter Days greater than 365</li>
+                                <li><strong>DON'T</strong> leave Qty empty - it won't calculate the amount</li>
+                                <li><strong>DON'T</strong> add the same item multiple times - it creates duplicate entries</li>
+                                <li><strong>DON'T</strong> expect items to persist after browser refresh</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>Use the × button at the end of each row to remove individual items</li>
+                                <li>Use <strong>Clear All</strong> to remove all items and start over</li>
+                                <li>Drag items using the grip handle to reorder</li>
+                                <li>Enter Name of the Work for document heading</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bill Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideBill">
+                            <i class="bi bi-receipt me-3" style="font-size: 1.5rem; color: #eab308;"></i>
+                            <div>
+                                <strong>Bill Generator</strong>
+                                <small class="d-block text-muted">Generate CC bills with all required formats</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideBill" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p><strong>4 Bill Types Available:</strong></p>
+                                <ol>
+                                    <li><strong>Bill from Estimate:</strong> Generate CC First & Part / First & Final from uploaded estimate</li>
+                                    <li><strong>Nth to Nth Bill:</strong> Generate Nth (2nd, 3rd...) bill using previous bill data</li>
+                                    <li><strong>Part to Final Bill:</strong> Generate final bill from part bill with supplemental items</li>
+                                    <li><strong>Nth to Final Bill:</strong> Generate final bill from Nth (last running) bill</li>
+                                </ol>
+                                <p><strong>Common Fields (Top Section):</strong></p>
+                                <ul>
+                                    <li>MB Details: Measure No., Page From/To, Abstract No., Page From/To</li>
+                                    <li>Dates: Date of Invoice, Date of Completion</li>
+                                    <li>T.P %: Tender Premium percentage and type</li>
+                                    <li>Templates: Covering Letter and Movement Slip templates (Word files with placeholders)</li>
+                                </ul>
+                            </div>
+                            
+                            <h6 class="text-info"><i class="bi bi-file-earmark-excel me-2"></i>Upload File Formats</h6>
+                            <div class="mb-4">
+                                <!-- Estimate Format -->
+                                <div class="p-3 bg-light rounded mb-3">
+                                    <p class="mb-2 fw-bold">1. Estimate File (for Bill from Estimate)</p>
+                                    <p class="mb-2 small"><strong>Sheets:</strong> Can have multiple sheets - each valid sheet generates a separate bill</p>
+                                    <p class="mb-2 small"><strong>Header Row:</strong> Row with "Sl.No", "Quantity", "Item Description", "Rate", "Amount"</p>
+                                    <table class="table table-sm table-bordered mb-2">
+                                        <thead class="table-secondary">
+                                            <tr><th>Column</th><th>Content</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td>A</td><td>Sl.No</td></tr>
+                                            <tr><td>B</td><td>Quantity</td></tr>
+                                            <tr><td>C</td><td>Unit</td></tr>
+                                            <tr><td>D</td><td>Item Description</td></tr>
+                                            <tr><td>E</td><td>Rate</td></tr>
+                                            <tr><td>H</td><td>Amount</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- First Bill Format -->
+                                <div class="p-3 bg-light rounded mb-3">
+                                    <p class="mb-2 fw-bold">2. First & Part Bill (for Nth Bill generation)</p>
+                                    <p class="mb-2 small"><strong>Format:</strong> 8-column layout</p>
+                                    <table class="table table-sm table-bordered mb-2">
+                                        <thead class="table-secondary">
+                                            <tr><th>Column</th><th>Content</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td>A</td><td>S.No</td></tr>
+                                            <tr><td>B</td><td>Quantity</td></tr>
+                                            <tr><td>C</td><td>Unit</td></tr>
+                                            <tr><td>D</td><td>Item Description</td></tr>
+                                            <tr><td>E</td><td>Rate</td></tr>
+                                            <tr><td>F-G</td><td>Per / Unit</td></tr>
+                                            <tr><td>H</td><td>Amount</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Nth Bill Format -->
+                                <div class="p-3 bg-light rounded">
+                                    <p class="mb-2 fw-bold">3. Nth Bill (for next Nth or Final Bill)</p>
+                                    <p class="mb-2 small"><strong>Format:</strong> 10-column layout with "Quantity Till Date" in Column C header</p>
+                                    <table class="table table-sm table-bordered mb-2">
+                                        <thead class="table-secondary">
+                                            <tr><th>Column</th><th>Content</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td>A</td><td>Sl.No</td></tr>
+                                            <tr><td>B</td><td>Item Description</td></tr>
+                                            <tr><td>C</td><td>Quantity Till Date</td></tr>
+                                            <tr><td>D</td><td>Rate</td></tr>
+                                            <tr><td>E</td><td>Amount Till Date</td></tr>
+                                            <tr><td>F-G</td><td>Since Last (Qty/Amt)</td></tr>
+                                            <tr><td>H-I</td><td>Previous (Qty/Amt)</td></tr>
+                                            <tr><td>J</td><td>Unit</td></tr>
+                                        </tbody>
+                                    </table>
+                                    <p class="mb-0 small text-muted"><i class="bi bi-info-circle me-1"></i>The "Total" row must exist for amount calculation.</p>
+                                </div>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> upload Excel files for templates - only Word (.docx) files work</li>
+                                <li><strong>DON'T</strong> skip the common fields section - MB details are required</li>
+                                <li><strong>DON'T</strong> generate Nth bill without having the previous bill file</li>
+                                <li><strong>DON'T</strong> upload estimate file when generating Nth/Final bills - upload the previous BILL</li>
+                                <li><strong>DON'T</strong> confuse Part Bill with Nth Bill - they use different input files</li>
+                                <li><strong>DON'T</strong> leave T.P % empty if your project has tender premium</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>Fill common fields first - they apply to all bill types</li>
+                                <li>Template placeholders: Use <code>&#123;&#123;OFFICER_NAME&#125;&#125;</code>, <code>&#123;&#123;DATE&#125;&#125;</code> etc. in your Word templates</li>
+                                <li>Download sample templates first if unsure about format</li>
+                                <li>For Nth bills: Upload the (N-1)th bill file, not the estimate</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Self Formatted Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideSelfFormatted">
+                            <i class="bi bi-file-text-fill me-3" style="font-size: 1.5rem; color: #ec4899;"></i>
+                            <div>
+                                <strong>Self Formatted Forms</strong>
+                                <small class="d-block text-muted">Create documents using your own templates with placeholders</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideSelfFormatted" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p><strong>Purpose:</strong> Upload your own Word/Excel templates with placeholders and generate filled documents.</p>
+                                <p><strong>Two Sections:</strong></p>
+                                <ul>
+                                    <li><strong>Left Panel:</strong> Upload your template file, set template name</li>
+                                    <li><strong>Right Panel:</strong> Use existing templates - fill placeholders and download</li>
+                                </ul>
+                                <p><strong>Workflow - Create Template:</strong></p>
+                                <ol>
+                                    <li>Create a Word/Excel file with placeholders like <code>&#123;&#123;NAME&#125;&#125;</code>, <code>&#123;&#123;DATE&#125;&#125;</code>, <code>&#123;&#123;AMOUNT&#125;&#125;</code></li>
+                                    <li>Upload the file and give it a name</li>
+                                    <li>Template is saved for future use</li>
+                                </ol>
+                                <p><strong>Workflow - Use Template:</strong></p>
+                                <ol>
+                                    <li>Select a saved template from the dropdown</li>
+                                    <li>System shows all detected placeholders as input fields</li>
+                                    <li>Fill in the values for each placeholder</li>
+                                    <li>Click Download to get the filled document</li>
+                                </ol>
+                            </div>
+                            
+                            <h6 class="text-info"><i class="bi bi-file-earmark me-2"></i>Supported File Formats</h6>
+                            <div class="mb-4 p-3 bg-light rounded">
+                                <p class="mb-2 fw-bold">Source File (data extraction):</p>
+                                <ul class="mb-3">
+                                    <li><strong>Excel (.xlsx, .xlsm)</strong> - Best format. Reads all sheets, up to 150 rows × 20 columns</li>
+                                    <li><strong>Word (.docx)</strong> - Reads paragraphs and table contents</li>
+                                    <li><strong>PDF (.pdf)</strong> - Text-based and scanned PDFs supported with advanced OCR</li>
+                                    <li><strong>Images (.jpg, .png, .bmp, .tiff)</strong> - <span class="badge bg-success">NEW!</span> Direct image OCR with blur handling</li>
+                                    <li><strong>Text/CSV</strong> - Plain text files</li>
+                                </ul>
+                                <div class="alert alert-success py-2 mb-3">
+                                    <i class="bi bi-magic me-1"></i>
+                                    <strong>Smart OCR:</strong> Advanced image preprocessing automatically enhances blurred, low-quality, or faded scans for accurate text extraction!
+                                </div>
+                                <p class="mb-2 fw-bold">Template File:</p>
+                                <ul class="mb-0">
+                                    <li><strong>Word (.docx)</strong> - Recommended for letters, forms</li>
+                                    <li><strong>Excel (.xlsx)</strong> - For tabular documents</li>
+                                </ul>
+                            </div>
+                            
+                            <h6 class="text-warning"><i class="bi bi-tags me-2"></i>Auto-Detected Labels</h6>
+                            <div class="mb-4 p-3 bg-light rounded">
+                                <p class="mb-2 small">The system automatically extracts these fields from your source file:</p>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <ul class="small mb-0">
+                                            <li>NAME_OF_WORK</li>
+                                            <li>ESTIMATE_AMOUNT / AMOUNT</li>
+                                            <li>AGENCY_NAME / CONTRACTOR</li>
+                                            <li>CONTRACTOR_ADDRESS</li>
+                                            <li>AGREEMENT_NO / BOND_NO</li>
+                                            <li>WORK_ORDER_NO</li>
+                                            <li>NIT_NO / TENDER_NO</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <ul class="small mb-0">
+                                            <li>ADMIN_SANCTION / ADMIN_SANCTION_AMOUNT</li>
+                                            <li>TECH_SANCTION / TECH_SANCTION_AMOUNT</li>
+                                            <li>TENDER_PREMIUM</li>
+                                            <li>PERIOD_OF_COMPLETION / STIPULATED_PERIOD</li>
+                                            <li>DATE_OF_COMMENCEMENT / DATE_OF_COMPLETION</li>
+                                            <li>EARNEST_MONEY / SECURITY_DEPOSIT</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> use placeholder format other than <code>&#123;&#123;PLACEHOLDER_NAME&#125;&#125;</code></li>
+                                <li><strong>DON'T</strong> use spaces inside placeholders - use underscores: <code>&#123;&#123;OFFICER_NAME&#125;&#125;</code> not <code>&#123;&#123;OFFICER NAME&#125;&#125;</code></li>
+                                <li><strong>DON'T</strong> use special characters in placeholder names</li>
+                                <li><strong>DON'T</strong> split a placeholder across multiple lines or table cells</li>
+                                <li><strong>DON'T</strong> expect complex formatting (colors, fonts) to be preserved in placeholders</li>
+                                <li><strong>DON'T</strong> use lowercase and uppercase versions of same placeholder - they're case-sensitive</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>Keep placeholder names simple: <code>&#123;&#123;DATE&#125;&#125;</code>, <code>&#123;&#123;AMOUNT&#125;&#125;</code>, <code>&#123;&#123;NAME&#125;&#125;</code></li>
+                                <li>You can edit saved templates by uploading a new version with the same name</li>
+                                <li>Download your template to check if placeholders are detected correctly</li>
+                                <li>PDF files are not supported - use Word (.docx) or Excel (.xlsx)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- AMC Module -->
+                <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#guideAMC">
+                            <i class="bi bi-calendar-check-fill me-3" style="font-size: 1.5rem; color: #8b5cf6;"></i>
+                            <div>
+                                <strong>AMC (Annual Maintenance Contract)</strong>
+                                <small class="d-block text-muted">Create maintenance contract estimates</small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="guideAMC" class="accordion-collapse collapse" data-bs-parent="#moduleGuides">
+                        <div class="accordion-body">
+                            <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
+                            <div class="mb-4">
+                                <p><strong>Purpose:</strong> Create Annual Maintenance Contract estimates using predefined AMC item data.</p>
+                                <p><strong>Same 3-Panel Layout as New Estimate:</strong></p>
+                                <ul>
+                                    <li><strong>Left Panel:</strong> Groups of AMC items</li>
+                                    <li><strong>Middle Panel:</strong> Items in selected group with checkboxes</li>
+                                    <li><strong>Right Panel:</strong> Selected items with Qty input and Amount calculation</li>
+                                </ul>
+                                <p><strong>Workflow:</strong></p>
+                                <ol>
+                                    <li>Select <strong>Work Type</strong> (Original/Repair)</li>
+                                    <li>Select <strong>Category</strong> (AMC Electrical / AMC Civil)</li>
+                                    <li>Click a <strong>Group</strong> to see its items</li>
+                                    <li><strong>Check items</strong> to add them to preview</li>
+                                    <li>Enter <strong>Quantity</strong> for each item</li>
+                                    <li>Enter <strong>Grand Total</strong> (manual entry field for contract value)</li>
+                                    <li>Click <strong>Download AMC Estimate</strong></li>
+                                </ol>
+                            </div>
+                            
+                            <h6 class="text-danger"><i class="bi bi-x-circle me-2"></i>DON'Ts</h6>
+                            <ul class="text-danger mb-4">
+                                <li><strong>DON'T</strong> confuse AMC with New Estimate - AMC uses separate backend data (AMC Electrical/Civil)</li>
+                                <li><strong>DON'T</strong> leave Grand Total empty if your contract has a fixed value</li>
+                                <li><strong>DON'T</strong> rapidly select multiple items - wait for each to load</li>
+                                <li><strong>DON'T</strong> expect Electrical items to show in Civil category or vice versa</li>
+                                <li><strong>DON'T</strong> refresh the page - you'll lose all selections</li>
+                            </ul>
+                            
+                            <h6 class="text-success"><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                            <ul class="text-muted">
+                                <li>ECV Amount shows the calculated total (Qty × Rate for all items)</li>
+                                <li>Grand Total is a separate manual entry - use it for contract-specific values</li>
+                                <li>Drag items to reorder them in the output document</li>
+                                <li>Use Clear All to start fresh with a new AMC estimate</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Featured FAQs -->
+    <section class="py-5 bg-white">
+        <div class="container">
+            <h2 class="text-center mb-4">Popular Questions</h2>
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    {% for faq in featured_faqs %}
+                    <div class="faq-item">
+                        <h5 class="fw-bold mb-2">{{ faq.question }}</h5>
+                        <p class="text-muted mb-0">{{ faq.answer|truncatewords:30 }}</p>
+                    </div>
+                    {% empty %}
+                    <div class="faq-item">
+                        <h5 class="fw-bold mb-2">How do I get started?</h5>
+                        <p class="text-muted mb-0">Create an account, choose a module, and start your free trial!</p>
+                    </div>
+                    <div class="faq-item">
+                        <h5 class="fw-bold mb-2">What payment methods are accepted?</h5>
+                        <p class="text-muted mb-0">We accept credit/debit cards, UPI, net banking, and wallets via Razorpay.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h5 class="fw-bold mb-2">Can I cancel my subscription?</h5>
+                        <p class="text-muted mb-0">Yes, you can cancel anytime from your account settings.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Contact Section -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="contact-card">
+                        <h3 class="mb-3">Still need help?</h3>
+                        <p class="text-muted mb-4">Our support team is here to assist you</p>
+                        <div class="row g-3">
+                            {% if user.is_authenticated %}
+                            <div class="col-md-6">
+                                <a href="{% url 'create_ticket' %}" class="btn btn-primary btn-lg w-100">
+                                    <i class="bi bi-ticket me-2"></i> Create Support Ticket
+                                </a>
+                            </div>
+                            {% endif %}
+                            <div class="col-md-6">
+                                <a href="mailto:support@hamsvic.com" class="btn btn-outline-primary btn-lg w-100">
+                                    <i class="bi bi-envelope me-2"></i> Email Us
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

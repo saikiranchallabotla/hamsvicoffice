@@ -1,0 +1,1065 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}AMC {{ category|title }} - {{ group }}{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-calendar-check me-2"></i>AMC {{ category|title }} → {{ group }}
+{% endblock %}
+
+{% block content %}
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    {{ error }}
+</div>
+<a href="{% url 'amc_home' %}" class="btn btn-primary">
+    <i class="bi bi-arrow-left me-2"></i>Back to AMC
+</a>
+{% else %}
+
+<style>
+    /* 3-Panel Layout */
+    .layout-3panel {
+        display: grid;
+        grid-template-columns: 160px 200px 1fr;
+        gap: 0.5rem;
+        height: calc(100vh - 120px);
+    }
+    
+    /* Panel Cards */
+    .panel-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .panel-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.4rem 0.7rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .panel-header i {
+        font-size: 0.8rem;
+    }
+    
+    .panel-header.items-header {
+        background: #38a169;
+    }
+    
+    .panel-header.estimate-header {
+        background: #6366f1;
+    }
+    
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.4rem;
+    }
+    
+    /* Groups List */
+    .groups-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .groups-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .group-link {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #4a5568;
+        font-weight: 500;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .group-link:hover {
+        background: #edf2f7;
+        border-color: #6366f1;
+        color: #6366f1;
+        transform: translateX(2px);
+    }
+    
+    .group-link.active {
+        background: #6366f1;
+        color: white;
+        box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
+    }
+    
+    /* Items List */
+    .items-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .items-list li {
+        margin-bottom: 0.1rem;
+    }
+    
+    .item-label {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: #f8f9fa;
+        border: 1px solid transparent;
+    }
+    
+    .item-label:hover {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-checkbox {
+        width: 12px;
+        height: 12px;
+        accent-color: #319795;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    
+    .item-checkbox:checked + .item-name {
+        color: #319795;
+        font-weight: 600;
+    }
+    
+    .item-name {
+        color: #4a5568;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        line-height: 1.2;
+    }
+    
+    /* Estimate Panel */
+    .work-name-input {
+        width: 100%;
+        padding: 0.3rem 0.5rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        margin-bottom: 0.3rem;
+    }
+    
+    .work-name-input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    }
+    
+    .work-name-label {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 0.2rem;
+        font-size: 0.68rem;
+    }
+    
+    /* Estimate Table */
+    .estimate-table-wrapper {
+        border-radius: 6px;
+        overflow: auto;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        margin-bottom: 0.3rem;
+        max-height: calc(100vh - 280px);
+        min-height: 300px;
+        height: 70vh;
+    }
+    
+    .estimate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.7rem;
+    }
+    
+    .estimate-table th {
+        background: #6366f1;
+        color: white;
+        padding: 0.2rem 0.15rem;
+        font-weight: 600;
+        text-align: center;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        font-size: 0.68rem;
+    }
+    
+    .estimate-table td {
+        padding: 0.12rem 0.1rem;
+        text-align: center;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        line-height: 1.2;
+    }
+    
+    .estimate-table tbody tr:hover {
+        background: #f5f3ff;
+    }
+    
+    .estimate-table td.desc-col {
+        text-align: center;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .qty-input {
+        width: 100%;
+        min-width: 80px;
+        padding: 0.3rem 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 3px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 0.75rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+    }
+    
+    .qty-input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    }
+    
+    .amount-cell {
+        font-weight: 600;
+        color: #319795;
+    }
+    
+    /* Total Row */
+    .estimate-total-row {
+        background: #f5f3ff;
+        padding: 0.3rem 0.5rem;
+        border-radius: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.3rem;
+        border: 1px solid #e9d5ff;
+    }
+    
+    .total-label {
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.7rem;
+    }
+    
+    .total-amount {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #6366f1;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.68rem;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-action i {
+        font-size: 0.7rem;
+    }
+    
+    .btn-download {
+        background: #6366f1;
+        color: white;
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+    }
+    
+    .btn-download:hover {
+        background: #4f46e5;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+    
+    .btn-clear {
+        background: #e53e3e;
+        color: white;
+        box-shadow: 0 2px 8px rgba(229, 62, 62, 0.25);
+    }
+    
+    .btn-clear:hover {
+        background: #c53030;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(229, 62, 62, 0.35);
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 1rem;
+        color: #a0aec0;
+    }
+    
+    .empty-state i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        opacity: 0.5;
+    }
+    
+    .empty-state p {
+        font-size: 0.7rem;
+    }
+    
+    /* Responsive */
+    @media (max-width: 992px) {
+        .layout-3panel {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        
+        .panel-card {
+            max-height: 350px;
+        }
+    }
+    
+    /* Drag and Drop Styles */
+    .estimate-table tbody tr.draggable {
+        cursor: grab;
+    }
+    
+    .estimate-table tbody tr.draggable:active {
+        cursor: grabbing;
+    }
+    
+    .estimate-table tbody tr.dragging {
+        opacity: 0.5;
+        background: #e6fffa !important;
+    }
+    
+    .estimate-table tbody tr.drag-over {
+        border-top: 2px solid #319795;
+    }
+    
+    .drag-handle {
+        cursor: grab;
+        color: #a0aec0;
+        padding: 0 4px;
+        font-size: 0.8rem;
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    .drag-handle:hover {
+        color: #319795;
+    }
+    
+    .sl-cell {
+        text-align: center;
+        vertical-align: middle;
+        font-weight: 600;
+    }
+    
+    .unit-cell, .rate-cell, .amount-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    /* Loading indicator for checkbox */
+    .item-checkbox.loading {
+        pointer-events: none;
+        opacity: 0.5;
+    }
+    
+    .item-label.processing {
+        background: #e6fffa;
+        border-color: #319795;
+    }
+    
+    .item-label.processing::after {
+        content: "...";
+        margin-left: 4px;
+        color: #319795;
+        animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+
+<!-- SOR Backend Selection Bar -->
+{% if available_backends %}
+<div class="backend-selection-bar mb-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="backend-label">
+            <i class="bi bi-database me-1"></i>
+            <strong>SOR Rates:</strong>
+        </div>
+        <select id="backend-selector" class="form-select form-select-sm" style="max-width: 280px;" onchange="switchBackend(this.value)">
+            {% for backend in available_backends %}
+            <option value="{{ backend.id }}" {% if backend.id == selected_backend_id %}selected{% endif %}>
+                {{ backend.name }}{% if backend.is_default %} (Default){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Changing SOR will reload groups and items
+        </span>
+    </div>
+</div>
+<style>
+.backend-selection-bar {
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    border: 1px solid #c3d9fe;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+}
+.backend-selection-bar .form-select {
+    border-color: #3b82f6;
+    font-weight: 500;
+}
+.backend-selection-bar .form-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+.backend-label {
+    color: #1e40af;
+    font-size: 0.85rem;
+}
+</style>
+<script>
+function switchBackend(backendId) {
+    if (!backendId) return;
+    var currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('backend_id', backendId);
+    var selector = document.getElementById('backend-selector');
+    if (selector) {
+        selector.disabled = true;
+        selector.style.opacity = '0.6';
+    }
+    window.location.href = currentUrl.toString();
+}
+</script>
+{% endif %}
+
+<div class="layout-3panel">
+
+    <!-- LEFT: GROUPS -->
+    <div class="panel-card">
+        <div class="panel-header">
+            <i class="bi bi-folder2-open"></i>
+            Groups
+        </div>
+        <div class="panel-body">
+            <ul class="groups-list">
+                {% for g in groups %}
+                    <li>
+                        <a href="{% url 'amc_items' category g %}" 
+                           class="group-link {% if g == group %}active{% endif %}">
+                            <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
+                            {{ g }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- MIDDLE: ITEMS -->
+    <div class="panel-card">
+        <div class="panel-header items-header">
+            <i class="bi bi-check2-square"></i>
+            Items in {{ group }}
+        </div>
+        <div class="panel-body">
+            {% if items_info %}
+                <ul class="items-list">
+                    {% for info in items_info %}
+                        <li>
+                            <label class="item-label">
+                                <input type="checkbox"
+                                       class="item-checkbox"
+                                       data-item-name="{{ info.name }}"
+                                       data-fetch-url="{% url 'amc_fetch_item' category group info.name %}"
+                                       {% if info.name in fetched %}checked{% endif %}>
+                                <span class="item-name">{{ info.name }}</span>
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No items found in this group.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RIGHT: AMC ESTIMATE PREVIEW -->
+    <div class="panel-card">
+        <div class="panel-header estimate-header">
+            <i class="bi bi-calculator"></i>
+            AMC Estimate Preview
+        </div>
+        <div class="panel-body">
+            <form id="amc-estimate-form" method="post" action="{% url 'amc_download_output' category %}">
+                {% csrf_token %}
+                <input type="hidden" name="qty_map" id="qty-map-field">
+                <input type="hidden" name="grand_total" id="grand-total-field">
+
+                <!-- Name of the work field -->
+                <label class="work-name-label">
+                    <i class="bi bi-pencil-square me-1"></i>
+                    Name of the Work (AMC)
+                </label>
+                <input type="text"
+                       id="work-name-input"
+                       name="work_name"
+                       class="work-name-input"
+                       placeholder="Enter AMC work name..."
+                       value="{{ work_name|default_if_none:'' }}">
+
+                <div class="estimate-table-wrapper">
+                    <table class="estimate-table" id="estimate-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th style="width: 50px;">Sl.No</th>
+                                <th style="width: 40%;">Item Description</th>
+                                <th style="width: 60px;">Unit</th>
+                                <th style="width: 120px;">Qty</th>
+                                <th style="width: 80px;">Rate</th>
+                                <th style="width: 130px;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if estimate_rows %}
+                                {% for row in estimate_rows %}
+                                    <tr data-item-name="{{ row.name }}" class="draggable" draggable="true">
+                                        <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
+                                        <td class="sl-cell">{{ row.sl }}</td>
+                                        <td class="desc-col" title="{{ row.name }}">{{ row.name }}</td>
+                                        <td>{{ row.unit }}</td>
+                                        <td>
+                                            <input type="number"
+                                                   min="0"
+                                                   step="0.01"
+                                                   class="qty-input"
+                                                   value="{{ row.qty|default_if_none:'' }}"
+                                                   data-rate="{{ row.rate|default_if_none:0 }}">
+                                        </td>
+                                        <td>
+                                            {% if row.rate is not None %}
+                                                ₹{{ row.rate }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="amount-cell"></td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="empty-state">
+                                            <i class="bi bi-clipboard-x"></i>
+                                            <p>No items selected yet.<br>Select items from the list.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="estimate-total-row">
+                    <span class="total-label">
+                        <i class="bi bi-currency-rupee me-1"></i>
+                        ECV Amount
+                    </span>
+                    <span class="total-amount">₹<span id="estimate-total">0.00</span></span>
+                </div>
+
+                <!-- Grand Total Input -->
+                <div class="estimate-total-row" style="background: #e6fffa; border-color: #38b2ac;">
+                    <label for="grand-total-input" class="total-label" style="color: #234e52;">
+                        <i class="bi bi-calculator me-1"></i>
+                        Grand Total (Manual Entry)
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <span style="font-weight: 600; color: #319795;">₹</span>
+                        <input type="number" 
+                               id="grand-total-input"
+                               class="qty-input"
+                               style="width: 100px; font-weight: 700; color: #319795; border-color: #38b2ac;"
+                               step="0.01"
+                               min="0"
+                               placeholder="Enter amount"
+                               value="{{ grand_total|default_if_none:'' }}">
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="action-buttons">
+                    <button type="submit" class="btn-action btn-download">
+                        <i class="bi bi-download"></i>
+                        Download AMC Estimate
+                    </button>
+
+                    <a href="{% url 'amc_clear_output' category %}?group={{ group }}"
+                       class="btn-action btn-clear">
+                        <i class="bi bi-x-circle"></i>
+                        Clear All
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script src="{% static 'js/job-polling.js' %}"></script>
+<script>
+(function() {
+    // URLs for AJAX operations
+    var saveQtyMapUrl = "{% url 'amc_save_qty_map' category %}";
+    var ajaxToggleUrl = "{% url 'amc_ajax_toggle_item' category %}";
+    var ajaxReorderUrl = "{% url 'amc_ajax_reorder_items' category %}";
+    var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+    
+    // ========================================
+    // QUEUED ITEM FETCH SYSTEM
+    // ========================================
+    var fetchQueue = [];
+    var isProcessingQueue = false;
+    
+    function addToFetchQueue(itemName, action, checkbox) {
+        fetchQueue.push({ item: itemName, action: action, checkbox: checkbox });
+        checkbox.classList.add('loading');
+        checkbox.closest('.item-label').classList.add('processing');
+        
+        if (!isProcessingQueue) {
+            processQueue();
+        }
+    }
+    
+    function processQueue() {
+        if (fetchQueue.length === 0) {
+            isProcessingQueue = false;
+            return;
+        }
+        
+        isProcessingQueue = true;
+        var current = fetchQueue.shift();
+        
+        var workInput = document.getElementById("work-name-input");
+        var workName = workInput ? workInput.value : "";
+        
+        fetch(ajaxToggleUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({
+                item: current.item,
+                action: current.action,
+                work_name: workName
+            })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            current.checkbox.classList.remove('loading');
+            current.checkbox.closest('.item-label').classList.remove('processing');
+            
+            if (data.status === 'ok') {
+                if (data.action_taken === 'added') {
+                    addItemToTable(current.item, data.item_info);
+                } else if (data.action_taken === 'removed') {
+                    removeItemFromTable(current.item);
+                }
+                updateSerialNumbers();
+                recalcTotal();
+            } else {
+                current.checkbox.checked = !current.checkbox.checked;
+                console.error('Toggle failed:', data.message);
+            }
+            
+            processQueue();
+        })
+        .catch(function(err) {
+            current.checkbox.classList.remove('loading');
+            current.checkbox.closest('.item-label').classList.remove('processing');
+            current.checkbox.checked = !current.checkbox.checked;
+            console.error('Fetch error:', err);
+            processQueue();
+        });
+    }
+    
+    function addItemToTable(itemName, itemInfo) {
+        var tbody = document.querySelector("#estimate-table tbody");
+        if (!tbody) return;
+        
+        var emptyRow = tbody.querySelector('tr td[colspan]');
+        if (emptyRow) {
+            emptyRow.closest('tr').remove();
+        }
+        
+        if (tbody.querySelector('tr[data-item-name="' + itemName + '"]')) {
+            return;
+        }
+        
+        var newRow = document.createElement('tr');
+        newRow.setAttribute('data-item-name', itemName);
+        newRow.classList.add('draggable');
+        newRow.setAttribute('draggable', 'true');
+        
+        var sl = tbody.querySelectorAll('tr[data-item-name]').length + 1;
+        
+        // Extract rate and unit from itemInfo
+        var unit = (itemInfo && itemInfo.unit) ? itemInfo.unit : 'Nos';
+        var rate = (itemInfo && itemInfo.rate) ? itemInfo.rate : 0;
+        var rateDisplay = rate ? parseFloat(rate).toFixed(2) : '';
+        
+        newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
+                           '<td class="sl-cell">' + sl + '</td>' +
+                           '<td class="desc-col" title="' + itemName + '">' + itemName + '</td>' +
+                           '<td class="unit-cell">' + unit + '</td>' +
+                           '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rate + '"></td>' +
+                           '<td class="rate-cell">' + rateDisplay + '</td>' +
+                           '<td class="amount-cell"></td>';
+        
+        tbody.appendChild(newRow);
+        attachRowListeners(newRow);
+        attachDragListeners(newRow);
+    }
+    
+    function removeItemFromTable(itemName) {
+        var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + itemName + '"]');
+        if (row) {
+            row.remove();
+        }
+        
+        var tbody = document.querySelector("#estimate-table tbody");
+        if (tbody && tbody.querySelectorAll('tr[data-item-name]').length === 0) {
+            var emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="7"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items selected yet.<br>Select items from the list.</p></div></td>';
+            tbody.appendChild(emptyRow);
+        }
+    }
+    
+    function updateSerialNumbers() {
+        var rows = document.querySelectorAll('#estimate-table tbody tr[data-item-name]');
+        rows.forEach(function(row, index) {
+            var slCell = row.querySelector('.sl-cell');
+            if (slCell) {
+                slCell.textContent = index + 1;
+            }
+        });
+    }
+    
+    function attachRowListeners(row) {
+        var qtyInput = row.querySelector('.qty-input');
+        if (qtyInput) {
+            qtyInput.addEventListener('input', function() {
+                recalcRow(row);
+                recalcTotal();
+            });
+        }
+    }
+    
+    // Build qty map from table
+    function buildQtyMap() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            var qtyInput = row.querySelector(".qty-input");
+            if (!itemName || !qtyInput) return;
+            var val = qtyInput.value;
+            if (val !== "" && !isNaN(parseFloat(val))) {
+                map[itemName] = val;
+            }
+        });
+        return map;
+    }
+    
+    // Save quantities to session via AJAX, then navigate
+    function saveAndNavigate(targetUrl) {
+        var qtyMap = buildQtyMap();
+        var workInput = document.getElementById("work-name-input");
+        var grandTotalInput = document.getElementById("grand-total-input");
+        
+        var formData = new FormData();
+        formData.append("qty_map", JSON.stringify(qtyMap));
+        formData.append("work_name", workInput ? workInput.value : "");
+        formData.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+        formData.append("csrfmiddlewaretoken", csrfToken);
+        
+        fetch(saveQtyMapUrl, {
+            method: "POST",
+            body: formData
+        }).then(function() {
+            window.location.href = targetUrl;
+        }).catch(function() {
+            window.location.href = targetUrl;
+        });
+    }
+    
+    // --- Checkbox behaviour: queued AJAX toggle ---
+    var checkboxes = document.querySelectorAll(".item-checkbox");
+    checkboxes.forEach(function(cb) {
+        cb.addEventListener("change", function() {
+            var itemName = cb.getAttribute("data-item-name");
+            if (!itemName) return;
+            
+            var action = cb.checked ? "add" : "remove";
+            addToFetchQueue(itemName, action, cb);
+        });
+    });
+    
+    // --- Group link behaviour: save quantities before navigating ---
+    var groupLinks = document.querySelectorAll(".group-link");
+    groupLinks.forEach(function(link) {
+        link.addEventListener("click", function(e) {
+            e.preventDefault();
+            var url = link.getAttribute("href");
+            saveAndNavigate(url);
+        });
+    });
+    
+    // ========================================
+    // DRAG AND DROP REORDERING
+    // ========================================
+    var draggedRow = null;
+    
+    function attachDragListeners(row) {
+        row.addEventListener('dragstart', function(e) {
+            draggedRow = row;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-item-name'));
+        });
+        
+        row.addEventListener('dragend', function() {
+            row.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(function(el) {
+                el.classList.remove('drag-over');
+            });
+            draggedRow = null;
+            updateSerialNumbers();
+            saveNewOrder();
+        });
+        
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (draggedRow && draggedRow !== row) {
+                row.classList.add('drag-over');
+            }
+        });
+        
+        row.addEventListener('dragleave', function() {
+            row.classList.remove('drag-over');
+        });
+        
+        row.addEventListener('drop', function(e) {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            
+            if (draggedRow && draggedRow !== row) {
+                var tbody = row.parentNode;
+                var rows = Array.from(tbody.querySelectorAll('tr[data-item-name]'));
+                var draggedIndex = rows.indexOf(draggedRow);
+                var targetIndex = rows.indexOf(row);
+                
+                if (draggedIndex < targetIndex) {
+                    tbody.insertBefore(draggedRow, row.nextSibling);
+                } else {
+                    tbody.insertBefore(draggedRow, row);
+                }
+            }
+        });
+    }
+    
+    function saveNewOrder() {
+        var items = [];
+        document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+            items.push(row.getAttribute('data-item-name'));
+        });
+        
+        fetch(ajaxReorderUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({ items: items })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.status !== 'ok') {
+                console.error('Reorder failed:', data.message);
+            }
+        })
+        .catch(function(err) {
+            console.error('Reorder error:', err);
+        });
+    }
+    
+    // Initialize drag listeners for existing rows
+    document.querySelectorAll('#estimate-table tbody tr.draggable').forEach(attachDragListeners);
+
+    // --- Row calculations ---
+    function recalcRow(row) {
+        var qtyInput = row.querySelector(".qty-input");
+        if (!qtyInput) return;
+        var rate = parseFloat(qtyInput.dataset.rate || "0");
+        var qty  = parseFloat(qtyInput.value || "0");
+        if (isNaN(rate)) rate = 0;
+        if (isNaN(qty)) qty = 0;
+
+        var amount = rate * qty;
+        var cell = row.querySelector(".amount-cell");
+        if (cell) {
+            cell.textContent = amount > 0 ? amount.toFixed(2) : "";
+        }
+    }
+
+    function recalcTotal() {
+        var total = 0;
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var cell = row.querySelector(".amount-cell");
+            if (!cell) return;
+            var val = parseFloat(cell.textContent || "0");
+            if (!isNaN(val)) {
+                total += val;
+            }
+        });
+        var totalSpan = document.getElementById("estimate-total");
+        if (totalSpan) {
+            totalSpan.textContent = total.toFixed(2);
+        }
+    }
+
+    // Attach listeners to quantity inputs
+    document.querySelectorAll(".qty-input").forEach(function(inp) {
+        inp.addEventListener("input", function() {
+            recalcRow(inp.closest("tr"));
+            recalcTotal();
+        });
+    });
+    
+    // Keyboard navigation for quantity inputs (Enter / Arrow Down = next, Arrow Up = previous)
+    function setupQtyKeyboardNav() {
+        var table = document.getElementById("estimate-table");
+        if (!table) return;
+        
+        table.addEventListener("keydown", function(e) {
+            var target = e.target;
+            if (!target.classList.contains("qty-input")) return;
+            
+            var row = target.closest("tr");
+            if (!row) return;
+            
+            var allRows = Array.from(table.querySelectorAll("tbody tr"));
+            var currentIndex = allRows.indexOf(row);
+            
+            if (e.key === "Enter" || e.key === "ArrowDown") {
+                e.preventDefault();
+                // Move to next row's qty input
+                for (var i = currentIndex + 1; i < allRows.length; i++) {
+                    var nextInput = allRows[i].querySelector(".qty-input");
+                    if (nextInput) {
+                        nextInput.focus();
+                        nextInput.select();
+                        break;
+                    }
+                }
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                // Move to previous row's qty input
+                for (var i = currentIndex - 1; i >= 0; i--) {
+                    var prevInput = allRows[i].querySelector(".qty-input");
+                    if (prevInput) {
+                        prevInput.focus();
+                        prevInput.select();
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    setupQtyKeyboardNav();
+
+    // Initial calculation
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+        recalcRow(row);
+    });
+    recalcTotal();
+
+    // --- Form submission ---
+    var form = document.getElementById("amc-estimate-form");
+    var qtyMapField = document.getElementById("qty-map-field");
+    var gtField = document.getElementById("grand-total-field");
+    var gtInput = document.getElementById("grand-total-input");
+
+    if (form && qtyMapField) {
+        form.addEventListener("submit", function(e) {
+            var m = buildQtyMap();
+            qtyMapField.value = JSON.stringify(m);
+            
+            if (gtInput && gtField) {
+                gtField.value = gtInput.value || "";
+            }
+        });
+    }
+})();
+</script>
+
+<!-- Save Work Button (Fixed position) -->
+<button class="save-work-btn" data-bs-toggle="modal" data-bs-target="#saveWorkModal" title="Save your work">
+    <i class="bi bi-save"></i>
+    <span>Save Work</span>
+</button>
+
+<!-- Include Save Work Modal -->
+{% include 'core/saved_works/save_modal.html' with work_type='amc' category=category %}
+
+{% endif %}
+{% endblock %}

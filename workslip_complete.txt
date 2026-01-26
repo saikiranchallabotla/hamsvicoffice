@@ -1,0 +1,4 @@
+This file contains the line numbers for the workslip function replacement:
+- Start: Line 85
+- End: Line 498 (return render statement)
+- Replace entire function from line 85 to 498

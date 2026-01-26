@@ -1,0 +1,267 @@
+<!-- Save Work Modal - Include this in any module template -->
+<!-- Usage: { % include 'core/saved_works/save_modal.html' with work_type='workslip' category='electrical' % } -->
+
+<div class="modal fade" id="saveWorkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                <h5 class="modal-title"><i class="bi bi-save me-2"></i>Save Your Work</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="saveWorkForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="work_type" value="{{ work_type|default:'new_estimate' }}">
+                    <input type="hidden" name="category" value="{{ category|default:'electrical' }}">
+                    <input type="hidden" name="work_id" id="saveWorkId" value="">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Work Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="work_name" id="saveWorkName" 
+                               required placeholder="Enter a name for this work"
+                               style="border-radius: 8px;">
+                        <small class="text-muted">Give your work a descriptive name so you can find it later.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Folder</label>
+                        <select class="form-select" name="folder_id" id="saveWorkFolder" style="border-radius: 8px;">
+                            <option value="">No Folder (Unfiled)</option>
+                            <!-- Folders will be loaded dynamically -->
+                        </select>
+                        <small class="text-muted">Organize your work in folders for easy access.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Notes (Optional)</label>
+                        <textarea class="form-control" name="notes" id="saveWorkNotes" rows="2" 
+                                  placeholder="Add any notes about this work..."
+                                  style="border-radius: 8px;"></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info d-flex align-items-center" style="border-radius: 8px;">
+                        <i class="bi bi-info-circle me-2 fs-5"></i>
+                        <div>
+                            <strong>Tip:</strong> You can access your saved works anytime from 
+                            <a href="/saved-works/">My Saved Works</a>.
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCurrentWork()" id="saveWorkBtn">
+                    <i class="bi bi-save me-1"></i>Save Work
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Save Work Button - add to your module's template */
+    .save-work-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 50px;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+    }
+    
+    .save-work-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    }
+    
+    .save-work-btn i {
+        font-size: 1.1rem;
+    }
+    
+    /* Current work indicator */
+    .current-work-indicator {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        z-index: 999;
+        background: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        font-size: 0.85rem;
+        max-width: 250px;
+    }
+    
+    .current-work-indicator .work-name {
+        font-weight: 600;
+        color: #1e293b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .current-work-indicator .work-status {
+        color: #64748b;
+        font-size: 0.75rem;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load folders when modal opens
+    const saveWorkModal = document.getElementById('saveWorkModal');
+    if (saveWorkModal) {
+        saveWorkModal.addEventListener('show.bs.modal', loadSaveModalData);
+    }
+});
+
+function loadSaveModalData() {
+    fetch('/saved-works/modal-data/')
+        .then(res => res.json())
+        .then(data => {
+            // Populate folders dropdown
+            const folderSelect = document.getElementById('saveWorkFolder');
+            folderSelect.innerHTML = '<option value="">No Folder (Unfiled)</option>';
+            data.folders.forEach(folder => {
+                const option = document.createElement('option');
+                option.value = folder.id;
+                option.textContent = folder.name;
+                option.style.color = folder.color;
+                folderSelect.appendChild(option);
+            });
+            
+            // If there's a current work, populate the form
+            if (data.current_work) {
+                document.getElementById('saveWorkId').value = data.current_work.id;
+                document.getElementById('saveWorkName').value = data.current_work.name;
+                document.getElementById('saveWorkNotes').value = data.current_work.notes || '';
+                if (data.current_work.folder_id) {
+                    folderSelect.value = data.current_work.folder_id;
+                }
+                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
+            } else {
+                document.getElementById('saveWorkId').value = '';
+                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+            }
+        });
+}
+
+function saveCurrentWork() {
+    const form = document.getElementById('saveWorkForm');
+    const formData = new FormData(form);
+    
+    const btn = document.getElementById('saveWorkBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+    btn.disabled = true;
+    
+    fetch('/saved-works/save/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        
+        if (data.success) {
+            // Update the saved work ID for future saves
+            document.getElementById('saveWorkId').value = data.work_id;
+            
+            // Show success message
+            showToast(data.message, 'success');
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('saveWorkModal')).hide();
+            
+            // Update button text
+            document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
+            
+            // Show current work indicator
+            showCurrentWorkIndicator(formData.get('work_name'));
+        } else {
+            showToast(data.error || 'Failed to save work', 'error');
+        }
+    })
+    .catch(err => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        showToast('An error occurred. Please try again.', 'error');
+    });
+}
+
+function showToast(message, type) {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
+    const icon = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-circle';
+    
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi ${icon} me-2"></i>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    const toastEl = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastEl);
+    toast.show();
+    
+    // Remove toast element after it's hidden
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+function showCurrentWorkIndicator(workName) {
+    let indicator = document.getElementById('currentWorkIndicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'currentWorkIndicator';
+        indicator.className = 'current-work-indicator';
+        document.body.appendChild(indicator);
+    }
+    
+    indicator.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="bi bi-save-fill text-success me-2"></i>
+            <div>
+                <div class="work-name">${workName}</div>
+                <div class="work-status">Saved just now</div>
+            </div>
+        </div>
+    `;
+    
+    // Hide after 5 seconds
+    setTimeout(() => {
+        indicator.style.opacity = '0';
+        indicator.style.transition = 'opacity 0.5s';
+        setTimeout(() => indicator.remove(), 500);
+    }, 5000);
+}
+</script>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Account - Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 50%, #f87171 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .delete-container {
+            max-width: 550px;
+            width: 100%;
+        }
+        
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #7f1d1d;
+            text-decoration: none;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 50px;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-btn:hover {
+            background: rgba(255,255,255,0.6);
+            color: #7f1d1d;
+            transform: translateX(-5px);
+        }
+        
+        .delete-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            overflow: hidden;
+        }
+        
+        .delete-header {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .delete-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2.5rem;
+        }
+        
+        .delete-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem;
+        }
+        
+        .delete-header p {
+            opacity: 0.9;
+            margin: 0;
+            font-size: 0.95rem;
+        }
+        
+        .delete-body {
+            padding: 2rem;
+        }
+        
+        .warning-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        
+        .warning-box i {
+            font-size: 1.5rem;
+            color: #d97706;
+            flex-shrink: 0;
+        }
+        
+        .warning-box h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #92400e;
+            margin: 0 0 4px;
+        }
+        
+        .warning-box p {
+            font-size: 0.9rem;
+            color: #a16207;
+            margin: 0;
+        }
+        
+        .consequences-list {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .consequences-list h4 {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .consequences-list ul {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        
+        .consequences-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+            color: #64748b;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .consequences-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .consequences-list li i {
+            color: #ef4444;
+            margin-top: 2px;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-group textarea,
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+            background: #f9fafb;
+        }
+        
+        .form-group textarea:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #ef4444;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+        }
+        
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .confirm-box {
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .confirm-box label {
+            color: #991b1b;
+        }
+        
+        .confirm-box input {
+            border-color: #fca5a5;
+            background: white;
+        }
+        
+        .confirm-box input:focus {
+            border-color: #ef4444;
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .btn-delete {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .btn-delete:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+        }
+        
+        .btn-delete:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+        
+        .btn-cancel {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: white;
+            color: #10b981;
+            border: 2px solid #10b981;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        
+        .btn-cancel:hover {
+            background: #10b981;
+            color: white;
+        }
+        
+        .help-text {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+        
+        .help-text a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 576px) {
+            body { padding: 1rem; }
+            .delete-header { padding: 1.5rem; }
+            .delete-body { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="delete-container">
+        <a href="{% url 'dashboard' %}" class="back-btn">
+            <i class="bi bi-arrow-left"></i>
+            Back to Dashboard
+        </a>
+        
+        <div class="delete-card">
+            <div class="delete-header">
+                <div class="delete-icon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <h1>Delete Account</h1>
+                <p>This action is permanent and cannot be undone</p>
+            </div>
+            
+            <div class="delete-body">
+                <div class="warning-box">
+                    <i class="bi bi-exclamation-diamond-fill"></i>
+                    <div>
+                        <h4>Warning: Irreversible Action</h4>
+                        <p>All your data will be permanently deleted and cannot be recovered.</p>
+                    </div>
+                </div>
+                
+                <div class="consequences-list">
+                    <h4><i class="bi bi-list-check"></i> What happens when you delete:</h4>
+                    <ul>
+                        <li><i class="bi bi-x-circle-fill"></i> Your profile and personal information will be removed</li>
+                        <li><i class="bi bi-x-circle-fill"></i> All saved projects and estimates will be deleted</li>
+                        <li><i class="bi bi-x-circle-fill"></i> Active subscriptions will be cancelled (no refunds)</li>
+                        <li><i class="bi bi-x-circle-fill"></i> You will not be able to recover your account</li>
+                        <li><i class="bi bi-x-circle-fill"></i> Data deletion will complete within 30 days</li>
+                    </ul>
+                </div>
+                
+                <form method="post" id="delete-form">
+                    {% csrf_token %}
+                    
+                    <div class="form-group">
+                        <label><i class="bi bi-chat-left-text me-2"></i>Why are you leaving? (optional)</label>
+                        <textarea name="reason" placeholder="Help us improve by sharing your feedback...">{{ form.reason.value|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="confirm-box">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label><i class="bi bi-shield-exclamation me-2"></i>Type <strong>DELETE</strong> to confirm</label>
+                            <input type="text" name="confirm_text" id="confirm_text" placeholder="Type DELETE here" autocomplete="off">
+                            {% if form.confirm_text.errors %}
+                                <div style="color: #dc2626; font-size: 0.85rem; margin-top: 0.5rem;">{{ form.confirm_text.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button type="submit" class="btn-delete" id="delete-btn" disabled>
+                            <i class="bi bi-trash3"></i>
+                            Permanently Delete My Account
+                        </button>
+                        <a href="{% url 'profile' %}" class="btn-cancel">
+                            <i class="bi bi-heart"></i>
+                            Keep My Account
+                        </a>
+                    </div>
+                </form>
+                
+                <div class="help-text">
+                    Need help? <a href="{% url 'help_center' %}">Contact Support</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const confirmInput = document.getElementById('confirm_text');
+        const deleteBtn = document.getElementById('delete-btn');
+        
+        confirmInput.addEventListener('input', function() {
+            deleteBtn.disabled = this.value.toUpperCase() !== 'DELETE';
+        });
+    });
+    </script>
+</body>
+</html>

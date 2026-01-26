@@ -1,0 +1,393 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Dashboard - Hamsvic{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-grid-1x2-fill me-2"></i>Dashboard
+{% endblock %}
+
+{% block content %}
+
+<style>
+    /* Welcome Section */
+    .welcome-card {
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(128, 90, 213, 0.3);
+    }
+    
+    .welcome-card h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .welcome-card p {
+        opacity: 0.9;
+        margin: 0;
+    }
+    
+    .welcome-card .plan-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 1.25rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        text-align: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card .icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+        font-size: 1.5rem;
+    }
+    
+    .stat-card .icon.purple {
+        background: #faf5ff;
+        color: #805ad5;
+    }
+    
+    .stat-card .icon.teal {
+        background: #e6fffa;
+        color: #319795;
+    }
+    
+    .stat-card .icon.pink {
+        background: #fff5f7;
+        color: #d53f8c;
+    }
+    
+    .stat-card .icon.blue {
+        background: #ebf8ff;
+        color: #3182ce;
+    }
+    
+    .stat-card .number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2d3748;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-card .label {
+        color: #718096;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    /* Quick Actions */
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .action-card {
+        background: white;
+        padding: 1.25rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        text-decoration: none;
+        color: #2d3748;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.75rem;
+    }
+    
+    .action-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+        color: #805ad5;
+    }
+    
+    .action-card .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: #f7fafc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        transition: all 0.2s;
+    }
+    
+    .action-card:hover .icon {
+        background: #805ad5;
+        color: white;
+    }
+    
+    .action-card span {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    
+    /* Section Headers */
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .section-header h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin: 0;
+    }
+    
+    .section-header a {
+        color: #805ad5;
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    
+    .section-header a:hover {
+        text-decoration: underline;
+    }
+    
+    /* Estimates List */
+    .estimates-list {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    
+    .estimate-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e2e8f0;
+        transition: background 0.2s;
+    }
+    
+    .estimate-item:last-child {
+        border-bottom: none;
+    }
+    
+    .estimate-item:hover {
+        background: #faf5ff;
+    }
+    
+    .estimate-info h4 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 0.25rem;
+    }
+    
+    .estimate-info p {
+        font-size: 0.8rem;
+        color: #718096;
+        margin: 0;
+    }
+    
+    .estimate-info .amount {
+        color: #319795;
+        font-weight: 600;
+    }
+    
+    .btn-view {
+        background: #805ad5;
+        color: white;
+        padding: 0.4rem 0.9rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    
+    .btn-view:hover {
+        background: #6b46c1;
+        color: white;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        text-align: center;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        color: #cbd5e0;
+        margin-bottom: 1rem;
+    }
+    
+    .empty-state p {
+        color: #718096;
+        margin-bottom: 1rem;
+    }
+    
+    .btn-create {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #319795;
+        color: white;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    
+    .btn-create:hover {
+        background: #2c7a7b;
+        color: white;
+    }
+</style>
+
+<!-- Welcome Card -->
+<div class="welcome-card">
+    <h2>Welcome back, {{ user.get_full_name|default:user.username }}! 👋</h2>
+    <p>You're on the <span class="plan-badge">{{ profile.get_subscription_tier_display|default:"Free" }}</span> plan</p>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="icon purple">
+            <i class="bi bi-file-earmark-text"></i>
+        </div>
+        <div class="number">{{ total_estimates|default:0 }}</div>
+        <div class="label">Total Estimates</div>
+    </div>
+    <div class="stat-card">
+        <div class="icon teal">
+            <i class="bi bi-folder"></i>
+        </div>
+        <div class="number">{{ total_projects|default:0 }}</div>
+        <div class="label">Projects</div>
+    </div>
+    <div class="stat-card">
+        <div class="icon pink">
+            <i class="bi bi-star"></i>
+        </div>
+        <div class="number">{{ profile.subscription_tier|default:"Free"|upper }}</div>
+        <div class="label">Plan</div>
+    </div>
+    <div class="stat-card">
+        <div class="icon blue">
+            <i class="bi bi-check-circle"></i>
+        </div>
+        <div class="number">{{ completed_estimates|default:0 }}</div>
+        <div class="label">Completed</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="section-header">
+    <h3>Quick Actions</h3>
+</div>
+<div class="quick-actions">
+    <a href="{% url 'datas' %}" class="action-card">
+        <div class="icon"><i class="bi bi-plus-lg"></i></div>
+        <span>New Estimate</span>
+    </a>
+    <a href="{% url 'workslip' %}" class="action-card">
+        <div class="icon"><i class="bi bi-clipboard-data"></i></div>
+        <span>Workslip</span>
+    </a>
+    <a href="{% url 'my_projects' %}" class="action-card">
+        <div class="icon"><i class="bi bi-folder2-open"></i></div>
+        <span>Projects</span>
+    </a>
+    <a href="{% url 'datas_groups' 'Electrical' %}" class="action-card">
+        <div class="icon"><i class="bi bi-lightning"></i></div>
+        <span>Electrical</span>
+    </a>
+    <a href="{% url 'datas_groups' 'Civil' %}" class="action-card">
+        <div class="icon"><i class="bi bi-building"></i></div>
+        <span>Civil</span>
+    </a>
+</div>
+
+<!-- Recent Estimates -->
+<div class="section-header">
+    <h3>Recent Estimates</h3>
+    {% if recent_estimates %}
+    <a href="{% url 'my_estimates' %}">View All</a>
+    {% endif %}
+</div>
+
+{% if recent_estimates %}
+<div class="estimates-list">
+    {% for estimate in recent_estimates %}
+    <div class="estimate-item">
+        <div class="estimate-info">
+            <h4>{{ estimate.work_name|default:"Untitled Estimate" }}</h4>
+            <p>Created {{ estimate.created_at|date:"M d, Y" }} - {{ estimate.status|default:"Draft"|upper }} - <span class="amount">Rs.{{ estimate.total_amount|default:"0.00" }}</span></p>
+        </div>
+        <a href="{% url 'view_estimate' estimate.id %}" class="btn-view">View</a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-file-earmark-plus"></i>
+    <p>No estimates yet. Let's create your first one!</p>
+    <a href="{% url 'datas' %}" class="btn-create">
+        <i class="bi bi-plus-lg"></i>
+        Create Estimate
+    </a>
+</div>
+{% endif %}
+
+{% if total_projects > 0 %}
+<div class="section-header" style="margin-top: 1.5rem;">
+    <h3>Recent Projects</h3>
+    <a href="{% url 'my_projects' %}">View All</a>
+</div>
+<div class="empty-state">
+    <p>You have {{ total_projects }} project(s). <a href="{% url 'my_projects' %}" style="color: #805ad5;">Manage projects</a></p>
+</div>
+{% endif %}
+
+{% endblock %}

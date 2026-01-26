@@ -1,0 +1,130 @@
+{% extends "core/base.html" %}
+
+{% load static %}
+
+{% block content %}
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 30px auto;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+        margin-top: 0;
+    }
+
+    .form-group {
+        margin: 20px 0;
+    }
+
+    .form-group input[type="file"],
+    .form-group button {
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+    }
+
+    .form-group button {
+        background: #0d6efd;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+
+    .form-group button:hover {
+        background: #0b5ed7;
+    }
+
+    .back-link {
+        display: block;
+        margin-top: 20px;
+        text-align: center;
+    }
+</style>
+
+<div class="form-container">
+    <h2>Use Saved Format: {{ format.name }}</h2>
+
+    <p>{{ format.description }}</p>
+
+    <form method="POST" enctype="multipart/form-data" id="format-form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <h4>Upload Source File to read from (Bill / Estimate / MB / PDF / Image)</h4>
+            <p style="font-size:0.85rem; color:#666; margin-bottom:10px;">
+                <i class="bi bi-magic"></i> Supports blurred/scanned documents with smart OCR
+            </p>
+            <input type="file" name="source_file" 
+                   accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
+        </div>
+
+        <div class="form-group">
+            <button type="submit">Generate Document</button>
+        </div>
+    </form>
+
+    <p>
+        This will use the template and custom placeholders stored for this format,
+        plus all built-in placeholders (Name of work, Agreement, MB, T.P, Amount, etc.)
+    </p>
+
+    <p class="back-link"><a href="{% url 'self_formatted_form_page' %}">← Back to Self-Formatted Forms</a></p>
+</div>
+
+<script src="{% static 'js/job-polling.js' %}"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("format-form");
+        
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            // Show loading modal
+            const modal = JobPoller.createLoadingModal('formatting');
+            modal.show();
+
+            // Submit form asynchronously
+            const job = await JobPoller.submitFormAsync(form);
+            
+            if (!job) {
+                modal.setMessage('Error: Failed to start document generation');
+                setTimeout(() => modal.hide(), 2000);
+                return;
+            }
+
+            // Poll for job completion
+            JobPoller.pollUntilComplete(
+                job.job_id,
+                job.status_url,
+                {
+                    onProgress: (data) => {
+                        const percent = data.progress || 0;
+                        const step = data.current_step || 'Generating document...';
+                        modal.setProgress(percent);
+                        modal.setMessage(step);
+                    },
+                    onComplete: (data) => {
+                        modal.hide();
+                        setTimeout(() => {
+                            modal.remove();
+                            JobPoller.showResultModal(data);
+                        }, 500);
+                    },
+                    onError: (error) => {
+                        modal.setMessage('Error: ' + error);
+                        setTimeout(() => modal.hide(), 3000);
+                    },
+                },
+                1000  // Poll every second
+            );
+        });
+    });
+</script>
+{% endblock %}
+

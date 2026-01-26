@@ -1,0 +1,240 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}View Estimate - {{ estimate.work_name }}{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-file-earmark-spreadsheet me-2"></i>{{ estimate.work_name }}
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .estimate-viewer {
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    
+    .estimate-header-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .estimate-header-card h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.2rem;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .estimate-meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .meta-item {
+        background: #f7fafc;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+    }
+    
+    .meta-label {
+        font-size: 0.8rem;
+        color: #718096;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    
+    .meta-value {
+        font-size: 1rem;
+        color: #2d3748;
+        font-weight: 600;
+        margin-top: 0.25rem;
+    }
+    
+    .actions-bar {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn {
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-secondary {
+        background: #e2e8f0;
+        color: #2d3748;
+    }
+    
+    .btn-secondary:hover {
+        background: #cbd5e0;
+    }
+    
+    .btn-danger {
+        background: #fc8181;
+        color: white;
+    }
+    
+    .btn-danger:hover {
+        background: #f56565;
+    }
+    
+    .estimate-table {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    
+    .estimate-table table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    
+    .estimate-table th {
+        background: #f7fafc;
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #2d3748;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .estimate-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #edf2f7;
+    }
+    
+    .estimate-table tr:hover {
+        background: #f7fafc;
+    }
+    
+    .amount {
+        text-align: right;
+        font-weight: 600;
+        color: #667eea;
+    }
+    
+    .total-row {
+        background: #f7fafc;
+        font-weight: 600;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        color: #718096;
+    }
+</style>
+
+<div class="estimate-viewer">
+    <!-- Header Card -->
+    <div class="estimate-header-card">
+        <h2>
+            <i class="bi bi-file-earmark"></i>
+            {{ estimate.work_name }}
+        </h2>
+        
+        <div class="estimate-meta">
+            <div class="meta-item">
+                <div class="meta-label">Total Amount</div>
+                <div class="meta-value">₹{{ estimate.total_amount|floatformat:2 }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Status</div>
+                <div class="meta-value">{{ estimate.get_status_display }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Created</div>
+                <div class="meta-value">{{ estimate.created_at|date:"M d, Y" }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Last Updated</div>
+                <div class="meta-value">{{ estimate.updated_at|date:"M d, Y" }}</div>
+            </div>
+        </div>
+        
+        <div class="actions-bar">
+            <a href="{% url 'download_specification_report' estimate.id %}" class="btn btn-primary">
+                <i class="bi bi-download"></i>
+                Download Specification Report
+            </a>
+            <a href="{% url 'my_estimates' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i>
+                Back to Estimates
+            </a>
+            <a href="{% url 'delete_estimate' estimate.id %}" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this estimate?');">
+                <i class="bi bi-trash"></i>
+                Delete
+            </a>
+        </div>
+    </div>
+    
+    <!-- Estimate Items Table -->
+    {% if estimate_data.items %}
+    <div class="estimate-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit</th>
+                    <th class="amount">Rate</th>
+                    <th class="amount">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in estimate_data.items %}
+                <tr>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td class="amount">₹{{ item.rate|floatformat:2 }}</td>
+                    <td class="amount">₹{{ item.amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="estimate-table">
+        <div class="empty-state">
+            <p><i class="bi bi-inbox" style="font-size: 2rem;"></i></p>
+            <p>No items in this estimate</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

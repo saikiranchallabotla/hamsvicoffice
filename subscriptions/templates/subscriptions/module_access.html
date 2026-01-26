@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ module.name }} - Subscribe | Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 380px;
+        }
+        .toast-notification {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+            backdrop-filter: blur(10px);
+        }
+        .toast-notification.hiding {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .toast-notification.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        .toast-icon {
+            font-size: 1.25rem;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .toast-content { flex: 1; }
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .toast-message {
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }
+        .toast-close {
+            background: none;
+            border: none;
+            color: white;
+            opacity: 0.7;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 12px;
+            font-size: 1.25rem;
+        }
+        .toast-close:hover { opacity: 1; }
+        
+        .subscription-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 480px;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .module-icon {
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2rem;
+        }
+        
+        .card-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 0.25rem;
+        }
+        
+        .card-header p {
+            opacity: 0.8;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        
+        .card-body {
+            padding: 2rem;
+        }
+        
+        .current-status {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .current-status i {
+            font-size: 1.5rem;
+            color: #2563eb;
+        }
+        
+        .current-status .info h4 {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1e40af;
+        }
+        
+        .current-status .info p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: #3b82f6;
+        }
+        
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+        
+        .pricing-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .plan-option {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+        }
+        
+        .plan-option:hover {
+            border-color: #6366f1;
+            background: #f8faff;
+        }
+        
+        .plan-option.selected {
+            border-color: #6366f1;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        }
+        
+        .plan-option input {
+            display: none;
+        }
+        
+        .plan-info h5 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .plan-info span {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+        
+        .plan-price {
+            text-align: right;
+        }
+        
+        .plan-price .original {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-decoration: line-through;
+        }
+        
+        .plan-price .amount {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #6366f1;
+        }
+        
+        .plan-price .period {
+            font-size: 0.7rem;
+            color: #64748b;
+        }
+        
+        .plan-badge {
+            position: absolute;
+            top: -8px;
+            right: 12px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        
+        .btn-subscribe {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-subscribe:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+        }
+        
+        .features {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .features ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
+        .features li {
+            font-size: 0.85rem;
+            color: #4b5563;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        
+        .features li i {
+            color: #10b981;
+            font-size: 0.9rem;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+        
+        .back-link a {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        
+        .back-link a:hover {
+            color: #1f2937;
+        }
+        
+        .trial-banner {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .trial-banner h4 {
+            color: #059669;
+            margin: 0 0 0.5rem;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .trial-banner p {
+            color: #047857;
+            margin: 0 0 0.75rem;
+            font-size: 0.85rem;
+        }
+        
+        .btn-trial {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-trial:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+        
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+        
+        .divider span {
+            padding: 0 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="subscription-card">
+        <div class="card-header">
+            <div class="module-icon">
+                <i class="bi bi-{{ module.icon|default:'box' }}"></i>
+            </div>
+            <h1>{{ module.name }}</h1>
+            <p>{{ module.description|truncatechars:60 }}</p>
+        </div>
+        
+        <div class="card-body">
+            {% if current_subscription %}
+            <div class="current-status">
+                <i class="bi bi-info-circle-fill"></i>
+                <div class="info">
+                    <h4>Current: {{ current_subscription.get_status_display }} Access</h4>
+                    <p>
+                        {% if current_subscription.days_remaining > 0 %}
+                            {{ current_subscription.days_remaining }} days remaining
+                        {% else %}
+                            Expires today
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if trial_available %}
+            <div class="trial-banner">
+                <h4>
+                    <i class="bi bi-gift-fill"></i>
+                    Free Trial Available!
+                </h4>
+                <p>Try {{ module.name }} for 1 day free. No payment required.</p>
+                <form method="post" action="{% url 'start_trial' module_code=module.code %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-trial">
+                        <i class="bi bi-play-fill me-1"></i>
+                        Start Free Trial
+                    </button>
+                </form>
+            </div>
+            <div class="divider"><span>or subscribe for full access</span></div>
+            {% else %}
+            <div class="section-title">Choose Your Plan</div>
+            {% endif %}
+            
+            <form method="post" action="" id="subscribeForm">
+                {% csrf_token %}
+                <div class="pricing-options">
+                    {% for plan in plans %}
+                    <label class="plan-option {% if forloop.counter == 2 %}selected{% endif %}">
+                        <input type="radio" name="plan_id" value="{{ plan.id }}" {% if forloop.counter == 2 %}checked{% endif %}>
+                        {% if plan.is_popular or forloop.counter == 2 %}
+                        <span class="plan-badge">Popular</span>
+                        {% endif %}
+                        <div class="plan-info">
+                            <h5>{{ plan.get_duration_months_display }}</h5>
+                            <span>{{ plan.duration_months }} month{% if plan.duration_months > 1 %}s{% endif %} access</span>
+                        </div>
+                        <div class="plan-price">
+                            {% if plan.discount_percent > 0 %}
+                            <div class="original">₹{{ plan.base_price|floatformat:0 }}</div>
+                            {% endif %}
+                            <div class="amount">₹{{ plan.sale_price|floatformat:0 }}</div>
+                            <div class="period">{% if plan.duration_months == 1 %}/month{% else %}total{% endif %}</div>
+                        </div>
+                    </label>
+                    {% empty %}
+                    <p class="text-center text-muted">No plans available. Contact support.</p>
+                    {% endfor %}
+                </div>
+                
+                {% if plans %}
+                <button type="submit" class="btn-subscribe" id="subscribeBtn">
+                    <i class="bi bi-credit-card"></i>
+                    Subscribe Now
+                </button>
+                {% endif %}
+            </form>
+            
+            <div class="features">
+                <div class="section-title">What's Included</div>
+                <ul>
+                    <li><i class="bi bi-check-circle-fill"></i> Full module access</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Unlimited usage</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Excel/MS Word Export</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Priority support</li>
+                </ul>
+            </div>
+            
+            <div class="back-link">
+                <a href="{% url 'dashboard' %}">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script>
+        // Toast notification function
+        function showToast(message, type = 'warning', title = 'Notice', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast-notification ${type}`;
+            toast.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill toast-icon"></i>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.classList.add('hiding'); setTimeout(() => this.parentElement.remove(), 300);">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.add('hiding');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, duration);
+        }
+        
+        // Plan selection
+        document.querySelectorAll('.plan-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                this.querySelector('input[type="radio"]').checked = true;
+            });
+        });
+        
+        // Form submission
+        const subscribeForm = document.getElementById('subscribeForm');
+        if (subscribeForm) {
+            subscribeForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const selectedPlan = document.querySelector('input[name="plan_id"]:checked');
+                if (selectedPlan) {
+                    const planId = selectedPlan.value;
+                    const moduleCode = '{{ module.code }}';
+                    window.location.href = '/subscriptions/checkout/' + moduleCode + '/' + planId + '/';
+                } else {
+                    showToast('Please select a plan before proceeding', 'warning', 'Plan Required');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Estimates - Hamsvic</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        
+        nav {
+            background: white;
+            padding: 15px 40px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        nav a {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 20px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: #764ba2;
+        }
+        
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            margin: 0;
+        }
+        
+        .filters {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .filters a {
+            padding: 8px 16px;
+            border-radius: 5px;
+            background: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .filters a.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .filters a:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: #f9f9f9;
+            border-bottom: 2px solid #eee;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status.draft {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status.finalized {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.archived {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .amount {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .btn-view {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-view:hover {
+            background: #764ba2;
+        }
+        
+        .btn-delete {
+            background: #f0f0f0;
+            color: #d32f2f;
+        }
+        
+        .btn-delete:hover {
+            background: #ffebee;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #666;
+        }
+        
+        .btn-primary {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Hamsvic - My Estimates</h1>
+    </header>
+    
+    <nav>
+        <div>
+            <a href="{% url 'dashboard' %}">Dashboard</a>
+            <a href="{% url 'workslip' %}">Create Estimate</a>
+            <a href="{% url 'my_estimates' %}">My Estimates</a>
+            <a href="{% url 'my_projects' %}">Projects</a>
+        </div>
+        <div class="user-menu">
+            <span>{{ user.get_full_name|default:user.username }}</span>
+            <a href="{% url 'profile' %}">Profile</a>
+            <a href="{% url 'logout' %}">Logout</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="section">
+            <div class="section-header">
+                <h2>My Estimates</h2>
+            </div>
+            
+            <div class="filters">
+                <a href="?status=all" {% if status_filter == 'all' %}class="active"{% endif %}>All</a>
+                <a href="?status=draft" {% if status_filter == 'draft' %}class="active"{% endif %}>Draft</a>
+                <a href="?status=finalized" {% if status_filter == 'finalized' %}class="active"{% endif %}>Finalized</a>
+                <a href="?status=archived" {% if status_filter == 'archived' %}class="active"{% endif %}>Archived</a>
+            </div>
+            
+            {% if estimates %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for estimate in estimates %}
+                    <tr>
+                        <td><strong>{{ estimate.work_name }}</strong></td>
+                        <td>{{ estimate.get_category_display|default:estimate.category }}</td>
+                        <td class="amount">₹{{ estimate.total_amount|floatformat:2 }}</td>
+                        <td><span class="status {{ estimate.status }}">{{ estimate.get_status_display }}</span></td>
+                        <td>{{ estimate.created_at|date:"M d, Y" }}</td>
+                        <td>
+                            <div class="actions">
+                                <a href="{% url 'view_estimate' estimate.id %}" class="btn-small btn-view">View</a>
+                                <a href="{% url 'download_specification_report' estimate.id %}" class="btn-small btn-view" title="Download Specification Report">Spec Report</a>
+                                <a href="{% url 'delete_estimate' estimate.id %}" class="btn-small btn-delete">Delete</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <h3>No estimates found</h3>
+                <p>You haven't created any estimates yet. Let's create your first one!</p>
+                <a href="{% url 'workslip' %}" class="btn-primary">Create New Estimate</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <footer>
+        <p>&copy; 2026 Hamsvic. All rights reserved.</p>
+    </footer>
+</body>
+</html>

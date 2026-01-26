@@ -1,0 +1,128 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Select State - SOR Rates{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        Select State for SOR Rates
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        Choose your preferred state for Schedule of Rates (SOR). This determines which rate book 
+                        will be used for your estimates and other calculations.
+                    </p>
+                    
+                    {% if messages %}
+                    <div class="mb-4">
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row g-3">
+                            {% for state in states %}
+                            <div class="col-md-6">
+                                <div class="form-check state-card p-3 border rounded {% if current_state and current_state.code == state.code %}border-primary bg-light{% endif %}">
+                                    <input class="form-check-input" type="radio" 
+                                           name="state_code" 
+                                           id="state_{{ state.code }}" 
+                                           value="{{ state.code }}"
+                                           {% if current_state and current_state.code == state.code %}checked{% endif %}>
+                                    <label class="form-check-label w-100" for="state_{{ state.code }}">
+                                        <div class="d-flex align-items-center">
+                                            {% if state.flag_icon %}
+                                            <span class="me-2 fs-4">{{ state.flag_icon }}</span>
+                                            {% else %}
+                                            <span class="me-2 fs-4">🏛️</span>
+                                            {% endif %}
+                                            <div>
+                                                <strong>{{ state.name }}</strong>
+                                                {% if state.is_default %}
+                                                <span class="badge bg-success ms-2">Default</span>
+                                                {% endif %}
+                                                {% if current_state and current_state.code == state.code %}
+                                                <span class="badge bg-primary ms-1">Current</span>
+                                                {% endif %}
+                                                <br>
+                                                <small class="text-muted">{{ state.code }} - {{ state.full_name|default:state.name }}</small>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No states configured yet. Please contact administrator.
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-4 d-flex justify-content-between">
+                            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Save Preference
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Info Card -->
+            <div class="card mt-4 border-info">
+                <div class="card-body">
+                    <h5 class="card-title text-info">
+                        <i class="fas fa-lightbulb me-2"></i>About SOR Rates
+                    </h5>
+                    <p class="card-text">
+                        Schedule of Rates (SOR) are standardized rate lists published by state governments for 
+                        public works. Each state has its own SOR with different rates for materials, labor, and 
+                        construction activities.
+                    </p>
+                    <ul class="mb-0">
+                        <li>Your selected state's rates will be used in all estimates</li>
+                        <li>You can change this setting at any time</li>
+                        <li>Different modules can use different state rates if needed</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .state-card {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .state-card:hover {
+        background-color: #f8f9fa;
+        border-color: #007bff !important;
+    }
+    .state-card.border-primary {
+        border-width: 2px !important;
+    }
+    .form-check-input:checked + .form-check-label {
+        font-weight: 500;
+    }
+</style>
+{% endblock %}

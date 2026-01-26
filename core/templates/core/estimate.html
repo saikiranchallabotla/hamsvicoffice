@@ -1,0 +1,713 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Create Estimate{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-file-earmark-spreadsheet me-2"></i>Create Estimate
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .estimate-container {
+        max-width: 850px;
+        margin: 0 auto;
+    }
+    
+    .sections-wrapper {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    @media (max-width: 1024px) {
+        .sections-wrapper {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .sections-wrapper {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .estimate-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .estimate-header {
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
+        padding: 0.9rem 1.25rem;
+    }
+    
+    .estimate-header.spec-header {
+        background: linear-gradient(135deg, #2b6cb0 0%, #3182ce 100%);
+    }
+    
+    .estimate-header.forward-header {
+        background: linear-gradient(135deg, #276749 0%, #38a169 100%);
+    }
+    
+    .estimate-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .estimate-header p {
+        margin: 0.4rem 0 0 0;
+        font-size: 0.78rem;
+        opacity: 0.9;
+    }
+    
+    .estimate-body {
+        padding: 1rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .estimate-error {
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        color: #c53030;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.25rem;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .upload-zone {
+        border: 2px dashed #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        transition: all 0.3s;
+        background: #f7fafc;
+        margin-bottom: 1rem;
+    }
+    
+    .upload-zone:hover {
+        border-color: #805ad5;
+        background: #faf5ff;
+    }
+    
+    .upload-zone.spec-zone:hover {
+        border-color: #3182ce;
+        background: #ebf8ff;
+    }
+    
+    .upload-zone.forward-zone:hover {
+        border-color: #38a169;
+        background: #f0fff4;
+    }
+    
+    .upload-zone.dragover {
+        border-color: #805ad5;
+        background: #faf5ff;
+    }
+    
+    .upload-icon {
+        font-size: 2rem;
+        color: #805ad5;
+        margin-bottom: 0.5rem;
+    }
+    
+    .spec-zone .upload-icon {
+        color: #3182ce;
+    }
+    
+    .forward-zone .upload-icon {
+        color: #38a169;
+    }
+    
+    .upload-title {
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 0.3rem;
+        font-size: 0.85rem;
+    }
+    
+    .upload-subtitle {
+        color: #718096;
+        font-size: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .upload-input {
+        display: none;
+    }
+    
+    .upload-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1rem;
+        background: #805ad5;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .upload-btn:hover {
+        background: #6b46c1;
+    }
+    
+    .upload-btn.spec-btn {
+        background: #3182ce;
+    }
+    
+    .upload-btn.spec-btn:hover {
+        background: #2b6cb0;
+    }
+    
+    .upload-btn.forward-btn {
+        background: #38a169;
+    }
+    
+    .upload-btn.forward-btn:hover {
+        background: #276749;
+    }
+    
+    .file-info {
+        display: none;
+        background: #f0fff4;
+        border: 1px solid #9ae6b4;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.25rem;
+    }
+    
+    .file-info.show {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .file-info i {
+        font-size: 1.5rem;
+        color: #38a169;
+    }
+    
+    .file-details {
+        flex: 1;
+    }
+    
+    .file-name {
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 0.85rem;
+        word-break: break-all;
+    }
+    
+    .file-size {
+        color: #718096;
+        font-size: 0.75rem;
+    }
+    
+    .remove-file {
+        background: none;
+        border: none;
+        color: #e53e3e;
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1.25rem;
+    }
+    
+    .generate-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        width: 100%;
+        padding: 0.7rem 1rem;
+        background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-top: auto;
+    }
+    
+    .generate-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+    }
+    
+    .generate-btn:disabled {
+        background: #cbd5e0;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .generate-btn.spec-generate {
+        background: linear-gradient(135deg, #3182ce 0%, #2b6cb0 100%);
+    }
+    
+    .generate-btn.spec-generate:hover:not(:disabled) {
+        box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+    }
+    
+    .generate-btn.spec-generate:disabled {
+        background: #cbd5e0;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .generate-btn.forward-generate {
+        background: linear-gradient(135deg, #38a169 0%, #276749 100%);
+    }
+    
+    .generate-btn.forward-generate:hover:not(:disabled) {
+        box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+    }
+    
+    .generate-btn.forward-generate:disabled {
+        background: #cbd5e0;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    /* Instructions Card */
+    .instructions-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        margin-top: 1rem;
+        overflow: hidden;
+    }
+    
+    .instructions-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.6rem 1rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .instructions-body {
+        padding: 0.75rem 1rem;
+    }
+    
+    .instructions-body ol {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: #4a5568;
+        font-size: 0.8rem;
+    }
+    
+    .instructions-body li {
+        margin-bottom: 0.4rem;
+    }
+    
+    .instructions-body code {
+        background: #faf5ff;
+        color: #805ad5;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+    
+    .info-note {
+        background: #ebf8ff;
+        border: 1px solid #bee3f8;
+        border-radius: 6px;
+        padding: 0.6rem;
+        font-size: 0.75rem;
+        color: #2b6cb0;
+        margin-bottom: 0.75rem;
+        line-height: 1.4;
+    }
+    
+    .info-note i {
+        margin-right: 0.5rem;
+    }
+</style>
+
+<div class="estimate-container">
+    {% if error %}
+    <div class="estimate-error" style="margin-bottom: 1.25rem;">
+        <i class="bi bi-exclamation-circle"></i>
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+    
+    <div class="sections-wrapper">
+        <!-- Section 1: Generate Estimate -->
+        <div class="estimate-card">
+            <div class="estimate-header">
+                <h2><i class="bi bi-file-earmark-spreadsheet"></i> Generate Estimate</h2>
+                <p>Upload your output Excel file to create a formatted estimate document.</p>
+            </div>
+            
+            <div class="estimate-body">
+                <form method="post" enctype="multipart/form-data" id="estimateForm">
+                    {% csrf_token %}
+                    
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">
+                            <i class="bi bi-file-earmark-excel"></i>
+                        </div>
+                        <div class="upload-title">Drop your Excel file here</div>
+                        <div class="upload-subtitle">or click to browse</div>
+                        <input type="file" name="output_file" id="fileInput" class="upload-input" accept=".xlsx" required>
+                        <button type="button" class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                            <i class="bi bi-folder2-open"></i> Browse Files
+                        </button>
+                    </div>
+                    
+                    <div class="file-info" id="fileInfo">
+                        <i class="bi bi-file-earmark-excel-fill"></i>
+                        <div class="file-details">
+                            <div class="file-name" id="fileName"></div>
+                            <div class="file-size" id="fileSize"></div>
+                        </div>
+                        <button type="button" class="remove-file" onclick="removeFile('estimate')">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                    
+                    <button type="submit" class="generate-btn" id="generateBtn" disabled>
+                        <i class="bi bi-lightning-fill"></i>
+                        Generate Estimate
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Section 2: Generate Specification Report -->
+        <div class="estimate-card">
+            <div class="estimate-header spec-header">
+                <h2><i class="bi bi-file-earmark-word"></i> Specification Report</h2>
+                <p>Generate specification report from workbook with Estimate & Datas sheets.</p>
+            </div>
+            
+            <div class="estimate-body">
+                <form method="post" action="{% url 'generate_specification_report' %}" enctype="multipart/form-data" id="specReportForm">
+                    {% csrf_token %}
+                    
+                    <div class="upload-zone spec-zone" id="specUploadZone">
+                        <div class="upload-icon">
+                            <i class="bi bi-file-earmark-word"></i>
+                        </div>
+                        <div class="upload-title">Drop your workbook here</div>
+                        <div class="upload-subtitle">Requires Estimate + Datas sheets</div>
+                        <input type="file" name="output_file" id="specFileInput" class="upload-input" accept=".xlsx" required>
+                        <button type="button" class="upload-btn spec-btn" onclick="document.getElementById('specFileInput').click()">
+                            <i class="bi bi-folder2-open"></i> Browse Files
+                        </button>
+                    </div>
+                    
+                    <div class="file-info" id="specFileInfo">
+                        <i class="bi bi-file-earmark-excel-fill"></i>
+                        <div class="file-details">
+                            <div class="file-name" id="specFileName"></div>
+                            <div class="file-size" id="specFileSize"></div>
+                        </div>
+                        <button type="button" class="remove-file" onclick="removeFile('spec')">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                    
+                    <button type="submit" class="generate-btn spec-generate" id="specGenerateBtn" disabled>
+                        <i class="bi bi-file-earmark-word"></i>
+                        Download Specification Report
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Section 3: Generate Forwarding Letter -->
+        <div class="estimate-card">
+            <div class="estimate-header forward-header">
+                <h2><i class="bi bi-envelope-paper"></i> Forwarding Letter</h2>
+                <p>Generate forwarding letter from multi-sheet estimate workbook.</p>
+            </div>
+            
+            <div class="estimate-body">
+                <form method="post" action="{% url 'generate_forwarding_letter' %}" enctype="multipart/form-data" id="forwardForm">
+                    {% csrf_token %}
+                    
+                    <div class="upload-zone forward-zone" id="forwardUploadZone">
+                        <div class="upload-icon">
+                            <i class="bi bi-envelope-paper"></i>
+                        </div>
+                        <div class="upload-title">Drop your workbook here</div>
+                        <div class="upload-subtitle">Multiple Estimate sheets supported</div>
+                        <input type="file" name="output_file" id="forwardFileInput" class="upload-input" accept=".xlsx" required>
+                        <button type="button" class="upload-btn forward-btn" onclick="document.getElementById('forwardFileInput').click()">
+                            <i class="bi bi-folder2-open"></i> Browse Files
+                        </button>
+                    </div>
+                    
+                    <div class="file-info" id="forwardFileInfo">
+                        <i class="bi bi-file-earmark-excel-fill"></i>
+                        <div class="file-details">
+                            <div class="file-name" id="forwardFileName"></div>
+                            <div class="file-size" id="forwardFileSize"></div>
+                        </div>
+                        <button type="button" class="remove-file" onclick="removeFile('forward')">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                    
+                    <button type="submit" class="generate-btn forward-generate" id="forwardGenerateBtn" disabled>
+                        <i class="bi bi-envelope-paper"></i>
+                        Download Forwarding Letter
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="instructions-card">
+        <div class="instructions-header">
+            <i class="bi bi-info-circle"></i> How It Works
+        </div>
+        <div class="instructions-body">
+            <ol>
+                <li><strong>Generate Estimate:</strong> Upload your Datas Excel file (<code>.xlsx</code>) to create a formatted estimate document</li>
+                <li><strong>Specification Report:</strong> Upload a workbook with <code>Estimate</code> and <code>Datas</code> sheets</li>
+                <li><strong>Forwarding Letter:</strong> Upload multi-sheet estimate workbook to generate a formal forwarding letter with:
+                    <ul style="margin-top:0.3rem;margin-bottom:0;">
+                        <li>Work names and grand totals from each Estimate sheet</li>
+                        <li>Amounts in Indian format (Lakhs, Crores)</li>
+                        <li>Current financial year and date</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ========== Estimate Section ==========
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const generateBtn = document.getElementById('generateBtn');
+    const uploadZone = document.getElementById('uploadZone');
+    
+    // Handle file selection
+    fileInput.addEventListener('change', function(e) {
+        if (this.files && this.files.length > 0) {
+            const file = this.files[0];
+            if (file.name.endsWith('.xlsx')) {
+                showFileInfo(file, 'estimate');
+            } else {
+                alert('Please select a .xlsx file');
+                this.value = '';
+            }
+        }
+    }, false);
+    
+    // Handle drag and drop for estimate
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadZone.classList.add('dragover');
+        }, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadZone.classList.remove('dragover');
+        }, false);
+    });
+    
+    uploadZone.addEventListener('drop', function(e) {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            if (files[0].name.endsWith('.xlsx')) {
+                fileInput.files = files;
+                showFileInfo(files[0], 'estimate');
+            } else {
+                alert('Please drop a .xlsx file');
+            }
+        }
+    }, false);
+    
+    // ========== Specification Report Section ==========
+    const specFileInput = document.getElementById('specFileInput');
+    const specFileInfo = document.getElementById('specFileInfo');
+    const specFileName = document.getElementById('specFileName');
+    const specFileSize = document.getElementById('specFileSize');
+    const specGenerateBtn = document.getElementById('specGenerateBtn');
+    const specUploadZone = document.getElementById('specUploadZone');
+    
+    // Handle file selection for spec report
+    specFileInput.addEventListener('change', function(e) {
+        if (this.files && this.files.length > 0) {
+            const file = this.files[0];
+            if (file.name.endsWith('.xlsx')) {
+                showFileInfo(file, 'spec');
+            } else {
+                alert('Please select a .xlsx file');
+                this.value = '';
+            }
+        }
+    }, false);
+    
+    // Handle drag and drop for spec report
+    ['dragenter', 'dragover'].forEach(eventName => {
+        specUploadZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            specUploadZone.classList.add('dragover');
+        }, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        specUploadZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            specUploadZone.classList.remove('dragover');
+        }, false);
+    });
+    
+    specUploadZone.addEventListener('drop', function(e) {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            if (files[0].name.endsWith('.xlsx')) {
+                specFileInput.files = files;
+                showFileInfo(files[0], 'spec');
+            } else {
+                alert('Please drop a .xlsx file');
+            }
+        }
+    }, false);
+    
+    // ========== Forwarding Letter Section ==========
+    const forwardFileInput = document.getElementById('forwardFileInput');
+    const forwardFileInfo = document.getElementById('forwardFileInfo');
+    const forwardFileName = document.getElementById('forwardFileName');
+    const forwardFileSize = document.getElementById('forwardFileSize');
+    const forwardGenerateBtn = document.getElementById('forwardGenerateBtn');
+    const forwardUploadZone = document.getElementById('forwardUploadZone');
+    
+    // Handle file selection for forwarding letter
+    forwardFileInput.addEventListener('change', function(e) {
+        if (this.files && this.files.length > 0) {
+            const file = this.files[0];
+            if (file.name.endsWith('.xlsx')) {
+                showFileInfo(file, 'forward');
+            } else {
+                alert('Please select a .xlsx file');
+                this.value = '';
+            }
+        }
+    }, false);
+    
+    // Handle drag and drop for forwarding letter
+    ['dragenter', 'dragover'].forEach(eventName => {
+        forwardUploadZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            forwardUploadZone.classList.add('dragover');
+        }, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        forwardUploadZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            forwardUploadZone.classList.remove('dragover');
+        }, false);
+    });
+    
+    forwardUploadZone.addEventListener('drop', function(e) {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            if (files[0].name.endsWith('.xlsx')) {
+                forwardFileInput.files = files;
+                showFileInfo(files[0], 'forward');
+            } else {
+                alert('Please drop a .xlsx file');
+            }
+        }
+    }, false);
+    
+    // ========== Shared Functions ==========
+    function showFileInfo(file, section) {
+        if (section === 'estimate') {
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('show');
+            uploadZone.style.display = 'none';
+            generateBtn.disabled = false;
+        } else if (section === 'spec') {
+            specFileName.textContent = file.name;
+            specFileSize.textContent = formatFileSize(file.size);
+            specFileInfo.classList.add('show');
+            specUploadZone.style.display = 'none';
+            specGenerateBtn.disabled = false;
+        } else if (section === 'forward') {
+            forwardFileName.textContent = file.name;
+            forwardFileSize.textContent = formatFileSize(file.size);
+            forwardFileInfo.classList.add('show');
+            forwardUploadZone.style.display = 'none';
+            forwardGenerateBtn.disabled = false;
+        }
+    }
+    
+    window.removeFile = function(section) {
+        if (section === 'estimate') {
+            fileInput.value = '';
+            fileInfo.classList.remove('show');
+            uploadZone.style.display = 'block';
+            generateBtn.disabled = true;
+        } else if (section === 'spec') {
+            specFileInput.value = '';
+            specFileInfo.classList.remove('show');
+            specUploadZone.style.display = 'block';
+            specGenerateBtn.disabled = true;
+        } else if (section === 'forward') {
+            forwardFileInput.value = '';
+            forwardFileInfo.classList.remove('show');
+            forwardUploadZone.style.display = 'block';
+            forwardGenerateBtn.disabled = true;
+        }
+    };
+    
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,49 @@
+{% if file %}
+<div class="file-info">
+    <div class="file-icon {{ card.icon_class }}">
+        <i class="bi bi-file-earmark-excel"></i>
+    </div>
+    <div class="file-details">
+        <div class="file-name">{{ file.name }}</div>
+        <div class="file-meta">
+            {{ file.size_readable }} •
+            Modified: {{ file.modified|date:"d M Y, h:i A" }}
+        </div>
+    </div>
+</div>
+<div class="file-actions">
+    <a href="{% url 'admin_preview_file' card.key %}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-eye me-1"></i>Preview
+    </a>
+    <a href="{% url 'admin_download_file' card.key %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-download me-1"></i>Download
+    </a>
+    <!-- Direct file picker for Replace -->
+    <form id="replace-form-{{ card.key }}" action="{% url 'admin_upload_file' card.key %}" method="post" enctype="multipart/form-data" style="display: inline;">
+        {% csrf_token %}
+        <input type="file" name="file" id="file-input-{{ card.key }}" accept=".xlsx,.xls" style="display: none;" 
+               onchange="document.getElementById('replace-form-{{ card.key }}').submit();">
+        <button type="button" class="btn {{ card.btn_class }} btn-sm" 
+                onclick="document.getElementById('file-input-{{ card.key }}').click();">
+            <i class="bi bi-arrow-repeat me-1"></i>Replace
+        </button>
+    </form>
+</div>
+{% else %}
+<div class="no-file">
+    <i class="bi bi-exclamation-circle me-2"></i>
+    No {{ card.key }}.xlsx file found
+    <div class="mt-2">
+        <!-- Direct file picker for Upload -->
+        <form id="upload-form-{{ card.key }}" action="{% url 'admin_upload_file' card.key %}" method="post" enctype="multipart/form-data" style="display: inline;">
+            {% csrf_token %}
+            <input type="file" name="file" id="upload-input-{{ card.key }}" accept=".xlsx,.xls" style="display: none;" 
+                   onchange="document.getElementById('upload-form-{{ card.key }}').submit();">
+            <button type="button" class="btn {{ card.btn_class }} btn-sm" 
+                    onclick="document.getElementById('upload-input-{{ card.key }}').click();">
+                <i class="bi bi-upload me-1"></i>{{ card.upload_label }}
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}

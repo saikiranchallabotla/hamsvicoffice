@@ -1,0 +1,52 @@
+asgiref==3.11.0
+Django==5.2.8
+et_xmlfile==2.0.0
+inflect==7.5.0
+lxml==6.0.2
+more-itertools==10.8.0
+openpyxl==3.1.5
+python-docx==1.2.0
+PyPDF2==3.0.1
+sqlparse==0.5.3
+typeguard==4.4.4
+typing_extensions==4.15.0
+tzdata==2025.2
+
+# PDF OCR Support (requires Tesseract OCR installed on system)
+pdf2image==1.17.0
+pytesseract==0.3.13
+Pillow>=10.0.0
+numpy>=1.24.0  # For advanced image preprocessing
+
+# ==============================================================================
+# NEW: Production-ready dependencies
+# ==============================================================================
+
+# Database
+psycopg2-binary>=2.9.9  # PostgreSQL adapter
+
+# File Storage
+django-storages==1.14.2  # S3/DO Spaces support
+boto3==1.26.137  # AWS SDK for S3
+
+# Background Jobs & Caching
+celery>=5.3.4  # Async task queue
+django-celery-beat>=2.6.0  # Celery periodic tasks (2.6.0+ supports Django 5)
+redis>=5.0.1  # Redis client
+django-redis>=5.4.0  # Redis caching backend
+
+# Configuration
+python-dotenv==1.0.0  # Environment variables from .env
+
+# WSGI Server
+gunicorn>=21.2.0  # Production WSGI server
+
+# Optional: Monitoring & Error Tracking
+sentry-sdk==1.44.1  # Error tracking
+
+# Security
+django-cors-headers>=4.3.0  # CORS handling for API
+
+# SMS & Payment
+twilio>=8.10.0  # Twilio SMS for OTP
+razorpay>=1.4.1  # Razorpay payment gateway

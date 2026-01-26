@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Select or Create Project</h2>
+
+<form method="post">
+    {% csrf_token %}
+    <label>Project name:</label><br>
+    <input type="text" name="project_name" required style="padding:6px;">
+    <button type="submit" style="padding:6px 10px;">Continue</button>
+</form>
+
+{% if projects %}
+<hr>
+<h3>Existing Projects</h3>
+<ul>
+    {% for p in projects %}
+        <li>
+            {{ p.name }} 
+            <a href="?use={{ p.id }}">Use</a>
+        </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

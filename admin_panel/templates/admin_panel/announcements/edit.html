@@ -1,0 +1,138 @@
+{% extends "admin_panel/base.html" %}
+{% load tz %}
+
+{% block title %}{% if announcement.id %}Edit Announcement{% else %}New Announcement{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_announcement_list' %}">Announcements</a></li>
+<li class="breadcrumb-item active">{% if announcement.id %}Edit{% else %}New{% endif %}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="admin-card">
+            <div class="card-header">
+                <h5>{% if announcement.id %}Edit Announcement{% else %}New Announcement{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" value="{{ announcement.title|default:'' }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Message <span class="text-danger">*</span></label>
+                        <textarea name="message" class="form-control" rows="4" required>{{ announcement.message|default:'' }}</textarea>
+                        <div class="form-text">HTML is allowed for formatting</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Type</label>
+                            <select name="announcement_type" class="form-select">
+                                <option value="info" {% if announcement.announcement_type == 'info' %}selected{% endif %}>Info</option>
+                                <option value="success" {% if announcement.announcement_type == 'success' %}selected{% endif %}>Success</option>
+                                <option value="warning" {% if announcement.announcement_type == 'warning' %}selected{% endif %}>Warning</option>
+                                <option value="danger" {% if announcement.announcement_type == 'danger' %}selected{% endif %}>Danger/Alert</option>
+                                <option value="maintenance" {% if announcement.announcement_type == 'maintenance' %}selected{% endif %}>Maintenance</option>
+                                <option value="feature" {% if announcement.announcement_type == 'feature' %}selected{% endif %}>New Feature</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Target Audience</label>
+                            <select name="target_audience" class="form-select">
+                                <option value="all" {% if announcement.target_audience == 'all' %}selected{% endif %}>All Users</option>
+                                <option value="free" {% if announcement.target_audience == 'free' %}selected{% endif %}>Free Users Only</option>
+                                <option value="paid" {% if announcement.target_audience == 'paid' %}selected{% endif %}>Paid Users Only</option>
+                                <option value="admin" {% if announcement.target_audience == 'admin' %}selected{% endif %}>Admins Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Starts At</label>
+                            <input type="datetime-local" name="starts_at" class="form-control" value="{% if announcement.starts_at %}{{ announcement.starts_at|localtime|date:'Y-m-d\TH:i' }}{% endif %}">
+                            <div class="form-text">Leave empty for immediate</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ends At</label>
+                            <input type="datetime-local" name="ends_at" class="form-control" value="{% if announcement.ends_at %}{{ announcement.ends_at|localtime|date:'Y-m-d\TH:i' }}{% endif %}">
+                            <div class="form-text">Leave empty for no expiry</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Link (optional)</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <input type="text" name="link_text" class="form-control" placeholder="Button text" value="{{ announcement.link_text|default:'' }}">
+                            </div>
+                            <div class="col-md-8">
+                                <input type="url" name="link_url" class="form-control" placeholder="https://..." value="{{ announcement.link_url|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if announcement.is_active or not announcement.id %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">Active</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_dismissible" id="is_dismissible" {% if announcement.is_dismissible or not announcement.id %}checked{% endif %}>
+                                <label class="form-check-label" for="is_dismissible">Users can dismiss</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_banner" id="is_banner" {% if announcement.is_banner %}checked{% endif %}>
+                                <label class="form-check-label" for="is_banner">Show as banner</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Preview -->
+                    <div class="mb-4">
+                        <label class="form-label">Preview</label>
+                        <div class="alert alert-info" id="preview">
+                            <strong>Announcement Title</strong>
+                            <p class="mb-0">Your message will appear here...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i> {% if announcement.id %}Save Changes{% else %}Create Announcement{% endif %}
+                        </button>
+                        <a href="{% url 'admin_announcement_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Live preview
+document.querySelector('select[name="announcement_type"]').addEventListener('change', function() {
+    const preview = document.getElementById('preview');
+    preview.className = 'alert alert-' + this.value;
+});
+
+document.querySelector('input[name="title"]').addEventListener('input', function() {
+    document.querySelector('#preview strong').textContent = this.value || 'Announcement Title';
+});
+
+document.querySelector('textarea[name="message"]').addEventListener('input', function() {
+    document.querySelector('#preview p').innerHTML = this.value || 'Your message will appear here...';
+});
+</script>
+{% endblock %}

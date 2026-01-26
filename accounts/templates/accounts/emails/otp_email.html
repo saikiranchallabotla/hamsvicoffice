@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Verification Code</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px 40px; text-align: center;">
+                            <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 12px; display: inline-block; line-height: 60px;">
+                                <span style="color: white; font-size: 28px; font-weight: bold;">H</span>
+                            </div>
+                            <h1 style="margin: 20px 0 10px 0; color: #1f2937; font-size: 24px; font-weight: 600;">
+                                Verification Code
+                            </h1>
+                            <p style="margin: 0; color: #6b7280; font-size: 16px;">
+                                Use this code to verify your identity
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- OTP Code -->
+                    <tr>
+                        <td style="padding: 20px 40px;">
+                            <div style="background: linear-gradient(135deg, #f0f0ff, #faf5ff); padding: 30px; text-align: center; border-radius: 12px; border: 2px dashed #c4b5fd;">
+                                <span style="font-size: 40px; font-weight: 700; letter-spacing: 12px; color: #4f46e5; font-family: 'Courier New', monospace;">{{ otp }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Expiry Notice -->
+                    <tr>
+                        <td style="padding: 10px 40px 30px 40px; text-align: center;">
+                            <p style="margin: 0; color: #ef4444; font-size: 14px; font-weight: 500;">
+                                ⏱️ This code expires in {{ expiry_minutes }} minutes
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Security Notice -->
+                    <tr>
+                        <td style="padding: 0 40px 30px 40px;">
+                            <div style="background-color: #fef3c7; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                <p style="margin: 0; color: #92400e; font-size: 14px;">
+                                    <strong>🔒 Security Tip:</strong> Never share this code with anyone. Hamsvic will never ask for your OTP via call or message.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; text-align: center;">
+                            <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
+                                If you didn't request this code, you can safely ignore this email.
+                            </p>
+                            <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                                © 2026 Hamsvic. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

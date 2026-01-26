@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<style>
+  .module-hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 24px;
+    padding: 3rem;
+    color: white;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .module-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 400px;
+    height: 400px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+  }
+  .module-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 300px;
+    height: 300px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+  }
+  .module-hero-content {
+    position: relative;
+    z-index: 1;
+  }
+  .module-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  .module-code-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(10px);
+    padding: 0.4rem 1rem;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  .module-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 1rem 0 0.75rem;
+    letter-spacing: -0.5px;
+  }
+  .module-description {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    max-width: 600px;
+  }
+  
+  .features-card {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+  }
+  .features-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .features-title-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+  }
+  .feature-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+  .feature-item:last-child {
+    margin-bottom: 0;
+  }
+  .feature-item:hover {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    transform: translateX(4px);
+  }
+  .feature-check {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-right: 1rem;
+    flex-shrink: 0;
+  }
+  .feature-text {
+    font-weight: 500;
+    color: #334155;
+  }
+  
+  .status-card {
+    border-radius: 20px;
+    padding: 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .status-card.active {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    border: 1px solid #86efac;
+  }
+  .status-card.expired {
+    background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+    border: 1px solid #fca5a5;
+  }
+  .status-card.trial {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #93c5fd;
+  }
+  .status-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .status-card.active .status-icon {
+    background: #22c55e;
+    color: white;
+    box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
+  }
+  .status-card.expired .status-icon {
+    background: #ef4444;
+    color: white;
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
+  }
+  .status-card.trial .status-icon {
+    background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+    color: white;
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+  }
+  .status-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+  .status-card.active .status-title { color: #166534; }
+  .status-card.expired .status-title { color: #991b1b; }
+  .status-card.trial .status-title { color: #1e40af; }
+  .status-message {
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+  .status-card.active .status-message { color: #15803d; }
+  .status-card.expired .status-message { color: #b91c1c; }
+  .status-card.trial .status-message { color: #1d4ed8; }
+  
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 2rem;
+    border-radius: 14px;
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+  }
+  .action-btn.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
+  }
+  .action-btn.primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.45);
+    color: white;
+  }
+  .action-btn.success {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35);
+  }
+  .action-btn.success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(34, 197, 94, 0.45);
+    color: white;
+  }
+  .action-btn i {
+    font-size: 1.25rem;
+  }
+  
+  .subscription-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.7);
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  .status-card.active .subscription-info {
+    color: #166534;
+    border: 1px solid #86efac;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Hero Section -->
+  <div class="module-hero">
+    <div class="module-hero-content">
+      <div class="module-icon">
+        <i class="bi bi-box-seam"></i>
+      </div>
+      <span class="module-code-badge">
+        <i class="bi bi-code-slash me-1"></i>{{ module.code }}
+      </span>
+      <h1 class="module-title">{{ module.name }}</h1>
+      <p class="module-description">{{ module.description|default:'Enhance your workflow with powerful tools and features.' }}</p>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Features Section -->
+    <div class="col-lg-5 mb-4 mb-lg-0">
+      <div class="features-card h-100">
+        <h3 class="features-title">
+          <span class="features-title-icon">
+            <i class="bi bi-stars"></i>
+          </span>
+          What's Included
+        </h3>
+        {% if features %}
+          {% for f in features %}
+            <div class="feature-item">
+              <span class="feature-check">
+                <i class="bi bi-check2"></i>
+              </span>
+              <span class="feature-text">{{ f }}</span>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="feature-item">
+            <span class="feature-check">
+              <i class="bi bi-check2"></i>
+            </span>
+            <span class="feature-text">Full module access</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-check">
+              <i class="bi bi-check2"></i>
+            </span>
+            <span class="feature-text">Priority support</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-check">
+              <i class="bi bi-check2"></i>
+            </span>
+            <span class="feature-text">Regular updates</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Status Section -->
+    <div class="col-lg-7">
+      {% if subscription %}
+        {% if subscription.is_active %}
+          <!-- Active Subscription -->
+          <div class="status-card active">
+            <div class="status-icon">
+              <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <h2 class="status-title">You Have Full Access!</h2>
+            <div class="subscription-info">
+              <i class="bi bi-calendar-check"></i>
+              <span>Active until {{ subscription.expires_at|date:"F d, Y" }}</span>
+            </div>
+            <p class="status-message">
+              Your <strong>{{ subscription.status }}</strong> subscription is active. Enjoy all the features of {{ module.name }}.
+            </p>
+            <a href="{{ module_url }}" class="action-btn success">
+              <i class="bi bi-arrow-right-circle-fill"></i>
+              Open {{ module.name }}
+            </a>
+          </div>
+        {% else %}
+          <!-- Expired Trial/Subscription -->
+          <div class="status-card expired">
+            <div class="status-icon">
+              <i class="bi bi-clock-history"></i>
+            </div>
+            <h2 class="status-title">Trial Period Ended</h2>
+            <p class="status-message">
+              Your free trial for <strong>{{ module.name }}</strong> has ended. Subscribe now to unlock all features and continue where you left off.
+            </p>
+            <a href="{% url 'checkout' module.code pricing_options.first.id %}" class="action-btn primary">
+              <i class="bi bi-rocket-takeoff-fill"></i>
+              Upgrade to Full Access
+            </a>
+          </div>
+        {% endif %}
+      {% else %}
+        <!-- Start Trial -->
+        <div class="status-card trial">
+          <div class="status-icon">
+            <i class="bi bi-gift-fill"></i>
+          </div>
+          <h2 class="status-title">Try It Free!</h2>
+          <p class="status-message">
+            Experience the full power of <strong>{{ module.name }}</strong> with a {{ module.trial_days }}-day free trial. No credit card required.
+          </p>
+          <form method="post" action="{% url 'start_trial' module.code %}">
+            {% csrf_token %}
+            <button type="submit" class="action-btn primary">
+              <i class="bi bi-play-circle-fill"></i>
+              Start {{ module.trial_days }}-Day Free Trial
+            </button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

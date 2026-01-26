@@ -1,0 +1,158 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Users{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Users</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Users</h4>
+    <span class="text-muted">{{ users.paginator.count }} total</span>
+</div>
+
+<!-- Filters -->
+<div class="admin-card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <input type="text" name="q" class="form-control" placeholder="Search users..." value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="role" class="form-select">
+                    <option value="">All Roles</option>
+                    <option value="user" {% if role == 'user' %}selected{% endif %}>User</option>
+                    <option value="admin" {% if role == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="superadmin" {% if role == 'superadmin' %}selected{% endif %}>Super Admin</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'admin_user_list' %}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Users Table -->
+<div class="admin-card">
+    <div class="card-body p-0">
+        <table class="table admin-table mb-0">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Joined</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="user-avatar me-2" style="width:32px;height:32px;background:#6366f1;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:0.75rem;">
+                                {{ u.first_name|slice:":1"|upper|default:"U" }}
+                            </div>
+                            <div>
+                                <a href="{% url 'admin_user_detail' u.id %}" class="fw-semibold text-decoration-none">
+                                    {{ u.get_full_name|default:u.username }}
+                                </a>
+                                <div class="text-muted small">@{{ u.username }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ u.email|default:"-" }}</td>
+                    <td>
+                        {% if u.account_profile %}
+                            {{ u.account_profile.phone|default:"-" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.account_profile %}
+                            <span class="badge bg-secondary">{{ u.account_profile.get_role_display }}</span>
+                        {% else %}
+                            <span class="badge bg-light text-dark">User</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.is_active %}
+                            <span class="badge status-active">Active</span>
+                        {% else %}
+                            <span class="badge status-cancelled">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.date_joined|date:"d M Y" }}</td>
+                    <td>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                Actions
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'admin_user_detail' u.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
+                                <li><a class="dropdown-item" href="{% url 'admin_user_edit' u.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                                <li><a class="dropdown-item" href="{% url 'admin_grant_subscription' u.id %}"><i class="bi bi-gift me-2"></i>Grant Subscription</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form action="{% url 'admin_user_toggle_status' u.id %}" method="post">
+                                        {% csrf_token %}
+                                        <button type="submit" class="dropdown-item {% if u.is_active %}text-danger{% else %}text-success{% endif %}">
+                                            <i class="bi bi-{% if u.is_active %}x-circle{% else %}check-circle{% endif %} me-2"></i>
+                                            {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">No users found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if users.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if users.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ users.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if role %}&role={{ role }}{% endif %}">Previous</a>
+        </li>
+        {% endif %}
+        
+        <li class="page-item disabled">
+            <span class="page-link">Page {{ users.number }} of {{ users.paginator.num_pages }}</span>
+        </li>
+        
+        {% if users.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ users.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if role %}&role={{ role }}{% endif %}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,560 @@
+{% extends 'accounts/auth_base.html' %}
+{% load static %}
+
+{% block title %}Login - Hamsvic{% endblock %}
+
+{% block auth_content %}
+<style>
+    .auth-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+        padding: 2.5rem 2.5rem 2rem;
+        width: 100%;
+        max-width: 420px;
+        margin: 0 auto;
+    }
+    
+    .auth-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .auth-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.025em;
+    }
+    
+    .auth-header p {
+        color: #64748b;
+        font-size: 0.9375rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.625rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .phone-input-wrapper {
+        display: flex;
+        align-items: stretch;
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        transition: all 0.2s;
+        overflow: hidden;
+    }
+    
+    .phone-input-wrapper:hover {
+        border-color: #cbd5e1;
+    }
+    
+    .phone-input-wrapper:focus-within {
+        border-color: #3b82f6;
+        background: white;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Country Selector */
+    .country-wrapper {
+        position: relative;
+        flex-shrink: 0;
+    }
+    
+    .country-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.875rem 1rem;
+        background: transparent;
+        border: none;
+        border-right: 2px solid #e2e8f0;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+        font-size: 0.9375rem;
+        height: 100%;
+    }
+    
+    .country-btn:hover {
+        background: rgba(59, 130, 246, 0.05);
+    }
+    
+    .country-btn:focus {
+        outline: none;
+        background: rgba(59, 130, 246, 0.08);
+    }
+    
+    .country-btn .flag-icon {
+        width: 24px;
+        height: 18px;
+        border-radius: 3px;
+        object-fit: cover;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .country-btn .code-text {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.9375rem;
+    }
+    
+    .country-btn .arrow-icon {
+        color: #94a3b8;
+        font-size: 0.5rem;
+        transition: transform 0.2s;
+    }
+    
+    .country-wrapper.open .arrow-icon {
+        transform: rotate(180deg);
+    }
+    
+    .country-list {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        width: 260px;
+        max-height: 280px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        z-index: 100;
+        display: none;
+        padding: 0.5rem;
+    }
+    
+    .country-wrapper.open .country-list {
+        display: block;
+        animation: dropdownFade 0.2s ease;
+    }
+    
+    @keyframes dropdownFade {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .country-opt {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.625rem 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    
+    .country-opt:hover {
+        background: #f1f5f9;
+    }
+    
+    .country-opt.selected {
+        background: #eff6ff;
+    }
+    
+    .country-opt .flag-icon {
+        width: 24px;
+        height: 18px;
+        border-radius: 3px;
+        object-fit: cover;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .country-opt .country-name {
+        flex: 1;
+        font-size: 0.875rem;
+        color: #374151;
+        font-weight: 500;
+    }
+    
+    .country-opt .country-code {
+        font-size: 0.8125rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+    
+    .phone-field {
+        flex: 1;
+        padding: 0.875rem 1rem;
+        font-size: 1.0625rem;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-weight: 500;
+        color: #1e293b;
+        letter-spacing: 0.025em;
+    }
+    
+    .phone-field:focus {
+        outline: none;
+    }
+    
+    .phone-field::placeholder {
+        color: #94a3b8;
+        font-weight: 400;
+    }
+    
+    .hint-text {
+        display: block;
+        margin-top: 0.625rem;
+        font-size: 0.8125rem;
+        color: #64748b;
+        text-align: center;
+    }
+    
+    .submit-btn {
+        width: 100%;
+        padding: 1rem 1.5rem;
+        margin-top: 0.5rem;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.25s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+    }
+    
+    .submit-btn:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+        transform: translateY(-1px);
+    }
+    
+    .submit-btn:active {
+        transform: translateY(0);
+    }
+    
+    .submit-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .submit-btn .spin {
+        width: 20px;
+        height: 20px;
+        animation: rotate 1s linear infinite;
+    }
+    
+    @keyframes rotate {
+        to { transform: rotate(360deg); }
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 1.25rem;
+    }
+    
+    .info-item {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-size: 0.8125rem;
+        color: #64748b;
+    }
+    
+    .info-item svg {
+        width: 16px;
+        height: 16px;
+        color: #10b981;
+    }
+    
+    .auth-footer {
+        text-align: center;
+        margin-top: 1.75rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #f1f5f9;
+    }
+    
+    .auth-footer p {
+        color: #64748b;
+        font-size: 0.9375rem;
+    }
+    
+    .auth-footer a {
+        color: #3b82f6;
+        font-weight: 600;
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    
+    .auth-footer a:hover {
+        color: #2563eb;
+        text-decoration: underline;
+    }
+    
+    .country-list::-webkit-scrollbar {
+        width: 6px;
+    }
+    .country-list::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+    .country-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    .country-list::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    
+    @media (max-width: 480px) {
+        .auth-card {
+            padding: 2rem 1.5rem 1.5rem;
+            border-radius: 16px;
+        }
+    }
+</style>
+
+<div class="auth-card">
+    <div class="auth-header">
+        <h1>Welcome Back</h1>
+        <p>Sign in to continue to Hamsvic</p>
+    </div>
+    
+    <form method="post" id="loginForm">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label>Phone Number</label>
+            <div class="phone-input-wrapper">
+                <div class="country-wrapper" id="countryWrapper">
+                    <button type="button" class="country-btn" id="countryBtn">
+                        <img class="flag-icon" id="flagImg" src="https://flagcdn.com/w40/in.png" alt="IN">
+                        <span class="code-text" id="codeText">+91</span>
+                        <span class="arrow-icon">▼</span>
+                    </button>
+                    
+                    <div class="country-list" id="countryList">
+                        <div class="country-opt selected" data-code="+91" data-flag="in">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/in.png" alt="IN">
+                            <span class="country-name">India</span>
+                            <span class="country-code">+91</span>
+                        </div>
+                        <div class="country-opt" data-code="+1" data-flag="us">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/us.png" alt="US">
+                            <span class="country-name">United States</span>
+                            <span class="country-code">+1</span>
+                        </div>
+                        <div class="country-opt" data-code="+44" data-flag="gb">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/gb.png" alt="GB">
+                            <span class="country-name">United Kingdom</span>
+                            <span class="country-code">+44</span>
+                        </div>
+                        <div class="country-opt" data-code="+971" data-flag="ae">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/ae.png" alt="AE">
+                            <span class="country-name">UAE</span>
+                            <span class="country-code">+971</span>
+                        </div>
+                        <div class="country-opt" data-code="+966" data-flag="sa">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/sa.png" alt="SA">
+                            <span class="country-name">Saudi Arabia</span>
+                            <span class="country-code">+966</span>
+                        </div>
+                        <div class="country-opt" data-code="+65" data-flag="sg">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/sg.png" alt="SG">
+                            <span class="country-name">Singapore</span>
+                            <span class="country-code">+65</span>
+                        </div>
+                        <div class="country-opt" data-code="+61" data-flag="au">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/au.png" alt="AU">
+                            <span class="country-name">Australia</span>
+                            <span class="country-code">+61</span>
+                        </div>
+                        <div class="country-opt" data-code="+60" data-flag="my">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/my.png" alt="MY">
+                            <span class="country-name">Malaysia</span>
+                            <span class="country-code">+60</span>
+                        </div>
+                        <div class="country-opt" data-code="+974" data-flag="qa">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/qa.png" alt="QA">
+                            <span class="country-name">Qatar</span>
+                            <span class="country-code">+974</span>
+                        </div>
+                        <div class="country-opt" data-code="+968" data-flag="om">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/om.png" alt="OM">
+                            <span class="country-name">Oman</span>
+                            <span class="country-code">+968</span>
+                        </div>
+                        <div class="country-opt" data-code="+973" data-flag="bh">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/bh.png" alt="BH">
+                            <span class="country-name">Bahrain</span>
+                            <span class="country-code">+973</span>
+                        </div>
+                        <div class="country-opt" data-code="+965" data-flag="kw">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/kw.png" alt="KW">
+                            <span class="country-name">Kuwait</span>
+                            <span class="country-code">+965</span>
+                        </div>
+                        <div class="country-opt" data-code="+977" data-flag="np">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/np.png" alt="NP">
+                            <span class="country-name">Nepal</span>
+                            <span class="country-code">+977</span>
+                        </div>
+                        <div class="country-opt" data-code="+94" data-flag="lk">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/lk.png" alt="LK">
+                            <span class="country-name">Sri Lanka</span>
+                            <span class="country-code">+94</span>
+                        </div>
+                        <div class="country-opt" data-code="+880" data-flag="bd">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/bd.png" alt="BD">
+                            <span class="country-name">Bangladesh</span>
+                            <span class="country-code">+880</span>
+                        </div>
+                        <div class="country-opt" data-code="+92" data-flag="pk">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/pk.png" alt="PK">
+                            <span class="country-name">Pakistan</span>
+                            <span class="country-code">+92</span>
+                        </div>
+                        <div class="country-opt" data-code="+49" data-flag="de">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/de.png" alt="DE">
+                            <span class="country-name">Germany</span>
+                            <span class="country-code">+49</span>
+                        </div>
+                        <div class="country-opt" data-code="+33" data-flag="fr">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/fr.png" alt="FR">
+                            <span class="country-name">France</span>
+                            <span class="country-code">+33</span>
+                        </div>
+                        <div class="country-opt" data-code="+1" data-flag="ca">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/ca.png" alt="CA">
+                            <span class="country-name">Canada</span>
+                            <span class="country-code">+1</span>
+                        </div>
+                        <div class="country-opt" data-code="+81" data-flag="jp">
+                            <img class="flag-icon" src="https://flagcdn.com/w40/jp.png" alt="JP">
+                            <span class="country-name">Japan</span>
+                            <span class="country-code">+81</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <input type="hidden" name="country_code" id="countryCode" value="+91">
+                <input type="hidden" name="identifier" id="identifier">
+                
+                <input 
+                    type="tel" 
+                    id="phoneNumber" 
+                    name="phone_number" 
+                    class="phone-field"
+                    placeholder="98765 43210"
+                    autocomplete="tel"
+                    autofocus
+                    required
+                >
+            </div>
+            <span class="hint-text">We'll send you a secure OTP to verify</span>
+        </div>
+        
+        <button type="submit" class="submit-btn" id="submitBtn">
+            <span class="btn-label">Send OTP</span>
+            <span class="btn-wait" style="display: none;">
+                <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                </svg>
+                Sending...
+            </span>
+        </button>
+        
+        <div class="info-row">
+            <div class="info-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                No password
+            </div>
+            <div class="info-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Instant login
+            </div>
+        </div>
+    </form>
+    
+    <div class="auth-footer">
+        <p>Don't have an account? <a href="{% url 'register' %}">Create one</a></p>
+    </div>
+</div>
+
+<script>
+const wrapper = document.getElementById('countryWrapper');
+const btn = document.getElementById('countryBtn');
+const list = document.getElementById('countryList');
+const opts = document.querySelectorAll('.country-opt');
+const flagImg = document.getElementById('flagImg');
+const codeText = document.getElementById('codeText');
+const codeInput = document.getElementById('countryCode');
+
+btn.addEventListener('click', e => {
+    e.preventDefault();
+    wrapper.classList.toggle('open');
+});
+
+opts.forEach(opt => {
+    opt.addEventListener('click', () => {
+        const code = opt.dataset.code;
+        const flag = opt.dataset.flag;
+        
+        flagImg.src = `https://flagcdn.com/w40/${flag}.png`;
+        codeText.textContent = code;
+        codeInput.value = code;
+        
+        opts.forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        wrapper.classList.remove('open');
+        document.getElementById('phoneNumber').focus();
+    });
+});
+
+document.addEventListener('click', e => {
+    if (!wrapper.contains(e.target)) wrapper.classList.remove('open');
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') wrapper.classList.remove('open');
+});
+
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    const code = codeInput.value;
+    const phone = document.getElementById('phoneNumber').value.replace(/\s/g, '');
+    document.getElementById('identifier').value = code + phone;
+    
+    const btn = document.getElementById('submitBtn');
+    btn.querySelector('.btn-label').style.display = 'none';
+    btn.querySelector('.btn-wait').style.display = 'inline-flex';
+    btn.disabled = true;
+});
+
+document.getElementById('phoneNumber').addEventListener('input', function(e) {
+    let v = e.target.value.replace(/\D/g, '');
+    if (v.length > 10) v = v.slice(0, 10);
+    if (v.length > 5) v = v.slice(0, 5) + ' ' + v.slice(5);
+    e.target.value = v;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,382 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Edit Backend - {{ backend.name }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'admin_data_management' %}">Data Management</a></li>
+<li class="breadcrumb-item active">Edit Backend</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-card {
+        background: #fff;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .form-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .form-header h4 {
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 0.5rem;
+    }
+    .form-header p {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+    .module-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #fff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .category-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .category-badge.electrical {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    .category-badge.civil {
+        background: #fef3c7;
+        color: #b45309;
+    }
+    .form-label {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.5rem;
+    }
+    .form-control, .form-select {
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .form-text {
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+    .current-file {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 12px;
+        margin-bottom: 1rem;
+    }
+    .current-file-icon {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        color: #16a34a;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .current-file-info {
+        flex: 1;
+    }
+    .current-file-name {
+        font-weight: 600;
+        color: #1e293b;
+    }
+    .current-file-meta {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    .upload-area {
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        background: #f8fafc;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .upload-area:hover {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+    .upload-icon {
+        font-size: 2.5rem;
+        color: #94a3b8;
+        margin-bottom: 0.75rem;
+    }
+    .upload-text {
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 0.25rem;
+    }
+    .upload-hint {
+        font-size: 0.85rem;
+        color: #94a3b8;
+    }
+    .file-preview {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: #dcfce7;
+        border-radius: 10px;
+        margin-top: 1rem;
+    }
+    .file-preview-icon {
+        width: 48px;
+        height: 48px;
+        background: #16a34a;
+        color: #fff;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .file-preview-info {
+        flex: 1;
+    }
+    .file-preview-name {
+        font-weight: 600;
+        color: #166534;
+    }
+    .file-preview-size {
+        font-size: 0.85rem;
+        color: #16a34a;
+    }
+    .btn-submit {
+        padding: 0.875rem 2rem;
+        font-weight: 600;
+        border-radius: 10px;
+    }
+    .status-toggle {
+        padding: 1.25rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+    .status-toggle.active {
+        border-color: #10b981;
+        background: #ecfdf5;
+    }
+    .status-toggle.inactive {
+        border-color: #ef4444;
+        background: #fef2f2;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="form-card">
+            <div class="form-header">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                        <h4><i class="bi bi-pencil me-2"></i>Edit Backend</h4>
+                        <p>Update backend details or replace the file</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="module-badge">
+                            <i class="bi bi-box"></i>
+                            {{ module.name }}
+                        </span>
+                        <span class="category-badge {{ backend.category }}">
+                            <i class="bi {% if backend.category == 'electrical' %}bi-lightning{% else %}bi-building{% endif %}"></i>
+                            {{ backend.get_category_display }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" enctype="multipart/form-data" id="editBackendForm">
+                {% csrf_token %}
+                
+                <!-- Name -->
+                <div class="mb-4">
+                    <label class="form-label">Backend Name *</label>
+                    <input type="text" name="name" class="form-control" required
+                           value="{{ backend.name }}"
+                           placeholder="e.g., Telangana SOR 2024-25">
+                </div>
+
+                <!-- Code -->
+                <div class="mb-4">
+                    <label class="form-label">Short Code</label>
+                    <input type="text" name="code" class="form-control" 
+                           value="{{ backend.code }}"
+                           placeholder="e.g., TS_2024" maxlength="50">
+                </div>
+
+                <!-- Description -->
+                <div class="mb-4">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" rows="3"
+                              placeholder="Optional notes...">{{ backend.description }}</textarea>
+                </div>
+
+                <!-- Current File -->
+                <div class="mb-4">
+                    <label class="form-label">Current File</label>
+                    {% if file_info %}
+                    <div class="current-file">
+                        <div class="current-file-icon">
+                            <i class="bi bi-file-earmark-excel"></i>
+                        </div>
+                        <div class="current-file-info">
+                            <div class="current-file-name">{{ file_info.name }}</div>
+                            <div class="current-file-meta">
+                                {{ file_info.size_readable }} • Modified: {{ file_info.modified|date:"d M Y, h:i A" }}
+                            </div>
+                        </div>
+                        <div>
+                            <a href="{% url 'admin_preview_module_backend' backend.pk %}" class="btn btn-outline-primary btn-sm me-1">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'admin_download_module_backend' backend.pk %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        No file found. Please upload a new file.
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Replace File -->
+                <div class="mb-4">
+                    <label class="form-label">Replace File (optional)</label>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" name="file" id="fileInput" accept=".xlsx,.xls" style="display:none;">
+                        <div class="upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                        <div class="upload-text">Click to upload or drag and drop</div>
+                        <div class="upload-hint">Leave empty to keep current file</div>
+                    </div>
+                    <div id="filePreview" style="display:none;"></div>
+                </div>
+
+                <!-- Options -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Display Order</label>
+                        <input type="number" name="display_order" class="form-control" 
+                               value="{{ backend.display_order }}" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="is_default" id="isDefault"
+                                   {% if backend.is_default %}checked{% endif %}>
+                            <label class="form-check-label" for="isDefault">
+                                <strong>Default</strong>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
+                                   {% if backend.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="isActive">
+                                <strong>Active</strong>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <div class="d-flex gap-3">
+                    <a href="{% url 'admin_data_management' %}" class="btn btn-light btn-submit">
+                        <i class="bi bi-arrow-left me-2"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary btn-submit flex-grow-1">
+                        <i class="bi bi-check-lg me-2"></i>Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const filePreview = document.getElementById('filePreview');
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            showFilePreview(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            showFilePreview(fileInput.files[0]);
+        }
+    });
+
+    function showFilePreview(file) {
+        const size = (file.size / 1024).toFixed(1);
+        filePreview.innerHTML = `
+            <div class="file-preview">
+                <div class="file-preview-icon"><i class="bi bi-file-earmark-excel"></i></div>
+                <div class="file-preview-info">
+                    <div class="file-preview-name">${file.name}</div>
+                    <div class="file-preview-size">${size} KB - Will replace current file</div>
+                </div>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeFile()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        `;
+        filePreview.style.display = 'block';
+        uploadArea.style.display = 'none';
+    }
+
+    window.removeFile = function() {
+        fileInput.value = '';
+        filePreview.style.display = 'none';
+        uploadArea.style.display = 'block';
+    };
+});
+</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+{% block content %}
+
+<h2>Project: {{ project }}</h2>
+<p>Select category:</p>
+
+<ul style="line-height: 2; font-size: 18px;">
+    <li><a href="{% url 'datas_groups' 'electrical' %}">Electrical</a></li>
+    <li><a href="{% url 'datas_groups' 'civil' %}">Civil</a></li>
+</ul>
+
+<a href="{% url 'select_project' %}">← Change Project</a>
+
+{% endblock %}

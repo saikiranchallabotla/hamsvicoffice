@@ -1,0 +1,145 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}AMC - Hamsvic{% endblock %}
+{% block page_title %}AMC (Annual Maintenance Contract){% endblock %}
+{% block page_badge %}<span class="badge">Create New</span>{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-modern">
+    <a href="{% url 'dashboard' %}">Dashboard</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">AMC</span>
+</div>
+
+<!-- Steps Indicator -->
+<div class="steps-indicator">
+    <div class="step active">
+        <div class="step-number">1</div>
+        <span class="step-label">Work Type</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step" id="step2">
+        <div class="step-number">2</div>
+        <span class="step-label">Category</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step">
+        <div class="step-number">3</div>
+        <span class="step-label">Items</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-calendar-check me-2"></i>
+        Select Work Type
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-4">Choose the type of AMC work, then select a category to continue.</p>
+        
+        <!-- Work Type Selection -->
+        <div class="action-grid" style="max-width: 500px;">
+            <div class="action-card" id="card-original" onclick="setWorkType('original')">
+                <div class="icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+                    <i class="bi bi-file-earmark-plus"></i>
+                </div>
+                <h3>Original Work</h3>
+                <p>New AMC items or installations</p>
+            </div>
+            
+            <div class="action-card" id="card-repair" onclick="setWorkType('repair')">
+                <div class="icon" style="background: linear-gradient(135deg, #64748b 0%, #475569 100%);">
+                    <i class="bi bi-tools"></i>
+                </div>
+                <h3>Repair Work</h3>
+                <p>Maintenance or repair items</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Category Section -->
+<div id="category-block" class="card mt-4" style="display:none;">
+    <div class="card-header">
+        <i class="bi bi-folder2-open me-2"></i>
+        Select Category
+        <span id="work-type-badge" class="badge ms-2"></span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">Select the AMC category to proceed. The backend data sheet must be configured in Admin Panel.</p>
+        
+        <div class="action-grid" style="max-width: 700px;">
+            <!-- AMC Electrical - uses amc_electrical.xlsx -->
+            <a id="btn-amc-electrical" href="#" data-url="{% url 'amc_groups' 'amc_electrical' %}" 
+               class="action-card" onclick="return goToCategory(this, 'amc_electrical');">
+                <div class="icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+                    <i class="bi bi-lightning-charge"></i>
+                </div>
+                <h3>AMC Electrical</h3>
+                <p>Electrical maintenance items</p>
+            </a>
+            
+            <!-- AMC Civil - uses amc_civil.xlsx -->
+            <a id="btn-amc-civil" href="#" data-url="{% url 'amc_groups' 'amc_civil' %}" 
+               class="action-card" onclick="return goToCategory(this, 'amc_civil');">
+                <div class="icon" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);">
+                    <i class="bi bi-building"></i>
+                </div>
+                <h3>AMC Civil</h3>
+                <p>Civil maintenance items</p>
+            </a>
+        </div>
+        
+        <div class="alert alert-info mt-4">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Note:</strong> To update AMC data, go to Admin Panel → Manage Backend Data → AMC Electrical/Civil Data
+            and upload your backend Excel file (must contain "Master Datas" and "Groups" sheets).
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedWorkType = null;
+
+function setWorkType(type) {
+    selectedWorkType = type;
+
+    const block = document.getElementById('category-block');
+    const badge = document.getElementById('work-type-badge');
+    const step2 = document.getElementById('step2');
+
+    block.style.display = 'block';
+    badge.textContent = type === "repair" ? "Repair Work" : "Original Work";
+    badge.className = type === "repair" ? "badge bg-secondary ms-2" : "badge bg-primary ms-2";
+
+    // Update step indicator
+    step2.classList.add('active');
+
+    // Highlight selected card
+    document.getElementById('card-original').classList.remove('active');
+    document.getElementById('card-repair').classList.remove('active');
+
+    if (type === "original") {
+        document.getElementById('card-original').classList.add('active');
+    } else {
+        document.getElementById('card-repair').classList.add('active');
+    }
+    
+    // Smooth scroll to category
+    block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function goToCategory(anchor, cat) {
+    if (!selectedWorkType) {
+        alert("Please select Original Work or Repair Work first.");
+        return false;
+    }
+
+    const baseUrl = anchor.getAttribute("data-url");
+    const url = baseUrl + "?work_type=" + encodeURIComponent(selectedWorkType);
+    window.location.href = url;
+    return false;
+}
+</script>
+
+{% endblock %}

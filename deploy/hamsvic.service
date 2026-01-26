@@ -1,0 +1,38 @@
+# ==============================================================================
+# Systemd Service for HAMSVIC Django Application
+# ==============================================================================
+# Place this file at: /etc/systemd/system/hamsvic.service
+# Then: sudo systemctl daemon-reload
+#       sudo systemctl enable hamsvic
+#       sudo systemctl start hamsvic
+
+[Unit]
+Description=HAMSVIC Django Application (Gunicorn)
+After=network.target postgresql.service redis.service
+Requires=network.target
+
+[Service]
+Type=notify
+User=ubuntu
+Group=ubuntu
+RuntimeDirectory=gunicorn
+WorkingDirectory=/home/ubuntu/hamsvic
+Environment="PATH=/home/ubuntu/hamsvic/venv/bin"
+EnvironmentFile=/home/ubuntu/hamsvic/.env
+ExecStart=/home/ubuntu/hamsvic/venv/bin/gunicorn \
+    --config /home/ubuntu/hamsvic/deploy/gunicorn.conf.py \
+    estimate_site.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
+PrivateTmp=true
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hamsvic
+
+[Install]
+WantedBy=multi-user.target

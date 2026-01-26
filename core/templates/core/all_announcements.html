@@ -1,0 +1,262 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}All Announcements{% endblock %}
+{% block nav_dashboard %}{% endblock %}
+
+{% block page_title %}Announcements{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .announcements-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+    
+    .announcements-header-icon {
+        width: 70px;
+        height: 70px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+    }
+    
+    .announcements-header h2 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+    
+    .announcements-header p {
+        margin: 0.5rem 0 0;
+        opacity: 0.9;
+    }
+    
+    .announcement-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        display: flex;
+        gap: 1.25rem;
+        transition: all 0.3s;
+        border-left: 4px solid transparent;
+    }
+    
+    .announcement-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    
+    .announcement-card.info {
+        border-left-color: #3b82f6;
+    }
+    
+    .announcement-card.warning {
+        border-left-color: #f59e0b;
+    }
+    
+    .announcement-card.success {
+        border-left-color: #10b981;
+    }
+    
+    .announcement-card.promo {
+        border-left-color: #8b5cf6;
+    }
+    
+    .announcement-card.read {
+        opacity: 0.7;
+        background: #f8fafc;
+    }
+    
+    .announcement-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    
+    .announcement-icon.info {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+    }
+    
+    .announcement-icon.warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+    }
+    
+    .announcement-icon.success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+    
+    .announcement-icon.promo {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+    }
+    
+    .announcement-content {
+        flex: 1;
+    }
+    
+    .announcement-content h4 {
+        margin: 0 0 0.5rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .announcement-content p {
+        margin: 0;
+        color: #64748b;
+        line-height: 1.6;
+    }
+    
+    .announcement-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 1rem;
+        font-size: 0.85rem;
+        color: #94a3b8;
+    }
+    
+    .announcement-meta i {
+        margin-right: 4px;
+    }
+    
+    .read-badge {
+        font-size: 0.7rem;
+        padding: 3px 10px;
+        background: #e2e8f0;
+        color: #64748b;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    
+    .unread-badge {
+        font-size: 0.7rem;
+        padding: 3px 10px;
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    
+    .announcement-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 500;
+        margin-top: 0.75rem;
+    }
+    
+    .announcement-link:hover {
+        text-decoration: underline;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+    
+    .empty-state h3 {
+        color: #64748b;
+        margin-bottom: 0.5rem;
+    }
+    
+    .empty-state p {
+        color: #94a3b8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="announcements-header">
+    <div class="announcements-header-icon">
+        <i class="bi bi-megaphone-fill"></i>
+    </div>
+    <div>
+        <h2>All Announcements</h2>
+        <p>Stay updated with the latest news, updates, and important information</p>
+    </div>
+</div>
+
+{% if announcements %}
+    {% for announcement in announcements %}
+    <div class="announcement-card {{ announcement.announcement_type }} {% if announcement.id in dismissed_ids %}read{% endif %}">
+        <div class="announcement-icon {{ announcement.announcement_type }}">
+            {% if announcement.announcement_type == 'warning' %}
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            {% elif announcement.announcement_type == 'success' %}
+                <i class="bi bi-check-circle-fill"></i>
+            {% elif announcement.announcement_type == 'promo' %}
+                <i class="bi bi-gift-fill"></i>
+            {% else %}
+                <i class="bi bi-megaphone-fill"></i>
+            {% endif %}
+        </div>
+        <div class="announcement-content">
+            <h4>
+                {{ announcement.title }}
+                {% if announcement.id in dismissed_ids %}
+                    <span class="read-badge">Read</span>
+                {% else %}
+                    <span class="unread-badge">New</span>
+                {% endif %}
+            </h4>
+            <p>{{ announcement.message }}</p>
+            
+            {% if announcement.link_url %}
+            <a href="{{ announcement.link_url }}" class="announcement-link" target="_blank">
+                {{ announcement.link_text|default:"Learn more" }}
+                <i class="bi bi-arrow-right"></i>
+            </a>
+            {% endif %}
+            
+            <div class="announcement-meta">
+                <span><i class="bi bi-calendar3"></i> {{ announcement.starts_at|date:"M d, Y" }}</span>
+                <span><i class="bi bi-clock"></i> {{ announcement.starts_at|time:"g:i A" }}</span>
+                {% if announcement.ends_at %}
+                <span><i class="bi bi-hourglass-split"></i> Expires: {{ announcement.ends_at|date:"M d, Y" }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <i class="bi bi-megaphone"></i>
+        <h3>No Announcements</h3>
+        <p>There are no announcements at this time. Check back later!</p>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,873 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Self Formatted Forms{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-file-earmark-text me-2"></i>Self Formatted Forms
+{% endblock %}
+
+{% block content %}
+
+<style>
+    /* Two Column Layout */
+    .sf-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        height: calc(100vh - 140px);
+    }
+    
+    /* Card Styles */
+    .sf-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .sf-card-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.5rem 0.75rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-shrink: 0;
+    }
+    
+    .sf-card-header.teal {
+        background: #319795;
+    }
+    
+    .sf-card-body {
+        padding: 0.6rem;
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    /* Compact Section */
+    .sf-row {
+        background: #f7fafc;
+        border-radius: 6px;
+        padding: 0.5rem 0.6rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .sf-row-title {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-weight: 600;
+        font-size: 0.72rem;
+        color: #2d3748;
+        margin-bottom: 0.3rem;
+    }
+    
+    .sf-row-title .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        background: #38a169;
+        color: white;
+        border-radius: 50%;
+        font-size: 0.65rem;
+        font-weight: 700;
+    }
+    
+    /* Form Elements */
+    .sf-label {
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.7rem;
+        margin-bottom: 0.15rem;
+        display: block;
+    }
+    
+    .sf-hint {
+        color: #718096;
+        font-size: 0.65rem;
+        margin-bottom: 0.2rem;
+    }
+    
+    .sf-input {
+        width: 100%;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        transition: all 0.2s;
+    }
+    
+    .sf-input:focus {
+        outline: none;
+        border-color: #38a169;
+        box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.1);
+    }
+    
+    /* Placeholder Rows */
+    .placeholder-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 28px;
+        gap: 0.35rem;
+        margin-bottom: 0.35rem;
+    }
+    
+    .btn-remove-row {
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fed7d7;
+        color: #c53030;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.65rem;
+    }
+    
+    .btn-add-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.25rem 0.5rem;
+        background: #e6fffa;
+        color: #319795;
+        border: 1px dashed #319795;
+        border-radius: 4px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    
+    /* Buttons */
+    .sf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.72rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+    
+    .sf-btn-primary {
+        background: #38a169;
+        color: white;
+    }
+    
+    .sf-btn-secondary {
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+    
+    .sf-btn-purple {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .sf-btn-teal {
+        background: #319795;
+        color: white;
+    }
+    
+    .sf-btn-group {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+    
+    /* Preview Box */
+    .sf-preview {
+        background: #f0fff4;
+        border: 1px solid #9ae6b4;
+        border-radius: 6px;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        display: none;
+        font-size: 0.7rem;
+    }
+    
+    .sf-preview.show {
+        display: block;
+    }
+    
+    .sf-preview table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .sf-preview th {
+        background: #38a169;
+        color: white;
+        padding: 0.3rem 0.4rem;
+        text-align: left;
+        font-size: 0.68rem;
+    }
+    
+    .sf-preview td {
+        padding: 0.3rem 0.4rem;
+        border-bottom: 1px solid #c6f6d5;
+    }
+    
+    .sf-preview code {
+        background: #c6f6d5;
+        color: #276749;
+        padding: 0.1rem 0.2rem;
+        border-radius: 3px;
+        font-size: 0.65rem;
+    }
+    
+    /* Saved Formats - Bottom Section */
+    .sf-formats-section {
+        margin-top: 0.75rem;
+    }
+    
+    .sf-formats-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: #2d3748;
+        margin-bottom: 0.4rem;
+        padding: 0 0.2rem;
+    }
+    
+    .sf-formats-grid {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .sf-format-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.6rem;
+        background: #f7fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        transition: all 0.2s;
+    }
+    
+    .sf-format-chip:hover {
+        border-color: #38a169;
+        background: #f0fff4;
+    }
+    
+    .sf-format-chip .name {
+        font-weight: 600;
+        color: #2d3748;
+    }
+    
+    .sf-format-chip .actions {
+        display: flex;
+        gap: 0.2rem;
+    }
+    
+    .sf-format-chip .actions a,
+    .sf-format-chip .actions button {
+        padding: 0.15rem 0.35rem;
+        font-size: 0.6rem;
+        border-radius: 3px;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    
+    .sf-format-chip .actions .use {
+        background: #38a169;
+        color: white;
+    }
+    
+    .sf-format-chip .actions .del {
+        background: #fed7d7;
+        color: #c53030;
+    }
+    
+    .sf-empty {
+        color: #a0aec0;
+        font-size: 0.72rem;
+        font-style: italic;
+    }
+    
+    /* Help Popup */
+    .help-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 999;
+    }
+    .help-overlay.show { display: block; }
+    
+    .help-popup {
+        display: none;
+        position: fixed;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        z-index: 1000;
+        max-width: 480px;
+        width: 90%;
+    }
+    .help-popup.show { display: block; }
+    
+    .help-popup-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.6rem 0.8rem;
+        border-radius: 10px 10px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    .help-popup-close {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 24px; height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+    
+    .help-popup-body {
+        padding: 0.75rem;
+        max-height: 350px;
+        overflow-y: auto;
+    }
+    
+    .placeholder-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+    }
+    
+    .placeholder-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.6rem;
+        background: #f7fafc;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .placeholder-chip code {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.62rem;
+        font-weight: 600;
+    }
+    
+    .placeholder-chip span {
+        color: #4a5568;
+        font-size: 0.7rem;
+    }
+    
+    .hidden-textarea { display: none; }
+    
+    /* Error */
+    .sf-error {
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        color: #c53030;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    @media (max-width: 900px) {
+        .sf-grid {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+    }
+</style>
+
+{% if error_message %}
+<div class="sf-error">
+    <i class="bi bi-exclamation-circle me-1"></i>{{ error_message }}
+</div>
+{% endif %}
+
+<div class="sf-grid">
+    <!-- LEFT: Generate Document -->
+    <div class="sf-card">
+        <div class="sf-card-header">
+            <i class="bi bi-magic"></i>
+            Quick Generate
+        </div>
+        <div class="sf-card-body">
+            <form id="generate-form" method="POST" action="{% url 'self_formatted_generate' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="sf-row">
+                    <div class="sf-row-title"><span class="num">1</span> Source File</div>
+                    <p class="sf-hint">Excel/Word/PDF/Image with data to extract (supports blurred scans)</p>
+                    <input type="file" name="source_file" class="sf-input" id="source-file" 
+                           accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
+                </div>
+                
+                <div class="sf-row">
+                    <div class="sf-row-title"><span class="num">2</span> Template File</div>
+                    <p class="sf-hint">Template with {% verbatim %}{{PLACEHOLDERS}}{% endverbatim %}</p>
+                    <input type="file" name="template_file" class="sf-input" required>
+                </div>
+                
+                <div class="sf-row">
+                    <div class="sf-row-title"><span class="num">3</span> Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></div>
+                    
+                    <div id="placeholder-rows">
+                        <div class="placeholder-row">
+                            <input type="text" class="sf-input ph-name" placeholder="Placeholder name">
+                            <input type="text" class="sf-input ph-label" placeholder="Label to find">
+                            <button type="button" class="btn-remove-row" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addPlaceholderRow()">
+                        <i class="bi bi-plus"></i> Add
+                    </button>
+                    <textarea name="custom_placeholders" class="hidden-textarea" id="combined-placeholders"></textarea>
+                </div>
+                
+                <div class="sf-btn-group">
+                    <button type="submit" class="sf-btn sf-btn-primary">
+                        <i class="bi bi-download"></i> Generate
+                    </button>
+                    <button type="button" id="btn-preview" class="sf-btn sf-btn-secondary">
+                        <i class="bi bi-eye" id="preview-icon"></i>
+                        <span id="preview-text">Preview</span>
+                        <span id="preview-loading" style="display:none;">
+                            <i class="bi bi-hourglass-split"></i> Processing...
+                        </span>
+                    </button>
+                    <button type="button" class="sf-btn sf-btn-purple" onclick="toggleHelpPopup()">
+                        <i class="bi bi-lightbulb"></i> Placeholders
+                    </button>
+                </div>
+                
+                <div id="preview-results" class="sf-preview">
+                    <div id="preview-table"></div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- RIGHT: Save Format -->
+    <div class="sf-card">
+        <div class="sf-card-header teal">
+            <i class="bi bi-save"></i>
+            Save Reusable Format
+        </div>
+        <div class="sf-card-body">
+            <form method="POST" action="{% url 'self_formatted_save_format' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="sf-row">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                        <div>
+                            <label class="sf-label">Format Name</label>
+                            <input type="text" name="format_name" class="sf-input" required placeholder="e.g., Bill Format">
+                        </div>
+                        <div>
+                            <label class="sf-label">Description</label>
+                            <input type="text" name="format_description" class="sf-input" placeholder="Optional">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sf-row">
+                    <label class="sf-label">Template File</label>
+                    <input type="file" name="format_template_file" class="sf-input" required>
+                </div>
+                
+                <div class="sf-row">
+                    <label class="sf-label">Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></label>
+                    
+                    <div id="format-placeholder-rows">
+                        <div class="placeholder-row">
+                            <input type="text" class="sf-input fph-name" placeholder="Placeholder name">
+                            <input type="text" class="sf-input fph-label" placeholder="Label to find">
+                            <button type="button" class="btn-remove-row" onclick="removeFormatRow(this)"><i class="bi bi-x"></i></button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addFormatPlaceholderRow()">
+                        <i class="bi bi-plus"></i> Add
+                    </button>
+                    <textarea name="format_custom_placeholders" class="hidden-textarea" id="format-combined-placeholders"></textarea>
+                </div>
+                
+                <button type="submit" class="sf-btn sf-btn-teal" onclick="combineFormatPlaceholders()">
+                    <i class="bi bi-save"></i> Save Format
+                </button>
+            </form>
+            
+            <!-- Saved Formats List -->
+            <div class="sf-formats-section">
+                <div class="sf-formats-header">
+                    <i class="bi bi-collection"></i> Saved Formats
+                </div>
+                {% if saved_formats %}
+                <div class="sf-formats-grid">
+                    {% for fmt in saved_formats %}
+                    <div class="sf-format-chip">
+                        <span class="name">{{ fmt.name }}</span>
+                        <div class="actions">
+                            <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
+                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" onsubmit="return confirm('Delete?');">
+                                {% csrf_token %}
+                                <button type="submit" class="del"><i class="bi bi-x"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <span class="sf-empty">No saved formats yet</span>
+                {% endif %}
+            </div>
+
+            <!-- Inline Use Format Modal -->
+            <div id="use-format-modal" style="display:none; margin-top:1rem; padding:0.75rem; background:#f7fafc; border-radius:8px; border:1px solid #e2e8f0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                    <h3 style="margin:0; font-size:0.85rem; font-weight:600; color:#2d3748;">
+                        Use Format: <span id="modal-format-name"></span>
+                    </h3>
+                    <button type="button" onclick="hideUseFormatModal()" style="background:none; border:none; cursor:pointer; color:#718096;">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                
+                <form id="use-format-form" method="POST" enctype="multipart/form-data" onsubmit="submitUseFormatForm(event)">
+                    {% csrf_token %}
+                    <input type="hidden" id="format-pk" name="format_pk" value="">
+                    
+                    <div class="sf-row">
+                        <label class="sf-label">Upload Source File</label>
+                        <p class="sf-hint">Excel/Word/PDF/Image with data (supports blurred scans)</p>
+                        <input type="file" name="source_file" class="sf-input" id="use-source-file" 
+                               accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
+                    </div>
+                    
+                    <div style="display:flex; gap:0.5rem;">
+                        <button type="submit" class="sf-btn sf-btn-green">
+                            <i class="bi bi-download"></i> Generate Document
+                        </button>
+                        <button type="button" onclick="hideUseFormatModal()" class="sf-btn" style="background:#e2e8f0; color:#4a5568;">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+<!-- Dialog Modal (Better UX) -->
+<dialog id="use-format-dialog" style="border:none; border-radius:16px; box-shadow:0 15px 50px rgba(0,0,0,0.25); padding:0; width:340px; position:fixed; bottom:30px; right:30px; margin:0; top:auto; left:auto;">
+    <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:1.25rem; border-radius:16px 16px 0 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="margin:0; font-size:1rem; font-weight:700; color:white; display:flex; align-items:center; gap:0.5rem;">
+                ✨ <span id="dialog-format-name" style="font-weight:600;"></span>
+            </h2>
+            <button onclick="document.getElementById('use-format-dialog').close()" style="background:none; border:none; cursor:pointer; color:white; font-size:1.3rem; opacity:0.9; transition:opacity 0.2s;">
+                ×
+            </button>
+        </div>
+    </div>
+    
+    <div style="padding:1.25rem; background:white;">
+        <form id="dialog-use-format-form" onsubmit="submitUseFormatForm(event)">
+            {% csrf_token %}
+            <input type="hidden" id="dialog-format-pk" value="">
+            
+            <div style="margin-bottom:1rem;">
+                <label style="display:block; font-weight:600; color:#2d3748; margin-bottom:0.4rem; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">
+                    <i class="bi bi-file-earmark-arrow-up" style="color:#667eea; margin-right:0.3rem;"></i> Select File
+                </label>
+                <p style="font-size:0.7rem; color:#718096; margin:0 0 0.4rem 0;">PDF/Image/Excel/Word (supports blurred scans)</p>
+                <input type="file" id="dialog-use-source-file" class="sf-input" 
+                       accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv"
+                       required style="padding:0.6rem; border:2px dashed #667eea; border-radius:8px; cursor:pointer; font-size:0.85rem; width:100%; box-sizing:border-box; transition:all 0.2s;">
+            </div>
+            
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button type="button" onclick="document.getElementById('use-format-dialog').close()" 
+                    style="padding:0.5rem 1rem; background:#f0f0f0; color:#4a5568; border:none; border-radius:8px; cursor:pointer; font-weight:500; font-size:0.85rem; transition:all 0.2s;">
+                    Close
+                </button>
+                <button type="submit" 
+                    style="padding:0.5rem 1rem; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; transition:all 0.2s; box-shadow:0 4px 12px rgba(102, 126, 234, 0.3);">
+                    <i class="bi bi-lightning-fill"></i> Generate
+                </button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<style>
+dialog::backdrop {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+#use-format-dialog {
+    animation: slideInBottomRight 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideInBottomRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px) translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) translateY(0);
+    }
+}
+
+#dialog-use-source-file {
+    transition: all 0.2s ease;
+}
+
+#dialog-use-source-file:hover {
+    border-color: #764ba2 !important;
+    background-color: #f8f4ff !important;
+}
+
+#dialog-use-source-file:focus {
+    outline: none;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+</style>
+        </div>
+    </div>
+</div>
+
+<!-- Help Popup -->
+<div class="help-overlay" id="help-overlay" onclick="toggleHelpPopup()"></div>
+<div class="help-popup" id="help-popup">
+    <div class="help-popup-header">
+        <span><i class="bi bi-lightbulb me-1"></i> Built-in Placeholders</span>
+        <button class="help-popup-close" onclick="toggleHelpPopup()"><i class="bi bi-x"></i></button>
+    </div>
+    <div class="help-popup-body">
+        <p style="font-size:0.72rem;color:#718096;margin-bottom:0.5rem;">These are automatically detected from your source file (Forwarding Slip, Estimate, Bill, etc.):</p>
+        <div class="placeholder-grid">
+            <div class="placeholder-chip"><code>{% verbatim %}{{NAME_OF_WORK}}{% endverbatim %}</code><span>Work Name</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{AMOUNT}}{% endverbatim %}</code><span>Total Amount</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{ESTIMATE_AMOUNT}}{% endverbatim %}</code><span>Estimate Amount</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{AMOUNT_IN_WORDS}}{% endverbatim %}</code><span>In Words</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{NAME_OF_AGENCY}}{% endverbatim %}</code><span>Agency/Contractor</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{CONTRACTOR}}{% endverbatim %}</code><span>Contractor Name</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{ADMIN_SANCTION}}{% endverbatim %}</code><span>Admin Sanction</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{TECH_SANCTION}}{% endverbatim %}</code><span>Tech Sanction</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{MB_DETAILS}}{% endverbatim %}</code><span>MB Details</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{EST_GRAND_TOTAL}}{% endverbatim %}</code><span>Estimate Total</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{REF_OF_AGREEMENT}}{% endverbatim %}</code><span>Agreement/Bond No</span></div>
+            <div class="placeholder-chip"><code>{% verbatim %}{{TP_DETAILS}}{% endverbatim %}</code><span>T.P. Details</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.toggleHelpPopup = function() {
+    document.getElementById('help-popup').classList.toggle('show');
+    document.getElementById('help-overlay').classList.toggle('show');
+};
+
+{% verbatim %}
+(function(){
+    // Generate form placeholder rows
+    window.addPlaceholderRow = function() {
+        const container = document.getElementById('placeholder-rows');
+        const row = document.createElement('div');
+        row.className = 'placeholder-row';
+        row.innerHTML = `
+            <input type="text" class="sf-input ph-name" placeholder="Placeholder name">
+            <input type="text" class="sf-input ph-label" placeholder="Label to find">
+            <button type="button" class="btn-remove-row" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
+        `;
+        container.appendChild(row);
+    };
+    
+    window.removeRow = function(btn) {
+        const row = btn.closest('.placeholder-row');
+        const container = document.getElementById('placeholder-rows');
+        if (container.children.length > 1) row.remove();
+        else row.querySelectorAll('input').forEach(i => i.value = '');
+    };
+    
+    // Format form placeholder rows
+    window.addFormatPlaceholderRow = function() {
+        const container = document.getElementById('format-placeholder-rows');
+        const row = document.createElement('div');
+        row.className = 'placeholder-row';
+        row.innerHTML = `
+            <input type="text" class="sf-input fph-name" placeholder="Placeholder name">
+            <input type="text" class="sf-input fph-label" placeholder="Label to find">
+            <button type="button" class="btn-remove-row" onclick="removeFormatRow(this)"><i class="bi bi-x"></i></button>
+        `;
+        container.appendChild(row);
+    };
+    
+    window.removeFormatRow = function(btn) {
+        const row = btn.closest('.placeholder-row');
+        const container = document.getElementById('format-placeholder-rows');
+        if (container.children.length > 1) row.remove();
+        else row.querySelectorAll('input').forEach(i => i.value = '');
+    };
+    
+    function combinePlaceholders() {
+        const rows = document.querySelectorAll('#placeholder-rows .placeholder-row');
+        const lines = [];
+        rows.forEach(row => {
+            const n = row.querySelector('.ph-name').value.trim();
+            const l = row.querySelector('.ph-label').value.trim();
+            if (n && l) lines.push(`${n} = ${l}`);
+        });
+        document.getElementById('combined-placeholders').value = lines.join('\n');
+    }
+    
+    window.combineFormatPlaceholders = function() {
+        const rows = document.querySelectorAll('#format-placeholder-rows .placeholder-row');
+        const lines = [];
+        rows.forEach(row => {
+            const n = row.querySelector('.fph-name').value.trim();
+            const l = row.querySelector('.fph-label').value.trim();
+            if (n && l) lines.push(`${n} = ${l}`);
+        });
+        document.getElementById('format-combined-placeholders').value = lines.join('\n');
+    };
+    
+    // Modal functions for inline Use Format
+    window.showUseFormatModal = function(formatPk, formatName) {
+        document.getElementById('dialog-format-pk').value = formatPk;
+        document.getElementById('dialog-format-name').textContent = formatName;
+        document.getElementById('dialog-use-source-file').value = '';
+        document.getElementById('use-format-dialog').showModal();
+    };
+    
+    window.submitUseFormatForm = async function(event) {
+        event.preventDefault();
+        const formatPk = document.getElementById('dialog-format-pk').value;
+        const sourceFile = document.getElementById('dialog-use-source-file').files[0];
+        
+        if (!sourceFile) {
+            alert('Please select a source file');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('source_file', sourceFile);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
+        
+        try {
+            const response = await fetch('/self-formatted/use/' + formatPk + '/', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                // If response is a file download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'document_' + new Date().getTime() + '.docx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                document.getElementById('use-format-dialog').close();
+            } else {
+                const text = await response.text();
+                alert('Error: ' + text);
+            }
+        } catch (error) {
+            alert('Error generating document: ' + error.message);
+        }
+    };
+
+    
+    const form = document.getElementById('generate-form');
+    if (form) form.addEventListener('submit', combinePlaceholders);
+    
+    const previewBtn = document.getElementById('btn-preview');
+    if (previewBtn) {
+        previewBtn.addEventListener('click', async function() {
+            combinePlaceholders();
+            const sourceFile = document.getElementById('source-file');
+            if (!sourceFile.files.length) { alert('Select a source file first.'); return; }
+            
+            // Show loading state
+            const previewIcon = document.getElementById('preview-icon');
+            const previewText = document.getElementById('preview-text');
+            const previewLoading = document.getElementById('preview-loading');
+            previewBtn.disabled = true;
+            if (previewIcon) previewIcon.style.display = 'none';
+            if (previewText) previewText.style.display = 'none';
+            if (previewLoading) previewLoading.style.display = 'inline';
+            
+            const fd = new FormData();
+            fd.append('source_file', sourceFile.files[0]);
+            fd.append('custom_placeholders', document.getElementById('combined-placeholders').value);
+            fd.append('csrfmiddlewaretoken', form.querySelector('input[name="csrfmiddlewaretoken"]').value);
+{% endverbatim %}
+            
+            try {
+                const res = await fetch("{% url 'self_formatted_preview' %}", { method: 'POST', body: fd, credentials: 'same-origin' });
+{% verbatim %}
+                const data = await res.json();
+                const container = document.getElementById('preview-results');
+                const table = document.getElementById('preview-table');
+                table.innerHTML = '';
+                
+                if (!res.ok) { table.innerText = data.error || 'Preview failed'; container.classList.add('show'); return; }
+                
+                const map = data.placeholders || {};
+                if (Object.keys(map).length === 0) {
+                    table.innerText = 'No placeholders detected.';
+                } else {
+                    let html = '<table><tr><th>Placeholder</th><th>Value</th></tr>';
+                    for (const key of Object.keys(map)) {
+                        html += `<tr><td><code>{{${key}}}</code></td><td>${String(map[key])}</td></tr>`;
+                    }
+                    html += '</table>';
+                    table.innerHTML = html;
+                }
+                container.classList.add('show');
+            } catch (err) { alert('Preview failed: ' + err.message); }
+            finally {
+                // Restore button state
+                previewBtn.disabled = false;
+                if (previewIcon) previewIcon.style.display = 'inline';
+                if (previewText) previewText.style.display = 'inline';
+                if (previewLoading) previewLoading.style.display = 'none';
+            }
+        });
+    }
+})();
+{% endverbatim %}
+</script>
+
+{% endblock %}

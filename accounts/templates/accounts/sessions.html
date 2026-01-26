@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Sessions - SSR Estimation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .sessions-page {
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        
+        .back-link {
+            position: fixed;
+            top: 1.5rem;
+            left: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.75rem 1.25rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+            transform: translateX(-3px);
+        }
+        
+        .sessions-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            max-width: 550px;
+            margin-top: 4rem;
+            overflow: hidden;
+        }
+        
+        .sessions-header {
+            background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+            color: white;
+            padding: 2rem 2.5rem;
+            text-align: center;
+        }
+        
+        .header-icon {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2rem;
+        }
+        
+        .sessions-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem;
+        }
+        
+        .sessions-header p {
+            opacity: 0.9;
+            margin: 0;
+            font-size: 0.95rem;
+        }
+        
+        .sessions-content {
+            padding: 1.5rem;
+        }
+        
+        .sessions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .session-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1.25rem;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .session-item:hover {
+            border-color: #cbd5e1;
+        }
+        
+        .session-item.current {
+            border-color: #6366f1;
+            background: linear-gradient(135deg, #f0f4ff 0%, #ede9fe 100%);
+        }
+        
+        .session-icon {
+            width: 48px;
+            height: 48px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6366f1;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            flex-shrink: 0;
+        }
+        
+        .session-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .session-details {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .session-device {
+            font-weight: 600;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.375rem;
+        }
+        
+        .current-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 0.25rem 0.625rem;
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .session-meta {
+            font-size: 0.8125rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .session-meta i {
+            font-size: 0.75rem;
+        }
+        
+        .session-time {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .session-action {
+            flex-shrink: 0;
+        }
+        
+        .revoke-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 1rem;
+            background: white;
+            border: 2px solid #fca5a5;
+            color: #ef4444;
+            border-radius: 8px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .revoke-btn:hover {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: #64748b;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            color: #cbd5e1;
+            margin-bottom: 1rem;
+        }
+        
+        .logout-all-section {
+            margin-top: 1rem;
+            padding-top: 1.5rem;
+            border-top: 2px dashed #e2e8f0;
+        }
+        
+        .logout-all-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 2px solid #fca5a5;
+            color: #dc2626;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .logout-all-btn:hover {
+            background: #fee2e2;
+            border-color: #ef4444;
+            transform: translateY(-1px);
+        }
+        
+        .sessions-footer {
+            padding: 1.5rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+        }
+        
+        .sessions-footer a {
+            color: #6366f1;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.2s;
+        }
+        
+        .sessions-footer a:hover {
+            color: #4f46e5;
+        }
+        
+        .security-tip {
+            background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+            border: 1px solid #fde047;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+        
+        .security-tip i {
+            color: #ca8a04;
+            font-size: 1.1rem;
+            margin-top: 0.125rem;
+        }
+        
+        .security-tip-text {
+            font-size: 0.8125rem;
+            color: #713f12;
+            line-height: 1.5;
+        }
+        
+        @media (max-width: 576px) {
+            .back-link {
+                top: 1rem;
+                left: 1rem;
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem;
+            }
+            
+            .sessions-card {
+                margin-top: 3rem;
+            }
+            
+            .sessions-header {
+                padding: 1.5rem;
+            }
+            
+            .session-item {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .session-action {
+                align-self: flex-end;
+            }
+        }
+        
+        /* Custom Confirmation Modal */
+        .confirm-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .confirm-modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .confirm-modal {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+            margin: 1rem;
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .confirm-modal-overlay.active .confirm-modal {
+            transform: scale(1) translateY(0);
+        }
+        
+        .confirm-modal-header {
+            padding: 2rem 2rem 1rem;
+            text-align: center;
+        }
+        
+        .confirm-modal-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.25rem;
+            font-size: 2rem;
+        }
+        
+        .confirm-modal-icon.warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #d97706;
+        }
+        
+        .confirm-modal-icon.danger {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #dc2626;
+        }
+        
+        .confirm-modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 0.5rem;
+        }
+        
+        .confirm-modal-message {
+            font-size: 0.95rem;
+            color: #64748b;
+            line-height: 1.6;
+            margin: 0;
+        }
+        
+        .confirm-modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            padding: 1.5rem 2rem 2rem;
+        }
+        
+        .confirm-modal-btn {
+            flex: 1;
+            padding: 0.875rem 1.5rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .confirm-modal-btn.cancel {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        .confirm-modal-btn.cancel:hover {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        
+        .confirm-modal-btn.confirm {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+        
+        .confirm-modal-btn.confirm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="sessions-page">
+        <a href="{% url 'dashboard' %}" class="back-link">
+            <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+        
+        <div class="sessions-card">
+            <div class="sessions-header">
+                <div class="header-icon">
+                    <i class="bi bi-phone"></i>
+                </div>
+                <h1>Active Sessions</h1>
+                <p>Manage devices where you're logged in</p>
+            </div>
+            
+            <div class="sessions-content">
+                <div class="security-tip">
+                    <i class="bi bi-shield-check"></i>
+                    <p class="security-tip-text">
+                        <strong>Security Tip:</strong> If you see a device you don't recognize, revoke its session immediately and change your password.
+                    </p>
+                </div>
+                
+                <div class="sessions-list">
+                    {% for session in sessions %}
+                    <div class="session-item {% if session.session_key == current_session %}current{% endif %}">
+                        <div class="session-icon">
+                            {% if 'Mobile' in session.device_type %}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                                <line x1="12" y1="18" x2="12.01" y2="18"/>
+                            </svg>
+                            {% else %}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                            {% endif %}
+                        </div>
+                        <div class="session-details">
+                            <div class="session-device">
+                                {{ session.device_type|default:"Unknown Device" }}
+                                {% if session.session_key == current_session %}
+                                <span class="current-badge">Current</span>
+                                {% endif %}
+                            </div>
+                            <div class="session-meta">
+                                <i class="bi bi-globe"></i>
+                                {{ session.ip_address }} • {{ session.city }}, {{ session.country }}
+                            </div>
+                            <div class="session-time">
+                                <i class="bi bi-clock"></i>
+                                Last active: {{ session.last_activity|timesince }} ago
+                            </div>
+                        </div>
+                        {% if session.session_key != current_session %}
+                        <form method="post" action="{% url 'revoke_session' session.id %}" class="session-action" id="revoke-form-{{ session.id }}">
+                            {% csrf_token %}
+                            <button type="button" class="revoke-btn" 
+                                    onclick="showConfirmModal('revoke', '{{ session.id }}', '{{ session.device_type|default:"this device" }}')">
+                                <i class="bi bi-x-circle"></i> Revoke
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        <i class="bi bi-check-circle"></i>
+                        <p>No other active sessions.<br>You're only logged in on this device.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                {% if sessions.count > 1 %}
+                <div class="logout-all-section">
+                    <form method="post" action="{% url 'logout_all' %}" id="logout-all-form">
+                        {% csrf_token %}
+                        <button type="button" class="logout-all-btn"
+                                onclick="showConfirmModal('logout-all')">
+                            <i class="bi bi-box-arrow-right"></i>
+                            Log Out from All Other Devices
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="sessions-footer">
+                <a href="{% url 'profile' %}">
+                    <i class="bi bi-person"></i> Back to Profile
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Custom Confirmation Modal -->
+    <div class="confirm-modal-overlay" id="confirmModal">
+        <div class="confirm-modal">
+            <div class="confirm-modal-header">
+                <div class="confirm-modal-icon" id="modalIcon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <h3 class="confirm-modal-title" id="modalTitle">Confirm Action</h3>
+                <p class="confirm-modal-message" id="modalMessage">Are you sure you want to proceed?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="confirm-modal-btn cancel" onclick="hideConfirmModal()">
+                    Cancel
+                </button>
+                <button type="button" class="confirm-modal-btn confirm" id="modalConfirmBtn">
+                    <i class="bi bi-check-lg"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let pendingAction = null;
+        let pendingFormId = null;
+        
+        function showConfirmModal(action, sessionId = null, deviceName = '') {
+            const modal = document.getElementById('confirmModal');
+            const icon = document.getElementById('modalIcon');
+            const title = document.getElementById('modalTitle');
+            const message = document.getElementById('modalMessage');
+            const confirmBtn = document.getElementById('modalConfirmBtn');
+            
+            if (action === 'revoke') {
+                icon.className = 'confirm-modal-icon warning';
+                icon.innerHTML = '<i class="bi bi-phone-vibrate"></i>';
+                title.textContent = 'Revoke Session?';
+                message.textContent = `This will log out "${deviceName}" immediately. The device will need to sign in again.`;
+                confirmBtn.innerHTML = '<i class="bi bi-x-circle"></i> Revoke Session';
+                pendingFormId = 'revoke-form-' + sessionId;
+            } else if (action === 'logout-all') {
+                icon.className = 'confirm-modal-icon danger';
+                icon.innerHTML = '<i class="bi bi-box-arrow-right"></i>';
+                title.textContent = 'Log Out All Devices?';
+                message.textContent = 'This will log out all other devices immediately. You will stay logged in on this device.';
+                confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Log Out All';
+                pendingFormId = 'logout-all-form';
+            }
+            
+            pendingAction = action;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function hideConfirmModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+            pendingAction = null;
+            pendingFormId = null;
+        }
+        
+        document.getElementById('modalConfirmBtn').addEventListener('click', function() {
+            if (pendingFormId) {
+                document.getElementById(pendingFormId).submit();
+            }
+            hideConfirmModal();
+        });
+        
+        // Close modal on overlay click
+        document.getElementById('confirmModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideConfirmModal();
+            }
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideConfirmModal();
+            }
+        });
+    </script>
+</body>
+</html>

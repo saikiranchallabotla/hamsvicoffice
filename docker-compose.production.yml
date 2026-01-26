@@ -1,0 +1,136 @@
+version: '3.8'
+
+# ==============================================================================
+# HAMSVIC - Production Docker Compose
+# ==============================================================================
+# Usage: docker-compose -f docker-compose.production.yml up -d
+# ==============================================================================
+
+services:
+  # Django Web Application
+  web:
+    build: .
+    container_name: hamsvic_web
+    restart: always
+    command: gunicorn --config deploy/gunicorn.conf.py estimate_site.wsgi:application
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - ./logs:/app/logs
+    expose:
+      - 8000
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker for background tasks
+  celery:
+    build: .
+    container_name: hamsvic_celery
+    restart: always
+    command: celery -A estimate_site worker --loglevel=info
+    volumes:
+      - media_volume:/app/media
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Beat for scheduled tasks
+  celery-beat:
+    build: .
+    container_name: hamsvic_celery_beat
+    restart: always
+    command: celery -A estimate_site beat --loglevel=info
+    volumes:
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hamsvic_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-hamsvic_production}
+      POSTGRES_USER: ${DB_USER:-hamsvic}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-hamsvic}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery broker and caching
+  redis:
+    image: redis:7-alpine
+    container_name: hamsvic_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: hamsvic_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - web
+
+  # Certbot for SSL certificate renewal
+  certbot:
+    image: certbot/certbot
+    container_name: hamsvic_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  static_volume:
+    driver: local
+  media_volume:
+    driver: local
+
+networks:
+  default:
+    name: hamsvic_network

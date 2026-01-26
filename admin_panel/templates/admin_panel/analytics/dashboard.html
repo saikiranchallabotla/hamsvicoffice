@@ -1,0 +1,1072 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Analytics Dashboard{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item active">Analytics</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-light: #3b82f6;
+        --success: #16a34a;
+        --warning: #d97706;
+        --purple: #9333ea;
+        --cyan: #0891b2;
+        --pink: #db2777;
+    }
+    
+    .analytics-header {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .analytics-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 50%;
+        height: 200%;
+        background: rgba(255,255,255,0.05);
+        transform: rotate(30deg);
+    }
+    
+    .analytics-header h4 {
+        font-weight: 800;
+        font-size: 1.75rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .analytics-header p {
+        opacity: 0.85;
+        margin-bottom: 0;
+    }
+    
+    .analytics-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        height: 100%;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .analytics-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    }
+    
+    .analytics-card h5 {
+        margin-bottom: 1.25rem;
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--stat-color, #2563eb);
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    }
+    
+    .stat-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .big-stat {
+        font-size: 2.25rem;
+        font-weight: 800;
+        color: #1e293b;
+        letter-spacing: -1px;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-label {
+        font-size: 0.8rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }
+    
+    .stat-change {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        margin-top: 0.5rem;
+    }
+    
+    .stat-change.positive {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+    
+    .stat-change.neutral {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 280px;
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border-radius: 12px;
+        padding: 1rem;
+    }
+    
+    .chart-container canvas {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .chart-empty {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        z-index: 5;
+    }
+    
+    .chart-empty i {
+        font-size: 2rem;
+        opacity: 0.5;
+        margin-bottom: 0.5rem;
+        color: #cbd5e1;
+    }
+    
+    .chart-empty p {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #64748b;
+    }
+    
+    .chart-loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(248, 250, 252, 0.95);
+        border-radius: 12px;
+        z-index: 10;
+    }
+    
+    .chart-loading.show {
+        display: flex;
+    }
+    
+    .chart-loading::after {
+        content: 'Loading...';
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-top: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .period-selector {
+        display: flex;
+        gap: 0.25rem;
+        background: rgba(255,255,255,0.15);
+        padding: 0.3rem;
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+    }
+    
+    .period-btn {
+        padding: 0.6rem 1.5rem;
+        border: none;
+        background: transparent;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        color: rgba(255,255,255,0.8);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .period-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: white;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        border-radius: 10px;
+    }
+    
+    .period-btn:hover {
+        color: white;
+    }
+    
+    .period-btn:hover::before {
+        opacity: 0.1;
+    }
+    
+    .period-btn:active {
+        transform: scale(0.95);
+    }
+    
+    .period-btn.active {
+        background: white;
+        color: #1e3a8a;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transform: scale(1);
+    }
+    
+    .period-btn.active:hover {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    
+    .period-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .mini-stat {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 12px;
+        margin-bottom: 0.75rem;
+        transition: all 0.2s;
+    }
+    
+    .mini-stat:hover {
+        transform: translateX(4px);
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    }
+    
+    .mini-stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    
+    .mini-stat-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+    
+    .mini-stat-label {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+    
+    .top-user-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        transition: all 0.2s;
+    }
+    
+    .top-user-item:last-child {
+        border-bottom: none;
+    }
+    
+    .top-user-item:hover {
+        background: #f8fafc;
+        margin: 0 -0.75rem;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        border-radius: 10px;
+    }
+    
+    .top-user-rank {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.9rem;
+        background: #f1f5f9;
+        color: #64748b;
+    }
+    
+    .top-user-rank.gold { 
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); 
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+    }
+    
+    .top-user-rank.silver { 
+        background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); 
+        color: #fff;
+    }
+    
+    .top-user-rank.bronze { 
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); 
+        color: #fff;
+    }
+    
+    .module-stat-item {
+        margin-bottom: 1rem;
+    }
+    
+    .module-stat-bar {
+        height: 10px;
+        background: #e2e8f0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+    }
+    
+    .module-stat-fill {
+        height: 100%;
+        border-radius: 5px;
+        background: linear-gradient(90deg, #2563eb 0%, #8b5cf6 100%);
+        transition: width 0.5s ease;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 1.25rem;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .action-btn.primary {
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+        color: white;
+    }
+    
+    .action-btn.primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    
+    .action-btn.secondary {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    
+    .action-btn.secondary:hover {
+        background: #e2e8f0;
+    }
+    
+    .quick-stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    @media (max-width: 1200px) {
+        .quick-stats-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .quick-stats-row {
+            grid-template-columns: 1fr;
+        }
+        
+        .analytics-header {
+            padding: 1.5rem;
+        }
+        
+        .period-selector {
+            flex-wrap: wrap;
+        }
+    }
+    
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background: #16a34a;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.2); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header with Period Selector -->
+<div class="analytics-header">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h4><i class="bi bi-graph-up-arrow me-2"></i>Analytics Dashboard</h4>
+            <p>Real-time insights into your platform performance</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="period-selector" id="periodSelector">
+                <button class="period-btn" data-days="7">7 Days</button>
+                <button class="period-btn active" data-days="30">30 Days</button>
+                <button class="period-btn" data-days="90">90 Days</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats Row -->
+<div class="quick-stats-row">
+    <div class="stat-card" style="--stat-color: #2563eb;">
+        <div class="stat-icon" style="background: #dbeafe; color: #2563eb;">
+            <i class="bi bi-people-fill"></i>
+        </div>
+        <div class="big-stat" id="statTotalUsers">{{ total_users }}</div>
+        <div class="stat-label">Total Users</div>
+        <div class="stat-change positive" id="statUsersChange">
+            <i class="bi bi-arrow-up"></i>
+            <span>+{{ new_users_month }} this month</span>
+        </div>
+    </div>
+    
+    <div class="stat-card" style="--stat-color: #16a34a;">
+        <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">
+            <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <div class="big-stat" style="color: #16a34a;">{{ active_subscriptions }}</div>
+        <div class="stat-label">Active Subscriptions</div>
+        <div class="stat-change neutral">
+            <i class="bi bi-clock"></i>
+            <span>{{ trial_subscriptions }} in trial</span>
+        </div>
+    </div>
+    
+    <div class="stat-card" style="--stat-color: #9333ea;">
+        <div class="stat-icon" style="background: #f3e8ff; color: #9333ea;">
+            <i class="bi bi-currency-rupee"></i>
+        </div>
+        <div class="big-stat" style="color: #9333ea;" id="statRevenue">₹{{ revenue_this_month|floatformat:0 }}</div>
+        <div class="stat-label" id="revenueLabel">Revenue (30 Days)</div>
+        <div class="stat-change neutral">
+            <i class="bi bi-bank"></i>
+            <span>₹{{ total_revenue|floatformat:0 }} total</span>
+        </div>
+    </div>
+    
+    <div class="stat-card" style="--stat-color: #0891b2;">
+        <div class="stat-icon" style="background: #cffafe; color: #0891b2;">
+            <i class="bi bi-broadcast"></i>
+        </div>
+        <div class="big-stat" style="color: #0891b2;">{{ active_sessions }}</div>
+        <div class="stat-label">Active Sessions</div>
+        <div class="stat-change positive">
+            <div class="pulse-dot me-1"></div>
+            <span>Live now</span>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="analytics-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-person-plus me-2"></i>User Registrations</h5>
+                <span class="badge bg-primary-subtle text-primary" id="regChartPeriod">Last 30 Days</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="registrationChart"></canvas>
+                <div class="chart-loading" id="regChartLoading">
+                    <div class="spinner"></div>
+                </div>
+                <div class="chart-empty" id="regChartEmpty" style="display: none;">
+                    <i class="bi bi-person-plus"></i>
+                    <p class="mb-0">No new users registered<br><small class="text-muted">in selected period</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="analytics-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-bar-chart-fill me-2"></i>Usage (Estimates & Jobs)</h5>
+                <span class="badge bg-success-subtle text-success" id="usageChartPeriod">Last 30 Days</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="usageChart"></canvas>
+                <div class="chart-loading" id="usageChartLoading">
+                    <div class="spinner"></div>
+                </div>
+                <div class="chart-empty" id="usageChartEmpty" style="display: none;">
+                    <i class="bi bi-clipboard-data"></i>
+                    <p class="mb-0">No estimates or jobs<br><small class="text-muted">in selected period</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Module Stats and Revenue Row -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="analytics-card">
+            <h5><i class="bi bi-boxes me-2"></i>Module Popularity</h5>
+            {% for module in module_stats %}
+            <div class="module-stat-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-medium">{{ module.name }}</span>
+                    <span class="badge bg-primary-subtle text-primary">{{ module.active_count }} users</span>
+                </div>
+                <div class="module-stat-bar">
+                    <div class="module-stat-fill" style="width: {% widthratio module.active_count total_users 100 %}%; background: {{ module.color|default:'#3b82f6' }};"></div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.5;"></i>
+                <p class="mb-0 mt-2">No modules found</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="analytics-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-cash-stack me-2"></i>Revenue Trend</h5>
+                <span class="badge" style="background: #f3e8ff !important; color: #9333ea !important;">6 Months</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="revenueChart"></canvas>
+                <div class="chart-empty" id="revChartEmpty" style="display: none;">
+                    <i class="bi bi-wallet2"></i>
+                    <p class="mb-0">No payments received<br><small class="text-muted">in last 6 months</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="analytics-card">
+            <h5><i class="bi bi-lightning-fill me-2"></i>Quick Stats</h5>
+            <div class="mini-stat">
+                <div class="mini-stat-icon" style="background: #dbeafe; color: #2563eb;">
+                    <i class="bi bi-file-earmark-text"></i>
+                </div>
+                <div>
+                    <div class="mini-stat-value">{{ total_estimates }}</div>
+                    <div class="mini-stat-label">Total Estimates</div>
+                </div>
+            </div>
+            <div class="mini-stat">
+                <div class="mini-stat-icon" style="background: #dcfce7; color: #16a34a;">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+                <div>
+                    <div class="mini-stat-value" id="statEstimatesMonth">{{ estimates_this_month }}</div>
+                    <div class="mini-stat-label" id="estMonthLabel">This Month</div>
+                </div>
+            </div>
+            <div class="mini-stat">
+                <div class="mini-stat-icon" style="background: #fef3c7; color: #d97706;">
+                    <i class="bi bi-gear-fill"></i>
+                </div>
+                <div>
+                    <div class="mini-stat-value">{{ total_jobs }}</div>
+                    <div class="mini-stat-label">Jobs Processed</div>
+                </div>
+            </div>
+            <div class="mini-stat">
+                <div class="mini-stat-icon" style="background: #fce7f3; color: #db2777;">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+                <div>
+                    <div class="mini-stat-value" id="statJobsMonth">{{ jobs_this_month }}</div>
+                    <div class="mini-stat-label" id="jobMonthLabel">Jobs This Month</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Users -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="analytics-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-trophy-fill me-2" style="color: #fbbf24;"></i>Top Users by Estimates</h5>
+                <a href="{% url 'admin_user_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            {% for user in top_users_by_estimates %}
+            <div class="top-user-item">
+                <div class="top-user-rank {% if forloop.counter == 1 %}gold{% elif forloop.counter == 2 %}silver{% elif forloop.counter == 3 %}bronze{% endif %}">
+                    {{ forloop.counter }}
+                </div>
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ user.username }}</div>
+                    <div class="small text-muted text-truncate">{{ user.email }}</div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-primary fs-5">{{ user.estimate_count }}</div>
+                    <div class="small text-muted">estimates</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-emoji-smile" style="font-size: 2rem; opacity: 0.5;"></i>
+                <p class="mb-0 mt-2">No estimates created yet</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="analytics-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-trophy-fill me-2" style="color: #16a34a;"></i>Top Users by Jobs</h5>
+                <a href="{% url 'admin_user_list' %}" class="btn btn-sm btn-outline-success">View All</a>
+            </div>
+            {% for user in top_users_by_jobs %}
+            <div class="top-user-item">
+                <div class="top-user-rank {% if forloop.counter == 1 %}gold{% elif forloop.counter == 2 %}silver{% elif forloop.counter == 3 %}bronze{% endif %}">
+                    {{ forloop.counter }}
+                </div>
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ user.username }}</div>
+                    <div class="small text-muted text-truncate">{{ user.email }}</div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-success fs-5">{{ user.job_count }}</div>
+                    <div class="small text-muted">jobs</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-emoji-smile" style="font-size: 2rem; opacity: 0.5;"></i>
+                <p class="mb-0 mt-2">No jobs processed yet</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Export Actions -->
+<div class="analytics-card">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h5 class="mb-1"><i class="bi bi-download me-2"></i>Export Analytics</h5>
+            <p class="text-muted mb-0 small">Download reports for your records</p>
+        </div>
+        <div class="action-buttons">
+            <button class="action-btn secondary" onclick="exportData('users')">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+                Export Users
+            </button>
+            <button class="action-btn secondary" onclick="exportData('estimates')">
+                <i class="bi bi-file-earmark-text"></i>
+                Export Estimates
+            </button>
+            <button class="action-btn primary" onclick="exportData('all')">
+                <i class="bi bi-cloud-download"></i>
+                Export All Data
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ registration_chart|json_script:"registration-chart-data" }}
+{{ usage_chart|json_script:"usage-chart-data" }}
+{{ revenue_chart|json_script:"revenue-chart-data" }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let registrationChart, usageChart, revenueChart;
+    let currentPeriod = 30;
+    let isLoading = false;
+    
+    const API_URL = '/admin-panel/analytics/api/';
+    
+    // Chart configuration
+    const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+            duration: 500,
+            easing: 'easeOutQuart'
+        },
+        plugins: {
+            legend: { 
+                display: true,
+                position: 'top',
+                labels: {
+                    usePointStyle: true,
+                    padding: 20,
+                    font: { size: 12, weight: '500' }
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(30, 41, 59, 0.95)',
+                titleFont: { size: 13, weight: '600' },
+                bodyFont: { size: 12 },
+                padding: 12,
+                cornerRadius: 8,
+                displayColors: true
+            }
+        },
+        scales: {
+            y: { 
+                beginAtZero: true, 
+                ticks: { precision: 0 },
+                grid: { color: 'rgba(0,0,0,0.05)' }
+            },
+            x: {
+                grid: { display: false },
+                ticks: { maxRotation: 45 }
+            }
+        }
+    };
+    
+    // Initialize Registration Chart
+    function initRegChart(data) {
+        const canvas = document.getElementById('registrationChart');
+        const emptyEl = document.getElementById('regChartEmpty');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const hasLabels = data.labels && data.labels.length > 0;
+        const hasData = data.data && data.data.some(v => v > 0);
+        
+        // Always show chart, show empty message overlay if no data
+        canvas.style.display = 'block';
+        if (emptyEl) {
+            emptyEl.style.display = hasData ? 'none' : 'flex';
+        }
+        
+        if (registrationChart) registrationChart.destroy();
+        
+        // Create chart even with empty/zero data
+        registrationChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels || ['No Data'],
+                datasets: [{
+                    label: 'New Users',
+                    data: data.data || [0],
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: hasData ? 3 : 0,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#2563eb',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...chartDefaults,
+                plugins: { ...chartDefaults.plugins, legend: { display: false } }
+            }
+        });
+    }
+    
+    // Initialize Usage Chart
+    function initUsageChart(data) {
+        const canvas = document.getElementById('usageChart');
+        const emptyEl = document.getElementById('usageChartEmpty');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const hasData = (data.estimates && data.estimates.some(v => v > 0)) || 
+                       (data.jobs && data.jobs.some(v => v > 0));
+        
+        // Always show chart
+        canvas.style.display = 'block';
+        if (emptyEl) {
+            emptyEl.style.display = hasData ? 'none' : 'flex';
+        }
+        
+        if (usageChart) usageChart.destroy();
+        
+        usageChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.labels || ['No Data'],
+                datasets: [
+                    {
+                        label: 'Estimates',
+                        data: data.estimates || [0],
+                        backgroundColor: 'rgba(37, 99, 235, 0.8)',
+                        borderRadius: 6,
+                        borderSkipped: false
+                    },
+                    {
+                        label: 'Jobs',
+                        data: data.jobs || [0],
+                        backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }
+                ]
+            },
+            options: chartDefaults
+        });
+    }
+    
+    // Initialize Revenue Chart
+    function initRevenueChart(data) {
+        const canvas = document.getElementById('revenueChart');
+        const emptyEl = document.getElementById('revChartEmpty');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const hasData = data.data && data.data.some(v => v > 0);
+        
+        canvas.style.display = 'block';
+        if (emptyEl) {
+            emptyEl.style.display = hasData ? 'none' : 'flex';
+        }
+        
+        if (revenueChart) revenueChart.destroy();
+        
+        revenueChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.labels || ['No Data'],
+                datasets: [{
+                    label: 'Revenue (₹)',
+                    data: data.data || [0],
+                    backgroundColor: 'rgba(147, 51, 234, 0.8)',
+                    borderRadius: 6,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                ...chartDefaults,
+                plugins: { ...chartDefaults.plugins, legend: { display: false } }
+            }
+        });
+    }
+    
+    // Load initial data
+    try {
+        const regData = JSON.parse(document.getElementById('registration-chart-data').textContent);
+        const usageData = JSON.parse(document.getElementById('usage-chart-data').textContent);
+        const revData = JSON.parse(document.getElementById('revenue-chart-data').textContent);
+        
+        initRegChart(regData);
+        initUsageChart(usageData);
+        initRevenueChart(revData);
+    } catch (e) {
+        console.error('Error parsing initial chart data:', e);
+    }
+    
+    // Fetch data for period
+    async function fetchPeriodData(days) {
+        const regUrl = `${API_URL}?type=registrations&period=${days}`;
+        const usageUrl = `${API_URL}?type=usage&period=${days}`;
+        
+        console.log('Fetching data for', days, 'days from:', regUrl);
+        
+        try {
+            const [regResponse, usageResponse] = await Promise.all([
+                fetch(regUrl),
+                fetch(usageUrl)
+            ]);
+            
+            if (!regResponse.ok || !usageResponse.ok) {
+                throw new Error('API request failed');
+            }
+            
+            const regData = await regResponse.json();
+            const usageData = await usageResponse.json();
+            
+            return { regData, usageData };
+        } catch (error) {
+            console.error('Fetch error:', error);
+            throw error;
+        }
+    }
+    
+    // Period selector functionality
+    const periodButtons = document.querySelectorAll('.period-btn');
+    
+    periodButtons.forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            
+            if (isLoading) return;
+            
+            const days = parseInt(this.dataset.days);
+            if (days === currentPeriod) return;
+            
+            currentPeriod = days;
+            isLoading = true;
+            
+            // Update active button immediately
+            periodButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update period badges
+            const periodText = `Last ${days} Days`;
+            const regPeriodEl = document.getElementById('regChartPeriod');
+            const usagePeriodEl = document.getElementById('usageChartPeriod');
+            const revLabelEl = document.getElementById('revenueLabel');
+            
+            if (regPeriodEl) regPeriodEl.textContent = periodText;
+            if (usagePeriodEl) usagePeriodEl.textContent = periodText;
+            if (revLabelEl) revLabelEl.textContent = `Revenue (${days} Days)`;
+            
+            // Show loading
+            const regLoading = document.getElementById('regChartLoading');
+            const usageLoading = document.getElementById('usageChartLoading');
+            if (regLoading) regLoading.classList.add('show');
+            if (usageLoading) usageLoading.classList.add('show');
+            
+            try {
+                const { regData, usageData } = await fetchPeriodData(days);
+                
+                initRegChart(regData);
+                initUsageChart(usageData);
+                
+                console.log('Charts updated for', days, 'days');
+            } catch (error) {
+                console.error('Error updating charts:', error);
+                // Show error feedback
+                alert('Failed to load data. Please try again.');
+            } finally {
+                isLoading = false;
+                if (regLoading) regLoading.classList.remove('show');
+                if (usageLoading) usageLoading.classList.remove('show');
+            }
+        });
+    });
+    
+    console.log('Analytics dashboard initialized. Period buttons:', periodButtons.length);
+});
+
+// Export function
+function exportData(type) {
+    const btn = event.target.closest('.action-btn');
+    if (!btn) return;
+    
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Exporting...';
+    btn.disabled = true;
+    
+    // Map button type to export endpoint
+    const exportType = type === 'all' ? 'all' : type;
+    const exportUrl = `/admin-panel/analytics/export/${exportType}/`;
+    
+    // Create a temporary link to trigger download
+    const link = document.createElement('a');
+    link.href = exportUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setTimeout(() => {
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Done!';
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }, 1500);
+    }, 1000);
+}
+</script>
+{% endblock %}

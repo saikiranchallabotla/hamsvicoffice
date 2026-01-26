@@ -1,0 +1,441 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Subscriptions{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Subscriptions</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .user-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+        overflow: hidden;
+        transition: all 0.2s;
+    }
+    .user-card:hover {
+        box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+    }
+    .user-header {
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-bottom: 1px solid transparent;
+        transition: all 0.2s;
+    }
+    .user-header:hover {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    }
+    .user-header.expanded {
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .user-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 1.1rem;
+        text-transform: uppercase;
+    }
+    .user-name {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 1rem;
+    }
+    .user-email {
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+    .sub-badges {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .count-badge {
+        padding: 0.3rem 0.7rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    .count-badge.active { background: #dcfce7; color: #16a34a; }
+    .count-badge.trial { background: #fef3c7; color: #d97706; }
+    .count-badge.expired { background: #fee2e2; color: #dc2626; }
+    .expand-icon {
+        font-size: 1.2rem;
+        color: #64748b;
+        transition: transform 0.3s;
+    }
+    .user-header.expanded .expand-icon {
+        transform: rotate(180deg);
+    }
+    .modules-container {
+        display: none;
+        padding: 0;
+    }
+    .modules-container.show {
+        display: block;
+    }
+    .module-table {
+        width: 100%;
+        margin: 0;
+    }
+    .module-table thead th {
+        background: #f8fafc;
+        padding: 0.75rem 1.25rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .module-table tbody td {
+        padding: 0.85rem 1.25rem;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .module-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .module-table tbody tr:hover {
+        background: #f8fafc;
+    }
+    .status-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    .status-badge.active { background: #dcfce7; color: #16a34a; }
+    .status-badge.trial { background: #fef3c7; color: #d97706; }
+    .status-badge.expired { background: #fee2e2; color: #dc2626; }
+    .status-badge.cancelled { background: #f1f5f9; color: #64748b; }
+    .form-control, .form-select {
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        padding: 0.6rem 1rem;
+        transition: all 0.2s;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .btn-action {
+        padding: 0.35rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+    }
+    .btn-action:hover {
+        transform: translateY(-1px);
+    }
+    .progress {
+        height: 6px;
+        border-radius: 4px;
+        background: #e2e8f0;
+    }
+    .progress-bar {
+        background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+        border-radius: 4px;
+    }
+    .pagination .page-link {
+        border-radius: 8px;
+        margin: 0 0.2rem;
+        border: 1px solid #e2e8f0;
+    }
+    .pagination .page-item.active .page-link {
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+        border-color: #2563eb;
+    }
+    .stats-summary {
+        display: flex;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .stat-box {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+        min-width: 120px;
+    }
+    .stat-box .number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+    .stat-box .label {
+        font-size: 0.8rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .grant-btn {
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+    .grant-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Subscriptions</h4>
+    <span class="text-muted">{{ users_with_subs.paginator.count }} users · {{ total_subs }} subscriptions</span>
+</div>
+
+<!-- Filters -->
+<div class="admin-card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="q" class="form-control" placeholder="Search user..." value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="module" class="form-select">
+                    <option value="">All Modules</option>
+                    {% for m in modules %}
+                    <option value="{{ m.id }}" {% if module_id == m.id|stringformat:"s" %}selected{% endif %}>{{ m.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="trial" {% if status == 'trial' %}selected{% endif %}>Trial</option>
+                    <option value="expired" {% if status == 'expired' %}selected{% endif %}>Expired</option>
+                    <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+            <div class="col-md-1">
+                <a href="{% url 'admin_subscription_list' %}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+            <div class="col-md-2 text-end">
+                <button type="button" class="btn btn-outline-primary w-100" onclick="toggleAllUsers()">
+                    <i class="bi bi-arrows-expand me-1"></i> Expand All
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Users with Subscriptions -->
+{% for item in users_with_subs %}
+<div class="user-card" id="user-card-{{ item.user.id }}">
+    <div class="user-header" onclick="toggleUser({{ item.user.id }})">
+        <div class="user-info">
+            <div class="user-avatar">
+                {{ item.user.username|first }}
+            </div>
+            <div>
+                <div class="user-name">{{ item.user.get_full_name|default:item.user.username }}</div>
+                <div class="user-email">{{ item.user.email }}</div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="sub-badges">
+                {% if item.active_count > 0 %}
+                <span class="count-badge active">{{ item.active_count }} Active</span>
+                {% endif %}
+                {% if item.trial_count > 0 %}
+                <span class="count-badge trial">{{ item.trial_count }} Trial</span>
+                {% endif %}
+                {% if item.expired_count > 0 %}
+                <span class="count-badge expired">{{ item.expired_count }} Expired</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'admin_grant_subscription' item.user.id %}" class="grant-btn" onclick="event.stopPropagation();">
+                <i class="bi bi-plus-lg"></i> Grant
+            </a>
+            <i class="bi bi-chevron-down expand-icon"></i>
+        </div>
+    </div>
+    <div class="modules-container" id="modules-{{ item.user.id }}">
+        <table class="module-table">
+            <thead>
+                <tr>
+                    <th>Module</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Expires</th>
+                    <th>Usage</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in item.subscriptions %}
+                <tr>
+                    <td>
+                        <span class="fw-semibold">{{ sub.module.name }}</span>
+                    </td>
+                    <td>
+                        <span class="status-badge {{ sub.status }}">{{ sub.get_status_display }}</span>
+                    </td>
+                    <td>{{ sub.started_at|date:"d M Y" }}</td>
+                    <td>
+                        {{ sub.expires_at|date:"d M Y" }}
+                        {% if sub.days_remaining <= 7 and sub.days_remaining > 0 %}
+                            <span class="badge bg-warning text-dark ms-1">{{ sub.days_remaining }}d left</span>
+                        {% elif sub.days_remaining <= 0 %}
+                            <span class="badge bg-danger ms-1">Expired</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if sub.usage_limit > 0 %}
+                            <div class="d-flex align-items-center">
+                                <div class="progress flex-grow-1" style="width:60px;">
+                                    {% widthratio sub.usage_count sub.usage_limit 100 as usage_percent %}
+                                    <div class="progress-bar" style="width:{{ usage_percent }}%;"></div>
+                                </div>
+                                <span class="ms-2 small">{{ sub.usage_count }}/{{ sub.usage_limit }}</span>
+                            </div>
+                        {% else %}
+                            <span class="text-muted small">Unlimited</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if sub.status in 'active,trial' %}
+                        <form action="{% url 'admin_revoke_subscription' sub.id %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger btn-action" onclick="return confirm('Revoke this subscription?')">
+                                Revoke
+                            </button>
+                        </form>
+                        {% else %}
+                        <a href="{% url 'admin_grant_subscription' sub.user.id %}?module={{ sub.module.code }}" class="btn btn-sm btn-outline-success btn-action">
+                            Renew
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% empty %}
+<div class="admin-card">
+    <div class="card-body text-center py-5 text-muted">
+        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+        No subscriptions found
+    </div>
+</div>
+{% endfor %}
+
+<!-- Pagination -->
+{% if users_with_subs.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if users_with_subs.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ users_with_subs.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if module_id %}&module={{ module_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}">Previous</a>
+        </li>
+        {% endif %}
+        
+        <li class="page-item disabled">
+            <span class="page-link">Page {{ users_with_subs.number }} of {{ users_with_subs.paginator.num_pages }}</span>
+        </li>
+        
+        {% if users_with_subs.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ users_with_subs.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if module_id %}&module={{ module_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allExpanded = false;
+    
+    function toggleUser(userId) {
+        const header = document.querySelector(`#user-card-${userId} .user-header`);
+        const container = document.getElementById(`modules-${userId}`);
+        
+        if (container.classList.contains('show')) {
+            container.classList.remove('show');
+            header.classList.remove('expanded');
+        } else {
+            container.classList.add('show');
+            header.classList.add('expanded');
+        }
+    }
+    
+    function toggleAllUsers() {
+        const containers = document.querySelectorAll('.modules-container');
+        const headers = document.querySelectorAll('.user-header');
+        const btn = event.target.closest('button');
+        
+        allExpanded = !allExpanded;
+        
+        containers.forEach(container => {
+            if (allExpanded) {
+                container.classList.add('show');
+            } else {
+                container.classList.remove('show');
+            }
+        });
+        
+        headers.forEach(header => {
+            if (allExpanded) {
+                header.classList.add('expanded');
+            } else {
+                header.classList.remove('expanded');
+            }
+        });
+        
+        btn.innerHTML = allExpanded 
+            ? '<i class="bi bi-arrows-collapse me-1"></i> Collapse All'
+            : '<i class="bi bi-arrows-expand me-1"></i> Expand All';
+    }
+</script>
+{% endblock %}

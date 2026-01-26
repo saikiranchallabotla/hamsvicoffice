@@ -1,0 +1,45 @@
+<div class="estimate-container">
+
+    <!-- LEFT PANEL — GROUPS -->
+    <div class="panel groups-panel">
+        <h3>Groups</h3>
+        <ul>
+        {% for group in groups %}
+            <li class="group-item"
+                onclick="loadItems('{{ group }}')">
+                {{ group }}
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+
+    <!-- MIDDLE PANEL — ITEMS -->
+    <div class="panel items-panel">
+        <h3>Items</h3>
+        <ul id="items-list">
+            <!-- filled by AJAX when group selected -->
+        </ul>
+    </div>
+
+    <!-- RIGHT PANEL — LIVE ESTIMATE -->
+    <div class="panel estimate-panel">
+        <h3>ESTIMATE</h3>
+
+        <table id="estimate-table">
+            <thead>
+                <tr>
+                    <th>Sl.No</th>
+                    <th>Item</th>
+                    <th>Rate</th>
+                    <th>Qty</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody id="estimate-body">
+                <!-- rows added dynamically -->
+            </tbody>
+        </table>
+
+        <button id="generate-btn">Generate Estimate</button>
+    </div>
+</div>

@@ -1,0 +1,149 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Support Tickets{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Support Tickets</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Support Tickets</h4>
+    <div class="d-flex gap-2">
+        <span class="badge bg-danger">{{ open_count }} Open</span>
+        <span class="badge bg-warning text-dark">{{ in_progress_count }} In Progress</span>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="admin-card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="q" class="form-control" placeholder="Search tickets..." value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="open" {% if status == 'open' %}selected{% endif %}>Open</option>
+                    <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="resolved" {% if status == 'resolved' %}selected{% endif %}>Resolved</option>
+                    <option value="closed" {% if status == 'closed' %}selected{% endif %}>Closed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="priority" class="form-select">
+                    <option value="">All Priority</option>
+                    <option value="low" {% if priority == 'low' %}selected{% endif %}>Low</option>
+                    <option value="medium" {% if priority == 'medium' %}selected{% endif %}>Medium</option>
+                    <option value="high" {% if priority == 'high' %}selected{% endif %}>High</option>
+                    <option value="urgent" {% if priority == 'urgent' %}selected{% endif %}>Urgent</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="assigned" class="form-select">
+                    <option value="">All Assigned</option>
+                    <option value="unassigned" {% if assigned == 'unassigned' %}selected{% endif %}>Unassigned</option>
+                    <option value="me" {% if assigned == 'me' %}selected{% endif %}>Assigned to Me</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+            <div class="col-md-1">
+                <a href="{% url 'admin_ticket_list' %}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tickets Table -->
+<div class="admin-card">
+    <div class="card-body p-0">
+        <table class="table admin-table mb-0">
+            <thead>
+                <tr>
+                    <th>Ticket</th>
+                    <th>User</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Assigned</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td>
+                        <a href="{% url 'admin_ticket_detail' ticket.id %}" class="fw-semibold text-decoration-none">
+                            #{{ ticket.id }}
+                        </a>
+                        <div class="small text-truncate" style="max-width:200px;">{{ ticket.subject }}</div>
+                    </td>
+                    <td>
+                        <a href="{% url 'admin_user_detail' ticket.user.id %}" class="text-decoration-none">
+                            {{ ticket.user.get_full_name|default:ticket.user.username }}
+                        </a>
+                    </td>
+                    <td>{{ ticket.category|title }}</td>
+                    <td>
+                        <span class="badge {% if ticket.priority == 'urgent' %}bg-danger{% elif ticket.priority == 'high' %}bg-warning text-dark{% elif ticket.priority == 'medium' %}bg-info{% else %}bg-secondary{% endif %}">
+                            {{ ticket.get_priority_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge {% if ticket.status == 'open' %}bg-danger{% elif ticket.status == 'in_progress' %}bg-warning text-dark{% elif ticket.status == 'resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ ticket.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if ticket.assigned_to %}
+                            {{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}
+                        {% else %}
+                            <span class="text-muted">Unassigned</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ ticket.created_at|timesince }} ago</td>
+                    <td>
+                        <a href="{% url 'admin_ticket_detail' ticket.id %}" class="btn btn-sm btn-outline-primary">
+                            View
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">No tickets found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if tickets.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if tickets.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ tickets.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if priority %}&priority={{ priority }}{% endif %}">Previous</a>
+        </li>
+        {% endif %}
+        
+        <li class="page-item disabled">
+            <span class="page-link">Page {{ tickets.number }} of {{ tickets.paginator.num_pages }}</span>
+        </li>
+        
+        {% if tickets.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ tickets.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if priority %}&priority={{ priority }}{% endif %}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
