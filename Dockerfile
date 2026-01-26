@@ -28,6 +28,9 @@ RUN pip install --upgrade pip && \
 # Copy project files
 COPY . .
 
+# Make start script executable
+RUN chmod +x /app/start.sh
+
 # Create necessary directories
 RUN mkdir -p /app/logs /app/media /app/staticfiles /app/backups
 
@@ -44,10 +47,6 @@ RUN python manage.py collectstatic --noinput || true
 
 # Expose port
 EXPOSE 8000
-
-# Copy and make start script executable
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
 
 # Run startup script
 CMD ["/app/start.sh"]
