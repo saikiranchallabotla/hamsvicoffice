@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "gunicorn estimate_site.wsgi --bind 0.0.0.0:$PORT",
+    "startCommand": "python init_app.py && gunicorn estimate_site.wsgi --bind 0.0.0.0:$PORT",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
