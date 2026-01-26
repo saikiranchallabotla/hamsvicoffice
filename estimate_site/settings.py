@@ -78,6 +78,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -121,11 +122,23 @@ WSGI_APPLICATION = 'estimate_site.wsgi.application'
 # ==============================================================================
 # DATABASE CONFIGURATION
 # ==============================================================================
-# Supports both SQLite (dev) and PostgreSQL (production)
+# Supports DATABASE_URL (Railway/Heroku), individual vars, or SQLite
 
+import dj_database_url
+
+DATABASE_URL = os.getenv('DATABASE_URL', '')
 DB_ENGINE = os.getenv('DB_ENGINE', 'sqlite3')
 
-if DB_ENGINE == 'postgresql':
+if DATABASE_URL:
+    # Railway, Heroku, Render - auto-configure from DATABASE_URL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+elif DB_ENGINE == 'postgresql':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -190,11 +203,21 @@ if STORAGE_TYPE == 's3':
     AWS_QUERYSTRING_AUTH = True  # Signed URLs for private files
     AWS_QUERYSTRING_EXPIRE = 3600  # URLs valid for 1 hour
 else:
-    # Local file storage (development)
+    # Local file storage (development) + WhiteNoise for production
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
     STATIC_URL = 'static/'
     STATIC_ROOT = BASE_DIR / 'staticfiles'
+    
+    # WhiteNoise for serving static files in production without S3
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 
 # ==============================================================================
