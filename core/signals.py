@@ -63,8 +63,9 @@ def save_user_profile(sender, instance, created, **kwargs):
         return  # Already handled in create_user_profile
     
     try:
-        instance.userprofile.save()
-    except UserProfile.DoesNotExist:
-        UserProfile.objects.create(user=instance)
+        # Check if profile exists via the model, not via relation
+        profile = UserProfile.objects.filter(user=instance).first()
+        if profile:
+            profile.save()
     except Exception as e:
         logger.error(f"Error saving UserProfile for {instance.username}: {e}")
