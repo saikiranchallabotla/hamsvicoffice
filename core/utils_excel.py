@@ -7,6 +7,33 @@ from django.db.utils import OperationalError, ProgrammingError
 
 from .models import BackendWorkbook
 
+
+def normalize_text(text):
+    """
+    Normalize text by replacing special unicode characters with standard ASCII equivalents.
+    Fixes encoding issues like em-dash (—) appearing as â€" in output.
+    """
+    if text is None:
+        return None
+    if not isinstance(text, str):
+        return text
+    # Replace various unicode dashes with standard hyphen
+    text = text.replace('—', '-')  # em dash
+    text = text.replace('–', '-')  # en dash
+    text = text.replace('−', '-')  # minus sign
+    text = text.replace('‐', '-')  # hyphen
+    text = text.replace('‑', '-')  # non-breaking hyphen
+    text = text.replace('‒', '-')  # figure dash
+    # Replace other common problematic characters
+    text = text.replace(''', "'")  # left single quote
+    text = text.replace(''', "'")  # right single quote
+    text = text.replace('"', '"')  # left double quote
+    text = text.replace('"', '"')  # right double quote
+    text = text.replace('…', '...')  # ellipsis
+    text = text.replace('\u00a0', ' ')  # non-breaking space
+    return text
+
+
 # scan columns A..J
 SCAN_COL_START = 1
 SCAN_COL_END = 10
@@ -368,6 +395,9 @@ def copy_block_with_styles_and_formulas(
                     )
                 except Exception:
                     pass
+            elif isinstance(v, str):
+                # Normalize text to fix encoding issues (em-dash -> hyphen, etc.)
+                v = normalize_text(v)
 
             dst_cell.value = v
 

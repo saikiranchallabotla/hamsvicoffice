@@ -16,6 +16,32 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from core.models import Job, Upload, OutputFile, Organization
 
+
+def normalize_text(text):
+    """
+    Normalize text by replacing special unicode characters with standard ASCII equivalents.
+    Fixes encoding issues like em-dash (—) appearing as â€" in output.
+    """
+    if text is None:
+        return ""
+    text = str(text)
+    # Replace various unicode dashes with standard hyphen
+    text = text.replace('—', '-')  # em dash
+    text = text.replace('–', '-')  # en dash
+    text = text.replace('−', '-')  # minus sign
+    text = text.replace('‐', '-')  # hyphen
+    text = text.replace('‑', '-')  # non-breaking hyphen
+    text = text.replace('‒', '-')  # figure dash
+    # Replace other common problematic characters
+    text = text.replace(''', "'")  # left single quote
+    text = text.replace(''', "'")  # right single quote
+    text = text.replace('"', '"')  # left double quote
+    text = text.replace('"', '"')  # right double quote
+    text = text.replace('…', '...')  # ellipsis
+    text = text.replace('\u00a0', ' ')  # non-breaking space
+    return text
+
+
 # TODO: Implement these functions in utils_excel.py
 # For now, use stubs to allow server to run
 def read_excel_file(file_path):
@@ -336,7 +362,7 @@ def generate_workslip_pdf(self, job_id, project_id):
 
 
 @shared_task(bind=True, max_retries=2)
-def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, work_name, work_type, grand_total=None, excess_tp_percent=None, ls_special_name=None, ls_special_amount=None, deduct_old_material=None):
+def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, work_name, work_type, grand_total=None, excess_tp_percent=None, ls_special_name=None, ls_special_amount=None, deduct_old_material=None, backend_id=None):
     """
     Generate Output + Estimate Excel workbook asynchronously.
     
@@ -354,6 +380,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         ls_special_name: Name for L.S Provision special item (optional)
         ls_special_amount: Amount for L.S Provision special item (optional)
         deduct_old_material: Amount to deduct for old material cost (repair work, optional)
+        backend_id: ID of the ModuleBackend to use (optional, for multi-backend support)
     
     Returns:
         JSON with status and output_file_id
@@ -383,7 +410,15 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         job.current_step = "Loading items and groups..."
         job.save()
         
-        items_list, groups_map, backend_units_map, ws_src, filepath = load_backend(category, settings.BASE_DIR)
+        # Get backend_id from job result if not passed directly (for backward compatibility)
+        if not backend_id and job.result:
+            backend_id = job.result.get('backend_id')
+        
+        items_list, groups_map, backend_units_map, ws_src, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=backend_id,
+            module_code='new_estimate'
+        )
         name_to_info = {it["name"]: it for it in items_list}
         
         # Map items to groups
@@ -430,6 +465,12 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         # For now, we get it from the session-based workflow
         # In future, this should be stored in Job.result as input data
         fetched = job.result.get('fetched_items', []) if job.result else []
+        
+        # Log items found vs missing for debugging
+        missing_items = [name for name in fetched if name not in name_to_info]
+        if missing_items:
+            logger.warning(f"Job {job_id}: {len(missing_items)} items not found in backend: {missing_items[:5]}{'...' if len(missing_items) > 5 else ''}")
+        logger.info(f"Job {job_id}: Processing {len(fetched)} fetched items, {len(fetched) - len(missing_items)} found in backend")
         
         job.progress = 30
         job.current_step = "Building Output sheet..."
@@ -510,7 +551,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         
         ws_est.merge_cells("A2:H2")
         c2 = ws_est["A2"]
-        c2.value = f"Name of the work : {work_name}" if work_name else "Name of the work : "
+        c2.value = f"Name of the work : {normalize_text(work_name)}" if work_name else "Name of the work : "
         c2.font = Font(bold=True, size=11)
         c2.alignment = Alignment(horizontal="left", vertical="center")
         
@@ -548,7 +589,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             
             start = info["start_row"]
             base_desc = ws_src.cell(row=start + 2, column=4).value or ""
-            base_desc_str = str(base_desc).strip()
+            base_desc_str = normalize_text(base_desc).strip()
             
             prefix = item_to_prefix.get(name, "") if is_repair else ""
             if prefix:
@@ -797,7 +838,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
 
 
 @shared_task(bind=True, max_retries=2)
-def generate_estimate_excel(self, job_id, category, fetched_items_json):
+def generate_estimate_excel(self, job_id, category, fetched_items_json, backend_id=None):
     """
     Generate Estimate-only Excel workbook asynchronously.
     
@@ -807,6 +848,7 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json):
         job_id: Job.id to track progress
         category: Category name for backend loading
         fetched_items_json: JSON string of fetched item names
+        backend_id: ID of the ModuleBackend to use (optional, for multi-backend support)
     
     Returns:
         JSON with status and output_file_id
@@ -833,7 +875,15 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json):
         job.current_step = "Building estimate workbook..."
         job.save()
         
-        items_list, groups_map, _, ws_src, _ = load_backend(category, settings.BASE_DIR)
+        # Get backend_id from job result if not passed directly (for backward compatibility)
+        if not backend_id and job.result:
+            backend_id = job.result.get('backend_id')
+        
+        items_list, groups_map, _, ws_src, _ = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=backend_id,
+            module_code='new_estimate'
+        )
         name_to_block = {it["name"]: it for it in items_list}
         blocks = [name_to_block[n] for n in fetched if n in name_to_block]
         
