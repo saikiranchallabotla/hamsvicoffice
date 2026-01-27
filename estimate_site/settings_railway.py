@@ -114,14 +114,19 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # For production: Configure S3/DO Spaces with environment variables
 STORAGE_TYPE = os.environ.get('STORAGE_TYPE', 'local')
 
-if STORAGE_TYPE == 's3':
+# Only use S3 if explicitly configured AND credentials are provided
+_aws_key = os.environ.get('AWS_ACCESS_KEY_ID', '')
+_aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
+_use_s3 = STORAGE_TYPE == 's3' and _aws_key and _aws_secret
+
+if _use_s3:
     # AWS S3 or DO Spaces (S3-compatible)
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
-                "access_key": os.environ.get('AWS_ACCESS_KEY_ID', ''),
-                "secret_key": os.environ.get('AWS_SECRET_ACCESS_KEY', ''),
+                "access_key": _aws_key,
+                "secret_key": _aws_secret,
                 "bucket_name": os.environ.get('AWS_STORAGE_BUCKET_NAME', 'hamsvic'),
                 "region_name": os.environ.get('AWS_S3_REGION_NAME', 'us-east-1'),
                 "endpoint_url": os.environ.get('AWS_S3_ENDPOINT_URL', None),
