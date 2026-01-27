@@ -8202,6 +8202,14 @@ def download_output(request, category):
     item_units = {}
     work_name = ""
     grand_total = None
+    
+    # Initialize optional parameters with defaults (before POST check)
+    excess_tp_enabled = False
+    excess_tp_percent = None
+    ls_special_enabled = False
+    ls_special_name = None
+    ls_special_amount = None
+    deduct_old_material = None
 
     if request.method == "POST":
         qty_map_str = request.POST.get("qty_map", "")
@@ -8240,7 +8248,6 @@ def download_output(request, category):
         
         # Parse additional options
         excess_tp_enabled = request.POST.get("excess_tp_enabled", "").strip().lower() == 'true'
-        excess_tp_percent = None
         if excess_tp_enabled:
             excess_tp_str = request.POST.get("excess_tp_percent", "").strip()
             if excess_tp_str:
@@ -8250,8 +8257,6 @@ def download_output(request, category):
                     excess_tp_percent = None
         
         ls_special_enabled = request.POST.get("ls_special_enabled", "").strip().lower() == 'true'
-        ls_special_name = None
-        ls_special_amount = None
         if ls_special_enabled:
             ls_special_name = request.POST.get("ls_special_name", "").strip() or None
             ls_special_amount_str = request.POST.get("ls_special_amount", "").strip()
@@ -8262,7 +8267,6 @@ def download_output(request, category):
                     ls_special_amount = None
         
         # Parse Deduct Old Material Cost (for repair work)
-        deduct_old_material = None
         deduct_old_material_str = request.POST.get("deduct_old_material", "").strip()
         if deduct_old_material_str:
             try:
