@@ -57,7 +57,7 @@ def create_admin():
     # Update profile
     profile, _ = UserProfile.objects.get_or_create(user=user)
     profile.phone = phone
-    profile.is_phone_verified = True
+    profile.phone_verified = True
     profile.save()
     print(f'[INIT] Admin ready: {email} / {phone}')
 

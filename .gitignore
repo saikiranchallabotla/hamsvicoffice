@@ -50,10 +50,19 @@ staticfiles/
 .DS_Store
 Thumbs.db
 
-# Test files
-*.xlsx
+# Test files (keep backend Excel data files - they are required!)
+# *.xlsx  -- DO NOT EXCLUDE - backend data files are needed
 test_*.xlsx
+test_*.json
 migration.log
+
+# Keep these backend data files (required for app to work):
+# core/data/electrical.xlsx
+# core/data/civil.xlsx
+# core/data/temp_electrical.xlsx
+# core/data/temp_civil.xlsx
+# core/data/amc_electrical.xlsx
+# core/data/amc_civil.xlsx
 
 # Backup files
 *.json.bak

@@ -1,10 +1,11 @@
+import os
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 from django.http import JsonResponse
-from core import views, auth_views, api_views, dashboard_views, template_views, saved_works_views, saved_works_views
+from core import views, auth_views, api_views, dashboard_views, template_views, saved_works_views
 
 # Health check endpoint for load balancers and container orchestration
 def health_check(request):
@@ -293,5 +294,7 @@ urlpatterns = [
 # -------------------------
 # MEDIA (for uploaded backend excels, templates etc.)
 # -------------------------
-if settings.DEBUG:
+# Always serve media files for Railway deployment (local storage mode)
+# In production with S3, files are served directly from S3
+if settings.DEBUG or os.environ.get('STORAGE_TYPE', 'local') == 'local':
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

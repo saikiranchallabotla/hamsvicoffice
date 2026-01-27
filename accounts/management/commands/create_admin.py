@@ -54,7 +54,7 @@ class Command(BaseCommand):
         # Create or update UserProfile with phone
         profile, created = UserProfile.objects.get_or_create(user=user)
         profile.phone = phone
-        profile.is_phone_verified = True
+        profile.phone_verified = True
         profile.save()
         
         self.stdout.write(self.style.SUCCESS(f'Profile updated with phone: {phone}'))

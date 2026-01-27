@@ -28,6 +28,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third-party apps
+    'storages',  # django-storages for S3/DO Spaces
+    'django_celery_beat',  # Celery beat scheduler
+
+    # Local apps
     'core',
     'accounts',
     'subscriptions',
@@ -45,7 +51,18 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.OrganizationMiddleware',
+    
+    # Session & Subscription Middleware
+    'accounts.middleware.SessionTrackingMiddleware',
+    'accounts.middleware.ConcurrentSessionCheckMiddleware',
+    'subscriptions.middleware.SubscriptionCacheMiddleware',
+    'subscriptions.middleware.ModuleAccessMiddleware',
+    'subscriptions.middleware.UsageTrackingMiddleware',
 ]
+
+# Maximum concurrent sessions per user
+MAX_CONCURRENT_SESSIONS = 1
 
 ROOT_URLCONF = 'estimate_site.urls'
 
@@ -90,10 +107,41 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
-}
+# ==============================================================================
+# FILE STORAGE CONFIGURATION
+# ==============================================================================
+# For pilot: Use local storage (files lost on redeploy)
+# For production: Configure S3/DO Spaces with environment variables
+STORAGE_TYPE = os.environ.get('STORAGE_TYPE', 'local')
+
+if STORAGE_TYPE == 's3':
+    # AWS S3 or DO Spaces (S3-compatible)
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "access_key": os.environ.get('AWS_ACCESS_KEY_ID', ''),
+                "secret_key": os.environ.get('AWS_SECRET_ACCESS_KEY', ''),
+                "bucket_name": os.environ.get('AWS_STORAGE_BUCKET_NAME', 'hamsvic'),
+                "region_name": os.environ.get('AWS_S3_REGION_NAME', 'us-east-1'),
+                "endpoint_url": os.environ.get('AWS_S3_ENDPOINT_URL', None),
+                "default_acl": "private",
+                "file_overwrite": False,
+            }
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    AWS_S3_SIGNATURE_VERSION = 's3v4'
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 3600
+else:
+    # Local file storage (pilot mode - files may be lost on redeploy!)
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
 
 # ==============================================================================
 # CACHE & SESSION - Simple in-memory (no Redis needed)
@@ -163,3 +211,81 @@ LOGGING = {
 # Security for production
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = ['https://*.railway.app', 'https://*.up.railway.app']
+
+# ==============================================================================
+# AUTHENTICATION SETTINGS
+# ==============================================================================
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# ==============================================================================
+# MODULE ACCESS CONFIGURATION
+# ==============================================================================
+
+# URL patterns that require specific module subscriptions
+MODULE_PROTECTED_URLS = {
+    'new_estimate': [
+        r'^/datas/',
+        r'^/groups/',
+        r'^/items/',
+        r'^/fetch-item/',
+    ],
+    'temp_works': [
+        r'^/tempworks/',
+        r'^/temp-groups/',
+        r'^/temp-items/',
+        r'^/temp-rate/',
+    ],
+    'estimate': [
+        r'^/estimate/',
+        r'^/projects/',
+    ],
+    'workslip': [
+        r'^/workslip/',
+    ],
+    'bill': [
+        r'^/bill/',
+    ],
+    'self_formatted': [
+        r'^/self-formatted/',
+    ],
+    'amc': [
+        r'^/amc/',
+    ],
+}
+
+# URLs exempt from module access checks
+MODULE_EXEMPT_URLS = [
+    r'^/accounts/',
+    r'^/admin/',
+    r'^/admin-panel/',
+    r'^/static/',
+    r'^/media/',
+    r'^/$',
+    r'^/api/auth/',
+    r'^/pricing/',
+    r'^/help/',
+    r'^/support/',
+    r'^/dashboard/',
+    r'^/my-subscription/',
+    r'^/profile/',
+    r'^/subscriptions/',
+    r'^/saved-works/',
+    r'^/health/',
+]
+
+# URLs that track usage (for metered billing)
+USAGE_TRACKED_URLS = [
+    (r'^/estimate/$', 'estimate', 'POST'),
+    (r'^/workslip/$', 'workslip', 'POST'),
+    (r'^/bill/$', 'bill', 'POST'),
+    (r'^/self-formatted/use/$', 'self_formatted', 'POST'),
+]
+
+# ==============================================================================
+# RAZORPAY PAYMENT GATEWAY
+# ==============================================================================
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
