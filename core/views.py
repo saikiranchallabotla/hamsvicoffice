@@ -8314,8 +8314,9 @@ def download_output(request, category):
             job.save()
             
             # Call task function directly (synchronous, no Celery)
+            # Note: For bound tasks (bind=True), we need to pass None for self or call .run()
             from core.tasks import generate_output_excel
-            result = generate_output_excel(
+            result = generate_output_excel.run(
                 job.id,
                 category,
                 json.dumps(item_qtys),
@@ -13377,8 +13378,9 @@ def amc_download_output(request, category):
             job.save()
             
             # Call task function directly
+            # Note: For bound tasks (bind=True), use .run() for synchronous execution
             from core.tasks import generate_output_excel
-            result = generate_output_excel(
+            result = generate_output_excel.run(
                 job.id,
                 category,
                 json.dumps(item_qtys),
