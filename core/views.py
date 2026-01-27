@@ -668,7 +668,7 @@ def workslip(request):
                         heading_names.append(nm)
             # If not found, we'll just fall back in parsing
 
-            # prepare backend rate lookup (Master Datas â€“ correct numeric rate)
+            # prepare backend rate lookup (Master Datas  -  correct numeric rate)
             item_to_info = {it["name"]: it for it in items_list}
             wb_backend_vals = None
             ws_backend_vals = None
@@ -3394,7 +3394,7 @@ def _extract_total_amount_from_single_sheet(ws):
 # BILL FROM WORKSLIP
 # -----------------------
 # -----------------------
-# BILL â€“ from Estimate / from WorkSlip
+# BILL  -  from Estimate / from WorkSlip
 # -----------------------
 # imports consolidated at top of file
 
@@ -6081,7 +6081,7 @@ def build_estimate_wb(ws_src, blocks):
         })
 
     print('DEBUG: action=', action)
-    # SECTION 1 â€“ Bill from Estimate (multi-sheet)
+    # SECTION 1  -  Bill from Estimate (multi-sheet)
     if action in ("estimate_first_part", "estimate_first_final"):
         sheet_info_list = find_all_estimate_sheets_and_header_rows(wb_in)
 
@@ -6141,7 +6141,7 @@ def build_estimate_wb(ws_src, blocks):
         wb_out.save(resp)
         return resp
 
-    # SECTION 2 â€“ Bill from WorkSlip (multi-sheet)
+    # SECTION 2  -  Bill from WorkSlip (multi-sheet)
     if action in ("workslip_first_part", "workslip_first_final"):
         ws_list = find_all_workslip_sheets(wb_in)
 
@@ -6203,7 +6203,7 @@ def build_estimate_wb(ws_src, blocks):
         wb_out.save(resp)
         return resp
 
-    # SECTION 3 â€“ Nth & Part / 2nd & Final from First & Part Bill
+    # SECTION 3  -  Nth & Part / 2nd & Final from First & Part Bill
     if action in ("firstpart_nth_part", "firstpart_2nd_final"):
         ws_first, header_row = find_estimate_sheet_and_header_row(wb_in)
         header_data = extract_header_data(ws_first)
@@ -6260,7 +6260,7 @@ def build_estimate_wb(ws_src, blocks):
         wb_out.save(resp)
         return resp
 
-    # SECTION 4 â€“ Nth & Part / Nth & Final from Nth & Part Bill
+    # SECTION 4  -  Nth & Part / Nth & Final from Nth & Part Bill
     if action in ("nth_nth_part", "nth_nth_final"):
         ws_nth, header_row = find_nth_bill_sheet_and_header_row(wb_in)
         header_data = extract_header_data(ws_nth)
@@ -6932,7 +6932,7 @@ def _extract_total_amount_for_action(wb, action: str, request=None) -> float:
             for it in items:
                 subtotal += it["qty"] * it["rate"]
 
-            # T.P from sheet; if not found, use session â€“ same as bill()
+            # T.P from sheet; if not found, use session  -  same as bill()
             tp_percent, tp_type = read_tp_from_sheet_amt(ws_ws)
 
             if request is not None:
@@ -7100,7 +7100,7 @@ def _fill_docx_template(template_filename, context_dict):
 # BILL FROM WORKSLIP
 # -----------------------
 # -----------------------
-# BILL â€“ from Estimate / from WorkSlip
+# BILL  -  from Estimate / from WorkSlip
 # -----------------------
 # imports for bill/templating consolidated at top of file
 
@@ -7764,12 +7764,26 @@ def datas_groups(request, category):
     # Get backend_id from session for loading
     selected_backend_id = request.session.get("selected_backend_id")
     
-    items_list, groups_map, _, ws_data, filepath = load_backend(
-        category, settings.BASE_DIR, 
-        backend_id=selected_backend_id,
-        module_code='new_estimate',
-        user=request.user
-    )
+    try:
+        items_list, groups_map, _, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR, 
+            backend_id=selected_backend_id,
+            module_code='new_estimate',
+            user=request.user if request.user.is_authenticated else None
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Backend file not found for category {category}: {e}")
+        return render(request, "core/error.html", {
+            "error_title": "Data Not Found",
+            "error_message": f"Backend data file for '{category}' not found. Please contact admin.",
+        })
+    except Exception as e:
+        logger.error(f"Error loading backend for {category}: {e}")
+        return render(request, "core/error.html", {
+            "error_title": "Loading Error",
+            "error_message": f"Could not load backend data: {str(e)}",
+        })
+    
     groups = sorted(groups_map.keys(), key=lambda s: s.lower())
 
     if not groups:
@@ -7803,14 +7817,31 @@ def datas_items(request, category, group):
     selected_backend_id = request.session.get("selected_backend_id")
     
     # Get available backends for the dropdown
-    available_backends = get_available_backends_for_module('new_estimate', category)
+    try:
+        available_backends = get_available_backends_for_module('new_estimate', category)
+    except Exception as e:
+        logger.error(f"Error getting available backends: {e}")
+        available_backends = []
     
-    items_list, groups_map, backend_units_map, ws_data, filepath = load_backend(
-        category, settings.BASE_DIR,
-        backend_id=selected_backend_id,
-        module_code='new_estimate',
-        user=request.user
-    )
+    try:
+        items_list, groups_map, backend_units_map, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=selected_backend_id,
+            module_code='new_estimate',
+            user=request.user if request.user.is_authenticated else None
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Backend file not found for category {category}: {e}")
+        return render(request, "core/error.html", {
+            "error_title": "Data Not Found",
+            "error_message": f"Backend data file for '{category}' not found. Please contact admin.",
+        })
+    except Exception as e:
+        logger.error(f"Error loading backend for {category}: {e}")
+        return render(request, "core/error.html", {
+            "error_title": "Loading Error",
+            "error_message": f"Could not load backend data: {str(e)}",
+        })
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower())
 
@@ -8022,7 +8053,14 @@ def ajax_toggle_item(request, category):
         item_info = None
         if action_taken == "added":
             try:
-                items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
+                # Use same backend as the items page - get from session
+                selected_backend_id = request.session.get("selected_backend_id")
+                items_list, groups_map, units_map, ws_data, filepath = load_backend(
+                    category, settings.BASE_DIR,
+                    backend_id=selected_backend_id,
+                    module_code='new_estimate',
+                    user=request.user
+                )
                 
                 # Get rate
                 wb_vals = load_workbook(filepath, data_only=True)
@@ -8040,8 +8078,23 @@ def ajax_toggle_item(request, category):
                                 break
                         break
                 
-                # Get unit from backend units_map (Column D of Groups sheet)
-                unit = units_map.get(item, "Nos")
+                # Get unit with smart fallback (same logic as datas_items)
+                # Priority: 1) units_map from backend, 2) group-based defaults
+                unit = units_map.get(item, "")
+                if not unit:
+                    # Find item's group for fallback
+                    item_group = ""
+                    for grp_name, grp_items in groups_map.items():
+                        if item in grp_items:
+                            item_group = grp_name
+                            break
+                    # Group-based defaults
+                    if item_group in ("Piping", "Wiring & Cables", "Run of Mains", "Sheathed Cables", "U.G Cabling"):
+                        unit = "Mtrs"
+                    elif item_group == "Points":
+                        unit = "Pts"
+                    else:
+                        unit = "Nos"
                 
                 item_info = {
                     "name": item,
@@ -8221,6 +8274,9 @@ def download_output(request, category):
                  or request.session.get("work_type")
                  or "original").lower()
     request.session["work_type"] = work_type
+    
+    # Get selected backend ID from session (for multi-backend support)
+    selected_backend_id = request.session.get("selected_backend_id")
 
     # For development: Run synchronously without Celery
     # This bypasses the async task queue when Redis/Celery isn't available
@@ -8253,6 +8309,7 @@ def download_output(request, category):
                 'ls_special_name': ls_special_name,
                 'ls_special_amount': ls_special_amount,
                 'deduct_old_material': deduct_old_material,
+                'backend_id': selected_backend_id,
             }
             job.save()
             
@@ -8270,6 +8327,7 @@ def download_output(request, category):
                 ls_special_name,
                 ls_special_amount,
                 deduct_old_material,
+                selected_backend_id,
             )
             
             # Refresh job to get updated result
@@ -8331,6 +8389,7 @@ def download_output(request, category):
             'ls_special_name': ls_special_name,
             'ls_special_amount': ls_special_amount,
             'deduct_old_material': deduct_old_material,
+            'backend_id': selected_backend_id,
         }
         job.save()
         
@@ -8348,6 +8407,7 @@ def download_output(request, category):
             ls_special_name,
             ls_special_amount,
             deduct_old_material,
+            selected_backend_id,
         )
         
         job.celery_task_id = task.id
@@ -8535,6 +8595,9 @@ def download_estimate(request, category):
     fetched = request.session.get("fetched_items", [])
     if not fetched:
         return JsonResponse({"error": "No items selected"}, status=400)
+    
+    # Get selected backend ID from session (for multi-backend support)
+    selected_backend_id = request.session.get("selected_backend_id")
 
     try:
         org = get_org_from_request(request)
@@ -8547,8 +8610,11 @@ def download_estimate(request, category):
             current_step="Queued for processing",
         )
         
-        # Store fetched items in result temporarily
-        job.result = {'fetched_items': fetched}
+        # Store fetched items and backend_id in result temporarily
+        job.result = {
+            'fetched_items': fetched,
+            'backend_id': selected_backend_id,
+        }
         job.save()
         
         # Enqueue async task
@@ -8557,6 +8623,7 @@ def download_estimate(request, category):
             job.id,
             category,
             json.dumps(fetched),
+            selected_backend_id,
         )
         
         job.celery_task_id = task.id
@@ -9658,7 +9725,7 @@ def _extract_labels_from_source_file(uploaded_file):
             logger.warning(f"Image OCR extraction failed: {e}")
 
     else:
-        # plain text / csv / unknown â€“ treat as text
+        # plain text / csv / unknown  -  treat as text
         try:
             content = uploaded_file.read()
         except Exception:
@@ -9693,12 +9760,12 @@ def _extract_labels_from_source_file(uploaded_file):
 
 
 # -------------------------------------------
-#  SELF FORMATTED MODULE â€“ HELPERS
+#  SELF FORMATTED MODULE  -  HELPERS
 # -------------------------------------------
 
 # imports consolidated at top of file
 # from .utils import _number_to_words_rupees, _extract_labels_from_source_file
-# or similar â€“ just make sure they are imported somewhere above.
+# or similar  -  just make sure they are imported somewhere above.
 
 
 def _fuzzy_find_from_lines(lines, label_hint: str, threshold: float = 0.55) -> str:
@@ -9775,7 +9842,7 @@ def _build_placeholder_map(labels, lines, custom_text: str):
     # 'amount' is expected to be in labels (e.g. "56,000.00")
     raw_amount = (labels.get("amount") or "").strip()
     # remove common currency prefixes like 'Rs.', 'INR', or the rupee symbol
-    raw_amount = re.sub(r'^(?:rs\.?|inr|â‚¹)\s*[:\-â€“â€”]?\s*', '', raw_amount, flags=re.I)
+    raw_amount = re.sub(r'^(?:rs\.?|inr|â‚¹)\s*[:\- - â€”]?\s*', '', raw_amount, flags=re.I)
     raw_amount = raw_amount.replace(",", "").strip()
     total_amount = 0.0
     amount_in_words = ""
@@ -9875,7 +9942,7 @@ def _build_placeholder_map(labels, lines, custom_text: str):
         # convenience: amount with Rs. prefix
         "{{AMOUNT_WITH_RS}}":   ("Rs. " + (formatted_amount or labels.get("amount", ""))).strip(),
 
-        # For your estimate covering letter â€“ maps to Grand Total
+        # For your estimate covering letter  -  maps to Grand Total
         "{{EST_GRAND_TOTAL}}":  est_grand_total,
 
         "{{AMOUNT_IN_WORDS}}":  amount_in_words,
@@ -10013,7 +10080,7 @@ def _fill_template_file(template_file, placeholder_map):
 
 
 # ============================================
-#  SELF-FORMATTED FORMS â€“ VIEWS
+#  SELF-FORMATTED FORMS  -  VIEWS
 # ============================================
 
 @login_required(login_url='login')
@@ -10736,9 +10803,16 @@ def temp_download_output(request, category):
         return redirect("temp_groups", category=category)
 
     work_name = (request.POST.get("work_name") or "").strip()
+    
+    # Get selected backend ID from session (for multi-backend support)
+    temp_selected_backend_id = request.session.get("temp_selected_backend_id")
 
     # ----- load backend -----
-    items_list, groups_map, _, ws_src, filepath = load_backend(category, settings.BASE_DIR)
+    items_list, groups_map, _, ws_src, filepath = load_backend(
+        category, settings.BASE_DIR,
+        backend_id=temp_selected_backend_id,
+        module_code='temp_estimate'
+    )
     name_to_info = {it["name"]: it for it in items_list}
 
     # map item -> group for units
@@ -11625,18 +11699,18 @@ def download_specification_report(request, estimate_id):
             quantity = item.get('qty_est', item.get('qty', item.get('quantity', '')))
             unit = item.get('unit', '')
             
-            # Format: "Description â€“ Quantity Unit"
+            # Format: "Description  -  Quantity Unit"
             if quantity and unit:
                 # Convert quantity to clean format
                 qty_str = str(quantity).strip()
                 if '.' in qty_str and qty_str.endswith('.0'):
                     qty_str = qty_str.replace('.0', '')
-                bullet_text = f'{item_description} â€“ {qty_str} {unit}'
+                bullet_text = f'{item_description}  -  {qty_str} {unit}'
             elif quantity:
                 qty_str = str(quantity).strip()
                 if '.' in qty_str and qty_str.endswith('.0'):
                     qty_str = qty_str.replace('.0', '')
-                bullet_text = f'{item_description} â€“ {qty_str}'
+                bullet_text = f'{item_description}  -  {qty_str}'
             else:
                 bullet_text = item_description
             
@@ -12198,9 +12272,9 @@ def generate_specification_report_from_file(request):
             
             # Build bullet text
             if qty and unit:
-                bullet_text = f'{desc} â€“ {qty} {unit}'
+                bullet_text = f'{desc}  -  {qty} {unit}'
             elif qty:
-                bullet_text = f'{desc} â€“ {qty}'
+                bullet_text = f'{desc}  -  {qty}'
             else:
                 bullet_text = desc
             
@@ -12342,9 +12416,9 @@ def download_specification_report_live(request, category):
             
             # Build bullet text
             if qty and unit:
-                bullet_text = f'{desc} â€“ {qty} {unit}'
+                bullet_text = f'{desc}  -  {qty} {unit}'
             elif qty:
-                bullet_text = f'{desc} â€“ {qty}'
+                bullet_text = f'{desc}  -  {qty}'
             else:
                 bullet_text = desc
             
@@ -12629,7 +12703,7 @@ def generate_estimate_forwarding_letter(request):
         subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
         subj_placeholder.font.color.rgb = placeholder_color
         subj_placeholder.font.italic = True
-        subject_para.add_run(f'for the year {financial_year}. â€“ Submission â€“ Request for obtaining administrative sanction â€“ Regarding.')
+        subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
         
         doc.add_paragraph()
         
@@ -12729,7 +12803,7 @@ def generate_estimate_forwarding_letter(request):
         # Enclosure
         enc_para = doc.add_paragraph()
         enc_para.add_run('Enclosure: -')
-        doc.add_paragraph(f'Estimates â€“{len(estimates_data)} No\'s,')
+        doc.add_paragraph(f'Estimates  - {len(estimates_data)} No\'s,')
         
         doc.add_paragraph()
         doc.add_paragraph()
@@ -13071,7 +13145,14 @@ def amc_ajax_toggle_item(request, category):
         item_info = None
         if action_taken == "added":
             try:
-                items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
+                # Use same backend as the AMC items page - get from session
+                amc_selected_backend_id = request.session.get("amc_selected_backend_id")
+                items_list, groups_map, units_map, ws_data, filepath = load_backend(
+                    category, settings.BASE_DIR,
+                    backend_id=amc_selected_backend_id,
+                    module_code='amc',
+                    user=request.user
+                )
                 
                 # Get rate
                 wb_vals = load_workbook(filepath, data_only=True)
@@ -13089,8 +13170,23 @@ def amc_ajax_toggle_item(request, category):
                                 break
                         break
                 
-                # Get unit from backend units_map (Column D of Groups sheet)
-                unit = units_map.get(item, "Nos")
+                # Get unit with smart fallback (same logic as datas_items)
+                # Priority: 1) units_map from backend, 2) group-based defaults
+                unit = units_map.get(item, "")
+                if not unit:
+                    # Find item's group for fallback
+                    item_group = ""
+                    for grp_name, grp_items in groups_map.items():
+                        if item in grp_items:
+                            item_group = grp_name
+                            break
+                    # Group-based defaults
+                    if item_group in ("Piping", "Wiring & Cables", "Run of Mains", "Sheathed Cables", "U.G Cabling"):
+                        unit = "Mtrs"
+                    elif item_group == "Points":
+                        unit = "Pts"
+                    else:
+                        unit = "Nos"
                 
                 item_info = {
                     "name": item,
@@ -13250,6 +13346,9 @@ def amc_download_output(request, category):
                  or request.session.get("amc_work_type")
                  or "original").lower()
     request.session["amc_work_type"] = work_type
+    
+    # Get selected backend ID from session (for multi-backend support)
+    amc_selected_backend_id = request.session.get("amc_selected_backend_id")
 
     from django.conf import settings as django_settings
     
@@ -13273,6 +13372,7 @@ def amc_download_output(request, category):
                 'work_type': work_type,
                 'grand_total': grand_total,
                 'module': 'amc',
+                'backend_id': amc_selected_backend_id,
             }
             job.save()
             
@@ -13282,9 +13382,15 @@ def amc_download_output(request, category):
                 job.id,
                 category,
                 json.dumps(item_qtys),
+                json.dumps({}),  # unit_map
                 work_name,
                 work_type,
                 grand_total,
+                None,  # excess_tp_percent
+                None,  # ls_special_name
+                None,  # ls_special_amount
+                None,  # deduct_old_material
+                amc_selected_backend_id,
             )
             
             job.refresh_from_db()
@@ -13336,6 +13442,7 @@ def amc_download_output(request, category):
             'work_type': work_type,
             'grand_total': grand_total,
             'module': 'amc',
+            'backend_id': amc_selected_backend_id,
         }
         job.save()
         
@@ -13344,9 +13451,15 @@ def amc_download_output(request, category):
             job.id,
             category,
             json.dumps(item_qtys),
+            json.dumps({}),  # unit_map
             work_name,
             work_type,
             grand_total,
+            None,  # excess_tp_percent
+            None,  # ls_special_name
+            None,  # ls_special_amount
+            None,  # deduct_old_material
+            amc_selected_backend_id,
         )
         
         job.celery_task_id = task.id
