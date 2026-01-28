@@ -308,38 +308,76 @@
             <!-- Left Column: MB Details, Dates, Bill Type -->
             <div class="common-left">
                 <div class="field-group">
-                    <div class="field-group-label"><i class="bi bi-book"></i> MB Details</div>
-                    <div class="field-row">
-                        <label>M.B.No <input type="text" id="common_mb_measure_no" style="width:60px" /></label>
-                        <label>From P. <input type="text" id="common_mb_measure_p_from" style="width:50px" /></label>
-                        <label>To P. <input type="text" id="common_mb_measure_p_to" style="width:50px" /></label>
-                        <label>Abs.M.B.No <input type="text" id="common_mb_abstract_no" style="width:60px" /></label>
-                        <label>From P. <input type="text" id="common_mb_abstract_p_from" style="width:50px" /></label>
-                        <label>To P. <input type="text" id="common_mb_abstract_p_to" style="width:50px" /></label>
+                    <div class="field-group-label"><i class="bi bi-book"></i> Measurement Book Details</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                        <div style="background: #f0f9ff; padding: 0.5rem; border-radius: 5px; border: 1px solid #bae6fd;">
+                            <div style="font-size: 0.65rem; color: #0369a1; font-weight: 600; margin-bottom: 0.3rem;">
+                                <i class="bi bi-journal-text me-1"></i>Measurement Book
+                            </div>
+                            <div class="field-row" style="gap: 0.4rem;">
+                                <label style="flex: 1;">M.B. No. <input type="text" id="common_mb_measure_no" style="width:100%" /></label>
+                                <label>From Pg. <input type="text" id="common_mb_measure_p_from" style="width:50px" /></label>
+                                <label>To Pg. <input type="text" id="common_mb_measure_p_to" style="width:50px" /></label>
+                            </div>
+                        </div>
+                        <div style="background: #fef3c7; padding: 0.5rem; border-radius: 5px; border: 1px solid #fcd34d;">
+                            <div style="font-size: 0.65rem; color: #b45309; font-weight: 600; margin-bottom: 0.3rem;">
+                                <i class="bi bi-journal-bookmark me-1"></i>Abstract Book
+                            </div>
+                            <div class="field-row" style="gap: 0.4rem;">
+                                <label style="flex: 1;">Abs. M.B. No. <input type="text" id="common_mb_abstract_no" style="width:100%" /></label>
+                                <label>From Pg. <input type="text" id="common_mb_abstract_p_from" style="width:50px" /></label>
+                                <label>To Pg. <input type="text" id="common_mb_abstract_p_to" style="width:50px" /></label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="field-group">
-                    <div class="field-group-label"><i class="bi bi-calendar3"></i> Dates</div>
-                    <div class="field-row">
-                        <label>DOI <input type="text" id="common_doi" style="width:75px" /></label>
-                        <label>DOC <input type="text" id="common_doc" style="width:75px" /></label>
-                        <label>DOMR <input type="text" id="common_domr" style="width:75px" /></label>
-                        <label>DOBR <input type="text" id="common_dobr" style="width:75px" /></label>
+                    <div class="field-group-label"><i class="bi bi-calendar3"></i> Important Dates</div>
+                    <div class="field-row" style="gap: 0.6rem;">
+                        <label style="flex: 1;">
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <i class="bi bi-calendar-event" style="color: #059669;"></i> Date of Inspection
+                            </span>
+                            <input type="date" id="common_doi" style="width:100%" />
+                        </label>
+                        <label style="flex: 1;">
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <i class="bi bi-calendar-check" style="color: #0284c7;"></i> Date of Completion
+                            </span>
+                            <input type="date" id="common_doc" style="width:100%" />
+                        </label>
+                        <label style="flex: 1;">
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <i class="bi bi-calendar-week" style="color: #7c3aed;"></i> D.O.M.R.
+                            </span>
+                            <input type="date" id="common_domr" style="width:100%" />
+                        </label>
+                        <label style="flex: 1;">
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <i class="bi bi-calendar2-check" style="color: #dc2626;"></i> D.O.B.R.
+                            </span>
+                            <input type="date" id="common_dobr" style="width:100%" />
+                        </label>
                     </div>
                 </div>
 
                 <div class="field-group">
-                    <div class="field-group-label"><i class="bi bi-hash"></i> Bill Type</div>
-                    <div class="field-row">
-                        <label>Nth Bill No. <input type="number" id="common_nth_number" min="2" step="1" style="width:55px" /></label>
-                        <label>Bill Type
-                            <select id="common_action" style="min-width:160px">
-                                <option value="">-- Select --</option>
-                                <option value="estimate_first_part">First & Part</option>
-                                <option value="estimate_first_final">First & Final</option>
-                                <option value="firstpart_nth_part">Nth & Part (from 1st)</option>
-                                <option value="firstpart_2nd_final">2nd & Final (from 1st)</option>
+                    <div class="field-group-label"><i class="bi bi-hash"></i> Bill Configuration</div>
+                    <div class="field-row" style="gap: 0.6rem; align-items: flex-end;">
+                        <label style="width: 80px;">
+                            Nth Bill No.
+                            <input type="number" id="common_nth_number" min="2" step="1" style="width:100%" placeholder="2, 3..." />
+                        </label>
+                        <label style="flex: 1;">
+                            Bill Type
+                            <select id="common_action" style="width:100%">
+                                <option value="">-- Select Bill Type --</option>
+                                <option value="estimate_first_part">First & Part Bill</option>
+                                <option value="estimate_first_final">First & Final Bill</option>
+                                <option value="firstpart_nth_part">Nth & Part (from 1st Part)</option>
+                                <option value="firstpart_2nd_final">2nd & Final (from 1st Part)</option>
                                 <option value="nth_nth_part">Nth & Part (from Nth)</option>
                                 <option value="nth_nth_final">Nth & Final (from Nth)</option>
                             </select>
