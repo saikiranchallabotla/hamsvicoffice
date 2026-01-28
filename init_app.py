@@ -4,6 +4,7 @@ Ensures admin user and modules are created.
 """
 import os
 import sys
+import shutil
 import django
 
 # Setup Django
@@ -11,6 +12,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'estimate_site.settings_railway'
 django.setup()
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from accounts.models import UserProfile
 from subscriptions.models import Module, ModulePricing
 
@@ -106,9 +108,108 @@ def load_fixtures():
                 print(f'[INIT] Warning: Could not load {fixture_file}: {e}')
 
 
+def seed_module_backends():
+    """
+    Seed ModuleBackend entries from static data files in core/data/.
+    This restores backends after each Railway deploy when using ephemeral storage.
+    """
+    from subscriptions.models import ModuleBackend, Module
+    from django.core.files import File
+    
+    # Map of static files to module backends
+    # Format: (source_file, module_code, category, name, is_default)
+    backend_configs = [
+        ('electrical.xlsx', 'new_estimate', 'electrical', 'Telangana Electrical SOR 2024-25', True),
+        ('civil.xlsx', 'new_estimate', 'civil', 'Telangana Civil SOR 2024-25', True),
+        ('electrical.xlsx', 'workslip', 'electrical', 'Telangana Electrical SOR 2024-25', True),
+        ('civil.xlsx', 'workslip', 'civil', 'Telangana Civil SOR 2024-25', True),
+        ('temp_electrical.xlsx', 'temp_works', 'electrical', 'Telangana Temp Electrical SOR', True),
+        ('temp_civil.xlsx', 'temp_works', 'civil', 'Telangana Temp Civil SOR', True),
+        ('amc_electrical.xlsx', 'amc', 'electrical', 'AMC Electrical Rates', True),
+        ('amc_civil.xlsx', 'amc', 'civil', 'AMC Civil Rates', True),
+    ]
+    
+    static_data_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
+    media_backends_dir = os.path.join(settings.MEDIA_ROOT, 'module_backends')
+    
+    # Ensure media directory exists
+    os.makedirs(media_backends_dir, exist_ok=True)
+    
+    backends_created = 0
+    backends_skipped = 0
+    
+    for source_file, module_code, category, name, is_default in backend_configs:
+        source_path = os.path.join(static_data_dir, source_file)
+        
+        if not os.path.exists(source_path):
+            print(f'[INIT] Warning: Source file not found: {source_file}')
+            continue
+        
+        # Get the module
+        try:
+            module = Module.objects.get(code=module_code)
+        except Module.DoesNotExist:
+            print(f'[INIT] Warning: Module not found: {module_code}')
+            continue
+        
+        # Check if backend already exists for this module+category
+        existing = ModuleBackend.objects.filter(
+            module=module,
+            category=category,
+            is_active=True
+        ).first()
+        
+        if existing:
+            # Check if the file exists in media
+            if existing.file and os.path.exists(existing.file.path):
+                backends_skipped += 1
+                continue
+            else:
+                # File is missing - need to restore it
+                print(f'[INIT] Restoring missing file for: {name}')
+        
+        # Copy file to media directory
+        dest_filename = f"{module_code}_{source_file}"
+        dest_path = os.path.join(media_backends_dir, dest_filename)
+        
+        try:
+            shutil.copy2(source_path, dest_path)
+        except Exception as e:
+            print(f'[INIT] Error copying {source_file}: {e}')
+            continue
+        
+        # Create or update ModuleBackend entry
+        if existing:
+            # Update existing record with new file path
+            existing.file = f'module_backends/{dest_filename}'
+            existing.save()
+            print(f'[INIT] Restored backend file: {name}')
+        else:
+            # Create new record
+            ModuleBackend.objects.create(
+                module=module,
+                category=category,
+                name=name,
+                code=f'{module_code}_{category}_default',
+                file=f'module_backends/{dest_filename}',
+                is_active=True,
+                is_default=is_default,
+                display_order=0,
+            )
+            print(f'[INIT] Created backend: {name}')
+        
+        backends_created += 1
+    
+    if backends_created > 0:
+        print(f'[INIT] Seeded {backends_created} module backends from static files')
+    if backends_skipped > 0:
+        print(f'[INIT] Skipped {backends_skipped} backends (already exist)')
+
+
 if __name__ == '__main__':
     print('[INIT] Running startup initialization...')
     create_admin()
     seed_modules()
     load_fixtures()
+    seed_module_backends()  # Restore backends after each deploy
     print('[INIT] Initialization complete!')
