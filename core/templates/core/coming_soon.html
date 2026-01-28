@@ -1,61 +1,66 @@
-{% extends "core/base.html" %}
+{% extends "core/base_modern.html" %}
 {% load static %}
 
 {% block title %}Coming Soon - {{ module_name|default:"Module" }}{% endblock %}
 
+{% block page_title %}
+<i class="bi bi-hourglass-split me-2"></i>{{ module_name|default:"Module" }}
+{% endblock %}
+
 {% block content %}
-<div class="coming-soon-page">
+<div class="coming-soon-container">
     <div class="coming-soon-card">
         <div class="coming-soon-header">
-            <div class="coming-soon-icon">
-                <!-- SVG Hourglass Icon for better visibility -->
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="white" viewBox="0 0 16 16">
-                    <path d="M2.5 15a.5.5 0 1 1 0-1h1v-1a4.5 4.5 0 0 1 2.557-4.06c.29-.139.443-.377.443-.59v-.7c0-.213-.154-.451-.443-.59A4.5 4.5 0 0 1 3.5 3V2h-1a.5.5 0 0 1 0-1h11a.5.5 0 0 1 0 1h-1v1a4.5 4.5 0 0 1-2.557 4.06c-.29.139-.443.377-.443.59v.7c0 .213.154.451.443.59A4.5 4.5 0 0 1 12.5 13v1h1a.5.5 0 0 1 0 1h-11zm2-13v1c0 .537.12 1.045.337 1.5h6.326c.216-.455.337-.963.337-1.5V2h-7zm3 6.35c0 .701-.478 1.236-1.011 1.492A3.5 3.5 0 0 0 4.5 13s.866-1.299 3-1.48v-1.17zm1 0v1.17c2.134.181 3 1.48 3 1.48a3.5 3.5 0 0 0-1.989-3.158C8.978 9.586 8.5 9.052 8.5 8.351z"/>
-                </svg>
+            <div class="icon-wrapper">
+                <i class="bi bi-hourglass-split"></i>
             </div>
-            <h1 class="coming-soon-title">Coming Soon</h1>
-            <p class="coming-soon-subtitle">{{ category|title }} Data</p>
+            <h2>Coming Soon</h2>
+            <p class="category-badge">{{ category|title }} Data</p>
         </div>
         
-        <div class="coming-soon-content">
-            <p class="coming-soon-message">
-                We're working on adding {{ category|title }} data for {{ module_name|default:"this module" }}. 
+        <div class="coming-soon-body">
+            <p class="description">
+                We're working on adding <strong>{{ category|title }}</strong> data for <strong>{{ module_name|default:"this module" }}</strong>. 
                 Please check back later or contact the administrator for more information.
             </p>
             
-            <div class="coming-soon-info">
-                <div class="info-item">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#22c55e" viewBox="0 0 16 16">
-                        <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933zm1.37.71a7.01 7.01 0 0 0-.439-.27l.493-.87a8.025 8.025 0 0 1 .979.654l-.615.789a6.996 6.996 0 0 0-.418-.302zm1.834 1.79a6.99 6.99 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7.08 7.08 0 0 0-.214-.468l.893-.45a7.976 7.976 0 0 1 .45 1.088l-.95.313a7.023 7.023 0 0 0-.179-.483zm.53 2.507a6.991 6.991 0 0 0-.1-1.025l.985-.17c.067.386.106.778.116 1.17l-1 .025zm-.131 1.538c.033-.17.06-.339.081-.51l.993.123a7.957 7.957 0 0 1-.23 1.155l-.964-.267c.046-.165.086-.332.12-.501zm-.952 2.379c.184-.29.346-.594.486-.908l.914.405c-.16.36-.345.706-.555 1.038l-.845-.535zm-.964 1.205c.122-.122.239-.248.35-.378l.758.653a8.073 8.073 0 0 1-.401.432l-.707-.707z"/>
-                        <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
-                        <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
-                    </svg>
-                    <span>Backend data will be available soon</span>
+            <div class="info-cards">
+                <div class="info-card">
+                    <div class="info-icon purple">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="info-text">
+                        <strong>In Progress</strong>
+                        <span>Backend data is being prepared</span>
+                    </div>
                 </div>
-                <div class="info-item">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#22c55e" viewBox="0 0 16 16">
-                        <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
-                    </svg>
-                    <span>You'll be notified when it's ready</span>
+                <div class="info-card">
+                    <div class="info-icon teal">
+                        <i class="bi bi-bell"></i>
+                    </div>
+                    <div class="info-text">
+                        <strong>Stay Updated</strong>
+                        <span>You'll be notified when ready</span>
+                    </div>
                 </div>
             </div>
             
-            <div class="coming-soon-actions">
-                <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
-                    <i class="bi bi-house me-2"></i>Back to Dashboard
+            <div class="action-buttons">
+                <a href="{% url 'dashboard' %}" class="btn-primary-custom">
+                    <i class="bi bi-house-door me-2"></i>Back to Dashboard
                 </a>
                 {% if other_category_available %}
                     {% if module_name == "Temporary Works" %}
-                        <a href="{% url 'temp_groups' other_category %}" class="btn btn-outline-primary btn-lg">
-                            <i class="bi bi-arrow-right me-2"></i>Try {{ other_category|title }} Data
+                        <a href="{% url 'temp_groups' other_category %}" class="btn-secondary-custom">
+                            <i class="bi bi-arrow-right-circle me-2"></i>Try {{ other_category|title }} Data
                         </a>
                     {% elif module_name == "AMC" %}
-                        <a href="{% url 'amc_groups' other_category %}" class="btn btn-outline-primary btn-lg">
-                            <i class="bi bi-arrow-right me-2"></i>Try {{ other_category|title }} Data
+                        <a href="{% url 'amc_groups' other_category %}" class="btn-secondary-custom">
+                            <i class="bi bi-arrow-right-circle me-2"></i>Try {{ other_category|title }} Data
                         </a>
                     {% else %}
-                        <a href="{% url 'datas_groups' other_category %}" class="btn btn-outline-primary btn-lg">
-                            <i class="bi bi-arrow-right me-2"></i>Try {{ other_category|title }} Data
+                        <a href="{% url 'datas_groups' other_category %}" class="btn-secondary-custom">
+                            <i class="bi bi-arrow-right-circle me-2"></i>Try {{ other_category|title }} Data
                         </a>
                     {% endif %}
                 {% endif %}
@@ -65,161 +70,217 @@
 </div>
 
 <style>
-    .coming-soon-page {
-        min-height: 70vh;
+    .coming-soon-container {
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 2rem 1rem;
+        min-height: calc(100vh - 200px);
+        padding: 2rem;
     }
     
     .coming-soon-card {
         background: white;
-        border-radius: 24px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
-        max-width: 520px;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        max-width: 500px;
         width: 100%;
         overflow: hidden;
-        text-align: center;
     }
     
     .coming-soon-header {
-        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-        padding: 3rem 2rem 2rem;
-        border-bottom: 1px solid #bbf7d0;
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        padding: 2.5rem 2rem;
+        text-align: center;
+        color: white;
     }
     
-    .coming-soon-icon {
-        width: 100px;
-        height: 100px;
-        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    .icon-wrapper {
+        width: 80px;
+        height: 80px;
+        background: rgba(255, 255, 255, 0.2);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 1.5rem;
-        box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+        margin: 0 auto 1.25rem;
+        backdrop-filter: blur(10px);
+    }
+    
+    .icon-wrapper i {
+        font-size: 2.5rem;
+        color: white;
         animation: pulse 2s ease-in-out infinite;
     }
     
     @keyframes pulse {
         0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.05); }
+        50% { transform: scale(1.1); }
     }
     
-    .coming-soon-icon i {
-        font-size: 3rem;
-        color: white;
-        animation: flip 2s ease-in-out infinite;
-    }
-    .coming-soon-icon svg {
-        animation: sandfall 2s ease-in-out infinite;
-    }
-    
-    @keyframes sandfall {
-        0%, 100% { transform: rotate(0deg); }
-        50% { transform: rotate(180deg); }
-    }
-    
-    .coming-soon-title {
-        font-size: 2rem;
+    .coming-soon-header h2 {
+        font-size: 1.75rem;
         font-weight: 700;
-        color: #166534;
-        margin: 0 0 0.5rem;
+        margin: 0 0 0.75rem;
     }
     
-    .coming-soon-subtitle {
-        color: #16a34a;
-        font-size: 1.1rem;
-        font-weight: 500;
+    .category-badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.35rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
         margin: 0;
     }
     
-    .coming-soon-content {
+    .coming-soon-body {
         padding: 2rem;
     }
     
-    .coming-soon-message {
-        font-size: 1rem;
+    .description {
+        font-size: 0.95rem;
         color: #64748b;
         line-height: 1.7;
-        margin-bottom: 1.5rem;
+        text-align: center;
+        margin-bottom: 1.75rem;
     }
     
-    .coming-soon-info {
-        background: #f8fafc;
-        border-radius: 12px;
-        padding: 1.25rem;
+    .description strong {
+        color: #1e293b;
+    }
+    
+    .info-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
         margin-bottom: 2rem;
     }
     
-    .info-item {
+    .info-card {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.5rem 0;
-        color: #475569;
-        font-size: 0.95rem;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: #f8fafc;
+        border-radius: 12px;
+        transition: all 0.2s;
     }
     
-    .info-item i {
-        color: #22c55e;
-        font-size: 1.1rem;
+    .info-card:hover {
+        background: #f1f5f9;
+        transform: translateX(5px);
     }
     
-    .coming-soon-actions {
+    .info-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    
+    .info-icon.purple {
+        background: #faf5ff;
+        color: #805ad5;
+    }
+    
+    .info-icon.teal {
+        background: #e6fffa;
+        color: #319795;
+    }
+    
+    .info-text {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .info-text strong {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .info-text span {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    .action-buttons {
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
     }
     
-    .coming-soon-actions .btn {
-        padding: 0.85rem 1.5rem;
-        font-weight: 600;
-        border-radius: 12px;
-    }
-    
-    .coming-soon-actions .btn-primary {
-        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    .btn-primary-custom {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.875rem 1.5rem;
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
         border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-decoration: none;
+        transition: all 0.2s;
+        box-shadow: 0 4px 15px rgba(128, 90, 213, 0.3);
     }
     
-    .coming-soon-actions .btn-primary:hover {
-        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    .btn-primary-custom:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        box-shadow: 0 6px 20px rgba(128, 90, 213, 0.4);
+        color: white;
     }
     
-    .coming-soon-actions .btn-outline-primary {
-        border-color: #22c55e;
-        color: #16a34a;
+    .btn-secondary-custom {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.875rem 1.5rem;
+        background: white;
+        color: #805ad5;
+        border: 2px solid #e9d5ff;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-decoration: none;
+        transition: all 0.2s;
     }
     
-    .coming-soon-actions .btn-outline-primary:hover {
-        background: #f0fdf4;
-        border-color: #16a34a;
+    .btn-secondary-custom:hover {
+        background: #faf5ff;
+        border-color: #805ad5;
+        color: #805ad5;
     }
     
     @media (max-width: 576px) {
-        .coming-soon-card {
-            margin: 1rem;
+        .coming-soon-container {
+            padding: 1rem;
         }
         
         .coming-soon-header {
-            padding: 2rem 1.5rem 1.5rem;
+            padding: 2rem 1.5rem;
         }
         
-        .coming-soon-icon {
-            width: 80px;
-            height: 80px;
+        .icon-wrapper {
+            width: 70px;
+            height: 70px;
         }
         
-        .coming-soon-icon i {
-            font-size: 2.5rem;
+        .icon-wrapper i {
+            font-size: 2rem;
         }
         
-        .coming-soon-title {
+        .coming-soon-header h2 {
             font-size: 1.5rem;
+        }
+        
+        .coming-soon-body {
+            padding: 1.5rem;
         }
     }
 </style>
