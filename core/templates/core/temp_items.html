@@ -679,7 +679,65 @@
                                step="0.01"
                                min="0"
                                placeholder="Enter amount"
+                               oninput="updateTaxBreakdown()"
                                value="{{ grand_total|default_if_none:'' }}">
+                    </div>
+                </div>
+
+                <!-- Tax & Provision Breakdown Preview -->
+                <div id="tax-breakdown-section" style="margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 8px 14px; border-bottom: 1px solid #e2e8f0; cursor: pointer;" onclick="toggleTaxBreakdown()">
+                        <span style="font-size: 0.75rem; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="bi bi-receipt me-1"></i>Tax & Provision Preview
+                            <i class="bi bi-chevron-down ms-1" id="tax-breakdown-chevron"></i>
+                        </span>
+                    </div>
+                    <div id="tax-breakdown-content" style="padding: 10px 14px; background: #fffbeb; font-size: 0.72rem;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">ECV (Items Total)</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-ecv">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add LC @ 1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-lc">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add QC @ 1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-qc">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add NAC @ 0.1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-nac">0.00</span></td>
+                                </tr>
+                                <tr style="border-top: 1px dashed #d97706;">
+                                    <td style="padding: 5px 0 3px; color: #78350f; font-weight: 600;">Sub Total</td>
+                                    <td style="padding: 5px 0 3px; text-align: right; font-weight: 700; color: #78350f;">₹<span id="preview-subtotal">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add GST @ 18%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-gst">0.00</span></td>
+                                </tr>
+                                <tr style="border-top: 2px solid #d97706; background: #fef3c7;">
+                                    <td style="padding: 6px 0; color: #78350f; font-weight: 700;">L.S Provision (Unforeseen Items)</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: 700;" id="preview-ls-unforeseen-cell">
+                                        <span id="preview-ls-unforeseen" style="color: #22c55e;">₹0.00</span>
+                                    </td>
+                                </tr>
+                                <tr style="background: #fcd34d;">
+                                    <td style="padding: 6px 0; color: #78350f; font-weight: 700;">Grand Total</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: 700; color: #78350f;">₹<span id="preview-grand-total">0.00</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="ls-warning" style="display: none; margin-top: 8px; padding: 6px 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; color: #dc2626; font-size: 0.7rem;">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Warning:</strong> L.S Provision is negative. Increase Grand Total to get a positive value.
+                            <div style="margin-top: 4px;">
+                                <strong>Minimum Grand Total needed:</strong> ₹<span id="min-grand-total">0.00</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -818,6 +876,80 @@ function switchBackend(backendId) {
     });
     const totalSpan = document.getElementById("estimate-total");
     if (totalSpan) totalSpan.textContent = total.toFixed(2);
+    // Update tax breakdown whenever ECV changes
+    updateTaxBreakdown();
+  }
+  
+  // Toggle tax breakdown visibility
+  function toggleTaxBreakdown() {
+      var content = document.getElementById('tax-breakdown-content');
+      var chevron = document.getElementById('tax-breakdown-chevron');
+      if (content.style.display === 'none') {
+          content.style.display = 'block';
+          chevron.className = 'bi bi-chevron-down ms-1';
+      } else {
+          content.style.display = 'none';
+          chevron.className = 'bi bi-chevron-right ms-1';
+      }
+  }
+  
+  // Update tax and provision breakdown preview (TempWorks version)
+  function updateTaxBreakdown() {
+      // Get ECV (items total)
+      var ecvSpan = document.getElementById("estimate-total");
+      var ecv = parseFloat(ecvSpan ? ecvSpan.textContent : "0") || 0;
+      
+      // Calculate taxes based on ECV
+      var lc = ecv * 0.01;
+      var qc = ecv * 0.01;
+      var nac = ecv * 0.001;
+      
+      // Sub Total = ECV + LC + QC + NAC
+      var subTotal = ecv + lc + qc + nac;
+      
+      // GST @ 18% on Sub Total
+      var gst = subTotal * 0.18;
+      
+      // Get Grand Total input
+      var grandTotalInput = document.getElementById("grand-total-input");
+      var grandTotal = parseFloat(grandTotalInput ? grandTotalInput.value : "0") || 0;
+      
+      // Calculate L.S Provision (unforeseen items)
+      // L.S = Grand Total - Sub Total - GST
+      var lsUnforeseen = grandTotal - subTotal - gst;
+      
+      // Calculate minimum grand total needed for L.S = 0
+      var minGrandTotal = subTotal + gst;
+      
+      // Update preview elements
+      document.getElementById("preview-ecv").textContent = ecv.toFixed(2);
+      document.getElementById("preview-lc").textContent = lc.toFixed(2);
+      document.getElementById("preview-qc").textContent = qc.toFixed(2);
+      document.getElementById("preview-nac").textContent = nac.toFixed(2);
+      document.getElementById("preview-subtotal").textContent = subTotal.toFixed(2);
+      document.getElementById("preview-gst").textContent = gst.toFixed(2);
+      document.getElementById("preview-grand-total").textContent = grandTotal.toFixed(2);
+      
+      // L.S Unforeseen - highlight if negative
+      var lsUnforeseenSpan = document.getElementById("preview-ls-unforeseen");
+      var warningDiv = document.getElementById("ls-warning");
+      if (grandTotal > 0 && lsUnforeseen < 0) {
+          lsUnforeseenSpan.textContent = "₹" + lsUnforeseen.toFixed(2);
+          lsUnforeseenSpan.style.color = "#dc2626";
+          lsUnforeseenSpan.style.fontWeight = "700";
+          warningDiv.style.display = "block";
+          document.getElementById("min-grand-total").textContent = minGrandTotal.toFixed(2);
+      } else if (grandTotal > 0) {
+          lsUnforeseenSpan.textContent = "₹" + lsUnforeseen.toFixed(2);
+          lsUnforeseenSpan.style.color = "#22c55e";
+          lsUnforeseenSpan.style.fontWeight = "700";
+          warningDiv.style.display = "none";
+      } else {
+          lsUnforeseenSpan.textContent = "₹0.00 (enter Grand Total)";
+          lsUnforeseenSpan.style.color = "#6b7280";
+          lsUnforeseenSpan.style.fontWeight = "400";
+          warningDiv.style.display = "none";
+      }
   }
 
   // Bind + initial

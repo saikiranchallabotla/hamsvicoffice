@@ -863,7 +863,7 @@
                                step="0.01"
                                min="0"
                                placeholder="Amount"
-                               oninput="updateDeductField()"
+                               oninput="updateDeductField();if(typeof updateTaxBreakdown==='function')updateTaxBreakdown()"
                                value="{{ deduct_old_material|default_if_none:'' }}">
                     </div>
                 </div>
@@ -884,7 +884,73 @@
                                step="0.01"
                                min="0"
                                placeholder="Enter amount"
+                               oninput="updateTaxBreakdown()"
                                value="{{ grand_total|default_if_none:'' }}">
+                    </div>
+                </div>
+
+                <!-- Tax & Provision Breakdown Preview -->
+                <div id="tax-breakdown-section" style="margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 8px 14px; border-bottom: 1px solid #e2e8f0; cursor: pointer;" onclick="toggleTaxBreakdown()">
+                        <span style="font-size: 0.75rem; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="bi bi-receipt me-1"></i>Tax & Provision Preview
+                            <i class="bi bi-chevron-down ms-1" id="tax-breakdown-chevron"></i>
+                        </span>
+                    </div>
+                    <div id="tax-breakdown-content" style="padding: 10px 14px; background: #fffbeb; font-size: 0.72rem;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">ECV (Items Total)</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-ecv">0.00</span></td>
+                                </tr>
+                                <tr id="preview-excess-tp-row" style="display: none;">
+                                    <td style="padding: 3px 0; color: #78350f;">Add Excess T.P @ <span id="preview-excess-tp-percent">0</span>%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-excess-tp">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add LC @ 1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-lc">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add QC @ 1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-qc">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add NAC @ 0.1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-nac">0.00</span></td>
+                                </tr>
+                                <tr style="border-top: 1px dashed #d97706;">
+                                    <td style="padding: 5px 0 3px; color: #78350f; font-weight: 600;">Sub Total</td>
+                                    <td style="padding: 5px 0 3px; text-align: right; font-weight: 700; color: #78350f;">₹<span id="preview-subtotal">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add GST @ 18%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-gst">0.00</span></td>
+                                </tr>
+                                <tr id="preview-ls-special-row" style="display: none;">
+                                    <td style="padding: 3px 0; color: #78350f;">L.S Provision (<span id="preview-ls-special-name">Special Items</span>)</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-ls-special">0.00</span></td>
+                                </tr>
+                                <tr style="border-top: 2px solid #d97706; background: #fef3c7;">
+                                    <td style="padding: 6px 0; color: #78350f; font-weight: 700;">L.S Provision (Unforeseen Items)</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: 700;" id="preview-ls-unforeseen-cell">
+                                        <span id="preview-ls-unforeseen" style="color: #22c55e;">₹0.00</span>
+                                    </td>
+                                </tr>
+                                <tr style="background: #fcd34d;">
+                                    <td style="padding: 6px 0; color: #78350f; font-weight: 700;">Grand Total</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: 700; color: #78350f;">₹<span id="preview-grand-total">0.00</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="ls-warning" style="display: none; margin-top: 8px; padding: 6px 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; color: #dc2626; font-size: 0.7rem;">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Warning:</strong> L.S Provision is negative. Increase Grand Total to get a positive value.
+                            <div style="margin-top: 4px;">
+                                <strong>Minimum Grand Total needed:</strong> ₹<span id="min-grand-total">0.00</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -910,6 +976,7 @@
                                     <input type="number" id="excess-tp-percent-input" class="qty-input"
                                            style="width: 55px; font-size: 0.75rem; padding: 3px 6px; text-align: center;"
                                            step="0.01" min="0" max="100" placeholder="5"
+                                           oninput="if(typeof updateTaxBreakdown==='function')updateTaxBreakdown()"
                                            value="{{ excess_tp_percent|default_if_none:'' }}">
                                     <span style="font-size: 0.7rem; color: #6b7280;">%</span>
                                 </div>
@@ -930,6 +997,7 @@
                                     <input type="text" id="ls-special-name-input" class="qty-input"
                                            style="flex: 1; font-size: 0.75rem; padding: 3px 6px;"
                                            placeholder="Special Equipment"
+                                           oninput="if(typeof updateTaxBreakdown==='function')updateTaxBreakdown()"
                                            value="{{ ls_special_name|default_if_none:'' }}">
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
@@ -938,6 +1006,7 @@
                                     <input type="number" id="ls-special-amount-input" class="qty-input"
                                            style="width: 80px; font-size: 0.75rem; padding: 3px 6px;"
                                            step="0.01" min="0" placeholder="50000"
+                                           oninput="if(typeof updateTaxBreakdown==='function')updateTaxBreakdown()"
                                            value="{{ ls_special_amount|default_if_none:'' }}">
                                 </div>
                             </div>
@@ -1004,6 +1073,10 @@ function toggleExcessTP() {
     if (!checkbox.checked) {
         document.getElementById('excess-tp-percent-input').value = '';
     }
+    // Update tax breakdown
+    if (typeof updateTaxBreakdown === 'function') {
+        updateTaxBreakdown();
+    }
 }
 
 function toggleLSSpecial() {
@@ -1013,6 +1086,10 @@ function toggleLSSpecial() {
     if (!checkbox.checked) {
         document.getElementById('ls-special-name-input').value = '';
         document.getElementById('ls-special-amount-input').value = '';
+    }
+    // Update tax breakdown
+    if (typeof updateTaxBreakdown === 'function') {
+        updateTaxBreakdown();
     }
 }
 
@@ -1727,6 +1804,131 @@ document.addEventListener('keydown', function(e) {
         var totalSpan = document.getElementById("estimate-total");
         if (totalSpan) {
             totalSpan.textContent = total.toFixed(2);
+        }
+        // Update tax breakdown whenever ECV changes
+        updateTaxBreakdown();
+    }
+    
+    // Toggle tax breakdown visibility
+    function toggleTaxBreakdown() {
+        var content = document.getElementById('tax-breakdown-content');
+        var chevron = document.getElementById('tax-breakdown-chevron');
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            chevron.className = 'bi bi-chevron-down ms-1';
+        } else {
+            content.style.display = 'none';
+            chevron.className = 'bi bi-chevron-right ms-1';
+        }
+    }
+    
+    // Update tax and provision breakdown preview
+    function updateTaxBreakdown() {
+        // Get ECV (items total)
+        var ecvSpan = document.getElementById("estimate-total");
+        var ecv = parseFloat(ecvSpan ? ecvSpan.textContent : "0") || 0;
+        
+        // Get Deduct Old Material (if exists)
+        var deductInput = document.getElementById("deduct-old-material-input");
+        var deductAmount = parseFloat(deductInput ? deductInput.value : "0") || 0;
+        
+        // Adjust ECV for deduction (ECV in output is after deduction)
+        var adjustedEcv = ecv - deductAmount;
+        if (adjustedEcv < 0) adjustedEcv = 0;
+        
+        // Get Excess T.P settings
+        var excessTPCheckbox = document.getElementById("excess-tp-checkbox");
+        var excessTPEnabled = excessTPCheckbox && excessTPCheckbox.checked;
+        var excessTPPercent = 0;
+        var excessTP = 0;
+        if (excessTPEnabled) {
+            var excessTPInput = document.getElementById("excess-tp-percent-input");
+            excessTPPercent = parseFloat(excessTPInput ? excessTPInput.value : "0") || 0;
+            excessTP = adjustedEcv * (excessTPPercent / 100);
+        }
+        
+        // Calculate taxes based on adjusted ECV (not including Excess T.P)
+        var lc = adjustedEcv * 0.01;
+        var qc = adjustedEcv * 0.01;
+        var nac = adjustedEcv * 0.001;
+        
+        // Sub Total = ECV + Excess T.P + LC + QC + NAC
+        var subTotal = adjustedEcv + excessTP + lc + qc + nac;
+        
+        // GST @ 18% on Sub Total
+        var gst = subTotal * 0.18;
+        
+        // Get L.S Special Items settings
+        var lsSpecialCheckbox = document.getElementById("ls-special-checkbox");
+        var lsSpecialEnabled = lsSpecialCheckbox && lsSpecialCheckbox.checked;
+        var lsSpecialName = "";
+        var lsSpecialAmount = 0;
+        if (lsSpecialEnabled) {
+            var lsSpecialNameInput = document.getElementById("ls-special-name-input");
+            var lsSpecialAmountInput = document.getElementById("ls-special-amount-input");
+            lsSpecialName = lsSpecialNameInput ? lsSpecialNameInput.value : "Special Items";
+            lsSpecialAmount = parseFloat(lsSpecialAmountInput ? lsSpecialAmountInput.value : "0") || 0;
+        }
+        
+        // Get Grand Total input
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var grandTotal = parseFloat(grandTotalInput ? grandTotalInput.value : "0") || 0;
+        
+        // Calculate L.S Provision (unforeseen items)
+        // L.S = Grand Total - Sub Total - GST - L.S Special (if any)
+        var lsUnforeseen = grandTotal - subTotal - gst - lsSpecialAmount;
+        
+        // Calculate minimum grand total needed for L.S = 0
+        var minGrandTotal = subTotal + gst + lsSpecialAmount;
+        
+        // Update preview elements
+        document.getElementById("preview-ecv").textContent = adjustedEcv.toFixed(2);
+        document.getElementById("preview-lc").textContent = lc.toFixed(2);
+        document.getElementById("preview-qc").textContent = qc.toFixed(2);
+        document.getElementById("preview-nac").textContent = nac.toFixed(2);
+        document.getElementById("preview-subtotal").textContent = subTotal.toFixed(2);
+        document.getElementById("preview-gst").textContent = gst.toFixed(2);
+        document.getElementById("preview-grand-total").textContent = grandTotal.toFixed(2);
+        
+        // Excess T.P row
+        var excessTPRow = document.getElementById("preview-excess-tp-row");
+        if (excessTPEnabled && excessTPPercent > 0) {
+            excessTPRow.style.display = "";
+            document.getElementById("preview-excess-tp-percent").textContent = excessTPPercent;
+            document.getElementById("preview-excess-tp").textContent = excessTP.toFixed(2);
+        } else {
+            excessTPRow.style.display = "none";
+        }
+        
+        // L.S Special row
+        var lsSpecialRow = document.getElementById("preview-ls-special-row");
+        if (lsSpecialEnabled && lsSpecialAmount > 0) {
+            lsSpecialRow.style.display = "";
+            document.getElementById("preview-ls-special-name").textContent = lsSpecialName || "Special Items";
+            document.getElementById("preview-ls-special").textContent = lsSpecialAmount.toFixed(2);
+        } else {
+            lsSpecialRow.style.display = "none";
+        }
+        
+        // L.S Unforeseen - highlight if negative
+        var lsUnforeseenSpan = document.getElementById("preview-ls-unforeseen");
+        var warningDiv = document.getElementById("ls-warning");
+        if (grandTotal > 0 && lsUnforeseen < 0) {
+            lsUnforeseenSpan.textContent = "₹" + lsUnforeseen.toFixed(2);
+            lsUnforeseenSpan.style.color = "#dc2626";
+            lsUnforeseenSpan.style.fontWeight = "700";
+            warningDiv.style.display = "block";
+            document.getElementById("min-grand-total").textContent = minGrandTotal.toFixed(2);
+        } else if (grandTotal > 0) {
+            lsUnforeseenSpan.textContent = "₹" + lsUnforeseen.toFixed(2);
+            lsUnforeseenSpan.style.color = "#22c55e";
+            lsUnforeseenSpan.style.fontWeight = "700";
+            warningDiv.style.display = "none";
+        } else {
+            lsUnforeseenSpan.textContent = "₹0.00 (enter Grand Total)";
+            lsUnforeseenSpan.style.color = "#6b7280";
+            lsUnforeseenSpan.style.fontWeight = "400";
+            warningDiv.style.display = "none";
         }
     }
 
