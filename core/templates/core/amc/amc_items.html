@@ -254,6 +254,30 @@
         color: #319795;
     }
     
+    /* Delete Button */
+    .delete-cell {
+        text-align: center;
+        padding: 0 !important;
+    }
+    
+    .btn-delete-item {
+        background: transparent;
+        border: none;
+        color: #e53e3e;
+        cursor: pointer;
+        padding: 0.2rem;
+        font-size: 0.85rem;
+        line-height: 1;
+        opacity: 0.6;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-delete-item:hover {
+        opacity: 1;
+        color: #c53030;
+        transform: scale(1.2);
+    }
+    
     /* Total Row */
     .estimate-total-row {
         background: #f5f3ff;
@@ -566,7 +590,8 @@ function switchBackend(backendId) {
                                 <th style="width: 60px;">Unit</th>
                                 <th style="width: 120px;">Qty</th>
                                 <th style="width: 80px;">Rate</th>
-                                <th style="width: 130px;">Amount</th>
+                                <th style="width: 110px;">Amount</th>
+                                <th style="width: 30px;"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -591,11 +616,16 @@ function switchBackend(backendId) {
                                             {% endif %}
                                         </td>
                                         <td class="amount-cell"></td>
+                                        <td class="delete-cell">
+                                            <button type="button" class="btn-delete-item" onclick="deleteItemFromPreview('{{ row.name|escapejs }}')" title="Remove item">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                            </button>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="7">
+                                    <td colspan="8">
                                         <div class="empty-state">
                                             <i class="bi bi-clipboard-x"></i>
                                             <p>No items selected yet.<br>Select items from the list.</p>
@@ -816,7 +846,8 @@ function switchBackend(backendId) {
                            '<td class="unit-cell">' + unit + '</td>' +
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rate + '"></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
-                           '<td class="amount-cell"></td>';
+                           '<td class="amount-cell"></td>' +
+                           '<td class="delete-cell"><button type="button" class="btn-delete-item" onclick="deleteItemFromPreview(\'' + itemName.replace(/'/g, "\\'") + '\')" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
         
         tbody.appendChild(newRow);
         attachRowListeners(newRow);
@@ -832,7 +863,7 @@ function switchBackend(backendId) {
         var tbody = document.querySelector("#estimate-table tbody");
         if (tbody && tbody.querySelectorAll('tr[data-item-name]').length === 0) {
             var emptyRow = document.createElement('tr');
-            emptyRow.innerHTML = '<td colspan="7"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items selected yet.<br>Select items from the list.</p></div></td>';
+            emptyRow.innerHTML = '<td colspan="8"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items selected yet.<br>Select items from the list.</p></div></td>';
             tbody.appendChild(emptyRow);
         }
     }
@@ -1187,6 +1218,40 @@ function switchBackend(backendId) {
     // Expose functions to global scope
     window.updateTaxBreakdown = updateTaxBreakdown;
     window.toggleTaxBreakdown = toggleTaxBreakdown;
+    
+    // Delete item from preview table and uncheck the corresponding checkbox
+    window.deleteItemFromPreview = function(itemName) {
+        // Remove from table
+        removeItemFromTable(itemName);
+        
+        // Update serial numbers
+        updateSerialNumbers();
+        
+        // Recalculate totals
+        recalcTotal();
+        
+        // Uncheck the corresponding checkbox in the items list
+        var checkbox = document.querySelector('.item-checkbox[data-item-name="' + itemName + '"]');
+        if (checkbox) {
+            checkbox.checked = false;
+        }
+        
+        // Send AJAX to remove from session
+        var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        fetch(ajaxToggleUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                item: itemName,
+                action: 'remove'
+            })
+        }).catch(function(err) {
+            console.error('Error removing item from session:', err);
+        });
+    };
 })();
 </script>
 
