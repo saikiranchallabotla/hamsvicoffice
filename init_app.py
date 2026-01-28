@@ -88,6 +88,33 @@ def seed_modules():
     print(f'[INIT] Created/Updated {len(modules_data)} modules with pricing')
 
 
+def setup_database_cache():
+    """Create the database cache table if using DatabaseCache backend."""
+    from django.core.management import call_command
+    from django.conf import settings
+    from django.db import connection
+    
+    # Check if we're using DatabaseCache
+    cache_backend = settings.CACHES.get('default', {}).get('BACKEND', '')
+    if 'DatabaseCache' not in cache_backend:
+        return
+    
+    cache_table = settings.CACHES.get('default', {}).get('LOCATION', 'django_cache_table')
+    
+    # Check if table exists
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(f"SELECT 1 FROM {cache_table} LIMIT 1")
+            print(f'[INIT] Cache table already exists: {cache_table}')
+        except Exception:
+            # Table doesn't exist, create it
+            try:
+                call_command('createcachetable', verbosity=0)
+                print(f'[INIT] Created cache table: {cache_table}')
+            except Exception as e:
+                print(f'[INIT] Warning: Could not create cache table: {e}')
+
+
 def load_fixtures():
     """Load Django fixtures if they exist."""
     from django.core.management import call_command
@@ -206,10 +233,31 @@ def seed_module_backends():
         print(f'[INIT] Skipped {backends_skipped} backends (already exist)')
 
 
+def check_storage_status():
+    """Log the current storage configuration status."""
+    from django.conf import settings
+    
+    storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', 'unknown')
+    
+    if 'S3Boto3Storage' in storage_backend:
+        bucket = settings.STORAGES.get('default', {}).get('OPTIONS', {}).get('bucket_name', 'unknown')
+        print(f'[INIT] ✅ File storage: S3/R2 (bucket: {bucket})')
+        print(f'[INIT] ✅ Uploaded files will persist across deploys')
+    else:
+        print(f'[INIT] ⚠️  File storage: Local filesystem')
+        if os.environ.get('RAILWAY_ENVIRONMENT'):
+            print(f'[INIT] ⚠️  WARNING: Files may be lost on Railway redeploy!')
+            print(f'[INIT] ⚠️  Consider configuring S3/R2 storage for production')
+
+
 if __name__ == '__main__':
     print('[INIT] Running startup initialization...')
+    print('[INIT] ================================================')
+    setup_database_cache()  # Create cache table if needed
     create_admin()
     seed_modules()
     load_fixtures()
     seed_module_backends()  # Restore backends after each deploy
+    check_storage_status()  # Log storage configuration
+    print('[INIT] ================================================')
     print('[INIT] Initialization complete!')

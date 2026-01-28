@@ -56,13 +56,46 @@ RAZORPAY_WEBHOOK_SECRET=your-webhook-secret
 
 ## OPTIONAL - For Production Scale
 
-### 7️⃣ S3 Storage (files persist across deployments)
+### 7️⃣ Cloud Storage (⚠️ IMPORTANT - files persist across deployments)
+
+**Without cloud storage, user uploaded files and generated outputs are LOST on every redeploy!**
+
+#### Option A: Cloudflare R2 (RECOMMENDED - 10GB FREE)
+```
+STORAGE_TYPE=r2
+AWS_ACCESS_KEY_ID=your-r2-access-key
+AWS_SECRET_ACCESS_KEY=your-r2-secret-key
+AWS_STORAGE_BUCKET_NAME=hamsvic
+AWS_S3_ENDPOINT_URL=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+AWS_S3_REGION_NAME=auto
+```
+
+**R2 Setup Steps:**
+1. Go to https://dash.cloudflare.com → R2 Object Storage
+2. Create bucket named "hamsvic" (or your preferred name)
+3. Go to R2 → Manage R2 API Tokens → Create API Token
+4. Select "Object Read & Write" permission, select your bucket
+5. Copy Access Key ID and Secret Access Key
+6. Account ID is in the URL or R2 dashboard
+7. Add all variables to Railway
+
+#### Option B: AWS S3
 ```
 STORAGE_TYPE=s3
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_STORAGE_BUCKET_NAME=your-bucket
 AWS_S3_REGION_NAME=ap-south-1
+```
+
+#### Option C: DigitalOcean Spaces
+```
+STORAGE_TYPE=s3
+AWS_ACCESS_KEY_ID=your-spaces-key
+AWS_SECRET_ACCESS_KEY=your-spaces-secret
+AWS_STORAGE_BUCKET_NAME=your-space-name
+AWS_S3_ENDPOINT_URL=https://blr1.digitaloceanspaces.com
+AWS_S3_REGION_NAME=blr1
 ```
 
 ### 8️⃣ Redis Cache (for better performance)
@@ -83,13 +116,16 @@ SENTRY_DSN=your-sentry-dsn
 ## ⚠️ KNOWN PILOT LIMITATIONS
 
 1. **File Storage**: Using local filesystem - files are LOST on redeploy
-   - ✅ Fix: Configure S3 storage for production
+   - ✅ Fix: Configure Cloudflare R2 (free 10GB) or S3 storage (see section 7️⃣)
+   - Module backends are auto-restored from static files on startup
+   - User uploaded files need cloud storage to persist
    
 2. **Background Tasks**: Running synchronously (slower for heavy Excel processing)
    - ✅ Fix: Configure Redis + Celery worker for production
 
-3. **Session Cache**: Using in-memory cache (not shared across instances)
-   - ✅ Fix: Configure Redis for multi-instance deployments
+3. **Session/Cache**: Using database-backed cache (persists across redeploys)
+   - ✅ Already configured for persistence
+   - For better performance: Configure Redis
 
 ---
 

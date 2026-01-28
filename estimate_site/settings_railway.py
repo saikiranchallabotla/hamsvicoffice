@@ -110,50 +110,77 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # ==============================================================================
 # FILE STORAGE CONFIGURATION
 # ==============================================================================
-# For pilot: Use local storage (files lost on redeploy)
-# For production: Configure S3/DO Spaces with environment variables
+# Priority: 
+# 1. S3/R2 (set STORAGE_TYPE=s3 and provide credentials) - RECOMMENDED FOR PRODUCTION
+# 2. Railway Volume (mount at /app/media) - Good alternative
+# 3. Local filesystem (ephemeral - files lost on redeploy!) - ONLY FOR DEV
+
 STORAGE_TYPE = os.environ.get('STORAGE_TYPE', 'local')
 
-# Only use S3 if explicitly configured AND credentials are provided
+# S3-compatible storage credentials (works with AWS S3, Cloudflare R2, DigitalOcean Spaces)
 _aws_key = os.environ.get('AWS_ACCESS_KEY_ID', '')
 _aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
-_use_s3 = STORAGE_TYPE == 's3' and _aws_key and _aws_secret
+_bucket_name = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'hamsvic')
+_endpoint_url = os.environ.get('AWS_S3_ENDPOINT_URL', None)  # Required for R2/Spaces
+_region = os.environ.get('AWS_S3_REGION_NAME', 'auto')  # 'auto' for R2
+
+# Determine if we can use S3 storage
+_use_s3 = (STORAGE_TYPE == 's3' or STORAGE_TYPE == 'r2') and _aws_key and _aws_secret
 
 if _use_s3:
-    # AWS S3 or DO Spaces (S3-compatible)
+    # S3-compatible storage (AWS S3, Cloudflare R2, DigitalOcean Spaces)
+    # Cloudflare R2: Set AWS_S3_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
                 "access_key": _aws_key,
                 "secret_key": _aws_secret,
-                "bucket_name": os.environ.get('AWS_STORAGE_BUCKET_NAME', 'hamsvic'),
-                "region_name": os.environ.get('AWS_S3_REGION_NAME', 'us-east-1'),
-                "endpoint_url": os.environ.get('AWS_S3_ENDPOINT_URL', None),
-                "default_acl": "private",
+                "bucket_name": _bucket_name,
+                "region_name": _region,
+                "endpoint_url": _endpoint_url,
+                "default_acl": None,  # R2 doesn't support ACLs
                 "file_overwrite": False,
+                "object_parameters": {
+                    "CacheControl": "max-age=86400",  # 1 day cache
+                },
+                "signature_version": "s3v4",
+                "addressing_style": "path" if _endpoint_url else "auto",  # Path style for R2
             }
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
         },
     }
+    # For signed URLs (private files)
     AWS_S3_SIGNATURE_VERSION = 's3v4'
     AWS_QUERYSTRING_AUTH = True
-    AWS_QUERYSTRING_EXPIRE = 3600
+    AWS_QUERYSTRING_EXPIRE = 3600  # 1 hour signed URL expiry
+    
+    # Log storage configuration
+    print(f"[STORAGE] Using S3-compatible storage: {_bucket_name}")
 else:
-    # Local file storage (pilot mode - files may be lost on redeploy!)
+    # Local file storage - WARNING: Files lost on Railway redeploy!
+    # To persist files, either:
+    # 1. Configure S3/R2 storage (recommended)
+    # 2. Attach a Railway Volume at /app/media
     STORAGES = {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
         "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
+    
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
+        print("[STORAGE] WARNING: Using local storage on Railway - files will be lost on redeploy!")
+        print("[STORAGE] Set STORAGE_TYPE=s3 or STORAGE_TYPE=r2 with credentials for persistence")
 
 # ==============================================================================
-# CACHE & SESSION - Simple in-memory (no Redis needed)
+# CACHE & SESSION - Database-backed for persistence
 # ==============================================================================
+# Use database cache to persist across redeploys (no Redis needed)
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache_table',
     }
 }
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
