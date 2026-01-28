@@ -946,7 +946,7 @@ def backend_preferences_view(request):
     
     # Get modules that have backends
     modules_with_backends = Module.objects.filter(
-        code__in=['new_estimate', 'estimate', 'workslip', 'bill', 'tempworks']
+        code__in=['new_estimate', 'estimate', 'workslip', 'bill', 'temp_works']
     ).order_by('display_order', 'name')
     
     # Get user's current preferences

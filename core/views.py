@@ -468,7 +468,7 @@ def workslip(request):
         backend_db_category = ws_category  # stored as 'electrical' or 'civil' in DB
         load_category = f'amc_{ws_category}'  # used for file loading
     elif ws_work_type == 'tempworks':
-        module_code = 'tempworks'
+        module_code = 'temp_works'
         backend_db_category = ws_category  # stored as 'electrical' or 'civil' in DB
         load_category = f'temp_{ws_category}'  # used for file loading
     else:  # new_estimate (default)
@@ -10423,7 +10423,7 @@ def temp_groups(request, category):
     items_list, groups_map, _, ws_data, filepath = load_backend(
         category, settings.BASE_DIR,
         backend_id=temp_selected_backend_id,
-        module_code='tempworks',  # Use tempworks module's own backends
+        module_code='temp_works',  # Use temp_works module's own backends
         user=request.user
     )
     groups = sorted(groups_map.keys(), key=lambda s: s.lower())
@@ -10470,13 +10470,13 @@ def temp_items(request, category, group):
     # Map temp category to base category for backend lookup
     base_category = category.replace('temp_', '')  # temp_electrical -> electrical
     
-    # Get available backends for dropdown (tempworks has its own backends)
-    available_backends = get_available_backends_for_module('tempworks', base_category)
+    # Get available backends for dropdown (temp_works has its own backends)
+    available_backends = get_available_backends_for_module('temp_works', base_category)
     
     items_list, groups_map, _, ws_src, filepath = load_backend(
         category, settings.BASE_DIR,
         backend_id=temp_selected_backend_id,
-        module_code='tempworks',  # Use tempworks module's own backends
+        module_code='temp_works',  # Use temp_works module's own backends
         user=request.user
     )
 

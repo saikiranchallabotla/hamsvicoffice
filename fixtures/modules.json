@@ -27,7 +27,7 @@
   "model": "subscriptions.module",
   "pk": 6,
   "fields": {
-    "code": "tempworks",
+    "code": "temp_works",
     "name": "Temporary Works",
     "description": "Prepare temporary lighting and hiring estimates",
     "url_name": "tempworks_home",

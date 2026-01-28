@@ -89,10 +89,10 @@ def data_management(request):
     
     # Get modules that can have their own backend data uploads
     # Note: workslip shares backends with new_estimate module
-    # tempworks and amc have their own separate backends
+    # temp_works and amc have their own separate backends
     # estimate module doesn't require backend data
     backend_modules = Module.objects.filter(
-        code__in=['new_estimate', 'tempworks', 'amc']
+        code__in=['new_estimate', 'temp_works', 'amc']
     ).order_by('display_order', 'name')
     
     # Get all module backends grouped by module and category
