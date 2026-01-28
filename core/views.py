@@ -7772,10 +7772,21 @@ def datas_groups(request, category):
             user=request.user if request.user.is_authenticated else None
         )
     except FileNotFoundError as e:
-        logger.error(f"Backend file not found for category {category}: {e}")
-        return render(request, "core/error.html", {
-            "error_title": "Data Not Found",
-            "error_message": f"Backend data file for '{category}' not found. Please contact admin.",
+        logger.info(f"No backend data available for category {category} - showing Coming Soon")
+        # Check if the other category has backends available
+        other_category = 'electrical' if category == 'civil' else 'civil'
+        other_available = False
+        try:
+            from core.utils_excel import get_available_backends_for_module
+            other_backends = get_available_backends_for_module('new_estimate', other_category)
+            other_available = len(other_backends) > 0
+        except:
+            pass
+        return render(request, "core/coming_soon.html", {
+            "category": category,
+            "module_name": "New Estimate",
+            "other_category": other_category,
+            "other_category_available": other_available,
         })
     except Exception as e:
         logger.error(f"Error loading backend for {category}: {e}")
@@ -7831,10 +7842,20 @@ def datas_items(request, category, group):
             user=request.user if request.user.is_authenticated else None
         )
     except FileNotFoundError as e:
-        logger.error(f"Backend file not found for category {category}: {e}")
-        return render(request, "core/error.html", {
-            "error_title": "Data Not Found",
-            "error_message": f"Backend data file for '{category}' not found. Please contact admin.",
+        logger.info(f"No backend data available for category {category} - showing Coming Soon")
+        # Check if the other category has backends available
+        other_category = 'electrical' if category == 'civil' else 'civil'
+        other_available = False
+        try:
+            other_backends = get_available_backends_for_module('new_estimate', other_category)
+            other_available = len(other_backends) > 0
+        except:
+            pass
+        return render(request, "core/coming_soon.html", {
+            "category": category,
+            "module_name": "New Estimate",
+            "other_category": other_category,
+            "other_category_available": other_available,
         })
     except Exception as e:
         logger.error(f"Error loading backend for {category}: {e}")
@@ -10420,12 +10441,37 @@ def temp_groups(request, category):
     # Map temp category to base category for backend lookup
     base_category = category.replace('temp_', '')  # temp_electrical -> electrical
     
-    items_list, groups_map, _, ws_data, filepath = load_backend(
-        category, settings.BASE_DIR,
-        backend_id=temp_selected_backend_id,
-        module_code='temp_works',  # Use temp_works module's own backends
-        user=request.user
-    )
+    try:
+        items_list, groups_map, _, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=temp_selected_backend_id,
+            module_code='temp_works',  # Use temp_works module's own backends
+            user=request.user
+        )
+    except FileNotFoundError as e:
+        logger.info(f"No backend data available for temp category {category} - showing Coming Soon")
+        # Check if the other category has backends available
+        other_base = 'electrical' if base_category == 'civil' else 'civil'
+        other_category = f'temp_{other_base}'
+        other_available = False
+        try:
+            other_backends = get_available_backends_for_module('temp_works', other_base)
+            other_available = len(other_backends) > 0
+        except:
+            pass
+        return render(request, "core/coming_soon.html", {
+            "category": category,
+            "module_name": "Temporary Works",
+            "other_category": other_category,
+            "other_category_available": other_available,
+        })
+    except Exception as e:
+        logger.error(f"Error loading temp backend for {category}: {e}")
+        return render(request, "core/error.html", {
+            "error_title": "Loading Error",
+            "error_message": f"Could not load temporary works data: {str(e)}",
+        })
+        
     groups = sorted(groups_map.keys(), key=lambda s: s.lower())
 
     if not groups:
@@ -10473,12 +10519,35 @@ def temp_items(request, category, group):
     # Get available backends for dropdown (temp_works has its own backends)
     available_backends = get_available_backends_for_module('temp_works', base_category)
     
-    items_list, groups_map, _, ws_src, filepath = load_backend(
-        category, settings.BASE_DIR,
-        backend_id=temp_selected_backend_id,
-        module_code='temp_works',  # Use temp_works module's own backends
-        user=request.user
-    )
+    try:
+        items_list, groups_map, _, ws_src, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=temp_selected_backend_id,
+            module_code='temp_works',  # Use temp_works module's own backends
+            user=request.user
+        )
+    except FileNotFoundError as e:
+        logger.info(f"No backend data available for temp category {category} - showing Coming Soon")
+        other_base = 'electrical' if base_category == 'civil' else 'civil'
+        other_category = f'temp_{other_base}'
+        other_available = False
+        try:
+            other_backends = get_available_backends_for_module('temp_works', other_base)
+            other_available = len(other_backends) > 0
+        except:
+            pass
+        return render(request, "core/coming_soon.html", {
+            "category": category,
+            "module_name": "Temporary Works",
+            "other_category": other_category,
+            "other_category_available": other_available,
+        })
+    except Exception as e:
+        logger.error(f"Error loading temp backend for {category}: {e}")
+        return render(request, "core/error.html", {
+            "error_title": "Loading Error",
+            "error_message": f"Could not load temporary works data: {str(e)}",
+        })
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower())
     group_items = groups_map.get(group, [])
@@ -12932,10 +13001,20 @@ def amc_groups(request, category):
             user=request.user
         )
     except FileNotFoundError as e:
-        return render(request, "core/amc/amc_groups.html", {
+        logger.info(f"No backend data available for AMC category {category} - showing Coming Soon")
+        other_base = 'electrical' if base_category == 'civil' else 'civil'
+        other_category = f'amc_{other_base}'
+        other_available = False
+        try:
+            other_backends = get_available_backends_for_module('amc', other_base)
+            other_available = len(other_backends) > 0
+        except:
+            pass
+        return render(request, "core/coming_soon.html", {
             "category": category,
-            "groups": [],
-            "error": f"Backend sheet not found: {category}. Please upload the backend file in Admin Panel.",
+            "module_name": "AMC",
+            "other_category": other_category,
+            "other_category_available": other_available,
         })
     except ValueError as e:
         return render(request, "core/amc/amc_groups.html", {
@@ -12988,7 +13067,23 @@ def amc_items(request, category, group):
             module_code='amc',  # Use amc module's own backends
             user=request.user
         )
-    except (FileNotFoundError, ValueError) as e:
+    except FileNotFoundError as e:
+        logger.info(f"No backend data available for AMC category {category} - showing Coming Soon")
+        other_base = 'electrical' if base_category == 'civil' else 'civil'
+        other_category = f'amc_{other_base}'
+        other_available = False
+        try:
+            other_backends = get_available_backends_for_module('amc', other_base)
+            other_available = len(other_backends) > 0
+        except:
+            pass
+        return render(request, "core/coming_soon.html", {
+            "category": category,
+            "module_name": "AMC",
+            "other_category": other_category,
+            "other_category_available": other_available,
+        })
+    except ValueError as e:
         return render(request, "core/amc/amc_items.html", {
             "category": category,
             "group": group,

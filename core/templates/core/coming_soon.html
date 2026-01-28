@@ -1,0 +1,214 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Coming Soon - {{ module_name|default:"Module" }}{% endblock %}
+
+{% block content %}
+<div class="coming-soon-page">
+    <div class="coming-soon-card">
+        <div class="coming-soon-header">
+            <div class="coming-soon-icon">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <h1 class="coming-soon-title">Coming Soon</h1>
+            <p class="coming-soon-subtitle">{{ category|title }} Data</p>
+        </div>
+        
+        <div class="coming-soon-content">
+            <p class="coming-soon-message">
+                We're working on adding {{ category|title }} data for {{ module_name|default:"this module" }}. 
+                Please check back later or contact the administrator for more information.
+            </p>
+            
+            <div class="coming-soon-info">
+                <div class="info-item">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Backend data will be available soon</span>
+                </div>
+                <div class="info-item">
+                    <i class="bi bi-bell"></i>
+                    <span>You'll be notified when it's ready</span>
+                </div>
+            </div>
+            
+            <div class="coming-soon-actions">
+                <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-house me-2"></i>Back to Dashboard
+                </a>
+                {% if other_category_available %}
+                    {% if module_name == "Temporary Works" %}
+                        <a href="{% url 'temp_groups' other_category %}" class="btn btn-outline-primary btn-lg">
+                            <i class="bi bi-arrow-right me-2"></i>Try {{ other_category|title }} Data
+                        </a>
+                    {% elif module_name == "AMC" %}
+                        <a href="{% url 'amc_groups' other_category %}" class="btn btn-outline-primary btn-lg">
+                            <i class="bi bi-arrow-right me-2"></i>Try {{ other_category|title }} Data
+                        </a>
+                    {% else %}
+                        <a href="{% url 'datas_groups' other_category %}" class="btn btn-outline-primary btn-lg">
+                            <i class="bi bi-arrow-right me-2"></i>Try {{ other_category|title }} Data
+                        </a>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .coming-soon-page {
+        min-height: 70vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+    }
+    
+    .coming-soon-card {
+        background: white;
+        border-radius: 24px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        max-width: 520px;
+        width: 100%;
+        overflow: hidden;
+        text-align: center;
+    }
+    
+    .coming-soon-header {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        padding: 3rem 2rem 2rem;
+        border-bottom: 1px solid #bbf7d0;
+    }
+    
+    .coming-soon-icon {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+        animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    
+    .coming-soon-icon i {
+        font-size: 3rem;
+        color: white;
+        animation: flip 2s ease-in-out infinite;
+    }
+    
+    @keyframes flip {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(180deg); }
+    }
+    
+    .coming-soon-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #166534;
+        margin: 0 0 0.5rem;
+    }
+    
+    .coming-soon-subtitle {
+        color: #16a34a;
+        font-size: 1.1rem;
+        font-weight: 500;
+        margin: 0;
+    }
+    
+    .coming-soon-content {
+        padding: 2rem;
+    }
+    
+    .coming-soon-message {
+        font-size: 1rem;
+        color: #64748b;
+        line-height: 1.7;
+        margin-bottom: 1.5rem;
+    }
+    
+    .coming-soon-info {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 2rem;
+    }
+    
+    .info-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+        color: #475569;
+        font-size: 0.95rem;
+    }
+    
+    .info-item i {
+        color: #22c55e;
+        font-size: 1.1rem;
+    }
+    
+    .coming-soon-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .coming-soon-actions .btn {
+        padding: 0.85rem 1.5rem;
+        font-weight: 600;
+        border-radius: 12px;
+    }
+    
+    .coming-soon-actions .btn-primary {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        border: none;
+    }
+    
+    .coming-soon-actions .btn-primary:hover {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+    }
+    
+    .coming-soon-actions .btn-outline-primary {
+        border-color: #22c55e;
+        color: #16a34a;
+    }
+    
+    .coming-soon-actions .btn-outline-primary:hover {
+        background: #f0fdf4;
+        border-color: #16a34a;
+    }
+    
+    @media (max-width: 576px) {
+        .coming-soon-card {
+            margin: 1rem;
+        }
+        
+        .coming-soon-header {
+            padding: 2rem 1.5rem 1.5rem;
+        }
+        
+        .coming-soon-icon {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .coming-soon-icon i {
+            font-size: 2.5rem;
+        }
+        
+        .coming-soon-title {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}

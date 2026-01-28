@@ -208,17 +208,20 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
             pass
     
     # 3. Try ModuleBackend default for module + category
+    module_backend_checked = False
     if not filepath and module_code:
         try:
             from subscriptions.models import ModuleBackend
+            module_backend_checked = True
             backend = ModuleBackend.get_for_module(module_code, base_category)
             if backend and backend.file:
                 filepath = backend.file.path
         except (OperationalError, ProgrammingError, Exception):
             pass
     
-    # 4. Try BackendWorkbook (legacy)
-    if not filepath:
+    # 4. Try BackendWorkbook (legacy) - only if module_code was NOT provided
+    # When module_code is provided, we rely on ModuleBackend system only
+    if not filepath and not module_code:
         try:
             backend = BackendWorkbook.objects.filter(
                 category=category_key,
@@ -229,8 +232,10 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
         except (OperationalError, ProgrammingError, Exception):
             pass
     
-    # 5. Fall back to static file_map
-    if not filepath:
+    # 5. Fall back to static file_map - only if module_code was NOT provided
+    # When module_code is provided but no backend exists, we should NOT use static files
+    # This allows showing "Coming Soon" for modules without configured backends
+    if not filepath and not module_code:
         file_map = {
             "electrical":      os.path.join(base_dir, "core", "data", "electrical.xlsx"),
             "civil":           os.path.join(base_dir, "core", "data", "civil.xlsx"),
