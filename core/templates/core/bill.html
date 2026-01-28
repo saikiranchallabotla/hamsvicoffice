@@ -132,17 +132,86 @@
         gap: 0.5rem;
     }
 
-    /* Sections Grid */
-    .sections-container {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
+    /* Bill Section Selector */
+    .bill-section-selector {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
     }
-
-    @media (max-width: 1024px) {
-        .sections-container {
-            grid-template-columns: 1fr;
-        }
+    
+    .bill-option-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        background: white;
+        color: #4a5568;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    
+    .bill-option-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .bill-option-btn.option-estimate {
+        border-color: #2d3748;
+    }
+    .bill-option-btn.option-estimate:hover,
+    .bill-option-btn.option-estimate.active {
+        background: #2d3748;
+        color: white;
+        border-color: #2d3748;
+    }
+    
+    .bill-option-btn.option-workslip {
+        border-color: #319795;
+    }
+    .bill-option-btn.option-workslip:hover,
+    .bill-option-btn.option-workslip.active {
+        background: #319795;
+        color: white;
+        border-color: #319795;
+    }
+    
+    .bill-option-btn.option-first {
+        border-color: #dd6b20;
+    }
+    .bill-option-btn.option-first:hover,
+    .bill-option-btn.option-first.active {
+        background: #dd6b20;
+        color: white;
+        border-color: #dd6b20;
+    }
+    
+    .bill-option-btn.option-nth {
+        border-color: #805ad5;
+    }
+    .bill-option-btn.option-nth:hover,
+    .bill-option-btn.option-nth.active {
+        background: #805ad5;
+        color: white;
+        border-color: #805ad5;
+    }
+    
+    .bill-option-btn i {
+        font-size: 1.1rem;
+    }
+    
+    /* Sections Container */
+    .sections-container {
+        display: none;
+    }
+    
+    .sections-container.active {
+        display: block;
     }
 
     /* Section Cards */
@@ -462,10 +531,30 @@
     </div>
 </div>
 
-<!-- FOUR BILL SECTIONS -->
-<div class="sections-container">
+<!-- BILL SECTION SELECTOR -->
+<div style="background: white; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+    <div style="font-size: 0.8rem; font-weight: 600; color: #718096; margin-bottom: 0.75rem;">
+        <i class="bi bi-hand-index-thumb me-1"></i> Select Bill Type to Generate:
+    </div>
+    <div class="bill-section-selector">
+        <button type="button" class="bill-option-btn option-estimate" onclick="showBillSection('estimate')">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Bill from Estimate
+        </button>
+        <button type="button" class="bill-option-btn option-workslip" onclick="showBillSection('workslip')">
+            <i class="bi bi-clipboard-data"></i> Bill from WorkSlip
+        </button>
+        <button type="button" class="bill-option-btn option-first" onclick="showBillSection('first')">
+            <i class="bi bi-arrow-right-circle"></i> Nth Bill from First Bill
+        </button>
+        <button type="button" class="bill-option-btn option-nth" onclick="showBillSection('nth')">
+            <i class="bi bi-arrow-repeat"></i> Nth Bill from Nth Bill
+        </button>
+    </div>
+</div>
 
-    <!-- SECTION 1: Bill from Estimate -->
+<!-- SECTION 1: Bill from Estimate -->
+<div class="sections-container" id="section-estimate">
+
     <div class="section-card">
         <div class="section-header blue">
             <div class="section-badge">1</div>
@@ -532,7 +621,10 @@
         </div>
     </div>
 
-    <!-- SECTION 2: Bill from WorkSlip -->
+</div>
+
+<!-- SECTION 2: Bill from WorkSlip -->
+<div class="sections-container" id="section-workslip">
     <div class="section-card">
         <div class="section-header teal">
             <div class="section-badge">2</div>
@@ -598,7 +690,10 @@
         </div>
     </div>
 
-    <!-- SECTION 3: Nth & Part / 2nd & Final from First Bill -->
+</div>
+
+<!-- SECTION 3: Nth & Part / 2nd & Final from First Bill -->
+<div class="sections-container" id="section-first">
     <div class="section-card">
         <div class="section-header orange">
             <div class="section-badge">3</div>
@@ -664,7 +759,10 @@
         </div>
     </div>
 
-    <!-- SECTION 4: Nth & Part / Nth & Final from Nth Bill -->
+</div>
+
+<!-- SECTION 4: Nth & Part / Nth & Final from Nth Bill -->
+<div class="sections-container" id="section-nth">
     <div class="section-card">
         <div class="section-header purple">
             <div class="section-badge">4</div>
@@ -733,6 +831,31 @@
 </div>
 
 <script>
+    // Bill section switching
+    function showBillSection(sectionName) {
+        // Hide all sections
+        document.querySelectorAll('.sections-container').forEach(function(section) {
+            section.classList.remove('active');
+        });
+        
+        // Remove active from all buttons
+        document.querySelectorAll('.bill-option-btn').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected section
+        const targetSection = document.getElementById('section-' + sectionName);
+        if (targetSection) {
+            targetSection.classList.add('active');
+        }
+        
+        // Add active class to clicked button
+        const activeBtn = document.querySelector('.bill-option-btn.option-' + sectionName);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    }
+    
     // Copy common inputs into each bill/doc form just before submit
     function syncCommonToForm(form) {
         const fields = [
