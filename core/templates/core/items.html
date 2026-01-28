@@ -2137,6 +2137,19 @@ document.addEventListener('keydown', function(e) {
     window.recalcTotal = recalcTotal;
     window.attachRowListeners = attachRowListeners;
     window.attachDragListeners = attachDragListeners;
+    window.updateTaxBreakdown = updateTaxBreakdown;
+    window.toggleTaxBreakdown = toggleTaxBreakdown;
+    
+    // Prevent form submission when pressing Enter in input fields (except submit button)
+    var form = document.getElementById("estimate-form");
+    if (form) {
+        form.addEventListener("keydown", function(e) {
+            if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "submit") {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
 })();
 </script>
 

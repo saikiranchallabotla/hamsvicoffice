@@ -1375,7 +1375,19 @@ function switchBackend(backendId) {
         grandTotalField.value = gtInput.value || "";
       }
     });
+    
+    // Prevent form submission when pressing Enter in input fields
+    form.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "submit") {
+            e.preventDefault();
+            return false;
+        }
+    });
   }
+  
+  // Expose functions to global scope
+  window.updateTaxBreakdown = updateTaxBreakdown;
+  window.toggleTaxBreakdown = toggleTaxBreakdown;
 })();
 </script>
 
