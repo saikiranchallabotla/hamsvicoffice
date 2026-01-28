@@ -175,7 +175,16 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light sticky-top">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="{% url 'home' %}">🏗️ Hamsvic</a>
+            <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{% url 'home' %}">
+                <svg width="28" height="28" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="10" y="20" width="30" height="25" rx="2" fill="#6366f1"/>
+                    <rect x="15" y="25" width="6" height="8" rx="1" fill="white"/>
+                    <rect x="29" y="25" width="6" height="8" rx="1" fill="white"/>
+                    <rect x="20" y="35" width="10" height="10" rx="1" fill="white"/>
+                    <path d="M28 5L18 22H24L20 35L34 16H27L28 5Z" fill="#fbbf24" stroke="#6366f1" stroke-width="1"/>
+                </svg>
+                Hamsvic
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
