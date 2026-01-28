@@ -822,11 +822,49 @@ def workslip(request):
             # DEBUG: Log total parsed rows before saving to session
             logger.info(f"[WORKSLIP DEBUG] Total parsed rows: {len(parsed_rows)}, grand_total={grand_total_val}")
 
+            # Parse additional metadata from rows 2-7 of the Estimate sheet
+            base_metadata = {
+                "work_name": work_name_local,
+                "estimate_amount": "",
+                "admin_sanction": "",
+                "tech_sanction": "",
+                "agreement": "",
+                "agency_name": "",
+                "grand_total": grand_total_val,
+            }
+            for meta_row in range(2, 8):
+                cell_val = str(ws_est_sheet.cell(row=meta_row, column=1).value or "").strip()
+                cell_lower = cell_val.lower()
+                
+                if ":" in cell_val:
+                    parts = cell_val.split(":", 1)
+                    extracted_value = parts[1].strip() if len(parts) > 1 else ""
+                    
+                    # If no value after colon, check other columns
+                    if not extracted_value:
+                        for c in range(2, 11):
+                            val = ws_est_sheet.cell(row=meta_row, column=c).value
+                            if val and str(val).strip():
+                                extracted_value = str(val).strip()
+                                break
+                    
+                    if "estimate amount" in cell_lower:
+                        base_metadata["estimate_amount"] = extracted_value
+                    elif "administrative" in cell_lower or "admin" in cell_lower:
+                        base_metadata["admin_sanction"] = extracted_value
+                    elif "technical" in cell_lower or "tech" in cell_lower:
+                        base_metadata["tech_sanction"] = extracted_value
+                    elif "agreement" in cell_lower:
+                        base_metadata["agreement"] = extracted_value
+                    elif "agency" in cell_lower:
+                        base_metadata["agency_name"] = extracted_value
+
             request.session["ws_estimate_rows"] = ws_estimate_rows
             request.session["ws_exec_map"] = ws_exec_map
             request.session["ws_supp_items"] = ws_supp_items
             request.session["ws_estimate_grand_total"] = grand_total_val
             request.session["ws_work_name"] = ws_work_name
+            request.session["ws_metadata"] = base_metadata  # Store metadata from base estimate
             # Reset phase tracking for new estimate upload
             request.session["ws_current_phase"] = 1
             request.session["ws_previous_phases"] = []
@@ -1199,39 +1237,39 @@ def workslip(request):
                         cell_val = str(ws_sheet.cell(row=r, column=1).value or "").strip()
                         cell_lower = cell_val.lower()
                     
-                    # Check if this is a label row and extract value
-                    extracted_value = ""
-                    if ":" in cell_val:
-                        parts = cell_val.split(":", 1)
-                        extracted_value = parts[1].strip() if len(parts) > 1 else ""
-                    
-                        # If no value after colon, check columns 2-10 for value
-                        if not extracted_value:
-                            for c in range(2, 11):
-                                val = ws_sheet.cell(row=r, column=c).value
-                                if val and str(val).strip():
-                                    extracted_value = str(val).strip()
-                                    break
+                        # Check if this is a label row and extract value
+                        extracted_value = ""
+                        if ":" in cell_val:
+                            parts = cell_val.split(":", 1)
+                            extracted_value = parts[1].strip() if len(parts) > 1 else ""
                         
-                        if "name of the work" in cell_lower or "work name" in cell_lower:
-                            file_metadata["work_name"] = extracted_value
-                        elif "estimate amount" in cell_lower:
-                            file_metadata["estimate_amount"] = extracted_value
-                            import re
-                            num_match = re.search(r'[\d,]+\.?\d*', extracted_value.replace(',', ''))
-                            if num_match:
-                                try:
-                                    file_metadata["grand_total"] = float(num_match.group().replace(',', ''))
-                                except:
-                                    pass
-                        elif "administrative" in cell_lower or "admin" in cell_lower:
-                            file_metadata["admin_sanction"] = extracted_value
-                        elif "technical" in cell_lower or "tech" in cell_lower:
-                            file_metadata["tech_sanction"] = extracted_value
-                        elif "agreement" in cell_lower:
-                            file_metadata["agreement"] = extracted_value
-                        elif "agency" in cell_lower:
-                            file_metadata["agency_name"] = extracted_value
+                            # If no value after colon, check columns 2-10 for value
+                            if not extracted_value:
+                                for c in range(2, 11):
+                                    val = ws_sheet.cell(row=r, column=c).value
+                                    if val and str(val).strip():
+                                        extracted_value = str(val).strip()
+                                        break
+                            
+                            if "name of the work" in cell_lower or "work name" in cell_lower:
+                                file_metadata["work_name"] = extracted_value
+                            elif "estimate amount" in cell_lower:
+                                file_metadata["estimate_amount"] = extracted_value
+                                import re
+                                num_match = re.search(r'[\d,]+\.?\d*', extracted_value.replace(',', ''))
+                                if num_match:
+                                    try:
+                                        file_metadata["grand_total"] = float(num_match.group().replace(',', ''))
+                                    except:
+                                        pass
+                            elif "administrative" in cell_lower or "admin" in cell_lower:
+                                file_metadata["admin_sanction"] = extracted_value
+                            elif "technical" in cell_lower or "tech" in cell_lower:
+                                file_metadata["tech_sanction"] = extracted_value
+                            elif "agreement" in cell_lower:
+                                file_metadata["agreement"] = extracted_value
+                            elif "agency" in cell_lower:
+                                file_metadata["agency_name"] = extracted_value
                     
                     # Scan footer section for T.P, Grand Total, Deduct, LC, QC, NAC values
                     desc_col = col_map.get("desc", 2)
@@ -10881,11 +10919,19 @@ def temp_download_output(request, category):
     temp_selected_backend_id = request.session.get("temp_selected_backend_id")
 
     # ----- load backend -----
-    items_list, groups_map, _, ws_src, filepath = load_backend(
-        category, settings.BASE_DIR,
-        backend_id=temp_selected_backend_id,
-        module_code='temp_estimate'
-    )
+    try:
+        items_list, groups_map, _, ws_src, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=temp_selected_backend_id,
+            module_code='temp_works'  # Use temp_works module's own backends
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Backend not found for temp download: {category} - {e}")
+        return redirect("temp_groups", category=category)
+    except Exception as e:
+        logger.error(f"Error loading temp backend for download: {category} - {e}")
+        return redirect("temp_groups", category=category)
+    
     name_to_info = {it["name"]: it for it in items_list}
 
     # map item -> group for units
@@ -11155,7 +11201,6 @@ def temp_download_output(request, category):
     return response
 
 
-@login_required(login_url='login')
 @login_required(login_url='login')
 def estimate(request):
     """
