@@ -655,10 +655,6 @@ function switchBackend(backendId) {
                                     <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-lc">0.00</span></td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 3px 0; color: #78350f;">Add QC @ 1%</td>
-                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-qc">0.00</span></td>
-                                </tr>
-                                <tr>
                                     <td style="padding: 3px 0; color: #78350f;">Add NAC @ 0.1%</td>
                                     <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-nac">0.00</span></td>
                                 </tr>
@@ -1050,19 +1046,18 @@ function switchBackend(backendId) {
         }
     }
     
-    // Update tax and provision breakdown preview (AMC version - simpler, no Excess T.P or Special Items)
+    // Update tax and provision breakdown preview (AMC version - no QC, no Excess T.P or Special Items)
     function updateTaxBreakdown() {
         // Get ECV (items total)
         var ecvSpan = document.getElementById("estimate-total");
         var ecv = parseFloat(ecvSpan ? ecvSpan.textContent : "0") || 0;
         
-        // Calculate taxes based on ECV
+        // Calculate taxes based on ECV (AMC has no QC)
         var lc = ecv * 0.01;
-        var qc = ecv * 0.01;
         var nac = ecv * 0.001;
         
-        // Sub Total = ECV + LC + QC + NAC
-        var subTotal = ecv + lc + qc + nac;
+        // Sub Total = ECV + LC + NAC (no QC for AMC)
+        var subTotal = ecv + lc + nac;
         
         // GST @ 18% on Sub Total
         var gst = subTotal * 0.18;
@@ -1081,7 +1076,6 @@ function switchBackend(backendId) {
         // Update preview elements
         document.getElementById("preview-ecv").textContent = ecv.toFixed(2);
         document.getElementById("preview-lc").textContent = lc.toFixed(2);
-        document.getElementById("preview-qc").textContent = qc.toFixed(2);
         document.getElementById("preview-nac").textContent = nac.toFixed(2);
         document.getElementById("preview-subtotal").textContent = subTotal.toFixed(2);
         document.getElementById("preview-gst").textContent = gst.toFixed(2);
