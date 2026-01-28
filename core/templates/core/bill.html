@@ -43,6 +43,62 @@
         padding: 0.6rem 0.75rem;
     }
     
+    /* Tab Navigation */
+    .section-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .section-tab {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.6rem 1rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        background: white;
+        color: #4a5568;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .section-tab:hover {
+        border-color: #805ad5;
+        color: #805ad5;
+        background: #faf5ff;
+    }
+    
+    .section-tab.active {
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
+        border-color: transparent;
+        box-shadow: 0 2px 8px rgba(128, 90, 213, 0.3);
+    }
+    
+    .section-tab i {
+        font-size: 1rem;
+    }
+    
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
     .common-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -52,6 +108,13 @@
     @media (max-width: 900px) {
         .common-grid {
             grid-template-columns: 1fr;
+        }
+        .section-tabs {
+            gap: 0.4rem;
+        }
+        .section-tab {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.72rem;
         }
     }
     
@@ -304,90 +367,112 @@
         </div>
     </div>
     <div class="common-body">
-        <div class="common-grid">
-            <!-- Left Column: MB Details, Dates, Bill Type -->
-            <div class="common-left">
-                <div class="field-group">
-                    <div class="field-group-label"><i class="bi bi-book"></i> Measurement Book Details</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
-                        <div style="background: #f0f9ff; padding: 0.5rem; border-radius: 5px; border: 1px solid #bae6fd;">
-                            <div style="font-size: 0.65rem; color: #0369a1; font-weight: 600; margin-bottom: 0.3rem;">
-                                <i class="bi bi-journal-text me-1"></i>Measurement Book
-                            </div>
-                            <div class="field-row" style="gap: 0.4rem;">
-                                <label style="flex: 2; min-width: 140px;">M.B. No. <input type="text" id="common_mb_measure_no" style="width:100%; min-width: 120px;" /></label>
-                                <label>From Pg. <input type="text" id="common_mb_measure_p_from" style="width:45px" /></label>
-                                <label>To Pg. <input type="text" id="common_mb_measure_p_to" style="width:45px" /></label>
-                            </div>
+        <!-- Tab Navigation -->
+        <div class="section-tabs">
+            <button type="button" class="section-tab active" onclick="showTab('mb-details')">
+                <i class="bi bi-book"></i> MB Details
+            </button>
+            <button type="button" class="section-tab" onclick="showTab('dates')">
+                <i class="bi bi-calendar3"></i> Important Dates
+            </button>
+            <button type="button" class="section-tab" onclick="showTab('bill-config')">
+                <i class="bi bi-hash"></i> Bill Type
+            </button>
+            <button type="button" class="section-tab" onclick="showTab('templates')">
+                <i class="bi bi-file-earmark-text"></i> Templates
+            </button>
+        </div>
+        
+        <!-- Tab: MB Details -->
+        <div id="tab-mb-details" class="tab-content active">
+            <div class="field-group">
+                <div class="field-group-label"><i class="bi bi-book"></i> Measurement Book Details</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                    <div style="background: #f0f9ff; padding: 0.5rem; border-radius: 5px; border: 1px solid #bae6fd;">
+                        <div style="font-size: 0.65rem; color: #0369a1; font-weight: 600; margin-bottom: 0.3rem;">
+                            <i class="bi bi-journal-text me-1"></i>Measurement Book
                         </div>
-                        <div style="background: #fef3c7; padding: 0.5rem; border-radius: 5px; border: 1px solid #fcd34d;">
-                            <div style="font-size: 0.65rem; color: #b45309; font-weight: 600; margin-bottom: 0.3rem;">
-                                <i class="bi bi-journal-bookmark me-1"></i>Abstract Book
-                            </div>
-                            <div class="field-row" style="gap: 0.4rem;">
-                                <label style="flex: 2; min-width: 140px;">Abs. M.B. No. <input type="text" id="common_mb_abstract_no" style="width:100%; min-width: 120px;" /></label>
-                                <label>From Pg. <input type="text" id="common_mb_abstract_p_from" style="width:45px" /></label>
-                                <label>To Pg. <input type="text" id="common_mb_abstract_p_to" style="width:45px" /></label>
-                            </div>
+                        <div class="field-row" style="gap: 0.4rem;">
+                            <label style="flex: 2; min-width: 140px;">M.B. No. <input type="text" id="common_mb_measure_no" style="width:100%; min-width: 120px;" /></label>
+                            <label>From Pg. <input type="text" id="common_mb_measure_p_from" style="width:45px" /></label>
+                            <label>To Pg. <input type="text" id="common_mb_measure_p_to" style="width:45px" /></label>
                         </div>
                     </div>
-                </div>
-
-                <div class="field-group">
-                    <div class="field-group-label"><i class="bi bi-calendar3"></i> Important Dates</div>
-                    <div class="field-row" style="gap: 0.6rem;">
-                        <label style="flex: 1;">
-                            <span style="display: flex; align-items: center; gap: 0.25rem;">
-                                <i class="bi bi-calendar-event" style="color: #059669;"></i> Date of Inspection
-                            </span>
-                            <input type="date" id="common_doi" style="width:100%" />
-                        </label>
-                        <label style="flex: 1;">
-                            <span style="display: flex; align-items: center; gap: 0.25rem;">
-                                <i class="bi bi-calendar-check" style="color: #0284c7;"></i> Date of Completion
-                            </span>
-                            <input type="date" id="common_doc" style="width:100%" />
-                        </label>
-                        <label style="flex: 1;">
-                            <span style="display: flex; align-items: center; gap: 0.25rem;">
-                                <i class="bi bi-calendar-week" style="color: #7c3aed;"></i> D.O.M.R.
-                            </span>
-                            <input type="date" id="common_domr" style="width:100%" />
-                        </label>
-                        <label style="flex: 1;">
-                            <span style="display: flex; align-items: center; gap: 0.25rem;">
-                                <i class="bi bi-calendar2-check" style="color: #dc2626;"></i> D.O.B.R.
-                            </span>
-                            <input type="date" id="common_dobr" style="width:100%" />
-                        </label>
-                    </div>
-                </div>
-
-                <div class="field-group">
-                    <div class="field-group-label"><i class="bi bi-hash"></i> Bill Configuration</div>
-                    <div class="field-row" style="gap: 0.6rem; align-items: flex-end;">
-                        <label style="width: 80px;">
-                            Nth Bill No.
-                            <input type="number" id="common_nth_number" min="2" step="1" style="width:100%" placeholder="2, 3..." />
-                        </label>
-                        <label style="flex: 1;">
-                            Bill Type
-                            <select id="common_action" style="width:100%">
-                                <option value="">-- Select Bill Type --</option>
-                                <option value="estimate_first_part">First & Part Bill</option>
-                                <option value="estimate_first_final">First & Final Bill</option>
-                                <option value="firstpart_nth_part">Nth & Part (from 1st Part)</option>
-                                <option value="firstpart_2nd_final">2nd & Final (from 1st Part)</option>
-                                <option value="nth_nth_part">Nth & Part (from Nth)</option>
-                                <option value="nth_nth_final">Nth & Final (from Nth)</option>
-                            </select>
-                        </label>
+                    <div style="background: #fef3c7; padding: 0.5rem; border-radius: 5px; border: 1px solid #fcd34d;">
+                        <div style="font-size: 0.65rem; color: #b45309; font-weight: 600; margin-bottom: 0.3rem;">
+                            <i class="bi bi-journal-bookmark me-1"></i>Abstract Book
+                        </div>
+                        <div class="field-row" style="gap: 0.4rem;">
+                            <label style="flex: 2; min-width: 140px;">Abs. M.B. No. <input type="text" id="common_mb_abstract_no" style="width:100%; min-width: 120px;" /></label>
+                            <label>From Pg. <input type="text" id="common_mb_abstract_p_from" style="width:45px" /></label>
+                            <label>To Pg. <input type="text" id="common_mb_abstract_p_to" style="width:45px" /></label>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Right Column: Template Uploads -->
-            <div class="common-right">
+        </div>
+        
+        <!-- Tab: Important Dates -->
+        <div id="tab-dates" class="tab-content">
+            <div class="field-group">
+                <div class="field-group-label"><i class="bi bi-calendar3"></i> Important Dates</div>
+                <div class="field-row" style="gap: 0.6rem;">
+                    <label style="flex: 1;">
+                        <span style="display: flex; align-items: center; gap: 0.25rem;">
+                            <i class="bi bi-calendar-event" style="color: #059669;"></i> Date of Inspection
+                        </span>
+                        <input type="date" id="common_doi" style="width:100%" />
+                    </label>
+                    <label style="flex: 1;">
+                        <span style="display: flex; align-items: center; gap: 0.25rem;">
+                            <i class="bi bi-calendar-check" style="color: #0284c7;"></i> Date of Completion
+                        </span>
+                        <input type="date" id="common_doc" style="width:100%" />
+                    </label>
+                    <label style="flex: 1;">
+                        <span style="display: flex; align-items: center; gap: 0.25rem;">
+                            <i class="bi bi-calendar-week" style="color: #7c3aed;"></i> D.O.M.R.
+                        </span>
+                        <input type="date" id="common_domr" style="width:100%" />
+                    </label>
+                    <label style="flex: 1;">
+                        <span style="display: flex; align-items: center; gap: 0.25rem;">
+                            <i class="bi bi-calendar2-check" style="color: #dc2626;"></i> D.O.B.R.
+                        </span>
+                        <input type="date" id="common_dobr" style="width:100%" />
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab: Bill Configuration -->
+        <div id="tab-bill-config" class="tab-content">
+            <div class="field-group">
+                <div class="field-group-label"><i class="bi bi-hash"></i> Bill Configuration</div>
+                <div class="field-row" style="gap: 0.6rem; align-items: flex-end;">
+                    <label style="width: 80px;">
+                        Nth Bill No.
+                        <input type="number" id="common_nth_number" min="2" step="1" style="width:100%" placeholder="2, 3..." />
+                    </label>
+                    <label style="flex: 1;">
+                        Bill Type
+                        <select id="common_action" style="width:100%">
+                            <option value="">-- Select Bill Type --</option>
+                            <option value="estimate_first_part">First & Part Bill</option>
+                            <option value="estimate_first_final">First & Final Bill</option>
+                            <option value="firstpart_nth_part">Nth & Part (from 1st Part)</option>
+                            <option value="firstpart_2nd_final">2nd & Final (from 1st Part)</option>
+                            <option value="nth_nth_part">Nth & Part (from Nth)</option>
+                            <option value="nth_nth_final">Nth & Final (from Nth)</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab: Templates -->
+        <div id="tab-templates" class="tab-content">
+            <div class="common-grid">
                 <div class="field-group" style="background: #f0fff4; border-color: #9ae6b4;">
                     <div class="field-group-label" style="color: #276749;"><i class="bi bi-file-earmark-text"></i> Covering Letter Template</div>
                     {% if covering_letter_template %}
@@ -453,11 +538,10 @@
                     </form>
                     {% endif %}
                 </div>
-                
-                <p class="note" style="margin-top:0.2rem;">
-                    <i class="bi bi-info-circle"></i> Upload Word (.docx) with your officer names.
-                </p>
             </div>
+            <p class="note" style="margin-top:0.4rem;">
+                <i class="bi bi-info-circle"></i> Upload Word (.docx) with your officer names.
+            </p>
         </div>
     </div>
 </div>
@@ -733,6 +817,28 @@
 </div>
 
 <script>
+    // Tab switching function for Common Details section
+    function showTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(function(content) {
+            content.classList.remove('active');
+        });
+        
+        // Remove active class from all tabs
+        document.querySelectorAll('.section-tab').forEach(function(tab) {
+            tab.classList.remove('active');
+        });
+        
+        // Show selected tab content
+        const targetContent = document.getElementById('tab-' + tabName);
+        if (targetContent) {
+            targetContent.classList.add('active');
+        }
+        
+        // Add active class to clicked tab
+        event.currentTarget.classList.add('active');
+    }
+    
     // Copy common inputs into each bill/doc form just before submit
     function syncCommonToForm(form) {
         const fields = [
