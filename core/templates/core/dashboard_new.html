@@ -455,27 +455,20 @@
                 <p>Here's what's happening with your modules</p>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <a href="{% url 'letter_settings' %}" class="action-btn">
-                    <i class="bi bi-envelope-paper"></i>
-                    <span class="d-none d-sm-inline">Forwarding Letter Details</span>
-                </a>
-                
-                <div class="user-dropdown dropdown">
-                    <button class="dropdown-toggle" data-bs-toggle="dropdown">
-                        <div class="user-avatar">
-                            {{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper|default:"U" }}
-                        </div>
-                        <span class="d-none d-md-inline">{{ user.get_full_name|default:user.username }}</span>
-                        <i class="bi bi-chevron-down"></i>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person me-2"></i>Profile</a></li>
-                        <li><a class="dropdown-item" href="{% url 'notification_prefs' %}"><i class="bi bi-bell me-2"></i>Notifications</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
-                    </ul>
-                </div>
+            <div class="user-dropdown dropdown">
+                <button class="dropdown-toggle" data-bs-toggle="dropdown">
+                    <div class="user-avatar">
+                        {{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper|default:"U" }}
+                    </div>
+                    <span class="d-none d-md-inline">{{ user.get_full_name|default:user.username }}</span>
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person me-2"></i>Profile</a></li>
+                    <li><a class="dropdown-item" href="{% url 'notification_prefs' %}"><i class="bi bi-bell me-2"></i>Notifications</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                </ul>
             </div>
         </div>
         
@@ -521,6 +514,14 @@
                 </div>
                 {% endfor %}
                 </div>
+            </div>
+            
+            <!-- Forwarding Letter Details Button - Centered -->
+            <div style="display: flex; justify-content: center; margin-bottom: 1.25rem;">
+                <a href="{% url 'letter_settings' %}" class="action-btn" style="padding: 0.875rem 2rem; font-size: 0.95rem;">
+                    <i class="bi bi-envelope-paper"></i>
+                    Forwarding Letter Details
+                </a>
             </div>
             
             <!-- Module Cards -->
