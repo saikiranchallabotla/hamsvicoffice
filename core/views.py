@@ -11281,6 +11281,381 @@ def temp_download_output(request, category):
 
 
 @login_required(login_url='login')
+def temp_download_specification_report(request, category):
+    """
+    Generate specification report from live Temporary Works items.
+    """
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    
+    if request.method != 'POST':
+        return redirect('temp_groups', category=category)
+    
+    try:
+        items_json = request.POST.get('items', '[]')
+        work_name = request.POST.get('work_name', '{{NAME_OF_WORK}}')
+        total_amount = request.POST.get('total_amount', '0.00')
+        
+        items = json.loads(items_json)
+        
+        if not items:
+            from django.contrib import messages
+            messages.error(request, 'No items with quantities to generate specification report')
+            return redirect('temp_groups', category=category)
+        
+        doc = Document()
+        
+        title = doc.add_heading('Specification report accompanying the estimate :-', level=1)
+        title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        for run in title.runs:
+            run.font.size = Pt(12)
+            run.font.bold = True
+            run.font.underline = True
+        
+        intro_para = doc.add_paragraph()
+        intro_para.add_run(f'The estimate is prepared for the work {work_name}')
+        
+        doc.add_paragraph()
+        
+        amount_para = doc.add_paragraph()
+        amount_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        amount_run = amount_para.add_run(f'Est.Amount: Rs. {total_amount}')
+        amount_run.font.bold = True
+        amount_run.font.underline = True
+        
+        doc.add_paragraph()
+        
+        body_para = doc.add_paragraph('{{BODY_OF_LETTER}}')
+        for run in body_para.runs:
+            run.font.italic = True
+            run.font.color.rgb = RGBColor(128, 128, 128)
+        
+        doc.add_paragraph()
+        doc.add_paragraph('Hence, this estimate has been prepared accordingly.')
+        doc.add_paragraph()
+        
+        for item in items:
+            desc = item.get('desc', '')
+            qty = item.get('qty', '')
+            days = item.get('days', '')
+            unit = item.get('unit', 'Nos')
+            
+            if qty:
+                try:
+                    qty_float = float(qty)
+                    if qty_float == int(qty_float):
+                        qty = str(int(qty_float))
+                    else:
+                        qty = str(qty_float)
+                except:
+                    pass
+            
+            if qty and days:
+                bullet_text = f'{desc}  -  {qty} {unit} x {days} Days'
+            elif qty:
+                bullet_text = f'{desc}  -  {qty} {unit}'
+            else:
+                bullet_text = desc
+            
+            bullet_para = doc.add_paragraph(bullet_text, style='List Bullet')
+            for run in bullet_para.runs:
+                run.font.size = Pt(11)
+                run.font.bold = True
+        
+        doc.add_paragraph()
+        
+        from datetime import datetime
+        today = datetime.now()
+        if today.month >= 4:
+            fy_start = today.year
+            fy_end = (today.year + 1) % 100
+        else:
+            fy_start = today.year - 1
+            fy_end = today.year % 100
+        financial_year = f"{fy_start}-{fy_end:02d}"
+        
+        footer_text = (f'The rates proposed in the estimate are as per SQR {financial_year} and Approved rates. L.S. Provision is made in the '
+                      'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
+                      'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
+        footer_para = doc.add_paragraph(footer_text)
+        for run in footer_para.runs:
+            run.font.size = Pt(10)
+        
+        doc.add_paragraph()
+        
+        funds_para = doc.add_paragraph()
+        funds_run = funds_para.add_run('FUNDS: ')
+        funds_run.font.bold = True
+        funds_run.font.underline = True
+        funds_para.add_run('The estimate requires Administrative sanction and also fixes up the agency with provision of funds '
+                          'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
+        
+        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
+        filename = f'TempWorks_Specification_Report_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        doc.save(response)
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error generating temp works specification report: {str(e)}', exc_info=True)
+        from django.contrib import messages
+        messages.error(request, f'Error generating specification report: {str(e)}')
+        return redirect('temp_groups', category=category)
+
+
+@login_required(login_url='login')
+def temp_download_forwarding_letter(request, category):
+    """
+    Generate forwarding letter from live Temporary Works items.
+    """
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    
+    if request.method != 'POST':
+        return redirect('temp_groups', category=category)
+    
+    try:
+        items_json = request.POST.get('items', '[]')
+        work_name = request.POST.get('work_name', '{{NAME_OF_WORK}}')
+        total_amount = request.POST.get('total_amount', '0.00')
+        
+        items = json.loads(items_json)
+        
+        if not items:
+            from django.contrib import messages
+            messages.error(request, 'No items with quantities to generate forwarding letter')
+            return redirect('temp_groups', category=category)
+        
+        try:
+            grand_total = float(total_amount.replace(',', '').replace('Rs.', '').replace('₹', '').strip())
+        except:
+            grand_total = 0.0
+        
+        financial_year = _get_current_financial_year()
+        today = timezone.now().date()
+        
+        doc = Document()
+        placeholder_color = RGBColor(169, 169, 169)
+        
+        sections = doc.sections
+        for section in sections:
+            section.top_margin = Inches(0.8)
+            section.bottom_margin = Inches(0.8)
+            section.left_margin = Inches(1)
+            section.right_margin = Inches(1)
+        
+        header1 = doc.add_paragraph()
+        header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+        run1.font.bold = True
+        run1.font.size = Pt(14)
+        run1.font.color.rgb = placeholder_color
+        run1.font.italic = True
+        
+        header2 = doc.add_paragraph()
+        header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run2 = header2.add_run('[DEPARTMENT NAME]')
+        run2.font.bold = True
+        run2.font.size = Pt(13)
+        run2.font.color.rgb = placeholder_color
+        run2.font.italic = True
+        
+        doc.add_paragraph()
+        
+        from_to_table = doc.add_table(rows=1, cols=2)
+        from_to_table.autofit = True
+        
+        from_cell = from_to_table.cell(0, 0)
+        from_para = from_cell.paragraphs[0]
+        from_para.add_run('From: -\n')
+        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+        from_run1.font.color.rgb = placeholder_color
+        from_run1.font.italic = True
+        from_run2 = from_para.add_run('[Designation],\n')
+        from_run2.font.color.rgb = placeholder_color
+        from_run2.font.italic = True
+        from_run3 = from_para.add_run('[Sub Division, Office Address].')
+        from_run3.font.color.rgb = placeholder_color
+        from_run3.font.italic = True
+        
+        to_cell = from_to_table.cell(0, 1)
+        to_para = to_cell.paragraphs[0]
+        to_para.add_run('To,\n')
+        to_run1 = to_para.add_run('[Officer Designation],\n')
+        to_run1.font.color.rgb = placeholder_color
+        to_run1.font.italic = True
+        to_run2 = to_para.add_run('[Division Name],\n')
+        to_run2.font.color.rgb = placeholder_color
+        to_run2.font.italic = True
+        to_run3 = to_para.add_run('[Address].')
+        to_run3.font.color.rgb = placeholder_color
+        to_run3.font.italic = True
+        
+        doc.add_paragraph()
+        
+        lr_para = doc.add_paragraph()
+        lr_para.add_run('Lr No. ')
+        lr_placeholder = lr_para.add_run('[Office Code]')
+        lr_placeholder.font.color.rgb = placeholder_color
+        lr_placeholder.font.italic = True
+        lr_placeholder.font.underline = True
+        lr_para.add_run(f'/{financial_year}/          ')
+        lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
+        
+        doc.add_paragraph()
+        
+        sir_para = doc.add_paragraph()
+        sir_para.add_run('Sir,')
+        
+        doc.add_paragraph()
+        
+        subject_para = doc.add_paragraph()
+        subj_run = subject_para.add_run('Sub:-')
+        subj_run.font.underline = True
+        subject_para.add_run('\t')
+        subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
+        subj_placeholder.font.color.rgb = placeholder_color
+        subj_placeholder.font.italic = True
+        subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
+        
+        doc.add_paragraph()
+        
+        ref_para = doc.add_paragraph()
+        ref_run = ref_para.add_run('Ref:-')
+        ref_run.font.underline = True
+        ref_para.add_run('\tMemo No.')
+        ref_placeholder = ref_para.add_run('[Reference Number]')
+        ref_placeholder.font.color.rgb = placeholder_color
+        ref_placeholder.font.italic = True
+        ref_placeholder.font.underline = True
+        ref_para.add_run(f'/{financial_year} Dt.')
+        ref_date_placeholder = ref_para.add_run('[DD.MM.YYYY]')
+        ref_date_placeholder.font.color.rgb = placeholder_color
+        ref_date_placeholder.font.italic = True
+        ref_date_placeholder.font.underline = True
+        
+        doc.add_paragraph()
+        
+        stars_para = doc.add_paragraph()
+        stars_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        stars_para.add_run('**.**')
+        
+        doc.add_paragraph()
+        
+        body_para = doc.add_paragraph()
+        body_para.add_run('With reference to the subject cited, I submit here ')
+        with_run = body_para.add_run('with  1')
+        with_run.font.underline = True
+        body_para.add_run(' No. estimate for the following work for the amount specified.')
+        
+        doc.add_paragraph()
+        
+        table = doc.add_table(rows=2, cols=3)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        for cell in table.columns[0].cells:
+            cell.width = Inches(0.5)
+        for cell in table.columns[1].cells:
+            cell.width = Inches(4.5)
+        for cell in table.columns[2].cells:
+            cell.width = Inches(1.5)
+        
+        header_cells = table.rows[0].cells
+        header_cells[0].text = 'Sl.\nNo'
+        header_cells[1].text = 'Name of work'
+        header_cells[2].text = 'Amount'
+        
+        for cell in header_cells:
+            for para in cell.paragraphs:
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in para.runs:
+                    run.font.bold = True
+        
+        row_cells = table.rows[1].cells
+        row_cells[0].text = '1'
+        row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        row_cells[1].text = work_name
+        
+        formatted_amount = _format_indian_number(grand_total)
+        row_cells[2].text = f"Rs.{formatted_amount}"
+        row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        
+        doc.add_paragraph()
+        
+        spec_para = doc.add_paragraph()
+        spec_para.add_run("Specification report accompanying the estimate explains the necessity and provisions made therein in detail.")
+        
+        doc.add_paragraph()
+        
+        request_para = doc.add_paragraph()
+        request_para.add_run('I request the ')
+        req_placeholder = request_para.add_run('[Superior Officer Designation]')
+        req_placeholder.font.color.rgb = placeholder_color
+        req_placeholder.font.italic = True
+        request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
+        
+        doc.add_paragraph()
+        
+        enc_para = doc.add_paragraph()
+        enc_para.add_run('Enclosure: -')
+        doc.add_paragraph('Estimate  - 1 No.')
+        
+        doc.add_paragraph()
+        doc.add_paragraph()
+        
+        sign_para = doc.add_paragraph()
+        sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        sign_para.add_run('Yours faithfully,')
+        
+        doc.add_paragraph()
+        doc.add_paragraph()
+        
+        title_para = doc.add_paragraph()
+        title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        run_title = title_para.add_run('[Officer Designation]\n')
+        run_title.font.bold = True
+        run_title.font.color.rgb = placeholder_color
+        run_title.font.italic = True
+        sub_div_run = title_para.add_run('[Sub Division Name],\n')
+        sub_div_run.font.color.rgb = placeholder_color
+        sub_div_run.font.italic = True
+        addr_run = title_para.add_run('[Office Address].')
+        addr_run.font.color.rgb = placeholder_color
+        addr_run.font.italic = True
+        
+        doc.add_paragraph()
+        
+        copy_para = doc.add_paragraph()
+        copy_para.add_run('Copy to the ')
+        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+        copy_placeholder.font.color.rgb = placeholder_color
+        copy_placeholder.font.italic = True
+        copy_para.add_run(' for information.')
+        
+        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
+        filename = f'TempWorks_Forwarding_Letter_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        doc.save(response)
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error generating temp works forwarding letter: {str(e)}', exc_info=True)
+        from django.contrib import messages
+        messages.error(request, f'Error generating forwarding letter: {str(e)}')
+        return redirect('temp_groups', category=category)
+
+
+@login_required(login_url='login')
 def estimate(request):
     """
     Estimate module: Upload item blocks sheet (in backend format)
@@ -13755,6 +14130,380 @@ def amc_ajax_reorder_items(request, category):
         
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+@login_required(login_url='login')
+def amc_download_specification_report(request, category):
+    """
+    Generate specification report from live AMC items.
+    """
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    
+    if request.method != 'POST':
+        return redirect('amc_groups', category=category)
+    
+    try:
+        items_json = request.POST.get('items', '[]')
+        work_name = request.POST.get('work_name', '{{NAME_OF_WORK}}')
+        total_amount = request.POST.get('total_amount', '0.00')
+        
+        items = json.loads(items_json)
+        
+        if not items:
+            from django.contrib import messages
+            messages.error(request, 'No items with quantities to generate specification report')
+            return redirect('amc_groups', category=category)
+        
+        doc = Document()
+        
+        title = doc.add_heading('Specification report accompanying the estimate :-', level=1)
+        title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        for run in title.runs:
+            run.font.size = Pt(12)
+            run.font.bold = True
+            run.font.underline = True
+        
+        intro_para = doc.add_paragraph()
+        intro_para.add_run(f'The estimate is prepared for the work {work_name}')
+        
+        doc.add_paragraph()
+        
+        amount_para = doc.add_paragraph()
+        amount_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        amount_run = amount_para.add_run(f'Est.Amount: Rs. {total_amount}')
+        amount_run.font.bold = True
+        amount_run.font.underline = True
+        
+        doc.add_paragraph()
+        
+        body_para = doc.add_paragraph('{{BODY_OF_LETTER}}')
+        for run in body_para.runs:
+            run.font.italic = True
+            run.font.color.rgb = RGBColor(128, 128, 128)
+        
+        doc.add_paragraph()
+        doc.add_paragraph('Hence, this estimate has been prepared accordingly.')
+        doc.add_paragraph()
+        
+        for item in items:
+            desc = item.get('desc', '')
+            qty = item.get('qty', '')
+            unit = item.get('unit', 'Nos')
+            
+            if qty:
+                try:
+                    qty_float = float(qty)
+                    if qty_float == int(qty_float):
+                        qty = str(int(qty_float))
+                    else:
+                        qty = str(qty_float)
+                except:
+                    pass
+            
+            if qty and unit:
+                bullet_text = f'{desc}  -  {qty} {unit}'
+            elif qty:
+                bullet_text = f'{desc}  -  {qty}'
+            else:
+                bullet_text = desc
+            
+            bullet_para = doc.add_paragraph(bullet_text, style='List Bullet')
+            for run in bullet_para.runs:
+                run.font.size = Pt(11)
+                run.font.bold = True
+        
+        doc.add_paragraph()
+        
+        from datetime import datetime
+        today = datetime.now()
+        if today.month >= 4:
+            fy_start = today.year
+            fy_end = (today.year + 1) % 100
+        else:
+            fy_start = today.year - 1
+            fy_end = today.year % 100
+        financial_year = f"{fy_start}-{fy_end:02d}"
+        
+        footer_text = (f'The rates proposed in the estimate are as per SQR {financial_year} and Approved rates. L.S. Provision is made in the '
+                      'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
+                      'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
+        footer_para = doc.add_paragraph(footer_text)
+        for run in footer_para.runs:
+            run.font.size = Pt(10)
+        
+        doc.add_paragraph()
+        
+        funds_para = doc.add_paragraph()
+        funds_run = funds_para.add_run('FUNDS: ')
+        funds_run.font.bold = True
+        funds_run.font.underline = True
+        funds_para.add_run('The estimate requires Administrative sanction and also fixes up the agency with provision of funds '
+                          'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
+        
+        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
+        filename = f'AMC_Specification_Report_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        doc.save(response)
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error generating AMC specification report: {str(e)}', exc_info=True)
+        from django.contrib import messages
+        messages.error(request, f'Error generating specification report: {str(e)}')
+        return redirect('amc_groups', category=category)
+
+
+@login_required(login_url='login')
+def amc_download_forwarding_letter(request, category):
+    """
+    Generate forwarding letter from live AMC items.
+    """
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    
+    if request.method != 'POST':
+        return redirect('amc_groups', category=category)
+    
+    try:
+        items_json = request.POST.get('items', '[]')
+        work_name = request.POST.get('work_name', '{{NAME_OF_WORK}}')
+        total_amount = request.POST.get('total_amount', '0.00')
+        
+        items = json.loads(items_json)
+        
+        if not items:
+            from django.contrib import messages
+            messages.error(request, 'No items with quantities to generate forwarding letter')
+            return redirect('amc_groups', category=category)
+        
+        try:
+            grand_total = float(total_amount.replace(',', '').replace('Rs.', '').replace('₹', '').strip())
+        except:
+            grand_total = 0.0
+        
+        financial_year = _get_current_financial_year()
+        today = timezone.now().date()
+        
+        doc = Document()
+        placeholder_color = RGBColor(169, 169, 169)
+        
+        sections = doc.sections
+        for section in sections:
+            section.top_margin = Inches(0.8)
+            section.bottom_margin = Inches(0.8)
+            section.left_margin = Inches(1)
+            section.right_margin = Inches(1)
+        
+        header1 = doc.add_paragraph()
+        header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+        run1.font.bold = True
+        run1.font.size = Pt(14)
+        run1.font.color.rgb = placeholder_color
+        run1.font.italic = True
+        
+        header2 = doc.add_paragraph()
+        header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run2 = header2.add_run('[DEPARTMENT NAME]')
+        run2.font.bold = True
+        run2.font.size = Pt(13)
+        run2.font.color.rgb = placeholder_color
+        run2.font.italic = True
+        
+        doc.add_paragraph()
+        
+        from_to_table = doc.add_table(rows=1, cols=2)
+        from_to_table.autofit = True
+        
+        from_cell = from_to_table.cell(0, 0)
+        from_para = from_cell.paragraphs[0]
+        from_para.add_run('From: -\n')
+        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+        from_run1.font.color.rgb = placeholder_color
+        from_run1.font.italic = True
+        from_run2 = from_para.add_run('[Designation],\n')
+        from_run2.font.color.rgb = placeholder_color
+        from_run2.font.italic = True
+        from_run3 = from_para.add_run('[Sub Division, Office Address].')
+        from_run3.font.color.rgb = placeholder_color
+        from_run3.font.italic = True
+        
+        to_cell = from_to_table.cell(0, 1)
+        to_para = to_cell.paragraphs[0]
+        to_para.add_run('To,\n')
+        to_run1 = to_para.add_run('[Officer Designation],\n')
+        to_run1.font.color.rgb = placeholder_color
+        to_run1.font.italic = True
+        to_run2 = to_para.add_run('[Division Name],\n')
+        to_run2.font.color.rgb = placeholder_color
+        to_run2.font.italic = True
+        to_run3 = to_para.add_run('[Address].')
+        to_run3.font.color.rgb = placeholder_color
+        to_run3.font.italic = True
+        
+        doc.add_paragraph()
+        
+        lr_para = doc.add_paragraph()
+        lr_para.add_run('Lr No. ')
+        lr_placeholder = lr_para.add_run('[Office Code]')
+        lr_placeholder.font.color.rgb = placeholder_color
+        lr_placeholder.font.italic = True
+        lr_placeholder.font.underline = True
+        lr_para.add_run(f'/{financial_year}/          ')
+        lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
+        
+        doc.add_paragraph()
+        
+        sir_para = doc.add_paragraph()
+        sir_para.add_run('Sir,')
+        
+        doc.add_paragraph()
+        
+        subject_para = doc.add_paragraph()
+        subj_run = subject_para.add_run('Sub:-')
+        subj_run.font.underline = True
+        subject_para.add_run('\t')
+        subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
+        subj_placeholder.font.color.rgb = placeholder_color
+        subj_placeholder.font.italic = True
+        subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
+        
+        doc.add_paragraph()
+        
+        ref_para = doc.add_paragraph()
+        ref_run = ref_para.add_run('Ref:-')
+        ref_run.font.underline = True
+        ref_para.add_run('\tMemo No.')
+        ref_placeholder = ref_para.add_run('[Reference Number]')
+        ref_placeholder.font.color.rgb = placeholder_color
+        ref_placeholder.font.italic = True
+        ref_placeholder.font.underline = True
+        ref_para.add_run(f'/{financial_year} Dt.')
+        ref_date_placeholder = ref_para.add_run('[DD.MM.YYYY]')
+        ref_date_placeholder.font.color.rgb = placeholder_color
+        ref_date_placeholder.font.italic = True
+        ref_date_placeholder.font.underline = True
+        
+        doc.add_paragraph()
+        
+        stars_para = doc.add_paragraph()
+        stars_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        stars_para.add_run('**.**')
+        
+        doc.add_paragraph()
+        
+        body_para = doc.add_paragraph()
+        body_para.add_run('With reference to the subject cited, I submit here ')
+        with_run = body_para.add_run('with  1')
+        with_run.font.underline = True
+        body_para.add_run(' No. estimate for the following work for the amount specified.')
+        
+        doc.add_paragraph()
+        
+        table = doc.add_table(rows=2, cols=3)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        for cell in table.columns[0].cells:
+            cell.width = Inches(0.5)
+        for cell in table.columns[1].cells:
+            cell.width = Inches(4.5)
+        for cell in table.columns[2].cells:
+            cell.width = Inches(1.5)
+        
+        header_cells = table.rows[0].cells
+        header_cells[0].text = 'Sl.\nNo'
+        header_cells[1].text = 'Name of work'
+        header_cells[2].text = 'Amount'
+        
+        for cell in header_cells:
+            for para in cell.paragraphs:
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in para.runs:
+                    run.font.bold = True
+        
+        row_cells = table.rows[1].cells
+        row_cells[0].text = '1'
+        row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        row_cells[1].text = work_name
+        
+        formatted_amount = _format_indian_number(grand_total)
+        row_cells[2].text = f"Rs.{formatted_amount}"
+        row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        
+        doc.add_paragraph()
+        
+        spec_para = doc.add_paragraph()
+        spec_para.add_run("Specification report accompanying the estimate explains the necessity and provisions made therein in detail.")
+        
+        doc.add_paragraph()
+        
+        request_para = doc.add_paragraph()
+        request_para.add_run('I request the ')
+        req_placeholder = request_para.add_run('[Superior Officer Designation]')
+        req_placeholder.font.color.rgb = placeholder_color
+        req_placeholder.font.italic = True
+        request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
+        
+        doc.add_paragraph()
+        
+        enc_para = doc.add_paragraph()
+        enc_para.add_run('Enclosure: -')
+        doc.add_paragraph('Estimate  - 1 No.')
+        
+        doc.add_paragraph()
+        doc.add_paragraph()
+        
+        sign_para = doc.add_paragraph()
+        sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        sign_para.add_run('Yours faithfully,')
+        
+        doc.add_paragraph()
+        doc.add_paragraph()
+        
+        title_para = doc.add_paragraph()
+        title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        run_title = title_para.add_run('[Officer Designation]\n')
+        run_title.font.bold = True
+        run_title.font.color.rgb = placeholder_color
+        run_title.font.italic = True
+        sub_div_run = title_para.add_run('[Sub Division Name],\n')
+        sub_div_run.font.color.rgb = placeholder_color
+        sub_div_run.font.italic = True
+        addr_run = title_para.add_run('[Office Address].')
+        addr_run.font.color.rgb = placeholder_color
+        addr_run.font.italic = True
+        
+        doc.add_paragraph()
+        
+        copy_para = doc.add_paragraph()
+        copy_para.add_run('Copy to the ')
+        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+        copy_placeholder.font.color.rgb = placeholder_color
+        copy_placeholder.font.italic = True
+        copy_para.add_run(' for information.')
+        
+        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
+        filename = f'AMC_Forwarding_Letter_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        doc.save(response)
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error generating AMC forwarding letter: {str(e)}', exc_info=True)
+        from django.contrib import messages
+        messages.error(request, f'Error generating forwarding letter: {str(e)}')
+        return redirect('amc_groups', category=category)
 
 
 @login_required(login_url='login')

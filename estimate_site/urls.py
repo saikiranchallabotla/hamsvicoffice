@@ -201,6 +201,16 @@ urlpatterns = [
         name="temp_download_output",
     ),
     path(
+        "tempdatas/<str:category>/specification-report/",
+        views.temp_download_specification_report,
+        name="temp_download_specification_report",
+    ),
+    path(
+        "tempdatas/<str:category>/forwarding-letter/",
+        views.temp_download_forwarding_letter,
+        name="temp_download_forwarding_letter",
+    ),
+    path(
         "tempdatas/<str:category>/day_rates/",
         views.temp_day_rates_debug,
         name="temp_day_rates_debug",
@@ -268,6 +278,16 @@ urlpatterns = [
         "amc/<str:category>/download/",
         views.amc_download_output,
         name="amc_download_output",
+    ),
+    path(
+        "amc/<str:category>/specification-report/",
+        views.amc_download_specification_report,
+        name="amc_download_specification_report",
+    ),
+    path(
+        "amc/<str:category>/forwarding-letter/",
+        views.amc_download_forwarding_letter,
+        name="amc_download_forwarding_letter",
     ),
     
     # AJAX endpoints for AMC module (queued item selection & drag-drop reorder)

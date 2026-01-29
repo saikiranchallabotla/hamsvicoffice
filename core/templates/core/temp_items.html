@@ -747,6 +747,16 @@
                         <i class="bi bi-download"></i>
                         Download Estimate
                     </button>
+                    
+                    <button type="button" class="btn-action btn-download" onclick="downloadSpecificationReport()" style="background:linear-gradient(135deg, #38a169 0%, #2f855a 100%);">
+                        <i class="bi bi-file-earmark-word"></i>
+                        Specification Report
+                    </button>
+                    
+                    <button type="button" class="btn-action btn-download" onclick="downloadForwardingLetter()" style="background:linear-gradient(135deg, #2b6cb0 0%, #1d4ed8 100%);">
+                        <i class="bi bi-envelope-paper"></i>
+                        Forwarding Letter
+                    </button>
 
                     <a href="{% url 'temp_clear_items' category group %}"
                        class="btn-action btn-clear">
@@ -1384,6 +1394,130 @@ function switchBackend(backendId) {
         }
     });
   }
+  
+  // ---- Download Specification Report ----
+  window.downloadSpecificationReport = function() {
+    var items = [];
+    var workName = document.getElementById("work-name-input").value || "{{NAME_OF_WORK}}";
+    var grandTotalInput = document.getElementById("grand-total-input");
+    var totalAmount = grandTotalInput ? grandTotalInput.value : "0.00";
+    
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+      var itemName = row.getAttribute("data-item-name");
+      if (!itemName) return;
+      
+      var qtyInput = row.querySelector(".qty-input");
+      var daysInput = row.querySelector(".days-input");
+      var qty = qtyInput ? qtyInput.value : "";
+      var days = daysInput ? daysInput.value : "";
+      
+      if (itemName && qty && parseFloat(qty) > 0) {
+        items.push({
+          desc: itemName,
+          qty: qty,
+          days: days,
+          unit: "Nos"
+        });
+      }
+    });
+    
+    if (items.length === 0) {
+      alert("Please add items with quantities to generate specification report");
+      return;
+    }
+    
+    var form = document.createElement("form");
+    form.method = "POST";
+    form.action = "{% url 'temp_download_specification_report' category %}";
+    form.style.display = "none";
+    
+    var csrfInput = document.createElement("input");
+    csrfInput.type = "hidden";
+    csrfInput.name = "csrfmiddlewaretoken";
+    csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+    form.appendChild(csrfInput);
+    
+    var itemsInput = document.createElement("input");
+    itemsInput.type = "hidden";
+    itemsInput.name = "items";
+    itemsInput.value = JSON.stringify(items);
+    form.appendChild(itemsInput);
+    
+    var workNameInput = document.createElement("input");
+    workNameInput.type = "hidden";
+    workNameInput.name = "work_name";
+    workNameInput.value = workName;
+    form.appendChild(workNameInput);
+    
+    var totalInput = document.createElement("input");
+    totalInput.type = "hidden";
+    totalInput.name = "total_amount";
+    totalInput.value = totalAmount;
+    form.appendChild(totalInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+  };
+  
+  // ---- Download Forwarding Letter ----
+  window.downloadForwardingLetter = function() {
+    var items = [];
+    var workName = document.getElementById("work-name-input").value || "{{NAME_OF_WORK}}";
+    var grandTotalInput = document.getElementById("grand-total-input");
+    var totalAmount = grandTotalInput ? grandTotalInput.value : "0.00";
+    
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+      var itemName = row.getAttribute("data-item-name");
+      if (!itemName) return;
+      
+      var qtyInput = row.querySelector(".qty-input");
+      var qty = qtyInput ? qtyInput.value : "";
+      
+      if (itemName && qty && parseFloat(qty) > 0) {
+        items.push({
+          desc: itemName,
+          qty: qty
+        });
+      }
+    });
+    
+    if (items.length === 0) {
+      alert("Please add items with quantities to generate forwarding letter");
+      return;
+    }
+    
+    var form = document.createElement("form");
+    form.method = "POST";
+    form.action = "{% url 'temp_download_forwarding_letter' category %}";
+    form.style.display = "none";
+    
+    var csrfInput = document.createElement("input");
+    csrfInput.type = "hidden";
+    csrfInput.name = "csrfmiddlewaretoken";
+    csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+    form.appendChild(csrfInput);
+    
+    var itemsInput = document.createElement("input");
+    itemsInput.type = "hidden";
+    itemsInput.name = "items";
+    itemsInput.value = JSON.stringify(items);
+    form.appendChild(itemsInput);
+    
+    var workNameInput = document.createElement("input");
+    workNameInput.type = "hidden";
+    workNameInput.name = "work_name";
+    workNameInput.value = workName;
+    form.appendChild(workNameInput);
+    
+    var totalInput = document.createElement("input");
+    totalInput.type = "hidden";
+    totalInput.name = "total_amount";
+    totalInput.value = totalAmount;
+    form.appendChild(totalInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+  };
   
   // Expose functions to global scope
   window.updateTaxBreakdown = updateTaxBreakdown;
