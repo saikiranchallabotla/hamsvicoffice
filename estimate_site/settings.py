@@ -273,8 +273,8 @@ if REDIS_URL:
             }
         }
     }
-    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-    SESSION_CACHE_ALIAS = 'default'
+    # Use database sessions for persistence across redeploys
+    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 else:
     # Development: Use local memory cache
     CACHES = {
@@ -285,6 +285,11 @@ else:
     }
     # Use database sessions for development
     SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+
+# Session settings - keep users logged in
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Don't expire when browser closes
 
 
 # ==============================================================================
