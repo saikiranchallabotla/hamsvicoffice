@@ -464,6 +464,64 @@ def api_logout(request):
     return JsonResponse({'ok': True, 'reason': 'Logged out.'})
 
 
+def api_check_session(request):
+    """
+    API: Check if current session is still valid.
+    Called by client-side polling to detect if user was kicked out
+    from another device login.
+    
+    GET /api/auth/check-session/
+    Response: {"valid": true} or {"valid": false, "reason": "..."}
+    """
+    # If not authenticated, session is invalid
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'valid': False,
+            'reason': 'not_authenticated',
+            'message': 'Session expired. Please login again.'
+        })
+    
+    session_key = request.session.session_key
+    if not session_key:
+        return JsonResponse({
+            'valid': False,
+            'reason': 'no_session',
+            'message': 'Session not found. Please login again.'
+        })
+    
+    # Check if session is still active in UserSession
+    try:
+        user_session = UserSession.objects.filter(
+            user=request.user,
+            session_key=session_key
+        ).first()
+        
+        if not user_session:
+            return JsonResponse({
+                'valid': False,
+                'reason': 'session_not_found',
+                'message': 'Your session was not found. Please login again.'
+            })
+        
+        if not user_session.is_active:
+            return JsonResponse({
+                'valid': False,
+                'reason': 'kicked_out',
+                'message': 'You have been logged out because your account was accessed from another device.'
+            })
+        
+        # Session is valid
+        return JsonResponse({
+            'valid': True
+        })
+    
+    except Exception as e:
+        logger.error(f"Error checking session validity: {e}")
+        return JsonResponse({
+            'valid': True  # Assume valid on error to avoid false kicks
+        })
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================

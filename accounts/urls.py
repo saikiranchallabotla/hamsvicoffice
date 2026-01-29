@@ -40,4 +40,5 @@ urlpatterns = [
     path('api/auth/request-otp/', views.api_request_otp, name='api_request_otp'),
     path('api/auth/verify-otp/', views.api_verify_otp, name='api_verify_otp'),
     path('api/auth/logout/', views.api_logout, name='api_logout'),
+    path('api/auth/check-session/', views.api_check_session, name='api_check_session'),
 ]

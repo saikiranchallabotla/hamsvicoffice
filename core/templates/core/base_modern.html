@@ -1146,6 +1146,130 @@
         // Refresh every 30 seconds
         setInterval(loadNotifications, 30000);
     });
+    
+    // =========================================================================
+    // SINGLE DEVICE LOGIN - Session Validity Check
+    // Polls the server to check if this session was invalidated by a login
+    // from another device. If so, shows a popup and redirects to login.
+    // =========================================================================
+    let sessionCheckInterval = null;
+    let isSessionInvalid = false;
+    
+    function checkSessionValidity() {
+        // Don't check if already invalid or modal is showing
+        if (isSessionInvalid) return;
+        
+        fetch('/accounts/api/auth/check-session/', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.valid && data.reason === 'kicked_out') {
+                isSessionInvalid = true;
+                showLoggedOutModal(data.message);
+            } else if (!data.valid) {
+                // Other reasons (expired, not found) - just redirect
+                isSessionInvalid = true;
+                window.location.href = '/accounts/login/';
+            }
+        })
+        .catch(err => {
+            console.log('Session check error (will retry):', err);
+        });
+    }
+    
+    function showLoggedOutModal(message) {
+        // Stop further checks
+        if (sessionCheckInterval) {
+            clearInterval(sessionCheckInterval);
+        }
+        
+        // Create modal backdrop
+        const backdrop = document.createElement('div');
+        backdrop.id = 'loggedOutBackdrop';
+        backdrop.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 99998;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease-out;
+        `;
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: slideUp 0.3s ease-out;
+        `;
+        modal.innerHTML = `
+            <style>
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+            </style>
+            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                <i class="bi bi-laptop" style="font-size: 28px; color: #ef4444;"></i>
+            </div>
+            <h3 style="margin: 0 0 12px; color: #1e293b; font-size: 1.5rem; font-weight: 600;">Logged Out</h3>
+            <p style="margin: 0 0 24px; color: #64748b; line-height: 1.6;">
+                ${message || 'You have been logged out because your account was accessed from another device.'}
+            </p>
+            <p style="margin: 0 0 24px; color: #94a3b8; font-size: 0.875rem;">
+                <i class="bi bi-info-circle me-1"></i>
+                Only one device can be logged in at a time.
+            </p>
+            <button onclick="window.location.href='/accounts/login/';" style="
+                width: 100%;
+                padding: 14px 24px;
+                background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 1rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s, box-shadow 0.2s;
+            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 20px rgba(79, 70, 229, 0.3)';"
+               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Login Again
+            </button>
+        `;
+        
+        backdrop.appendChild(modal);
+        document.body.appendChild(backdrop);
+        
+        // Play notification sound (optional)
+        try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleA0QpeSxf0EBq+DJkl4WC7DowYhRBAW17c2OYxoXtO3Kj2QdGLTtyZBmHxi07cqQZR8YtO3Jj2UeGLTtyY9lHhi07cmPZR4YtO3Jj2UeGLTtyY9lHhi07cmPZR4YtO3Jj2UeGLTtyY9lHhi07cmPZR4YtO3Jj2UeGLTtyY9lHhi07cmP');
+            audio.volume = 0.3;
+            audio.play().catch(() => {});
+        } catch(e) {}
+    }
+    
+    // Start session checking if user is authenticated
+    {% if user.is_authenticated %}
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check every 10 seconds
+        checkSessionValidity();  // Check immediately
+        sessionCheckInterval = setInterval(checkSessionValidity, 10000);
+    });
+    {% endif %}
     </script>
     
     {% block extra_scripts %}{% endblock %}

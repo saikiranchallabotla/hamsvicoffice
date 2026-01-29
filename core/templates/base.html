@@ -140,6 +140,77 @@
     window.alert = function(message) {
         showToast(message, 'warning', 'Alert');
     };
+    
+    // =========================================================================
+    // SINGLE DEVICE LOGIN - Session Validity Check
+    // Polls the server to check if this session was invalidated by a login
+    // from another device. If so, shows a popup and redirects to login.
+    // =========================================================================
+    let sessionCheckInterval = null;
+    let isSessionInvalid = false;
+    
+    function checkSessionValidity() {
+        if (isSessionInvalid) return;
+        
+        fetch('/accounts/api/auth/check-session/', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.valid && data.reason === 'kicked_out') {
+                isSessionInvalid = true;
+                showLoggedOutModal(data.message);
+            } else if (!data.valid) {
+                isSessionInvalid = true;
+                window.location.href = '/accounts/login/';
+            }
+        })
+        .catch(err => console.log('Session check error:', err));
+    }
+    
+    function showLoggedOutModal(message) {
+        if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+        
+        const backdrop = document.createElement('div');
+        backdrop.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);
+            z-index: 99998; display: flex; align-items: center; justify-content: center;
+        `;
+        
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: white; border-radius: 16px; padding: 32px;
+            max-width: 420px; width: 90%; text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        `;
+        modal.innerHTML = `
+            <div style="width: 64px; height: 64px; background: #fee2e2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                <i class="bi bi-laptop" style="font-size: 28px; color: #ef4444;"></i>
+            </div>
+            <h3 style="margin: 0 0 12px; color: #1e293b; font-size: 1.5rem; font-weight: 600;">Logged Out</h3>
+            <p style="margin: 0 0 24px; color: #64748b; line-height: 1.6;">${message || 'You have been logged out because your account was accessed from another device.'}</p>
+            <p style="margin: 0 0 24px; color: #94a3b8; font-size: 0.875rem;">
+                <i class="bi bi-info-circle me-1"></i>Only one device can be logged in at a time.
+            </p>
+            <button onclick="window.location.href='/accounts/login/';" class="btn btn-primary w-100">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Login Again
+            </button>
+        `;
+        
+        backdrop.appendChild(modal);
+        document.body.appendChild(backdrop);
+    }
+    
+    // Start session checking if user is authenticated
+    {% if user.is_authenticated %}
+    document.addEventListener('DOMContentLoaded', function() {
+        checkSessionValidity();
+        sessionCheckInterval = setInterval(checkSessionValidity, 10000);
+    });
+    {% endif %}
     </script>
     {% block scripts %}{% endblock %}
 </body>
