@@ -364,6 +364,30 @@ def _get_current_date_formatted():
     return today.strftime("%d-%m-%Y")
 
 
+def _format_date_to_ddmmyyyy(date_str):
+    """
+    Convert date from yyyy-mm-dd (HTML date input format) to dd-mm-yyyy format.
+    Returns the original string if parsing fails or if already in correct format.
+    """
+    if not date_str or not date_str.strip():
+        return ""
+    
+    date_str = date_str.strip()
+    
+    # Check if already in dd-mm-yyyy format
+    if len(date_str) == 10 and date_str[2] == '-' and date_str[5] == '-':
+        return date_str
+    
+    # Try to parse yyyy-mm-dd format
+    try:
+        from datetime import datetime
+        parsed = datetime.strptime(date_str, "%Y-%m-%d")
+        return parsed.strftime("%d-%m-%Y")
+    except (ValueError, TypeError):
+        # Return as-is if parsing fails
+        return date_str
+
+
 def _get_letter_settings(user):
     """
     Get the letter settings for a user.
@@ -4778,11 +4802,11 @@ def bill(request):
         mb_abs_p_from = str(request.POST.get('mb_abstract_p_from') or '').strip()
         mb_abs_p_to = str(request.POST.get('mb_abstract_p_to') or '').strip()
         
-        # Extract dates from POST request
-        doi = str(request.POST.get('doi') or '').strip()
-        doc = str(request.POST.get('doc') or '').strip()
-        domr = str(request.POST.get('domr') or '').strip()
-        dobr = str(request.POST.get('dobr') or '').strip()
+        # Extract dates from POST request and convert from yyyy-mm-dd to dd-mm-yyyy format
+        doi = _format_date_to_ddmmyyyy(request.POST.get('doi') or '')
+        doc = _format_date_to_ddmmyyyy(request.POST.get('doc') or '')
+        domr = _format_date_to_ddmmyyyy(request.POST.get('domr') or '')
+        dobr = _format_date_to_ddmmyyyy(request.POST.get('dobr') or '')
 
         try:
             wb = load_workbook(uploaded, data_only=True)
