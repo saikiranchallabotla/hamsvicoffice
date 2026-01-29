@@ -7489,35 +7489,53 @@ def bill_document(request):
         if doc_kind == "covering":
             template_type = "covering_letter"
             base_download_name = "Covering_Letter"
+            template_type_display = "Covering Letter"
         else:
             template_type = "movement_slip"
             base_download_name = "Movement_Slip"
+            template_type_display = "Movement Slip"
         
-        # Try to get user's custom template first
+        # Check if user has uploaded their template
         user_template = get_user_template(request.user, template_type)
         
-        if user_template:
-            # User has uploaded their own template
-            template_path = user_template.file.path
-        else:
-            # No user template - show error with link to upload
-            template_type_display = "Covering Letter" if doc_kind == "covering" else "Movement Slip"
+        if not user_template:
+            # No user template - show styled popup-like page with link to upload
             error_html = f"""
+            <!DOCTYPE html>
             <html>
-            <head><title>Template Required</title></head>
-            <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
-                <h2>âš ï¸ {template_type_display} Template Not Found</h2>
-                <p>You haven't uploaded a {template_type_display} template yet.</p>
-                <p>Please upload your own template with your officer names and formatting.</p>
-                <a href="/templates/" style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">
-                    Upload Template
-                </a>
-                <br><br>
-                <a href="/bill/" style="color: #666;">â† Back to Bill Generator</a>
+            <head>
+                <title>Template Required</title>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+                <style>
+                    body {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+                    .card {{ max-width: 500px; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }}
+                    .icon-warning {{ font-size: 4rem; color: #ffc107; }}
+                </style>
+            </head>
+            <body>
+                <div class="card text-center p-5">
+                    <i class="bi bi-exclamation-triangle-fill icon-warning mb-3"></i>
+                    <h3 class="mb-3">{template_type_display} Template Required</h3>
+                    <p class="text-muted mb-4">
+                        You haven't uploaded a <strong>{template_type_display}</strong> template yet.<br>
+                        Please upload your own Word template (.docx) with your officer names and formatting.
+                    </p>
+                    <div class="d-grid gap-2">
+                        <a href="/templates/" class="btn btn-primary btn-lg">
+                            <i class="bi bi-upload me-2"></i>Upload Template
+                        </a>
+                        <a href="/bill/" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>Back to Bill Generator
+                        </a>
+                    </div>
+                </div>
             </body>
             </html>
             """
-            return HttpResponse(error_html, status=404)
+            return HttpResponse(error_html, status=200)
+        
+        template_path = user_template.file.path
         
         if not os.path.exists(template_path):
             return HttpResponse(f"Template file not found. Please re-upload your template.", status=404)
