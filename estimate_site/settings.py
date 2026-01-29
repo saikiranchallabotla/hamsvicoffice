@@ -167,12 +167,15 @@ else:
 # ==============================================================================
 # FILE STORAGE CONFIGURATION
 # ==============================================================================
-# Local storage for development, S3/DO Spaces for production
+# Local storage for development, S3/R2/DO Spaces for production
+# 
+# ⚠️ IMPORTANT: Without cloud storage, user uploads are LOST on each redeploy!
+# Set STORAGE_TYPE=s3 or STORAGE_TYPE=r2 in Railway environment variables.
 
 STORAGE_TYPE = os.getenv('STORAGE_TYPE', 'local')
 
-if STORAGE_TYPE == 's3':
-    # AWS S3 or DO Spaces (S3-compatible)
+if STORAGE_TYPE in ('s3', 'r2'):
+    # AWS S3, Cloudflare R2, or DigitalOcean Spaces (all S3-compatible)
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
