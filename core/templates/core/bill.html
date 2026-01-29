@@ -45,11 +45,11 @@
     
     .common-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.6rem;
+        grid-template-columns: 2fr 1fr;
+        gap: 1rem;
     }
     
-    @media (max-width: 900px) {
+    @media (max-width: 992px) {
         .common-grid {
             grid-template-columns: 1fr;
         }
@@ -59,6 +59,10 @@
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
+    }
+    
+    .common-right {
+        gap: 0.4rem;
     }
 
     /* Field Groups */
@@ -517,25 +521,25 @@
             <div class="common-left">
                 <div class="field-group">
                     <div class="field-group-label"><i class="bi bi-book"></i> Measurement Book Details</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
-                        <div style="background: #f0f9ff; padding: 0.5rem; border-radius: 5px; border: 1px solid #bae6fd;">
-                            <div style="font-size: 0.65rem; color: #0369a1; font-weight: 600; margin-bottom: 0.3rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div style="background: #f0f9ff; padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid #bae6fd;">
+                            <div style="font-size: 0.68rem; color: #0369a1; font-weight: 600; margin-bottom: 0.35rem;">
                                 <i class="bi bi-journal-text me-1"></i>Measurement Book
                             </div>
-                            <div class="field-row" style="gap: 0.4rem;">
-                                <label style="flex: 2; min-width: 140px;">M.B. No. <input type="text" id="common_mb_measure_no" style="width:100%; min-width: 120px;" /></label>
-                                <label>From Pg. <input type="text" id="common_mb_measure_p_from" style="width:45px" /></label>
-                                <label>To Pg. <input type="text" id="common_mb_measure_p_to" style="width:45px" /></label>
+                            <div class="field-row" style="gap: 0.5rem;">
+                                <label style="flex: 2;">M.B. No. <input type="text" id="common_mb_measure_no" style="width:100%;" /></label>
+                                <label style="flex: 1;">From Pg. <input type="text" id="common_mb_measure_p_from" style="width:100%" /></label>
+                                <label style="flex: 1;">To Pg. <input type="text" id="common_mb_measure_p_to" style="width:100%" /></label>
                             </div>
                         </div>
-                        <div style="background: #fef3c7; padding: 0.5rem; border-radius: 5px; border: 1px solid #fcd34d;">
-                            <div style="font-size: 0.65rem; color: #b45309; font-weight: 600; margin-bottom: 0.3rem;">
+                        <div style="background: #fef3c7; padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid #fcd34d;">
+                            <div style="font-size: 0.68rem; color: #b45309; font-weight: 600; margin-bottom: 0.35rem;">
                                 <i class="bi bi-journal-bookmark me-1"></i>Abstract Book
                             </div>
-                            <div class="field-row" style="gap: 0.4rem;">
-                                <label style="flex: 2; min-width: 140px;">Abs. M.B. No. <input type="text" id="common_mb_abstract_no" style="width:100%; min-width: 120px;" /></label>
-                                <label>From Pg. <input type="text" id="common_mb_abstract_p_from" style="width:45px" /></label>
-                                <label>To Pg. <input type="text" id="common_mb_abstract_p_to" style="width:45px" /></label>
+                            <div class="field-row" style="gap: 0.5rem;">
+                                <label style="flex: 2;">Abs. M.B. No. <input type="text" id="common_mb_abstract_no" style="width:100%;" /></label>
+                                <label style="flex: 1;">From Pg. <input type="text" id="common_mb_abstract_p_from" style="width:100%" /></label>
+                                <label style="flex: 1;">To Pg. <input type="text" id="common_mb_abstract_p_to" style="width:100%" /></label>
                             </div>
                         </div>
                     </div>
@@ -596,73 +600,73 @@
             
             <!-- Right Column: Template Uploads -->
             <div class="common-right">
-                <div class="field-group" style="background: #f0fff4; border-color: #9ae6b4;">
-                    <div class="field-group-label" style="color: #276749;"><i class="bi bi-file-earmark-text"></i> Covering Letter Template</div>
+                <div class="field-group" style="background: #f0fff4; border-color: #9ae6b4; padding: 0.4rem 0.5rem;">
+                    <div class="field-group-label" style="color: #276749; font-size: 0.68rem; margin-bottom: 0.25rem;"><i class="bi bi-file-earmark-text"></i> Covering Letter Template</div>
                     {% if covering_letter_template %}
-                    <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.72rem; flex-wrap:wrap;">
-                        <span style="color:#276749;"><i class="bi bi-check-circle-fill"></i> {{ covering_letter_template.name }}</span>
-                        <a href="{% url 'template_download' covering_letter_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.65rem; text-decoration:none;">
+                    <div style="display:flex; align-items:center; gap:0.3rem; font-size:0.68rem; flex-wrap:wrap;">
+                        <span style="color:#276749; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="bi bi-check-circle-fill"></i> {{ covering_letter_template.name|truncatechars:20 }}</span>
+                        <a href="{% url 'template_download' covering_letter_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.15rem 0.3rem; font-size:0.6rem; text-decoration:none;">
                             <i class="bi bi-download"></i>
                         </a>
                     </div>
-                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center; margin-top:0.35rem;">
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center; margin-top:0.25rem;">
                         {% csrf_token %}
                         <input type="hidden" name="template_type" value="covering_letter">
                         <input type="hidden" name="name" value="Covering Letter">
                         <input type="hidden" name="next" value="bill">
-                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.65rem; flex:1;">
-                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.2rem 0.45rem; font-size:0.65rem;">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
                             <i class="bi bi-arrow-repeat"></i> Replace
                         </button>
                     </form>
                     {% else %}
-                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center;">
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center;">
                         {% csrf_token %}
                         <input type="hidden" name="template_type" value="covering_letter">
                         <input type="hidden" name="name" value="Covering Letter">
                         <input type="hidden" name="next" value="bill">
-                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.68rem; flex:1;">
-                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.25rem 0.5rem; font-size:0.68rem;">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
                             <i class="bi bi-upload"></i> Upload
                         </button>
                     </form>
                     {% endif %}
                 </div>
                 
-                <div class="field-group" style="background: #fffaf0; border-color: #fbd38d;">
-                    <div class="field-group-label" style="color: #c05621;"><i class="bi bi-file-earmark-text"></i> Movement Slip Template</div>
+                <div class="field-group" style="background: #fffaf0; border-color: #fbd38d; padding: 0.4rem 0.5rem;">
+                    <div class="field-group-label" style="color: #c05621; font-size: 0.68rem; margin-bottom: 0.25rem;"><i class="bi bi-file-earmark-text"></i> Movement Slip Template</div>
                     {% if movement_slip_template %}
-                    <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.72rem; flex-wrap:wrap;">
-                        <span style="color:#c05621;"><i class="bi bi-check-circle-fill"></i> {{ movement_slip_template.name }}</span>
-                        <a href="{% url 'template_download' movement_slip_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.65rem; text-decoration:none;">
+                    <div style="display:flex; align-items:center; gap:0.3rem; font-size:0.68rem; flex-wrap:wrap;">
+                        <span style="color:#c05621; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="bi bi-check-circle-fill"></i> {{ movement_slip_template.name|truncatechars:20 }}</span>
+                        <a href="{% url 'template_download' movement_slip_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.15rem 0.3rem; font-size:0.6rem; text-decoration:none;">
                             <i class="bi bi-download"></i>
                         </a>
                     </div>
-                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center; margin-top:0.35rem;">
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center; margin-top:0.25rem;">
                         {% csrf_token %}
                         <input type="hidden" name="template_type" value="movement_slip">
                         <input type="hidden" name="name" value="Movement Slip">
                         <input type="hidden" name="next" value="bill">
-                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.65rem; flex:1;">
-                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.2rem 0.45rem; font-size:0.65rem;">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
                             <i class="bi bi-arrow-repeat"></i> Replace
                         </button>
                     </form>
                     {% else %}
-                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.4rem; align-items:center;">
+                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center;">
                         {% csrf_token %}
                         <input type="hidden" name="template_type" value="movement_slip">
                         <input type="hidden" name="name" value="Movement Slip">
                         <input type="hidden" name="next" value="bill">
-                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.68rem; flex:1;">
-                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.25rem 0.5rem; font-size:0.68rem;">
+                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
+                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
                             <i class="bi bi-upload"></i> Upload
                         </button>
                     </form>
                     {% endif %}
                 </div>
                 
-                <p class="note" style="margin-top:0.2rem;">
+                <p class="note" style="margin-top:0.15rem; font-size: 0.62rem;">
                     <i class="bi bi-info-circle"></i> Upload Word (.docx) with your officer names.
                 </p>
             </div>
@@ -671,21 +675,21 @@
 </div>
 
 <!-- BILL SECTION SELECTOR -->
-<div style="background: white; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
-    <div style="font-size: 0.8rem; font-weight: 600; color: #718096; margin-bottom: 0.75rem;">
+<div style="background: white; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+    <div style="font-size: 0.75rem; font-weight: 600; color: #718096; margin-bottom: 0.6rem;">
         <i class="bi bi-hand-index-thumb me-1"></i> Select Bill Type to Generate:
     </div>
-    <div class="bill-section-selector">
-        <button type="button" class="bill-option-btn option-estimate" onclick="showBillSection('estimate')">
+    <div class="bill-section-selector" style="gap: 0.5rem;">
+        <button type="button" class="bill-option-btn option-estimate" onclick="showBillSection('estimate')" style="padding: 0.6rem 1rem; font-size: 0.8rem;">
             <i class="bi bi-file-earmark-spreadsheet"></i> Bill from Estimate
         </button>
-        <button type="button" class="bill-option-btn option-workslip" onclick="showBillSection('workslip')">
+        <button type="button" class="bill-option-btn option-workslip" onclick="showBillSection('workslip')" style="padding: 0.6rem 1rem; font-size: 0.8rem;">
             <i class="bi bi-clipboard-data"></i> Bill from WorkSlip
         </button>
-        <button type="button" class="bill-option-btn option-first" onclick="showBillSection('first')">
+        <button type="button" class="bill-option-btn option-first" onclick="showBillSection('first')" style="padding: 0.6rem 1rem; font-size: 0.8rem;">
             <i class="bi bi-arrow-right-circle"></i> Second & Part/Final from First & Part Bill
         </button>
-        <button type="button" class="bill-option-btn option-nth" onclick="showBillSection('nth')">
+        <button type="button" class="bill-option-btn option-nth" onclick="showBillSection('nth')" style="padding: 0.6rem 1rem; font-size: 0.8rem;">
             <i class="bi bi-arrow-repeat"></i> Nth & Part/Final from Nth & Part Bill
         </button>
     </div>
