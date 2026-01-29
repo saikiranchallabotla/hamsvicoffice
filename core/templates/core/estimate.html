@@ -17,15 +17,9 @@
     
     .sections-wrapper {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 1rem;
         align-items: stretch;
-    }
-    
-    @media (max-width: 1024px) {
-        .sections-wrapper {
-            grid-template-columns: 1fr 1fr;
-        }
     }
     
     @media (max-width: 768px) {
@@ -53,8 +47,8 @@
         background: linear-gradient(135deg, #2b6cb0 0%, #3182ce 100%);
     }
     
-    .estimate-header.forward-header {
-        background: linear-gradient(135deg, #276749 0%, #38a169 100%);
+    .estimate-header.documents-header {
+        background: linear-gradient(135deg, #2b6cb0 0%, #38a169 100%);
     }
     
     .estimate-header h2 {
@@ -107,12 +101,7 @@
         background: #faf5ff;
     }
     
-    .upload-zone.spec-zone:hover {
-        border-color: #3182ce;
-        background: #ebf8ff;
-    }
-    
-    .upload-zone.forward-zone:hover {
+    .upload-zone.documents-zone:hover {
         border-color: #38a169;
         background: #f0fff4;
     }
@@ -128,11 +117,7 @@
         margin-bottom: 0.5rem;
     }
     
-    .spec-zone .upload-icon {
-        color: #3182ce;
-    }
-    
-    .forward-zone .upload-icon {
+    .documents-zone .upload-icon {
         color: #38a169;
     }
     
@@ -172,19 +157,11 @@
         background: #6b46c1;
     }
     
-    .upload-btn.spec-btn {
-        background: #3182ce;
-    }
-    
-    .upload-btn.spec-btn:hover {
-        background: #2b6cb0;
-    }
-    
-    .upload-btn.forward-btn {
+    .upload-btn.documents-btn {
         background: #38a169;
     }
     
-    .upload-btn.forward-btn:hover {
+    .upload-btn.documents-btn:hover {
         background: #276749;
     }
     
@@ -291,6 +268,25 @@
         cursor: not-allowed;
         transform: none;
         box-shadow: none;
+    }
+    
+    /* Documents Section - Two buttons side by side */
+    .documents-buttons {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: auto;
+    }
+    
+    .documents-buttons .generate-btn {
+        flex: 1;
+        font-size: 0.75rem;
+        padding: 0.6rem 0.5rem;
+    }
+    
+    @media (max-width: 480px) {
+        .documents-buttons {
+            flex-direction: column;
+        }
     }
     
     /* Instructions Card */
@@ -403,87 +399,61 @@
             </div>
         </div>
         
-        <!-- Section 2: Generate Specification Report -->
+        <!-- Section 2: Generate Documents (Specification Report & Forwarding Letter) -->
         <div class="estimate-card">
-            <div class="estimate-header spec-header">
-                <h2><i class="bi bi-file-earmark-word"></i> Specification Report</h2>
-                <p>Generate specification report from workbook with Estimate & Datas sheets.</p>
+            <div class="estimate-header documents-header">
+                <h2><i class="bi bi-file-earmark-richtext"></i> Estimate Documents</h2>
+                <p>Generate specification report or forwarding letter from your workbook.</p>
             </div>
             
             <div class="estimate-body">
-                <form method="post" action="{% url 'generate_specification_report' %}" enctype="multipart/form-data" id="specReportForm">
-                    {% csrf_token %}
-                    
-                    <div class="upload-zone spec-zone" id="specUploadZone">
-                        <div class="upload-icon">
+                <div class="info-note">
+                    <i class="bi bi-info-circle"></i>
+                    Upload your workbook with Estimate & Datas sheets, then choose which document to generate.
+                </div>
+                
+                <div class="upload-zone documents-zone" id="documentsUploadZone">
+                    <div class="upload-icon">
+                        <i class="bi bi-file-earmark-richtext"></i>
+                    </div>
+                    <div class="upload-title">Drop your workbook here</div>
+                    <div class="upload-subtitle">Requires Estimate + Datas sheets</div>
+                    <input type="file" name="documents_file" id="documentsFileInput" class="upload-input" accept=".xlsx">
+                    <button type="button" class="upload-btn documents-btn" onclick="document.getElementById('documentsFileInput').click()">
+                        <i class="bi bi-folder2-open"></i> Browse Files
+                    </button>
+                </div>
+                
+                <div class="file-info" id="documentsFileInfo">
+                    <i class="bi bi-file-earmark-excel-fill"></i>
+                    <div class="file-details">
+                        <div class="file-name" id="documentsFileName"></div>
+                        <div class="file-size" id="documentsFileSize"></div>
+                    </div>
+                    <button type="button" class="remove-file" onclick="removeFile('documents')">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </div>
+                
+                <div class="documents-buttons">
+                    <form method="post" action="{% url 'generate_specification_report' %}" enctype="multipart/form-data" id="specReportForm" style="flex:1;display:flex;">
+                        {% csrf_token %}
+                        <input type="file" name="output_file" id="specHiddenInput" style="display:none;" accept=".xlsx">
+                        <button type="submit" class="generate-btn spec-generate" id="specGenerateBtn" disabled style="flex:1;">
                             <i class="bi bi-file-earmark-word"></i>
-                        </div>
-                        <div class="upload-title">Drop your workbook here</div>
-                        <div class="upload-subtitle">Requires Estimate + Datas sheets</div>
-                        <input type="file" name="output_file" id="specFileInput" class="upload-input" accept=".xlsx" required>
-                        <button type="button" class="upload-btn spec-btn" onclick="document.getElementById('specFileInput').click()">
-                            <i class="bi bi-folder2-open"></i> Browse Files
+                            Specification Report
                         </button>
-                    </div>
+                    </form>
                     
-                    <div class="file-info" id="specFileInfo">
-                        <i class="bi bi-file-earmark-excel-fill"></i>
-                        <div class="file-details">
-                            <div class="file-name" id="specFileName"></div>
-                            <div class="file-size" id="specFileSize"></div>
-                        </div>
-                        <button type="button" class="remove-file" onclick="removeFile('spec')">
-                            <i class="bi bi-x-circle"></i>
-                        </button>
-                    </div>
-                    
-                    <button type="submit" class="generate-btn spec-generate" id="specGenerateBtn" disabled>
-                        <i class="bi bi-file-earmark-word"></i>
-                        Download Specification Report
-                    </button>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Section 3: Generate Forwarding Letter -->
-        <div class="estimate-card">
-            <div class="estimate-header forward-header">
-                <h2><i class="bi bi-envelope-paper"></i> Forwarding Letter</h2>
-                <p>Generate forwarding letter from multi-sheet estimate workbook.</p>
-            </div>
-            
-            <div class="estimate-body">
-                <form method="post" action="{% url 'generate_forwarding_letter' %}" enctype="multipart/form-data" id="forwardForm">
-                    {% csrf_token %}
-                    
-                    <div class="upload-zone forward-zone" id="forwardUploadZone">
-                        <div class="upload-icon">
+                    <form method="post" action="{% url 'generate_forwarding_letter' %}" enctype="multipart/form-data" id="forwardForm" style="flex:1;display:flex;">
+                        {% csrf_token %}
+                        <input type="file" name="output_file" id="forwardHiddenInput" style="display:none;" accept=".xlsx">
+                        <button type="submit" class="generate-btn forward-generate" id="forwardGenerateBtn" disabled style="flex:1;">
                             <i class="bi bi-envelope-paper"></i>
-                        </div>
-                        <div class="upload-title">Drop your workbook here</div>
-                        <div class="upload-subtitle">Multiple Estimate sheets supported</div>
-                        <input type="file" name="output_file" id="forwardFileInput" class="upload-input" accept=".xlsx" required>
-                        <button type="button" class="upload-btn forward-btn" onclick="document.getElementById('forwardFileInput').click()">
-                            <i class="bi bi-folder2-open"></i> Browse Files
+                            Forwarding Letter
                         </button>
-                    </div>
-                    
-                    <div class="file-info" id="forwardFileInfo">
-                        <i class="bi bi-file-earmark-excel-fill"></i>
-                        <div class="file-details">
-                            <div class="file-name" id="forwardFileName"></div>
-                            <div class="file-size" id="forwardFileSize"></div>
-                        </div>
-                        <button type="button" class="remove-file" onclick="removeFile('forward')">
-                            <i class="bi bi-x-circle"></i>
-                        </button>
-                    </div>
-                    
-                    <button type="submit" class="generate-btn forward-generate" id="forwardGenerateBtn" disabled>
-                        <i class="bi bi-envelope-paper"></i>
-                        Download Forwarding Letter
-                    </button>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -495,12 +465,10 @@
         <div class="instructions-body">
             <ol>
                 <li><strong>Generate Estimate:</strong> Upload your Datas Excel file (<code>.xlsx</code>) to create a formatted estimate document</li>
-                <li><strong>Specification Report:</strong> Upload a workbook with <code>Estimate</code> and <code>Datas</code> sheets</li>
-                <li><strong>Forwarding Letter:</strong> Upload multi-sheet estimate workbook to generate a formal forwarding letter with:
+                <li><strong>Estimate Documents:</strong> Upload a workbook with <code>Estimate</code> and <code>Datas</code> sheets, then choose:
                     <ul style="margin-top:0.3rem;margin-bottom:0;">
-                        <li>Work names and grand totals from each Estimate sheet</li>
-                        <li>Amounts in Indian format (Lakhs, Crores)</li>
-                        <li>Current financial year and date</li>
+                        <li><strong>Specification Report:</strong> Generates detailed specifications from estimate items</li>
+                        <li><strong>Forwarding Letter:</strong> Generates formal letter with work names, grand totals, and amounts in Indian format</li>
                     </ul>
                 </li>
             </ol>
@@ -560,70 +528,23 @@
         }
     }, false);
     
-    // ========== Specification Report Section ==========
-    const specFileInput = document.getElementById('specFileInput');
-    const specFileInfo = document.getElementById('specFileInfo');
-    const specFileName = document.getElementById('specFileName');
-    const specFileSize = document.getElementById('specFileSize');
+    // ========== Documents Section (Spec Report & Forwarding Letter) ==========
+    const documentsFileInput = document.getElementById('documentsFileInput');
+    const documentsFileInfo = document.getElementById('documentsFileInfo');
+    const documentsFileName = document.getElementById('documentsFileName');
+    const documentsFileSize = document.getElementById('documentsFileSize');
     const specGenerateBtn = document.getElementById('specGenerateBtn');
-    const specUploadZone = document.getElementById('specUploadZone');
-    
-    // Handle file selection for spec report
-    specFileInput.addEventListener('change', function(e) {
-        if (this.files && this.files.length > 0) {
-            const file = this.files[0];
-            if (file.name.endsWith('.xlsx')) {
-                showFileInfo(file, 'spec');
-            } else {
-                alert('Please select a .xlsx file');
-                this.value = '';
-            }
-        }
-    }, false);
-    
-    // Handle drag and drop for spec report
-    ['dragenter', 'dragover'].forEach(eventName => {
-        specUploadZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            specUploadZone.classList.add('dragover');
-        }, false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-        specUploadZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            specUploadZone.classList.remove('dragover');
-        }, false);
-    });
-    
-    specUploadZone.addEventListener('drop', function(e) {
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            if (files[0].name.endsWith('.xlsx')) {
-                specFileInput.files = files;
-                showFileInfo(files[0], 'spec');
-            } else {
-                alert('Please drop a .xlsx file');
-            }
-        }
-    }, false);
-    
-    // ========== Forwarding Letter Section ==========
-    const forwardFileInput = document.getElementById('forwardFileInput');
-    const forwardFileInfo = document.getElementById('forwardFileInfo');
-    const forwardFileName = document.getElementById('forwardFileName');
-    const forwardFileSize = document.getElementById('forwardFileSize');
     const forwardGenerateBtn = document.getElementById('forwardGenerateBtn');
-    const forwardUploadZone = document.getElementById('forwardUploadZone');
+    const documentsUploadZone = document.getElementById('documentsUploadZone');
+    const specHiddenInput = document.getElementById('specHiddenInput');
+    const forwardHiddenInput = document.getElementById('forwardHiddenInput');
     
-    // Handle file selection for forwarding letter
-    forwardFileInput.addEventListener('change', function(e) {
+    // Handle file selection for documents
+    documentsFileInput.addEventListener('change', function(e) {
         if (this.files && this.files.length > 0) {
             const file = this.files[0];
             if (file.name.endsWith('.xlsx')) {
-                showFileInfo(file, 'forward');
+                showFileInfo(file, 'documents');
             } else {
                 alert('Please select a .xlsx file');
                 this.value = '';
@@ -631,34 +552,59 @@
         }
     }, false);
     
-    // Handle drag and drop for forwarding letter
+    // Handle drag and drop for documents
     ['dragenter', 'dragover'].forEach(eventName => {
-        forwardUploadZone.addEventListener(eventName, (e) => {
+        documentsUploadZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            forwardUploadZone.classList.add('dragover');
+            documentsUploadZone.classList.add('dragover');
         }, false);
     });
     
     ['dragleave', 'drop'].forEach(eventName => {
-        forwardUploadZone.addEventListener(eventName, (e) => {
+        documentsUploadZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            forwardUploadZone.classList.remove('dragover');
+            documentsUploadZone.classList.remove('dragover');
         }, false);
     });
     
-    forwardUploadZone.addEventListener('drop', function(e) {
+    documentsUploadZone.addEventListener('drop', function(e) {
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             if (files[0].name.endsWith('.xlsx')) {
-                forwardFileInput.files = files;
-                showFileInfo(files[0], 'forward');
+                documentsFileInput.files = files;
+                showFileInfo(files[0], 'documents');
             } else {
                 alert('Please drop a .xlsx file');
             }
         }
     }, false);
+    
+    // Copy file to hidden inputs when submitting
+    document.getElementById('specReportForm').addEventListener('submit', function(e) {
+        if (documentsFileInput.files && documentsFileInput.files.length > 0) {
+            // Create a new DataTransfer to copy the file
+            const dt = new DataTransfer();
+            dt.items.add(documentsFileInput.files[0]);
+            specHiddenInput.files = dt.files;
+        } else {
+            e.preventDefault();
+            alert('Please select a file first');
+        }
+    });
+    
+    document.getElementById('forwardForm').addEventListener('submit', function(e) {
+        if (documentsFileInput.files && documentsFileInput.files.length > 0) {
+            // Create a new DataTransfer to copy the file
+            const dt = new DataTransfer();
+            dt.items.add(documentsFileInput.files[0]);
+            forwardHiddenInput.files = dt.files;
+        } else {
+            e.preventDefault();
+            alert('Please select a file first');
+        }
+    });
     
     // ========== Shared Functions ==========
     function showFileInfo(file, section) {
@@ -668,17 +614,12 @@
             fileInfo.classList.add('show');
             uploadZone.style.display = 'none';
             generateBtn.disabled = false;
-        } else if (section === 'spec') {
-            specFileName.textContent = file.name;
-            specFileSize.textContent = formatFileSize(file.size);
-            specFileInfo.classList.add('show');
-            specUploadZone.style.display = 'none';
+        } else if (section === 'documents') {
+            documentsFileName.textContent = file.name;
+            documentsFileSize.textContent = formatFileSize(file.size);
+            documentsFileInfo.classList.add('show');
+            documentsUploadZone.style.display = 'none';
             specGenerateBtn.disabled = false;
-        } else if (section === 'forward') {
-            forwardFileName.textContent = file.name;
-            forwardFileSize.textContent = formatFileSize(file.size);
-            forwardFileInfo.classList.add('show');
-            forwardUploadZone.style.display = 'none';
             forwardGenerateBtn.disabled = false;
         }
     }
@@ -689,15 +630,11 @@
             fileInfo.classList.remove('show');
             uploadZone.style.display = 'block';
             generateBtn.disabled = true;
-        } else if (section === 'spec') {
-            specFileInput.value = '';
-            specFileInfo.classList.remove('show');
-            specUploadZone.style.display = 'block';
+        } else if (section === 'documents') {
+            documentsFileInput.value = '';
+            documentsFileInfo.classList.remove('show');
+            documentsUploadZone.style.display = 'block';
             specGenerateBtn.disabled = true;
-        } else if (section === 'forward') {
-            forwardFileInput.value = '';
-            forwardFileInfo.classList.remove('show');
-            forwardUploadZone.style.display = 'block';
             forwardGenerateBtn.disabled = true;
         }
     };
