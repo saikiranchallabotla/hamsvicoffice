@@ -27,7 +27,7 @@ from io import BytesIO
 from difflib import SequenceMatcher
 # (moved to top-level imports)
 
-from .models import Project, SelfFormattedTemplate, Estimate, Organization, Membership, Upload, Job, OutputFile
+from .models import Project, SelfFormattedTemplate, Estimate, Organization, Membership, Upload, Job, OutputFile, LetterSettings
 from .decorators import org_required, role_required
 
 logger = logging.getLogger(__name__)
@@ -364,6 +364,17 @@ def _get_current_date_formatted():
     return today.strftime("%d-%m-%Y")
 
 
+def _get_letter_settings(user):
+    """
+    Get the letter settings for a user.
+    Returns the LetterSettings object or None if not set.
+    """
+    try:
+        return LetterSettings.objects.get(user=user)
+    except LetterSettings.DoesNotExist:
+        return None
+
+
 def home(request):
     """Home page - shows login/register for guests, modules for authenticated users"""
     if not request.user.is_authenticated:
@@ -373,6 +384,42 @@ def home(request):
         return render(request, "core/home.html")
     except Exception:
         return HttpResponse("Home page temporarily unavailable.")
+
+
+@login_required(login_url='login')
+def letter_settings(request):
+    """
+    Letter Settings page - allows users to save their organization/officer details
+    for use in forwarding letters and other documents.
+    """
+    # Get or create letter settings for the user
+    settings_obj, created = LetterSettings.objects.get_or_create(user=request.user)
+    
+    if request.method == 'POST':
+        # Update settings from form data
+        settings_obj.government_name = request.POST.get('government_name', '').strip()
+        settings_obj.department_name = request.POST.get('department_name', '').strip()
+        settings_obj.officer_name = request.POST.get('officer_name', '').strip()
+        settings_obj.officer_qualification = request.POST.get('officer_qualification', '').strip()
+        settings_obj.officer_designation = request.POST.get('officer_designation', '').strip()
+        settings_obj.sub_division = request.POST.get('sub_division', '').strip()
+        settings_obj.office_address = request.POST.get('office_address', '').strip()
+        settings_obj.recipient_designation = request.POST.get('recipient_designation', '').strip()
+        settings_obj.recipient_division = request.POST.get('recipient_division', '').strip()
+        settings_obj.recipient_address = request.POST.get('recipient_address', '').strip()
+        settings_obj.office_code = request.POST.get('office_code', '').strip()
+        settings_obj.superior_designation = request.POST.get('superior_designation', '').strip()
+        settings_obj.copy_to_designation = request.POST.get('copy_to_designation', '').strip()
+        settings_obj.copy_to_section = request.POST.get('copy_to_section', '').strip()
+        settings_obj.save()
+        
+        from django.contrib import messages
+        messages.success(request, 'Letter settings saved successfully!')
+        return redirect('letter_settings')
+    
+    return render(request, 'core/letter_settings.html', {
+        'settings': settings_obj
+    })
 
 
 @login_required(login_url='login')
@@ -11439,6 +11486,9 @@ def temp_download_forwarding_letter(request, category):
         financial_year = _get_current_financial_year()
         today = timezone.now().date()
         
+        # Get user's letter settings
+        letter_settings = _get_letter_settings(request.user)
+        
         doc = Document()
         placeholder_color = RGBColor(169, 169, 169)
         
@@ -11449,21 +11499,33 @@ def temp_download_forwarding_letter(request, category):
             section.left_margin = Inches(1)
             section.right_margin = Inches(1)
         
+        # Header - Government/Organization name
         header1 = doc.add_paragraph()
         header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
-        run1.font.bold = True
-        run1.font.size = Pt(14)
-        run1.font.color.rgb = placeholder_color
-        run1.font.italic = True
+        if letter_settings and letter_settings.government_name:
+            run1 = header1.add_run(letter_settings.government_name.upper())
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+        else:
+            run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+            run1.font.color.rgb = placeholder_color
+            run1.font.italic = True
         
+        # Header - Department name
         header2 = doc.add_paragraph()
         header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = header2.add_run('[DEPARTMENT NAME]')
-        run2.font.bold = True
-        run2.font.size = Pt(13)
-        run2.font.color.rgb = placeholder_color
-        run2.font.italic = True
+        if letter_settings and letter_settings.department_name:
+            run2 = header2.add_run(letter_settings.department_name.upper())
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+        else:
+            run2 = header2.add_run('[DEPARTMENT NAME]')
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+            run2.font.color.rgb = placeholder_color
+            run2.font.italic = True
         
         doc.add_paragraph()
         
@@ -11473,37 +11535,72 @@ def temp_download_forwarding_letter(request, category):
         from_cell = from_to_table.cell(0, 0)
         from_para = from_cell.paragraphs[0]
         from_para.add_run('From: -\n')
-        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
-        from_run1.font.color.rgb = placeholder_color
-        from_run1.font.italic = True
-        from_run2 = from_para.add_run('[Designation],\n')
-        from_run2.font.color.rgb = placeholder_color
-        from_run2.font.italic = True
-        from_run3 = from_para.add_run('[Sub Division, Office Address].')
-        from_run3.font.color.rgb = placeholder_color
-        from_run3.font.italic = True
+        
+        # From section - Officer details
+        if letter_settings and letter_settings.officer_name:
+            name_qual = letter_settings.officer_name
+            if letter_settings.officer_qualification:
+                name_qual += f", {letter_settings.officer_qualification}"
+            from_run1 = from_para.add_run(f'{name_qual},\n')
+        else:
+            from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+            from_run1.font.color.rgb = placeholder_color
+            from_run1.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
+        else:
+            from_run2 = from_para.add_run('[Designation],\n')
+            from_run2.font.color.rgb = placeholder_color
+            from_run2.font.italic = True
+        
+        if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
+            sub_addr = letter_settings.sub_division
+            if letter_settings.office_address:
+                sub_addr += f", {letter_settings.office_address}" if sub_addr else letter_settings.office_address
+            from_run3 = from_para.add_run(f'{sub_addr}.')
+        else:
+            from_run3 = from_para.add_run('[Sub Division, Office Address].')
+            from_run3.font.color.rgb = placeholder_color
+            from_run3.font.italic = True
         
         to_cell = from_to_table.cell(0, 1)
         to_para = to_cell.paragraphs[0]
         to_para.add_run('To,\n')
-        to_run1 = to_para.add_run('[Officer Designation],\n')
-        to_run1.font.color.rgb = placeholder_color
-        to_run1.font.italic = True
-        to_run2 = to_para.add_run('[Division Name],\n')
-        to_run2.font.color.rgb = placeholder_color
-        to_run2.font.italic = True
-        to_run3 = to_para.add_run('[Address].')
-        to_run3.font.color.rgb = placeholder_color
-        to_run3.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_designation:
+            to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
+        else:
+            to_run1 = to_para.add_run('[Officer Designation],\n')
+            to_run1.font.color.rgb = placeholder_color
+            to_run1.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_division:
+            to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
+        else:
+            to_run2 = to_para.add_run('[Division Name],\n')
+            to_run2.font.color.rgb = placeholder_color
+            to_run2.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_address:
+            to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
+        else:
+            to_run3 = to_para.add_run('[Address].')
+            to_run3.font.color.rgb = placeholder_color
+            to_run3.font.italic = True
         
         doc.add_paragraph()
         
         lr_para = doc.add_paragraph()
         lr_para.add_run('Lr No. ')
-        lr_placeholder = lr_para.add_run('[Office Code]')
-        lr_placeholder.font.color.rgb = placeholder_color
-        lr_placeholder.font.italic = True
-        lr_placeholder.font.underline = True
+        if letter_settings and letter_settings.office_code:
+            lr_code = lr_para.add_run(letter_settings.office_code)
+            lr_code.font.underline = True
+        else:
+            lr_placeholder = lr_para.add_run('[Office Code]')
+            lr_placeholder.font.color.rgb = placeholder_color
+            lr_placeholder.font.italic = True
+            lr_placeholder.font.underline = True
         lr_para.add_run(f'/{financial_year}/          ')
         lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
         
@@ -11595,9 +11692,12 @@ def temp_download_forwarding_letter(request, category):
         
         request_para = doc.add_paragraph()
         request_para.add_run('I request the ')
-        req_placeholder = request_para.add_run('[Superior Officer Designation]')
-        req_placeholder.font.color.rgb = placeholder_color
-        req_placeholder.font.italic = True
+        if letter_settings and letter_settings.superior_designation:
+            req_run = request_para.add_run(letter_settings.superior_designation)
+        else:
+            req_placeholder = request_para.add_run('[Superior Officer Designation]')
+            req_placeholder.font.color.rgb = placeholder_color
+            req_placeholder.font.italic = True
         request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
         
         doc.add_paragraph()
@@ -11618,24 +11718,43 @@ def temp_download_forwarding_letter(request, category):
         
         title_para = doc.add_paragraph()
         title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        run_title = title_para.add_run('[Officer Designation]\n')
-        run_title.font.bold = True
-        run_title.font.color.rgb = placeholder_color
-        run_title.font.italic = True
-        sub_div_run = title_para.add_run('[Sub Division Name],\n')
-        sub_div_run.font.color.rgb = placeholder_color
-        sub_div_run.font.italic = True
-        addr_run = title_para.add_run('[Office Address].')
-        addr_run.font.color.rgb = placeholder_color
-        addr_run.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
+            run_title.font.bold = True
+        else:
+            run_title = title_para.add_run('[Officer Designation]\n')
+            run_title.font.bold = True
+            run_title.font.color.rgb = placeholder_color
+            run_title.font.italic = True
+        
+        if letter_settings and letter_settings.sub_division:
+            sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
+        else:
+            sub_div_run = title_para.add_run('[Sub Division Name],\n')
+            sub_div_run.font.color.rgb = placeholder_color
+            sub_div_run.font.italic = True
+        
+        if letter_settings and letter_settings.office_address:
+            addr_run = title_para.add_run(f'{letter_settings.office_address}.')
+        else:
+            addr_run = title_para.add_run('[Office Address].')
+            addr_run.font.color.rgb = placeholder_color
+            addr_run.font.italic = True
         
         doc.add_paragraph()
         
         copy_para = doc.add_paragraph()
         copy_para.add_run('Copy to the ')
-        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
-        copy_placeholder.font.color.rgb = placeholder_color
-        copy_placeholder.font.italic = True
+        if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
+            copy_text = letter_settings.copy_to_designation or ''
+            if letter_settings.copy_to_section:
+                copy_text += f", {letter_settings.copy_to_section}" if copy_text else letter_settings.copy_to_section
+            copy_run = copy_para.add_run(copy_text)
+        else:
+            copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+            copy_placeholder.font.color.rgb = placeholder_color
+            copy_placeholder.font.italic = True
         copy_para.add_run(' for information.')
         
         safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
@@ -13086,6 +13205,9 @@ def download_forwarding_letter_live(request, category):
         financial_year = _get_current_financial_year()
         today = timezone.now().date()
         
+        # Get user's letter settings
+        letter_settings = _get_letter_settings(request.user)
+        
         # Create Word document
         doc = Document()
         
@@ -13100,22 +13222,33 @@ def download_forwarding_letter_live(request, category):
             section.left_margin = Inches(1)
             section.right_margin = Inches(1)
         
-        # Header - Department name (placeholder)
+        # Header - Government/Organization name
         header1 = doc.add_paragraph()
         header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
-        run1.font.bold = True
-        run1.font.size = Pt(14)
-        run1.font.color.rgb = placeholder_color
-        run1.font.italic = True
+        if letter_settings and letter_settings.government_name:
+            run1 = header1.add_run(letter_settings.government_name.upper())
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+        else:
+            run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+            run1.font.color.rgb = placeholder_color
+            run1.font.italic = True
         
+        # Header - Department name
         header2 = doc.add_paragraph()
         header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = header2.add_run('[DEPARTMENT NAME]')
-        run2.font.bold = True
-        run2.font.size = Pt(13)
-        run2.font.color.rgb = placeholder_color
-        run2.font.italic = True
+        if letter_settings and letter_settings.department_name:
+            run2 = header2.add_run(letter_settings.department_name.upper())
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+        else:
+            run2 = header2.add_run('[DEPARTMENT NAME]')
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+            run2.font.color.rgb = placeholder_color
+            run2.font.italic = True
         
         doc.add_paragraph()
         
@@ -13126,38 +13259,74 @@ def download_forwarding_letter_live(request, category):
         from_cell = from_to_table.cell(0, 0)
         from_para = from_cell.paragraphs[0]
         from_para.add_run('From: -\n')
-        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
-        from_run1.font.color.rgb = placeholder_color
-        from_run1.font.italic = True
-        from_run2 = from_para.add_run('[Designation],\n')
-        from_run2.font.color.rgb = placeholder_color
-        from_run2.font.italic = True
-        from_run3 = from_para.add_run('[Sub Division, Office Address].')
-        from_run3.font.color.rgb = placeholder_color
-        from_run3.font.italic = True
         
+        # From section - Officer details
+        if letter_settings and letter_settings.officer_name:
+            name_qual = letter_settings.officer_name
+            if letter_settings.officer_qualification:
+                name_qual += f", {letter_settings.officer_qualification}"
+            from_run1 = from_para.add_run(f'{name_qual},\n')
+        else:
+            from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+            from_run1.font.color.rgb = placeholder_color
+            from_run1.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
+        else:
+            from_run2 = from_para.add_run('[Designation],\n')
+            from_run2.font.color.rgb = placeholder_color
+            from_run2.font.italic = True
+        
+        if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
+            sub_addr = letter_settings.sub_division
+            if letter_settings.office_address:
+                sub_addr += f", {letter_settings.office_address}" if sub_addr else letter_settings.office_address
+            from_run3 = from_para.add_run(f'{sub_addr}.')
+        else:
+            from_run3 = from_para.add_run('[Sub Division, Office Address].')
+            from_run3.font.color.rgb = placeholder_color
+            from_run3.font.italic = True
+        
+        # To section - Recipient details
         to_cell = from_to_table.cell(0, 1)
         to_para = to_cell.paragraphs[0]
         to_para.add_run('To,\n')
-        to_run1 = to_para.add_run('[Officer Designation],\n')
-        to_run1.font.color.rgb = placeholder_color
-        to_run1.font.italic = True
-        to_run2 = to_para.add_run('[Division Name],\n')
-        to_run2.font.color.rgb = placeholder_color
-        to_run2.font.italic = True
-        to_run3 = to_para.add_run('[Address].')
-        to_run3.font.color.rgb = placeholder_color
-        to_run3.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_designation:
+            to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
+        else:
+            to_run1 = to_para.add_run('[Officer Designation],\n')
+            to_run1.font.color.rgb = placeholder_color
+            to_run1.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_division:
+            to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
+        else:
+            to_run2 = to_para.add_run('[Division Name],\n')
+            to_run2.font.color.rgb = placeholder_color
+            to_run2.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_address:
+            to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
+        else:
+            to_run3 = to_para.add_run('[Address].')
+            to_run3.font.color.rgb = placeholder_color
+            to_run3.font.italic = True
         
         doc.add_paragraph()
         
         # Letter number and date
         lr_para = doc.add_paragraph()
         lr_para.add_run('Lr No. ')
-        lr_placeholder = lr_para.add_run('[Office Code]')
-        lr_placeholder.font.color.rgb = placeholder_color
-        lr_placeholder.font.italic = True
-        lr_placeholder.font.underline = True
+        if letter_settings and letter_settings.office_code:
+            lr_code = lr_para.add_run(letter_settings.office_code)
+            lr_code.font.underline = True
+        else:
+            lr_placeholder = lr_para.add_run('[Office Code]')
+            lr_placeholder.font.color.rgb = placeholder_color
+            lr_placeholder.font.italic = True
+            lr_placeholder.font.underline = True
         lr_para.add_run(f'/{financial_year}/          ')
         lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
         
@@ -13262,9 +13431,12 @@ def download_forwarding_letter_live(request, category):
         # Request paragraph
         request_para = doc.add_paragraph()
         request_para.add_run('I request the ')
-        req_placeholder = request_para.add_run('[Superior Officer Designation]')
-        req_placeholder.font.color.rgb = placeholder_color
-        req_placeholder.font.italic = True
+        if letter_settings and letter_settings.superior_designation:
+            req_run = request_para.add_run(letter_settings.superior_designation)
+        else:
+            req_placeholder = request_para.add_run('[Superior Officer Designation]')
+            req_placeholder.font.color.rgb = placeholder_color
+            req_placeholder.font.italic = True
         request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
         
         doc.add_paragraph()
@@ -13287,25 +13459,44 @@ def download_forwarding_letter_live(request, category):
         
         title_para = doc.add_paragraph()
         title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        run_title = title_para.add_run('[Officer Designation]\n')
-        run_title.font.bold = True
-        run_title.font.color.rgb = placeholder_color
-        run_title.font.italic = True
-        sub_div_run = title_para.add_run('[Sub Division Name],\n')
-        sub_div_run.font.color.rgb = placeholder_color
-        sub_div_run.font.italic = True
-        addr_run = title_para.add_run('[Office Address].')
-        addr_run.font.color.rgb = placeholder_color
-        addr_run.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
+            run_title.font.bold = True
+        else:
+            run_title = title_para.add_run('[Officer Designation]\n')
+            run_title.font.bold = True
+            run_title.font.color.rgb = placeholder_color
+            run_title.font.italic = True
+        
+        if letter_settings and letter_settings.sub_division:
+            sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
+        else:
+            sub_div_run = title_para.add_run('[Sub Division Name],\n')
+            sub_div_run.font.color.rgb = placeholder_color
+            sub_div_run.font.italic = True
+        
+        if letter_settings and letter_settings.office_address:
+            addr_run = title_para.add_run(f'{letter_settings.office_address}.')
+        else:
+            addr_run = title_para.add_run('[Office Address].')
+            addr_run.font.color.rgb = placeholder_color
+            addr_run.font.italic = True
         
         doc.add_paragraph()
         
         # Copy to
         copy_para = doc.add_paragraph()
         copy_para.add_run('Copy to the ')
-        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
-        copy_placeholder.font.color.rgb = placeholder_color
-        copy_placeholder.font.italic = True
+        if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
+            copy_text = letter_settings.copy_to_designation or ''
+            if letter_settings.copy_to_section:
+                copy_text += f", {letter_settings.copy_to_section}" if copy_text else letter_settings.copy_to_section
+            copy_run = copy_para.add_run(copy_text)
+        else:
+            copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+            copy_placeholder.font.color.rgb = placeholder_color
+            copy_placeholder.font.italic = True
         copy_para.add_run(' for information.')
         
         # Generate filename
@@ -13456,6 +13647,9 @@ def generate_estimate_forwarding_letter(request):
         current_date = _get_current_date_formatted()
         financial_year = _get_current_financial_year()
         
+        # Get user's letter settings
+        letter_settings = _get_letter_settings(request.user)
+        
         # Create Word document
         doc = Document()
         
@@ -13470,22 +13664,33 @@ def generate_estimate_forwarding_letter(request):
             section.left_margin = Inches(1)
             section.right_margin = Inches(1)
         
-        # Header - Department name (placeholder)
+        # Header - Government/Organization name
         header1 = doc.add_paragraph()
         header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
-        run1.font.bold = True
-        run1.font.size = Pt(14)
-        run1.font.color.rgb = placeholder_color
-        run1.font.italic = True
+        if letter_settings and letter_settings.government_name:
+            run1 = header1.add_run(letter_settings.government_name.upper())
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+        else:
+            run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+            run1.font.color.rgb = placeholder_color
+            run1.font.italic = True
         
+        # Header - Department name
         header2 = doc.add_paragraph()
         header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = header2.add_run('[DEPARTMENT NAME]')
-        run2.font.bold = True
-        run2.font.size = Pt(13)
-        run2.font.color.rgb = placeholder_color
-        run2.font.italic = True
+        if letter_settings and letter_settings.department_name:
+            run2 = header2.add_run(letter_settings.department_name.upper())
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+        else:
+            run2 = header2.add_run('[DEPARTMENT NAME]')
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+            run2.font.color.rgb = placeholder_color
+            run2.font.italic = True
         
         doc.add_paragraph()  # Blank line
         
@@ -13496,30 +13701,60 @@ def generate_estimate_forwarding_letter(request):
         from_cell = from_to_table.cell(0, 0)
         from_para = from_cell.paragraphs[0]
         from_para.add_run('From: -\n')
-        # Placeholder for sender details
-        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
-        from_run1.font.color.rgb = placeholder_color
-        from_run1.font.italic = True
-        from_run2 = from_para.add_run('[Designation],\n')
-        from_run2.font.color.rgb = placeholder_color
-        from_run2.font.italic = True
-        from_run3 = from_para.add_run('[Sub Division, Office Address].')
-        from_run3.font.color.rgb = placeholder_color
-        from_run3.font.italic = True
         
+        # From section - Officer details
+        if letter_settings and letter_settings.officer_name:
+            name_qual = letter_settings.officer_name
+            if letter_settings.officer_qualification:
+                name_qual += f", {letter_settings.officer_qualification}"
+            from_run1 = from_para.add_run(f'{name_qual},\n')
+        else:
+            from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+            from_run1.font.color.rgb = placeholder_color
+            from_run1.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
+        else:
+            from_run2 = from_para.add_run('[Designation],\n')
+            from_run2.font.color.rgb = placeholder_color
+            from_run2.font.italic = True
+        
+        if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
+            sub_addr = letter_settings.sub_division
+            if letter_settings.office_address:
+                sub_addr += f", {letter_settings.office_address}" if sub_addr else letter_settings.office_address
+            from_run3 = from_para.add_run(f'{sub_addr}.')
+        else:
+            from_run3 = from_para.add_run('[Sub Division, Office Address].')
+            from_run3.font.color.rgb = placeholder_color
+            from_run3.font.italic = True
+        
+        # To section - Recipient details
         to_cell = from_to_table.cell(0, 1)
         to_para = to_cell.paragraphs[0]
         to_para.add_run('To,\n')
-        # Placeholder for recipient details
-        to_run1 = to_para.add_run('[Officer Designation],\n')
-        to_run1.font.color.rgb = placeholder_color
-        to_run1.font.italic = True
-        to_run2 = to_para.add_run('[Division Name],\n')
-        to_run2.font.color.rgb = placeholder_color
-        to_run2.font.italic = True
-        to_run3 = to_para.add_run('[Address].')
-        to_run3.font.color.rgb = placeholder_color
-        to_run3.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_designation:
+            to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
+        else:
+            to_run1 = to_para.add_run('[Officer Designation],\n')
+            to_run1.font.color.rgb = placeholder_color
+            to_run1.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_division:
+            to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
+        else:
+            to_run2 = to_para.add_run('[Division Name],\n')
+            to_run2.font.color.rgb = placeholder_color
+            to_run2.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_address:
+            to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
+        else:
+            to_run3 = to_para.add_run('[Address].')
+            to_run3.font.color.rgb = placeholder_color
+            to_run3.font.italic = True
         
         doc.add_paragraph()
         
@@ -13530,10 +13765,14 @@ def generate_estimate_forwarding_letter(request):
         
         lr_para = doc.add_paragraph()
         lr_para.add_run('Lr No. ')
-        lr_placeholder = lr_para.add_run('[Office Code]')
-        lr_placeholder.font.color.rgb = placeholder_color
-        lr_placeholder.font.italic = True
-        lr_placeholder.font.underline = True
+        if letter_settings and letter_settings.office_code:
+            lr_code = lr_para.add_run(letter_settings.office_code)
+            lr_code.font.underline = True
+        else:
+            lr_placeholder = lr_para.add_run('[Office Code]')
+            lr_placeholder.font.color.rgb = placeholder_color
+            lr_placeholder.font.italic = True
+            lr_placeholder.font.underline = True
         lr_para.add_run(f'/{financial_year}/          ')
         lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
         
@@ -13643,9 +13882,12 @@ def generate_estimate_forwarding_letter(request):
         # Request paragraph
         request_para = doc.add_paragraph()
         request_para.add_run('I request the ')
-        req_placeholder = request_para.add_run('[Superior Officer Designation]')
-        req_placeholder.font.color.rgb = placeholder_color
-        req_placeholder.font.italic = True
+        if letter_settings and letter_settings.superior_designation:
+            req_run = request_para.add_run(letter_settings.superior_designation)
+        else:
+            req_placeholder = request_para.add_run('[Superior Officer Designation]')
+            req_placeholder.font.color.rgb = placeholder_color
+            req_placeholder.font.italic = True
         request_para.add_run(' to kindly arrange to obtain administrative sanction the above estimates and arrange to finalize the agencies at the earliest for taking up the works.')
         
         doc.add_paragraph()
@@ -13668,25 +13910,44 @@ def generate_estimate_forwarding_letter(request):
         
         title_para = doc.add_paragraph()
         title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        run_title = title_para.add_run('[Officer Designation]\n')
-        run_title.font.bold = True
-        run_title.font.color.rgb = placeholder_color
-        run_title.font.italic = True
-        sub_div_run = title_para.add_run('[Sub Division Name],\n')
-        sub_div_run.font.color.rgb = placeholder_color
-        sub_div_run.font.italic = True
-        addr_run = title_para.add_run('[Office Address].')
-        addr_run.font.color.rgb = placeholder_color
-        addr_run.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
+            run_title.font.bold = True
+        else:
+            run_title = title_para.add_run('[Officer Designation]\n')
+            run_title.font.bold = True
+            run_title.font.color.rgb = placeholder_color
+            run_title.font.italic = True
+        
+        if letter_settings and letter_settings.sub_division:
+            sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
+        else:
+            sub_div_run = title_para.add_run('[Sub Division Name],\n')
+            sub_div_run.font.color.rgb = placeholder_color
+            sub_div_run.font.italic = True
+        
+        if letter_settings and letter_settings.office_address:
+            addr_run = title_para.add_run(f'{letter_settings.office_address}.')
+        else:
+            addr_run = title_para.add_run('[Office Address].')
+            addr_run.font.color.rgb = placeholder_color
+            addr_run.font.italic = True
         
         doc.add_paragraph()
         
         # Copy to
         copy_para = doc.add_paragraph()
         copy_para.add_run('Copy to the ')
-        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
-        copy_placeholder.font.color.rgb = placeholder_color
-        copy_placeholder.font.italic = True
+        if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
+            copy_text = letter_settings.copy_to_designation or ''
+            if letter_settings.copy_to_section:
+                copy_text += f", {letter_settings.copy_to_section}" if copy_text else letter_settings.copy_to_section
+            copy_run = copy_para.add_run(copy_text)
+        else:
+            copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+            copy_placeholder.font.color.rgb = placeholder_color
+            copy_placeholder.font.italic = True
         copy_para.add_run(' for information.')
         
         # Generate filename
@@ -14290,6 +14551,9 @@ def amc_download_forwarding_letter(request, category):
         financial_year = _get_current_financial_year()
         today = timezone.now().date()
         
+        # Get user's letter settings
+        letter_settings = _get_letter_settings(request.user)
+        
         doc = Document()
         placeholder_color = RGBColor(169, 169, 169)
         
@@ -14300,21 +14564,33 @@ def amc_download_forwarding_letter(request, category):
             section.left_margin = Inches(1)
             section.right_margin = Inches(1)
         
+        # Header - Government/Organization name
         header1 = doc.add_paragraph()
         header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
-        run1.font.bold = True
-        run1.font.size = Pt(14)
-        run1.font.color.rgb = placeholder_color
-        run1.font.italic = True
+        if letter_settings and letter_settings.government_name:
+            run1 = header1.add_run(letter_settings.government_name.upper())
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+        else:
+            run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+            run1.font.bold = True
+            run1.font.size = Pt(14)
+            run1.font.color.rgb = placeholder_color
+            run1.font.italic = True
         
+        # Header - Department name
         header2 = doc.add_paragraph()
         header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run2 = header2.add_run('[DEPARTMENT NAME]')
-        run2.font.bold = True
-        run2.font.size = Pt(13)
-        run2.font.color.rgb = placeholder_color
-        run2.font.italic = True
+        if letter_settings and letter_settings.department_name:
+            run2 = header2.add_run(letter_settings.department_name.upper())
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+        else:
+            run2 = header2.add_run('[DEPARTMENT NAME]')
+            run2.font.bold = True
+            run2.font.size = Pt(13)
+            run2.font.color.rgb = placeholder_color
+            run2.font.italic = True
         
         doc.add_paragraph()
         
@@ -14324,37 +14600,72 @@ def amc_download_forwarding_letter(request, category):
         from_cell = from_to_table.cell(0, 0)
         from_para = from_cell.paragraphs[0]
         from_para.add_run('From: -\n')
-        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
-        from_run1.font.color.rgb = placeholder_color
-        from_run1.font.italic = True
-        from_run2 = from_para.add_run('[Designation],\n')
-        from_run2.font.color.rgb = placeholder_color
-        from_run2.font.italic = True
-        from_run3 = from_para.add_run('[Sub Division, Office Address].')
-        from_run3.font.color.rgb = placeholder_color
-        from_run3.font.italic = True
+        
+        # From section - Officer details
+        if letter_settings and letter_settings.officer_name:
+            name_qual = letter_settings.officer_name
+            if letter_settings.officer_qualification:
+                name_qual += f", {letter_settings.officer_qualification}"
+            from_run1 = from_para.add_run(f'{name_qual},\n')
+        else:
+            from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+            from_run1.font.color.rgb = placeholder_color
+            from_run1.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
+        else:
+            from_run2 = from_para.add_run('[Designation],\n')
+            from_run2.font.color.rgb = placeholder_color
+            from_run2.font.italic = True
+        
+        if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
+            sub_addr = letter_settings.sub_division
+            if letter_settings.office_address:
+                sub_addr += f", {letter_settings.office_address}" if sub_addr else letter_settings.office_address
+            from_run3 = from_para.add_run(f'{sub_addr}.')
+        else:
+            from_run3 = from_para.add_run('[Sub Division, Office Address].')
+            from_run3.font.color.rgb = placeholder_color
+            from_run3.font.italic = True
         
         to_cell = from_to_table.cell(0, 1)
         to_para = to_cell.paragraphs[0]
         to_para.add_run('To,\n')
-        to_run1 = to_para.add_run('[Officer Designation],\n')
-        to_run1.font.color.rgb = placeholder_color
-        to_run1.font.italic = True
-        to_run2 = to_para.add_run('[Division Name],\n')
-        to_run2.font.color.rgb = placeholder_color
-        to_run2.font.italic = True
-        to_run3 = to_para.add_run('[Address].')
-        to_run3.font.color.rgb = placeholder_color
-        to_run3.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_designation:
+            to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
+        else:
+            to_run1 = to_para.add_run('[Officer Designation],\n')
+            to_run1.font.color.rgb = placeholder_color
+            to_run1.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_division:
+            to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
+        else:
+            to_run2 = to_para.add_run('[Division Name],\n')
+            to_run2.font.color.rgb = placeholder_color
+            to_run2.font.italic = True
+        
+        if letter_settings and letter_settings.recipient_address:
+            to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
+        else:
+            to_run3 = to_para.add_run('[Address].')
+            to_run3.font.color.rgb = placeholder_color
+            to_run3.font.italic = True
         
         doc.add_paragraph()
         
         lr_para = doc.add_paragraph()
         lr_para.add_run('Lr No. ')
-        lr_placeholder = lr_para.add_run('[Office Code]')
-        lr_placeholder.font.color.rgb = placeholder_color
-        lr_placeholder.font.italic = True
-        lr_placeholder.font.underline = True
+        if letter_settings and letter_settings.office_code:
+            lr_code = lr_para.add_run(letter_settings.office_code)
+            lr_code.font.underline = True
+        else:
+            lr_placeholder = lr_para.add_run('[Office Code]')
+            lr_placeholder.font.color.rgb = placeholder_color
+            lr_placeholder.font.italic = True
+            lr_placeholder.font.underline = True
         lr_para.add_run(f'/{financial_year}/          ')
         lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
         
@@ -14446,9 +14757,12 @@ def amc_download_forwarding_letter(request, category):
         
         request_para = doc.add_paragraph()
         request_para.add_run('I request the ')
-        req_placeholder = request_para.add_run('[Superior Officer Designation]')
-        req_placeholder.font.color.rgb = placeholder_color
-        req_placeholder.font.italic = True
+        if letter_settings and letter_settings.superior_designation:
+            req_run = request_para.add_run(letter_settings.superior_designation)
+        else:
+            req_placeholder = request_para.add_run('[Superior Officer Designation]')
+            req_placeholder.font.color.rgb = placeholder_color
+            req_placeholder.font.italic = True
         request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
         
         doc.add_paragraph()
@@ -14469,24 +14783,43 @@ def amc_download_forwarding_letter(request, category):
         
         title_para = doc.add_paragraph()
         title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        run_title = title_para.add_run('[Officer Designation]\n')
-        run_title.font.bold = True
-        run_title.font.color.rgb = placeholder_color
-        run_title.font.italic = True
-        sub_div_run = title_para.add_run('[Sub Division Name],\n')
-        sub_div_run.font.color.rgb = placeholder_color
-        sub_div_run.font.italic = True
-        addr_run = title_para.add_run('[Office Address].')
-        addr_run.font.color.rgb = placeholder_color
-        addr_run.font.italic = True
+        
+        if letter_settings and letter_settings.officer_designation:
+            run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
+            run_title.font.bold = True
+        else:
+            run_title = title_para.add_run('[Officer Designation]\n')
+            run_title.font.bold = True
+            run_title.font.color.rgb = placeholder_color
+            run_title.font.italic = True
+        
+        if letter_settings and letter_settings.sub_division:
+            sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
+        else:
+            sub_div_run = title_para.add_run('[Sub Division Name],\n')
+            sub_div_run.font.color.rgb = placeholder_color
+            sub_div_run.font.italic = True
+        
+        if letter_settings and letter_settings.office_address:
+            addr_run = title_para.add_run(f'{letter_settings.office_address}.')
+        else:
+            addr_run = title_para.add_run('[Office Address].')
+            addr_run.font.color.rgb = placeholder_color
+            addr_run.font.italic = True
         
         doc.add_paragraph()
         
         copy_para = doc.add_paragraph()
         copy_para.add_run('Copy to the ')
-        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
-        copy_placeholder.font.color.rgb = placeholder_color
-        copy_placeholder.font.italic = True
+        if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
+            copy_text = letter_settings.copy_to_designation or ''
+            if letter_settings.copy_to_section:
+                copy_text += f", {letter_settings.copy_to_section}" if copy_text else letter_settings.copy_to_section
+            copy_run = copy_para.add_run(copy_text)
+        else:
+            copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+            copy_placeholder.font.color.rgb = placeholder_color
+            copy_placeholder.font.italic = True
         copy_para.add_run(' for information.')
         
         safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]

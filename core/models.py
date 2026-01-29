@@ -668,3 +668,74 @@ class SavedWork(models.Model):
         # Add direct children
         chain.extend(list(self.children.all()))
         return chain
+
+
+class LetterSettings(models.Model):
+    """
+    Store user's letter/document settings for forwarding letters.
+    These values replace the grey placeholders in generated documents.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='letter_settings')
+    
+    # Organization/Government details (header)
+    government_name = models.CharField(max_length=255, blank=True, default='')
+    department_name = models.CharField(max_length=255, blank=True, default='')
+    
+    # From section (sender details)
+    officer_name = models.CharField(max_length=255, blank=True, default='')
+    officer_qualification = models.CharField(max_length=100, blank=True, default='')
+    officer_designation = models.CharField(max_length=255, blank=True, default='')
+    sub_division = models.CharField(max_length=255, blank=True, default='')
+    office_address = models.TextField(blank=True, default='')
+    
+    # To section (recipient details)
+    recipient_designation = models.CharField(max_length=255, blank=True, default='')
+    recipient_division = models.CharField(max_length=255, blank=True, default='')
+    recipient_address = models.TextField(blank=True, default='')
+    
+    # Letter metadata
+    office_code = models.CharField(max_length=100, blank=True, default='')
+    
+    # Superior officer (for request paragraph)
+    superior_designation = models.CharField(max_length=255, blank=True, default='')
+    
+    # Copy to section
+    copy_to_designation = models.CharField(max_length=255, blank=True, default='')
+    copy_to_section = models.CharField(max_length=255, blank=True, default='')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Letter Settings'
+        verbose_name_plural = 'Letter Settings'
+    
+    def __str__(self):
+        return f"Letter Settings for {self.user.username}"
+    
+    def get_from_section(self):
+        """Get formatted from section text"""
+        parts = []
+        if self.officer_name:
+            name_qual = self.officer_name
+            if self.officer_qualification:
+                name_qual += f", {self.officer_qualification}"
+            parts.append(name_qual)
+        if self.officer_designation:
+            parts.append(self.officer_designation)
+        if self.sub_division:
+            parts.append(self.sub_division)
+        if self.office_address:
+            parts.append(self.office_address)
+        return parts
+    
+    def get_to_section(self):
+        """Get formatted to section text"""
+        parts = []
+        if self.recipient_designation:
+            parts.append(self.recipient_designation)
+        if self.recipient_division:
+            parts.append(self.recipient_division)
+        if self.recipient_address:
+            parts.append(self.recipient_address)
+        return parts

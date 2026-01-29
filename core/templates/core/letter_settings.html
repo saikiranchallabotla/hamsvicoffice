@@ -1,0 +1,446 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Letter Settings - Hamsvic{% endblock %}
+{% block page_title %}
+<i class="bi bi-envelope-paper me-2"></i>Letter Settings
+{% endblock %}
+
+{% block content %}
+<style>
+    .settings-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .breadcrumb-modern {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.875rem;
+    }
+    
+    .breadcrumb-modern a {
+        color: #6366f1;
+        text-decoration: none;
+    }
+    
+    .breadcrumb-modern a:hover {
+        text-decoration: underline;
+    }
+    
+    .breadcrumb-modern .separator {
+        color: #cbd5e1;
+    }
+    
+    .breadcrumb-modern .current {
+        color: #64748b;
+    }
+    
+    .settings-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+    
+    .settings-header {
+        background: linear-gradient(135deg, #2b6cb0 0%, #38a169 100%);
+        color: white;
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .settings-header h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .settings-header p {
+        margin: 0.5rem 0 0 0;
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }
+    
+    .settings-body {
+        padding: 1.5rem;
+    }
+    
+    .section-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .section-title i {
+        color: #6366f1;
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .form-group {
+        margin-bottom: 0;
+    }
+    
+    .form-group.full-width {
+        grid-column: 1 / -1;
+    }
+    
+    .form-group label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 0.4rem;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.6rem 0.9rem;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        background: #f8fafc;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #6366f1;
+        background: white;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    
+    .form-group textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+    
+    .form-group input::placeholder,
+    .form-group textarea::placeholder {
+        color: #94a3b8;
+    }
+    
+    .section-divider {
+        border: none;
+        border-top: 1px solid #e2e8f0;
+        margin: 1.5rem 0;
+    }
+    
+    .btn-save {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 2rem;
+        background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(56, 161, 105, 0.3);
+    }
+    
+    .btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: #f1f5f9;
+        color: #475569;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    
+    .btn-back:hover {
+        background: #e2e8f0;
+        color: #1e293b;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    
+    .info-box {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .info-box i {
+        color: #22c55e;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+        margin-top: 0.1rem;
+    }
+    
+    .info-box p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #166534;
+        line-height: 1.5;
+    }
+    
+    .success-message {
+        background: #f0fdf4;
+        border: 1px solid #86efac;
+        color: #166534;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .preview-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-top: 1.5rem;
+    }
+    
+    .preview-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .preview-content {
+        font-size: 0.85rem;
+        color: #475569;
+        line-height: 1.6;
+    }
+    
+    .preview-placeholder {
+        color: #a1a1aa;
+        font-style: italic;
+    }
+</style>
+
+<div class="settings-container">
+    <div class="breadcrumb-modern">
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+        <span class="separator"><i class="bi bi-chevron-right"></i></span>
+        <span class="current">Letter Settings</span>
+    </div>
+    
+    {% if messages %}
+    {% for message in messages %}
+    <div class="success-message">
+        <i class="bi bi-check-circle-fill"></i>
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <div class="settings-card">
+        <div class="settings-header">
+            <h2><i class="bi bi-envelope-paper"></i> Letter & Document Settings</h2>
+            <p>Configure your organization details for forwarding letters and official documents.</p>
+        </div>
+        
+        <div class="settings-body">
+            <div class="info-box">
+                <i class="bi bi-info-circle-fill"></i>
+                <p>These settings will be used to fill in the placeholder fields when generating Forwarding Letters in all modules (New Estimate, AMC, Temporary Works). Save once and use everywhere!</p>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                <!-- Header Section -->
+                <h3 class="section-title">
+                    <i class="bi bi-building"></i>
+                    Organization / Government Details
+                </h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="government_name">Government / Organization Name</label>
+                        <input type="text" id="government_name" name="government_name" 
+                               value="{{ settings.government_name }}" 
+                               placeholder="e.g., Government of Telangana">
+                    </div>
+                    <div class="form-group">
+                        <label for="department_name">Department Name</label>
+                        <input type="text" id="department_name" name="department_name" 
+                               value="{{ settings.department_name }}" 
+                               placeholder="e.g., Public Works Department">
+                    </div>
+                </div>
+                
+                <hr class="section-divider">
+                
+                <!-- From Section -->
+                <h3 class="section-title">
+                    <i class="bi bi-person-badge"></i>
+                    From (Your Details)
+                </h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="officer_name">Officer Name</label>
+                        <input type="text" id="officer_name" name="officer_name" 
+                               value="{{ settings.officer_name }}" 
+                               placeholder="e.g., John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="officer_qualification">Qualification</label>
+                        <input type="text" id="officer_qualification" name="officer_qualification" 
+                               value="{{ settings.officer_qualification }}" 
+                               placeholder="e.g., B.Tech, M.Tech">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="officer_designation">Designation</label>
+                        <input type="text" id="officer_designation" name="officer_designation" 
+                               value="{{ settings.officer_designation }}" 
+                               placeholder="e.g., Assistant Engineer">
+                    </div>
+                    <div class="form-group">
+                        <label for="sub_division">Sub Division / Section</label>
+                        <input type="text" id="sub_division" name="sub_division" 
+                               value="{{ settings.sub_division }}" 
+                               placeholder="e.g., Sub Division-I, Hyderabad">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label for="office_address">Office Address</label>
+                        <textarea id="office_address" name="office_address" 
+                                  placeholder="e.g., Room No. 101, PWD Building, Hyderabad - 500001">{{ settings.office_address }}</textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="office_code">Office Code (for Letter Number)</label>
+                        <input type="text" id="office_code" name="office_code" 
+                               value="{{ settings.office_code }}" 
+                               placeholder="e.g., AE/SD-I/HYD">
+                    </div>
+                </div>
+                
+                <hr class="section-divider">
+                
+                <!-- To Section -->
+                <h3 class="section-title">
+                    <i class="bi bi-person-lines-fill"></i>
+                    To (Recipient Details)
+                </h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="recipient_designation">Recipient Designation</label>
+                        <input type="text" id="recipient_designation" name="recipient_designation" 
+                               value="{{ settings.recipient_designation }}" 
+                               placeholder="e.g., Executive Engineer">
+                    </div>
+                    <div class="form-group">
+                        <label for="recipient_division">Division / Office</label>
+                        <input type="text" id="recipient_division" name="recipient_division" 
+                               value="{{ settings.recipient_division }}" 
+                               placeholder="e.g., Division-I, Hyderabad">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label for="recipient_address">Recipient Address</label>
+                        <textarea id="recipient_address" name="recipient_address" 
+                                  placeholder="e.g., PWD Division Office, MG Road, Hyderabad">{{ settings.recipient_address }}</textarea>
+                    </div>
+                </div>
+                
+                <hr class="section-divider">
+                
+                <!-- Other Details -->
+                <h3 class="section-title">
+                    <i class="bi bi-gear"></i>
+                    Other Details
+                </h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="superior_designation">Superior Officer (for Request)</label>
+                        <input type="text" id="superior_designation" name="superior_designation" 
+                               value="{{ settings.superior_designation }}" 
+                               placeholder="e.g., Superintending Engineer">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="copy_to_designation">Copy To - Designation</label>
+                        <input type="text" id="copy_to_designation" name="copy_to_designation" 
+                               value="{{ settings.copy_to_designation }}" 
+                               placeholder="e.g., Deputy Executive Engineer">
+                    </div>
+                    <div class="form-group">
+                        <label for="copy_to_section">Copy To - Section/Office</label>
+                        <input type="text" id="copy_to_section" name="copy_to_section" 
+                               value="{{ settings.copy_to_section }}" 
+                               placeholder="e.g., Accounts Section">
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button type="submit" class="btn-save">
+                        <i class="bi bi-check-lg"></i>
+                        Save Settings
+                    </button>
+                    <a href="{% url 'dashboard' %}" class="btn-back">
+                        <i class="bi bi-arrow-left"></i>
+                        Back to Dashboard
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

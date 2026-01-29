@@ -65,6 +65,7 @@ urlpatterns = [
     path('dashboard/', dashboard_views.dashboard, name='dashboard'),
     path('dashboard/module/<str:module_code>/', dashboard_views.module_detail, name='module_detail'),
     path('dashboard/module/<str:module_code>/trial/', dashboard_views.start_trial, name='start_trial'),
+    path('letter-settings/', views.letter_settings, name='letter_settings'),
     path('announcements/', dashboard_views.all_announcements, name='all_announcements'),
     path('api/announcements/', dashboard_views.api_announcements, name='api_announcements'),
     path('api/announcements/<uuid:announcement_id>/dismiss/', dashboard_views.api_dismiss_announcement, name='api_dismiss_announcement'),
