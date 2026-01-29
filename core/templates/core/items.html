@@ -1055,6 +1055,11 @@
                         <i class="bi bi-file-earmark-word"></i>
                         Specification Report
                     </button>
+                    
+                    <button type="button" class="btn-action btn-download" onclick="downloadForwardingLetter()" style="background:linear-gradient(135deg, #2b6cb0 0%, #1d4ed8 100%);">
+                        <i class="bi bi-envelope-paper"></i>
+                        Forwarding Letter
+                    </button>
 
                     <a href="{% url 'clear_output' category %}?group={{ group }}"
                        class="btn-action btn-clear">
@@ -2131,6 +2136,72 @@ document.addEventListener('keydown', function(e) {
         var form = document.createElement("form");
         form.method = "POST";
         form.action = "{% url 'download_specification_report_live' category %}";
+        form.style.display = "none";
+        
+        var csrfInput = document.createElement("input");
+        csrfInput.type = "hidden";
+        csrfInput.name = "csrfmiddlewaretoken";
+        csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        form.appendChild(csrfInput);
+        
+        var itemsInput = document.createElement("input");
+        itemsInput.type = "hidden";
+        itemsInput.name = "items";
+        itemsInput.value = JSON.stringify(items);
+        form.appendChild(itemsInput);
+        
+        var workNameInput = document.createElement("input");
+        workNameInput.type = "hidden";
+        workNameInput.name = "work_name";
+        workNameInput.value = workName;
+        form.appendChild(workNameInput);
+        
+        var totalInput = document.createElement("input");
+        totalInput.type = "hidden";
+        totalInput.name = "total_amount";
+        totalInput.value = totalAmount;
+        form.appendChild(totalInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    };
+    
+    // ---- Download Forwarding Letter ----
+    window.downloadForwardingLetter = function() {
+        // Collect items from the estimate table
+        var items = [];
+        var workName = document.getElementById("work-name-input").value || "{{NAME_OF_WORK}}";
+        // Use grand total input
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var totalAmount = grandTotalInput ? grandTotalInput.value : "0.00";
+        if (!totalAmount || totalAmount === "") {
+            totalAmount = document.getElementById("estimate-total").textContent || "0.00";
+        }
+        
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var itemName = row.getAttribute("data-item-name");
+            if (!itemName) return;
+            
+            var qtyInput = row.querySelector(".qty-input");
+            var qty = qtyInput ? qtyInput.value : "";
+            
+            if (itemName && qty && parseFloat(qty) > 0) {
+                items.push({
+                    desc: itemName,
+                    qty: qty
+                });
+            }
+        });
+        
+        if (items.length === 0) {
+            alert("Please add items with quantities to generate forwarding letter");
+            return;
+        }
+        
+        // Submit to backend
+        var form = document.createElement("form");
+        form.method = "POST";
+        form.action = "{% url 'download_forwarding_letter_live' category %}";
         form.style.display = "none";
         
         var csrfInput = document.createElement("input");

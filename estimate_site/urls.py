@@ -148,6 +148,7 @@ urlpatterns = [
     path('datas/<str:category>/clear/', views.clear_output, name='clear_output'),
     path('datas/<str:category>/save_qty_map/', views.save_qty_map, name='save_qty_map'),
     path('datas/<str:category>/specification-report/', views.download_specification_report_live, name='download_specification_report_live'),
+    path('datas/<str:category>/forwarding-letter/', views.download_forwarding_letter_live, name='download_forwarding_letter_live'),
     
     # AJAX endpoints for New Estimate module (queued item selection & drag-drop reorder)
     path('datas/<str:category>/ajax_toggle_item/', views.ajax_toggle_item, name='ajax_toggle_item'),
