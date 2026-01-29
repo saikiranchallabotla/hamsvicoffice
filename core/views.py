@@ -3871,10 +3871,26 @@ def parse_first_bill_for_nth(ws, header_row):
 
 
 def parse_nth_bill_for_next(ws, header_row):
+    """Parse items from an Nth bill (11-column format with Unit column).
+    
+    Format: A: S.No, B: Item, C: Quantity, D: Unit, E: Rate, F: Total Value,
+            G-H: Deduct Previous (Qty, Amt), I-J: Since Last (Qty, Amt), K: Remarks
+    
+    We look at the header row to determine if there's a Unit column.
+    """
     items = []
     max_row = min(ws.max_row, 5000)
     start_row = header_row + 2
-
+    
+    # Check if this is an 11-column format with Unit column
+    # by examining the header row for 'Unit' in column D or similar patterns
+    has_unit_column = False
+    for col in range(3, 6):  # Check columns C, D, E
+        hdr_val = str(ws.cell(row=header_row, column=col).value or "").strip().lower()
+        if hdr_val == "unit":
+            has_unit_column = True
+            break
+    
     for r in range(start_row, max_row + 1):
         desc_raw = ws.cell(row=r, column=2).value
         desc = str(desc_raw or "").strip()
@@ -3885,10 +3901,20 @@ def parse_nth_bill_for_next(ws, header_row):
         if low.startswith("sub total") or low.startswith("subtotal"):
             break
 
-        rate_raw = ws.cell(row=r, column=4).value
-        prev_qty_raw = ws.cell(row=r, column=3).value
-        amt_cell_raw = ws.cell(row=r, column=5).value
+        if has_unit_column:
+            # 11-column format: A: S.No, B: Item, C: Qty, D: Unit, E: Rate, F: Total Value
+            unit_raw = ws.cell(row=r, column=4).value
+            rate_raw = ws.cell(row=r, column=5).value
+            prev_qty_raw = ws.cell(row=r, column=3).value
+            amt_cell_raw = ws.cell(row=r, column=6).value
+        else:
+            # 10-column format: A: S.No, B: Item, C: Qty, D: Rate, E: Total Value
+            unit_raw = None
+            rate_raw = ws.cell(row=r, column=4).value
+            prev_qty_raw = ws.cell(row=r, column=3).value
+            amt_cell_raw = ws.cell(row=r, column=5).value
 
+        unit_str = str(unit_raw or "").strip() if unit_raw else ""
         qty_val = to_number(prev_qty_raw)
         rate_val = to_number(rate_raw)
         prev_amount_val = to_number(amt_cell_raw)
@@ -3898,7 +3924,7 @@ def parse_nth_bill_for_next(ws, header_row):
 
         items.append({
             "desc": desc,
-            "unit": "",
+            "unit": unit_str,
             "rate": rate_val,
             "prev_qty": qty_val,
             "prev_amount": prev_amount_val,
@@ -4212,8 +4238,8 @@ def build_nth_bill_wb(items, header_data, title_text,
                       mb_abs_no, mb_abs_p_from, mb_abs_p_to,
                       doi, doc, domr, dobr):
     """
-    Build a complete Nth bill workbook with 10-column format:
-    Sl.No, Item, Quantity Till Date, Rate, Total Value Till Date,
+    Build a complete Nth bill workbook with 11-column format:
+    Sl.No, Item, Quantity Till Date, Unit, Rate per Unit, Total Value Till Date,
     Deduct Previous (Qty, Amount), Since Last (Qty, Amount), Remarks
     """
     wb_out = Workbook()
@@ -4225,7 +4251,7 @@ def build_nth_bill_wb(items, header_data, title_text,
     header_fill = PatternFill("solid", fgColor="FFC8C8C8")
     subtotal_fill = PatternFill("solid", fgColor="FFE6E6E6")
 
-    ws.merge_cells("A1:J1")
+    ws.merge_cells("A1:K1")
     c1 = ws["A1"]
     c1.value = title_text
     c1.font = Font(bold=True, size=14)
@@ -4238,19 +4264,19 @@ def build_nth_bill_wb(items, header_data, title_text,
     agt_val = header_data.get("agreement", "").strip()
     agency_val = header_data.get("agency", "").strip()
 
-    ws.merge_cells("A2:J2")
+    ws.merge_cells("A2:K2")
     c2 = ws["A2"]
     c2.value = f"Name of the work : {work_val}" if work_val else "Name of the work :"
     c2.font = Font(bold=True)
     c2.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A3:J3")
+    ws.merge_cells("A3:K3")
     c3 = ws["A3"]
     c3.value = f"Estimate Amount : {est_val}" if est_val else "Estimate Amount :"
     c3.font = Font(bold=True)
     c3.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A4:J4")
+    ws.merge_cells("A4:K4")
     c4 = ws["A4"]
     c4.value = (
         f"Ref. to Administrative sanction : {adm_val}"
@@ -4259,7 +4285,7 @@ def build_nth_bill_wb(items, header_data, title_text,
     c4.font = Font(bold=True)
     c4.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A5:J5")
+    ws.merge_cells("A5:K5")
     c5 = ws["A5"]
     c5.value = (
         f"Ref. to Technical sanction : {tech_val}"
@@ -4268,7 +4294,7 @@ def build_nth_bill_wb(items, header_data, title_text,
     c5.font = Font(bold=True)
     c5.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A6:J6")
+    ws.merge_cells("A6:K6")
     c6 = ws["A6"]
     c6.value = (
         f"Ref. to Agreement : {agt_val}"
@@ -4277,7 +4303,7 @@ def build_nth_bill_wb(items, header_data, title_text,
     c6.font = Font(bold=True)
     c6.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A7:J7")
+    ws.merge_cells("A7:K7")
     c7 = ws["A7"]
     c7.value = (
         f"Name of the Agency : {agency_val}"
@@ -4287,7 +4313,7 @@ def build_nth_bill_wb(items, header_data, title_text,
     c7.alignment = Alignment(horizontal="left", vertical="center")
 
     # -------- ROW 8: Label + MB details (NTH BILL) IN ONE MERGED CELL --------
-    ws.merge_cells("A8:J8")
+    ws.merge_cells("A8:K8")
     c8 = ws["A8"]
     c8.value = (
         f"M.B.No Details: MB.No. {mb_measure_no} P.No. {mb_measure_p_from} to {mb_measure_p_to} (Measurements)   "
@@ -4296,39 +4322,41 @@ def build_nth_bill_wb(items, header_data, title_text,
     c8.font = Font(bold=True)
     c8.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-    ws.merge_cells("A9:J9")
+    ws.merge_cells("A9:K9")
     c9 = ws["A9"]
     c9.value = f"DOI : {doi}    DOC : {doc}    DOMR : {domr}    DOBR : {dobr}"
     c9.font = Font(bold=True)
     c9.alignment = Alignment(horizontal="left", vertical="center")
 
     for r in range(1, 10):
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
 
-    for col in [1, 2, 3, 4, 5, 10]:
+    # Merge header cells: S.No, Item, Qty Till Date, Unit, Rate, Total Value, Remarks span 2 rows
+    for col in [1, 2, 3, 4, 5, 6, 11]:
         ws.merge_cells(start_row=10, start_column=col, end_row=11, end_column=col)
 
-    ws.merge_cells("F10:G10")
-    ws.merge_cells("H10:I10")
+    ws.merge_cells("G10:H10")  # Deduct Previous
+    ws.merge_cells("I10:J10")  # Since Last
 
-    ws.cell(row=10, column=1, value="Sl.No")
+    ws.cell(row=10, column=1, value="S.No")
     ws.cell(row=10, column=2, value="Item")
     ws.cell(row=10, column=3, value="Quantity Till Date")
-    ws.cell(row=10, column=4, value="Rate per Unit")
-    ws.cell(row=10, column=5, value="Total Value till date")
-    ws.cell(row=10, column=6, value="Deduct Previous Measurements")
-    ws.cell(row=10, column=8, value="Since Last Measurements")
-    ws.cell(row=10, column=10, value="Remarks")
+    ws.cell(row=10, column=4, value="Unit")
+    ws.cell(row=10, column=5, value="Rate per Unit")
+    ws.cell(row=10, column=6, value="Total Value till date")
+    ws.cell(row=10, column=7, value="Deduct Previous Measurements")
+    ws.cell(row=10, column=9, value="Since Last Measurements")
+    ws.cell(row=10, column=11, value="Remarks")
 
-    ws.cell(row=11, column=6, value="Quantity")
-    ws.cell(row=11, column=7, value="Amount")
-    ws.cell(row=11, column=8, value="Quantity")
-    ws.cell(row=11, column=9, value="Amount")
+    ws.cell(row=11, column=7, value="Quantity")
+    ws.cell(row=11, column=8, value="Amount")
+    ws.cell(row=11, column=9, value="Quantity")
+    ws.cell(row=11, column=10, value="Amount")
 
     for r in (10, 11):
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.font = Font(bold=True)
             cell.border = border_all
@@ -4338,13 +4366,14 @@ def build_nth_bill_wb(items, header_data, title_text,
     ws.column_dimensions["A"].width = 6
     ws.column_dimensions["B"].width = 45
     ws.column_dimensions["C"].width = 14
-    ws.column_dimensions["D"].width = 12
-    ws.column_dimensions["E"].width = 16
-    ws.column_dimensions["F"].width = 14
-    ws.column_dimensions["G"].width = 16
-    ws.column_dimensions["H"].width = 14
-    ws.column_dimensions["I"].width = 16
-    ws.column_dimensions["J"].width = 20
+    ws.column_dimensions["D"].width = 8
+    ws.column_dimensions["E"].width = 12
+    ws.column_dimensions["F"].width = 16
+    ws.column_dimensions["G"].width = 14
+    ws.column_dimensions["H"].width = 16
+    ws.column_dimensions["I"].width = 14
+    ws.column_dimensions["J"].width = 16
+    ws.column_dimensions["K"].width = 20
 
     data_start = 12
     r = data_start
@@ -4352,23 +4381,24 @@ def build_nth_bill_wb(items, header_data, title_text,
 
     for it in items:
         desc = it.get("desc") or ""
+        unit = it.get("unit") or ""
         rate = it.get("rate", 0.0)
         prev_qty = it.get("prev_qty", 0.0)
         prev_amount = it.get("prev_amount", 0.0)
 
         ws.cell(row=r, column=1, value=sl)
         ws.cell(row=r, column=2, value=desc)
+        ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
+        ws.cell(row=r, column=4, value=unit)
+        ws.cell(row=r, column=5, value=rate)
+        ws.cell(row=r, column=6, value=f"=C{r}*E{r}")
+        ws.cell(row=r, column=7, value=prev_qty)
+        ws.cell(row=r, column=8, value=prev_amount)
+        ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
+        ws.cell(row=r, column=10, value=f"=F{r}-H{r}")
+        ws.cell(row=r, column=11, value="")
 
-        ws.cell(row=r, column=3, value=None)
-        ws.cell(row=r, column=4, value=rate)
-        ws.cell(row=r, column=5, value=f"=C{r}*D{r}")
-        ws.cell(row=r, column=6, value=prev_qty)
-        ws.cell(row=r, column=7, value=prev_amount)
-        ws.cell(row=r, column=8, value=f"=C{r}-F{r}")
-        ws.cell(row=r, column=9, value=f"=E{r}-G{r}")
-        ws.cell(row=r, column=10, value="")
-
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
             if col == 2:
@@ -4383,9 +4413,9 @@ def build_nth_bill_wb(items, header_data, title_text,
 
     sub_row = r
     ws.cell(row=sub_row, column=2, value="Sub Total")
-    ws.cell(row=sub_row, column=5, value=f"=SUM(E{data_start}:E{last_item_row})")
-    ws.cell(row=sub_row, column=7, value=f"=SUM(G{data_start}:G{last_item_row})")
-    ws.cell(row=sub_row, column=9, value=f"=SUM(I{data_start}:I{last_item_row})")
+    ws.cell(row=sub_row, column=6, value=f"=SUM(F{data_start}:F{last_item_row})")
+    ws.cell(row=sub_row, column=8, value=f"=SUM(H{data_start}:H{last_item_row})")
+    ws.cell(row=sub_row, column=10, value=f"=SUM(J{data_start}:J{last_item_row})")
 
     tp_row = sub_row + 1
     tp_percent = float(tp_percent or 0.0)
@@ -4394,24 +4424,24 @@ def build_nth_bill_wb(items, header_data, title_text,
     # Show Add or Deduct explicitly based on tp_type
     label_prefix = "Deduct" if tp_type == "Less" else "Add"
     ws.cell(row=tp_row, column=2, value=f"{label_prefix} T.P @ {tp_percent} % {tp_type}")
-    ws.cell(row=tp_row, column=5, value=f"=E{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=7, value=f"=G{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=9, value=f"=I{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=6, value=f"=F{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=8, value=f"=H{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=10, value=f"=J{sub_row}*{abs(tp_percent)}/100")
 
     total_row = tp_row + 1
     ws.cell(row=total_row, column=2, value="Total")
 
     if tp_type == "Less":
-        ws.cell(row=total_row, column=5, value=f"=E{sub_row}-E{tp_row}")
-        ws.cell(row=total_row, column=7, value=f"=G{sub_row}-G{tp_row}")
-        ws.cell(row=total_row, column=9, value=f"=I{sub_row}-I{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=F{sub_row}-F{tp_row}")
+        ws.cell(row=total_row, column=8, value=f"=H{sub_row}-H{tp_row}")
+        ws.cell(row=total_row, column=10, value=f"=J{sub_row}-J{tp_row}")
     else:
-        ws.cell(row=total_row, column=5, value=f"=E{sub_row}+E{tp_row}")
-        ws.cell(row=total_row, column=7, value=f"=G{sub_row}+G{tp_row}")
-        ws.cell(row=total_row, column=9, value=f"=I{sub_row}+I{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=F{sub_row}+F{tp_row}")
+        ws.cell(row=total_row, column=8, value=f"=H{sub_row}+H{tp_row}")
+        ws.cell(row=total_row, column=10, value=f"=J{sub_row}+J{tp_row}")
 
     for rr in [sub_row, tp_row, total_row]:
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=rr, column=col)
             cell.font = Font(bold=True)
             cell.border = border_all
@@ -4435,13 +4465,14 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     """Populate an existing worksheet with Nth bill data.
     
     This is similar to build_nth_bill_wb but works on an existing sheet.
+    Uses 11-column format with Unit column.
     """
     thin = Side(border_style="thin", color="000000")
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
     header_fill = PatternFill("solid", fgColor="FFC8C8C8")
     subtotal_fill = PatternFill("solid", fgColor="FFE6E6E6")
 
-    ws.merge_cells("A1:J1")
+    ws.merge_cells("A1:K1")
     c1 = ws["A1"]
     c1.value = title_text
     c1.font = Font(bold=True, size=14)
@@ -4454,19 +4485,19 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     agt_val = header_data.get("agreement", "").strip()
     agency_val = header_data.get("agency", "").strip()
 
-    ws.merge_cells("A2:J2")
+    ws.merge_cells("A2:K2")
     c2 = ws["A2"]
     c2.value = f"Name of the work : {work_val}" if work_val else "Name of the work :"
     c2.font = Font(bold=True)
     c2.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A3:J3")
+    ws.merge_cells("A3:K3")
     c3 = ws["A3"]
     c3.value = f"Estimate Amount : {est_val}" if est_val else "Estimate Amount :"
     c3.font = Font(bold=True)
     c3.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A4:J4")
+    ws.merge_cells("A4:K4")
     c4 = ws["A4"]
     c4.value = (
         f"Ref. to Administrative sanction : {adm_val}"
@@ -4475,7 +4506,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     c4.font = Font(bold=True)
     c4.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A5:J5")
+    ws.merge_cells("A5:K5")
     c5 = ws["A5"]
     c5.value = (
         f"Ref. to Technical sanction : {tech_val}"
@@ -4484,7 +4515,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     c5.font = Font(bold=True)
     c5.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A6:J6")
+    ws.merge_cells("A6:K6")
     c6 = ws["A6"]
     c6.value = (
         f"Ref. to Agreement : {agt_val}"
@@ -4493,7 +4524,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     c6.font = Font(bold=True)
     c6.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A7:J7")
+    ws.merge_cells("A7:K7")
     c7 = ws["A7"]
     c7.value = (
         f"Name of the Agency : {agency_val}"
@@ -4502,7 +4533,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     c7.font = Font(bold=True)
     c7.alignment = Alignment(horizontal="left", vertical="center")
 
-    ws.merge_cells("A8:J8")
+    ws.merge_cells("A8:K8")
     c8 = ws["A8"]
     c8.value = (
         f"M.B.No Details: MB.No. {mb_measure_no} P.No. {mb_measure_p_from} to {mb_measure_p_to} (Measurements)   "
@@ -4511,39 +4542,41 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     c8.font = Font(bold=True)
     c8.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-    ws.merge_cells("A9:J9")
+    ws.merge_cells("A9:K9")
     c9 = ws["A9"]
     c9.value = f"DOI : {doi}    DOC : {doc}    DOMR : {domr}    DOBR : {dobr}"
     c9.font = Font(bold=True)
     c9.alignment = Alignment(horizontal="left", vertical="center")
 
     for r in range(1, 10):
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
 
-    for col in [1, 2, 3, 4, 5, 10]:
+    # Merge header cells: S.No, Item, Qty Till Date, Unit, Rate, Total Value, Remarks span 2 rows
+    for col in [1, 2, 3, 4, 5, 6, 11]:
         ws.merge_cells(start_row=10, start_column=col, end_row=11, end_column=col)
 
-    ws.merge_cells("F10:G10")
-    ws.merge_cells("H10:I10")
+    ws.merge_cells("G10:H10")  # Deduct Previous
+    ws.merge_cells("I10:J10")  # Since Last
 
-    ws.cell(row=10, column=1, value="Sl.No")
+    ws.cell(row=10, column=1, value="S.No")
     ws.cell(row=10, column=2, value="Item")
     ws.cell(row=10, column=3, value="Quantity Till Date")
-    ws.cell(row=10, column=4, value="Rate per Unit")
-    ws.cell(row=10, column=5, value="Total Value till date")
-    ws.cell(row=10, column=6, value="Deduct Previous Measurements")
-    ws.cell(row=10, column=8, value="Since Last Measurements")
-    ws.cell(row=10, column=10, value="Remarks")
+    ws.cell(row=10, column=4, value="Unit")
+    ws.cell(row=10, column=5, value="Rate per Unit")
+    ws.cell(row=10, column=6, value="Total Value till date")
+    ws.cell(row=10, column=7, value="Deduct Previous Measurements")
+    ws.cell(row=10, column=9, value="Since Last Measurements")
+    ws.cell(row=10, column=11, value="Remarks")
 
-    ws.cell(row=11, column=6, value="Quantity")
-    ws.cell(row=11, column=7, value="Amount")
-    ws.cell(row=11, column=8, value="Quantity")
-    ws.cell(row=11, column=9, value="Amount")
+    ws.cell(row=11, column=7, value="Quantity")
+    ws.cell(row=11, column=8, value="Amount")
+    ws.cell(row=11, column=9, value="Quantity")
+    ws.cell(row=11, column=10, value="Amount")
 
     for r in (10, 11):
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.font = Font(bold=True)
             cell.border = border_all
@@ -4553,13 +4586,14 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     ws.column_dimensions["A"].width = 6
     ws.column_dimensions["B"].width = 45
     ws.column_dimensions["C"].width = 14
-    ws.column_dimensions["D"].width = 12
-    ws.column_dimensions["E"].width = 16
-    ws.column_dimensions["F"].width = 14
-    ws.column_dimensions["G"].width = 16
-    ws.column_dimensions["H"].width = 14
-    ws.column_dimensions["I"].width = 16
-    ws.column_dimensions["J"].width = 20
+    ws.column_dimensions["D"].width = 8
+    ws.column_dimensions["E"].width = 12
+    ws.column_dimensions["F"].width = 16
+    ws.column_dimensions["G"].width = 14
+    ws.column_dimensions["H"].width = 16
+    ws.column_dimensions["I"].width = 14
+    ws.column_dimensions["J"].width = 16
+    ws.column_dimensions["K"].width = 20
 
     data_start = 12
     r = data_start
@@ -4567,23 +4601,24 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
 
     for it in items:
         desc = it.get("desc") or ""
+        unit = it.get("unit") or ""
         rate = it.get("rate", 0.0)
         prev_qty = it.get("prev_qty", 0.0)
         prev_amount = it.get("prev_amount", 0.0)
 
         ws.cell(row=r, column=1, value=sl)
         ws.cell(row=r, column=2, value=desc)
+        ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
+        ws.cell(row=r, column=4, value=unit)
+        ws.cell(row=r, column=5, value=rate)
+        ws.cell(row=r, column=6, value=f"=C{r}*E{r}")
+        ws.cell(row=r, column=7, value=prev_qty)
+        ws.cell(row=r, column=8, value=prev_amount)
+        ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
+        ws.cell(row=r, column=10, value=f"=F{r}-H{r}")
+        ws.cell(row=r, column=11, value="")
 
-        ws.cell(row=r, column=3, value=None)
-        ws.cell(row=r, column=4, value=rate)
-        ws.cell(row=r, column=5, value=f"=C{r}*D{r}")
-        ws.cell(row=r, column=6, value=prev_qty)
-        ws.cell(row=r, column=7, value=prev_amount)
-        ws.cell(row=r, column=8, value=f"=C{r}-F{r}")
-        ws.cell(row=r, column=9, value=f"=E{r}-G{r}")
-        ws.cell(row=r, column=10, value="")
-
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
             if col == 2:
@@ -4598,9 +4633,9 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
 
     sub_row = r
     ws.cell(row=sub_row, column=2, value="Sub Total")
-    ws.cell(row=sub_row, column=5, value=f"=SUM(E{data_start}:E{last_item_row})")
-    ws.cell(row=sub_row, column=7, value=f"=SUM(G{data_start}:G{last_item_row})")
-    ws.cell(row=sub_row, column=9, value=f"=SUM(I{data_start}:I{last_item_row})")
+    ws.cell(row=sub_row, column=6, value=f"=SUM(F{data_start}:F{last_item_row})")
+    ws.cell(row=sub_row, column=8, value=f"=SUM(H{data_start}:H{last_item_row})")
+    ws.cell(row=sub_row, column=10, value=f"=SUM(J{data_start}:J{last_item_row})")
 
     tp_row = sub_row + 1
     tp_percent = float(tp_percent or 0.0)
@@ -4608,24 +4643,24 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
 
     label_prefix = "Deduct" if tp_type == "Less" else "Add"
     ws.cell(row=tp_row, column=2, value=f"{label_prefix} T.P @ {tp_percent} % {tp_type}")
-    ws.cell(row=tp_row, column=5, value=f"=E{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=7, value=f"=G{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=9, value=f"=I{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=6, value=f"=F{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=8, value=f"=H{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=10, value=f"=J{sub_row}*{abs(tp_percent)}/100")
 
     total_row = tp_row + 1
     ws.cell(row=total_row, column=2, value="Total")
 
     if tp_type == "Less":
-        ws.cell(row=total_row, column=5, value=f"=E{sub_row}-E{tp_row}")
-        ws.cell(row=total_row, column=7, value=f"=G{sub_row}-G{tp_row}")
-        ws.cell(row=total_row, column=9, value=f"=I{sub_row}-I{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=F{sub_row}-F{tp_row}")
+        ws.cell(row=total_row, column=8, value=f"=H{sub_row}-H{tp_row}")
+        ws.cell(row=total_row, column=10, value=f"=J{sub_row}-J{tp_row}")
     else:
-        ws.cell(row=total_row, column=5, value=f"=E{sub_row}+E{tp_row}")
-        ws.cell(row=total_row, column=7, value=f"=G{sub_row}+G{tp_row}")
-        ws.cell(row=total_row, column=9, value=f"=I{sub_row}+I{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=F{sub_row}+F{tp_row}")
+        ws.cell(row=total_row, column=8, value=f"=H{sub_row}+H{tp_row}")
+        ws.cell(row=total_row, column=10, value=f"=J{sub_row}+J{tp_row}")
 
     for rr in [sub_row, tp_row, total_row]:
-        for col in range(1, 11):
+        for col in range(1, 12):
             cell = ws.cell(row=rr, column=col)
             cell.font = Font(bold=True)
             cell.border = border_all
@@ -5516,15 +5551,25 @@ def build_estimate_wb(ws_src, blocks):
 
     def parse_nth_bill_for_next(ws, header_row):
         """
-        Nth bill format:
+        Nth bill format (supports both 10-column and 11-column with Unit):
 
+        10-column: A: S.No, B: Item, C: Qty, D: Rate, E: Total Value
+        11-column: A: S.No, B: Item, C: Qty, D: Unit, E: Rate, F: Total Value
+        
         Prev qty  = column C (Quantity Till Date)
-        Prev amt  = column E (Total Value till date);
-                    if E has no value (formula not evaluated), fallback to C * D.
+        Prev amt  = column E or F (Total Value till date)
         """
         items = []
         max_row = min(ws.max_row, 5000)
         start_row = header_row + 2  # skip row 10 & 11 headings
+        
+        # Check if this is an 11-column format with Unit column
+        has_unit_column = False
+        for col in range(3, 6):  # Check columns C, D, E
+            hdr_val = str(ws.cell(row=header_row, column=col).value or "").strip().lower()
+            if hdr_val == "unit":
+                has_unit_column = True
+                break
 
         for r in range(start_row, max_row + 1):
             desc_raw = ws.cell(row=r, column=2).value  # B
@@ -5536,10 +5581,20 @@ def build_estimate_wb(ws_src, blocks):
             if low.startswith("sub total") or low.startswith("subtotal"):
                 break
 
-            rate_raw = ws.cell(row=r, column=4).value  # D
-            prev_qty_raw = ws.cell(row=r, column=3).value  # C
-            amt_cell_raw = ws.cell(row=r, column=5).value  # E
+            if has_unit_column:
+                # 11-column format: A: S.No, B: Item, C: Qty, D: Unit, E: Rate, F: Total Value
+                unit_raw = ws.cell(row=r, column=4).value  # D
+                rate_raw = ws.cell(row=r, column=5).value  # E
+                prev_qty_raw = ws.cell(row=r, column=3).value  # C
+                amt_cell_raw = ws.cell(row=r, column=6).value  # F
+            else:
+                # 10-column format: A: S.No, B: Item, C: Qty, D: Rate, E: Total Value
+                unit_raw = None
+                rate_raw = ws.cell(row=r, column=4).value  # D
+                prev_qty_raw = ws.cell(row=r, column=3).value  # C
+                amt_cell_raw = ws.cell(row=r, column=5).value  # E
 
+            unit_str = str(unit_raw or "").strip() if unit_raw else ""
             qty_val = to_number(prev_qty_raw)
             rate_val = to_number(rate_raw)
             prev_amount_val = to_number(amt_cell_raw)
@@ -5549,7 +5604,7 @@ def build_estimate_wb(ws_src, blocks):
 
             items.append({
                 "desc": desc,
-                "unit": "",
+                "unit": unit_str,
                 "rate": rate_val,
                 "prev_qty": qty_val,
                 "prev_amount": prev_amount_val,
@@ -5870,6 +5925,7 @@ def build_estimate_wb(ws_src, blocks):
                           doi, doc, domr, dobr):
         """
         Same as your earlier Nth bill format, single sheet only.
+        Uses 11-column format with Unit column.
         """
         wb_out = Workbook()
         ws = wb_out.active
@@ -5880,7 +5936,7 @@ def build_estimate_wb(ws_src, blocks):
         header_fill = PatternFill("solid", fgColor="FFC8C8C8")
         subtotal_fill = PatternFill("solid", fgColor="FFE6E6E6")
 
-        ws.merge_cells("A1:J1")
+        ws.merge_cells("A1:K1")
         c1 = ws["A1"]
         c1.value = title_text
         c1.font = Font(bold=True, size=14)
@@ -5893,19 +5949,19 @@ def build_estimate_wb(ws_src, blocks):
         agt_val = header_data.get("agreement", "").strip()
         agency_val = header_data.get("agency", "").strip()
 
-        ws.merge_cells("A2:J2")
+        ws.merge_cells("A2:K2")
         c2 = ws["A2"]
         c2.value = f"Name of the work : {work_val}" if work_val else "Name of the work :"
         c2.font = Font(bold=True)
         c2.alignment = Alignment(horizontal="left", vertical="center")
 
-        ws.merge_cells("A3:J3")
+        ws.merge_cells("A3:K3")
         c3 = ws["A3"]
         c3.value = f"Estimate Amount : {est_val}" if est_val else "Estimate Amount :"
         c3.font = Font(bold=True)
         c3.alignment = Alignment(horizontal="left", vertical="center")
 
-        ws.merge_cells("A4:J4")
+        ws.merge_cells("A4:K4")
         c4 = ws["A4"]
         c4.value = (
             f"Ref. to Administrative sanction : {adm_val}"
@@ -5914,7 +5970,7 @@ def build_estimate_wb(ws_src, blocks):
         c4.font = Font(bold=True)
         c4.alignment = Alignment(horizontal="left", vertical="center")
 
-        ws.merge_cells("A5:J5")
+        ws.merge_cells("A5:K5")
         c5 = ws["A5"]
         c5.value = (
             f"Ref. to Technical sanction : {tech_val}"
@@ -5923,7 +5979,7 @@ def build_estimate_wb(ws_src, blocks):
         c5.font = Font(bold=True)
         c5.alignment = Alignment(horizontal="left", vertical="center")
 
-        ws.merge_cells("A6:J6")
+        ws.merge_cells("A6:K6")
         c6 = ws["A6"]
         c6.value = (
             f"Ref. to Agreement : {agt_val}"
@@ -5932,7 +5988,7 @@ def build_estimate_wb(ws_src, blocks):
         c6.font = Font(bold=True)
         c6.alignment = Alignment(horizontal="left", vertical="center")
 
-        ws.merge_cells("A7:J7")
+        ws.merge_cells("A7:K7")
         c7 = ws["A7"]
         c7.value = (
             f"Name of the Agency : {agency_val}"
@@ -5942,7 +5998,7 @@ def build_estimate_wb(ws_src, blocks):
         c7.alignment = Alignment(horizontal="left", vertical="center")
 
         # -------- ROW 8: Label + MB details (NTH BILL) IN ONE MERGED CELL --------
-        ws.merge_cells("A8:J8")
+        ws.merge_cells("A8:K8")
         c8 = ws["A8"]
         c8.value = (
             f"M.B.No Details: MB.No. {mb_measure_no} P.No. {mb_measure_p_from} to {mb_measure_p_to} (Measurements)   "
@@ -5951,39 +6007,41 @@ def build_estimate_wb(ws_src, blocks):
         c8.font = Font(bold=True)
         c8.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        ws.merge_cells("A9:J9")
+        ws.merge_cells("A9:K9")
         c9 = ws["A9"]
         c9.value = f"DOI : {doi}    DOC : {doc}    DOMR : {domr}    DOBR : {dobr}"
         c9.font = Font(bold=True)
         c9.alignment = Alignment(horizontal="left", vertical="center")
 
         for r in range(1, 10):
-            for col in range(1, 11):
+            for col in range(1, 12):
                 cell = ws.cell(row=r, column=col)
                 cell.border = border_all
 
-        for col in [1, 2, 3, 4, 5, 10]:
+        # Merge header cells: S.No, Item, Qty Till Date, Unit, Rate, Total Value, Remarks span 2 rows
+        for col in [1, 2, 3, 4, 5, 6, 11]:
             ws.merge_cells(start_row=10, start_column=col, end_row=11, end_column=col)
 
-        ws.merge_cells("F10:G10")
-        ws.merge_cells("H10:I10")
+        ws.merge_cells("G10:H10")  # Deduct Previous
+        ws.merge_cells("I10:J10")  # Since Last
 
-        ws.cell(row=10, column=1, value="Sl.No")
+        ws.cell(row=10, column=1, value="S.No")
         ws.cell(row=10, column=2, value="Item")
         ws.cell(row=10, column=3, value="Quantity Till Date")
-        ws.cell(row=10, column=4, value="Rate per Unit")
-        ws.cell(row=10, column=5, value="Total Value till date")
-        ws.cell(row=10, column=6, value="Deduct Previous Measurements")
-        ws.cell(row=10, column=8, value="Since Last Measurements")
-        ws.cell(row=10, column=10, value="Remarks")
+        ws.cell(row=10, column=4, value="Unit")
+        ws.cell(row=10, column=5, value="Rate per Unit")
+        ws.cell(row=10, column=6, value="Total Value till date")
+        ws.cell(row=10, column=7, value="Deduct Previous Measurements")
+        ws.cell(row=10, column=9, value="Since Last Measurements")
+        ws.cell(row=10, column=11, value="Remarks")
 
-        ws.cell(row=11, column=6, value="Quantity")
-        ws.cell(row=11, column=7, value="Amount")
-        ws.cell(row=11, column=8, value="Quantity")
-        ws.cell(row=11, column=9, value="Amount")
+        ws.cell(row=11, column=7, value="Quantity")
+        ws.cell(row=11, column=8, value="Amount")
+        ws.cell(row=11, column=9, value="Quantity")
+        ws.cell(row=11, column=10, value="Amount")
 
         for r in (10, 11):
-            for col in range(1, 11):
+            for col in range(1, 12):
                 cell = ws.cell(row=r, column=col)
                 cell.font = Font(bold=True)
                 cell.border = border_all
@@ -5993,13 +6051,14 @@ def build_estimate_wb(ws_src, blocks):
         ws.column_dimensions["A"].width = 6
         ws.column_dimensions["B"].width = 45
         ws.column_dimensions["C"].width = 14
-        ws.column_dimensions["D"].width = 12
-        ws.column_dimensions["E"].width = 16
-        ws.column_dimensions["F"].width = 14
-        ws.column_dimensions["G"].width = 16
-        ws.column_dimensions["H"].width = 14
-        ws.column_dimensions["I"].width = 16
-        ws.column_dimensions["J"].width = 20
+        ws.column_dimensions["D"].width = 8
+        ws.column_dimensions["E"].width = 12
+        ws.column_dimensions["F"].width = 16
+        ws.column_dimensions["G"].width = 14
+        ws.column_dimensions["H"].width = 16
+        ws.column_dimensions["I"].width = 14
+        ws.column_dimensions["J"].width = 16
+        ws.column_dimensions["K"].width = 20
 
         data_start = 12
         r = data_start
@@ -6007,23 +6066,24 @@ def build_estimate_wb(ws_src, blocks):
 
         for it in items:
             desc = it.get("desc") or ""
+            unit = it.get("unit") or ""
             rate = it.get("rate", 0.0)
             prev_qty = it.get("prev_qty", 0.0)
             prev_amount = it.get("prev_amount", 0.0)
 
             ws.cell(row=r, column=1, value=sl)
             ws.cell(row=r, column=2, value=desc)
+            ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
+            ws.cell(row=r, column=4, value=unit)
+            ws.cell(row=r, column=5, value=rate)
+            ws.cell(row=r, column=6, value=f"=C{r}*E{r}")
+            ws.cell(row=r, column=7, value=prev_qty)
+            ws.cell(row=r, column=8, value=prev_amount)
+            ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
+            ws.cell(row=r, column=10, value=f"=F{r}-H{r}")
+            ws.cell(row=r, column=11, value="")
 
-            ws.cell(row=r, column=3, value=None)
-            ws.cell(row=r, column=4, value=rate)
-            ws.cell(row=r, column=5, value=f"=C{r}*D{r}")
-            ws.cell(row=r, column=6, value=prev_qty)
-            ws.cell(row=r, column=7, value=prev_amount)
-            ws.cell(row=r, column=8, value=f"=C{r}-F{r}")
-            ws.cell(row=r, column=9, value=f"=E{r}-G{r}")
-            ws.cell(row=r, column=10, value="")
-
-            for col in range(1, 11):
+            for col in range(1, 12):
                 cell = ws.cell(row=r, column=col)
                 cell.border = border_all
                 if col == 2:
@@ -6038,33 +6098,34 @@ def build_estimate_wb(ws_src, blocks):
 
         sub_row = r
         ws.cell(row=sub_row, column=2, value="Sub Total")
-        ws.cell(row=sub_row, column=5, value=f"=SUM(E{data_start}:E{last_item_row})")
-        ws.cell(row=sub_row, column=7, value=f"=SUM(G{data_start}:G{last_item_row})")
-        ws.cell(row=sub_row, column=9, value=f"=SUM(I{data_start}:I{last_item_row})")
+        ws.cell(row=sub_row, column=6, value=f"=SUM(F{data_start}:F{last_item_row})")
+        ws.cell(row=sub_row, column=8, value=f"=SUM(H{data_start}:H{last_item_row})")
+        ws.cell(row=sub_row, column=10, value=f"=SUM(J{data_start}:J{last_item_row})")
 
         tp_row = sub_row + 1
         tp_percent = float(tp_percent or 0.0)
         tp_type = tp_type if tp_type in ("Less", "Excess") else "Excess"
 
-        ws.cell(row=tp_row, column=2, value=f"Add / Deduct T.P @ {tp_percent} % {tp_type}")
-        ws.cell(row=tp_row, column=5, value=f"=E{sub_row}*{abs(tp_percent)}/100")
-        ws.cell(row=tp_row, column=7, value=f"=G{sub_row}*{abs(tp_percent)}/100")
-        ws.cell(row=tp_row, column=9, value=f"=I{sub_row}*{abs(tp_percent)}/100")
+        label_prefix = "Deduct" if tp_type == "Less" else "Add"
+        ws.cell(row=tp_row, column=2, value=f"{label_prefix} T.P @ {tp_percent} % {tp_type}")
+        ws.cell(row=tp_row, column=6, value=f"=F{sub_row}*{abs(tp_percent)}/100")
+        ws.cell(row=tp_row, column=8, value=f"=H{sub_row}*{abs(tp_percent)}/100")
+        ws.cell(row=tp_row, column=10, value=f"=J{sub_row}*{abs(tp_percent)}/100")
 
         total_row = tp_row + 1
         ws.cell(row=total_row, column=2, value="Total")
 
         if tp_type == "Less":
-            ws.cell(row=total_row, column=5, value=f"=E{sub_row}-E{tp_row}")
-            ws.cell(row=total_row, column=7, value=f"=G{sub_row}-G{tp_row}")
-            ws.cell(row=total_row, column=9, value=f"=I{sub_row}-I{tp_row}")
+            ws.cell(row=total_row, column=6, value=f"=F{sub_row}-F{tp_row}")
+            ws.cell(row=total_row, column=8, value=f"=H{sub_row}-H{tp_row}")
+            ws.cell(row=total_row, column=10, value=f"=J{sub_row}-J{tp_row}")
         else:
-            ws.cell(row=total_row, column=5, value=f"=E{sub_row}+E{tp_row}")
-            ws.cell(row=total_row, column=7, value=f"=G{sub_row}+G{tp_row}")
-            ws.cell(row=total_row, column=9, value=f"=I{sub_row}+I{tp_row}")
+            ws.cell(row=total_row, column=6, value=f"=F{sub_row}+F{tp_row}")
+            ws.cell(row=total_row, column=8, value=f"=H{sub_row}+H{tp_row}")
+            ws.cell(row=total_row, column=10, value=f"=J{sub_row}+J{tp_row}")
 
         for rr in [sub_row, tp_row, total_row]:
-            for col in range(1, 11):
+            for col in range(1, 12):
                 cell = ws.cell(row=rr, column=col)
                 cell.font = Font(bold=True)
                 cell.border = border_all

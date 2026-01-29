@@ -580,7 +580,7 @@
                                 <!-- Nth Bill Format -->
                                 <div class="p-3 bg-light rounded">
                                     <p class="mb-2 fw-bold">3. Nth Bill (for next Nth or Final Bill)</p>
-                                    <p class="mb-2 small"><strong>Format:</strong> 10-column layout with "Quantity Till Date" in Column C header</p>
+                                    <p class="mb-2 small"><strong>Format:</strong> 11-column layout with "Quantity Till Date" in Column C and "Unit" in Column D</p>
                                     <table class="table table-sm table-bordered mb-2">
                                         <thead class="table-secondary">
                                             <tr><th>Column</th><th>Content</th></tr>
@@ -589,11 +589,12 @@
                                             <tr><td>A</td><td>Sl.No</td></tr>
                                             <tr><td>B</td><td>Item Description</td></tr>
                                             <tr><td>C</td><td>Quantity Till Date</td></tr>
-                                            <tr><td>D</td><td>Rate</td></tr>
-                                            <tr><td>E</td><td>Amount Till Date</td></tr>
-                                            <tr><td>F-G</td><td>Since Last (Qty/Amt)</td></tr>
-                                            <tr><td>H-I</td><td>Previous (Qty/Amt)</td></tr>
-                                            <tr><td>J</td><td>Unit</td></tr>
+                                            <tr><td>D</td><td>Unit</td></tr>
+                                            <tr><td>E</td><td>Rate per Unit</td></tr>
+                                            <tr><td>F</td><td>Total Value Till Date</td></tr>
+                                            <tr><td>G-H</td><td>Deduct Previous (Qty/Amt)</td></tr>
+                                            <tr><td>I-J</td><td>Since Last (Qty/Amt)</td></tr>
+                                            <tr><td>K</td><td>Remarks</td></tr>
                                         </tbody>
                                     </table>
                                     <p class="mb-0 small text-muted"><i class="bi bi-info-circle me-1"></i>The "Total" row must exist for amount calculation.</p>
