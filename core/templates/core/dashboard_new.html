@@ -373,9 +373,6 @@
             <a href="{% url 'settings' %}" class="nav-link">
                 <i class="bi bi-gear"></i> Settings
             </a>
-            <a href="{% url 'letter_settings' %}" class="nav-link">
-                <i class="bi bi-envelope-paper"></i> Letter Settings
-            </a>
             <a href="{% url 'payment_history' %}" class="nav-link">
                 <i class="bi bi-receipt"></i> Payment History
             </a>
@@ -442,6 +439,14 @@
                     <div class="stat-value">{{ stats.modules_available }}</div>
                     <div class="stat-label">Modules Available</div>
                 </div>
+                
+                <a href="{% url 'letter_settings' %}" class="stat-card" style="text-decoration: none; cursor: pointer;">
+                    <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
+                        <i class="bi bi-envelope-paper"></i>
+                    </div>
+                    <div class="stat-value" style="font-size: 1.2rem;">Configure</div>
+                    <div class="stat-label">Letter Settings</div>
+                </a>
             </div>
             
             <!-- Announcements Container (dynamically updated) -->

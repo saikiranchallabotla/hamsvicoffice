@@ -11615,9 +11615,8 @@ def temp_download_forwarding_letter(request, category):
         subj_run = subject_para.add_run('Sub:-')
         subj_run.font.underline = True
         subject_para.add_run('\t')
-        subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
-        subj_placeholder.font.color.rgb = placeholder_color
-        subj_placeholder.font.italic = True
+        subj_work = subject_para.add_run(f'{work_name} ')
+        subj_work.font.bold = True
         subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
         
         doc.add_paragraph()
@@ -13343,9 +13342,8 @@ def download_forwarding_letter_live(request, category):
         subj_run = subject_para.add_run('Sub:-')
         subj_run.font.underline = True
         subject_para.add_run('\t')
-        subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
-        subj_placeholder.font.color.rgb = placeholder_color
-        subj_placeholder.font.italic = True
+        subj_work = subject_para.add_run(f'{work_name} ')
+        subj_work.font.bold = True
         subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
         
         doc.add_paragraph()
@@ -13784,14 +13782,18 @@ def generate_estimate_forwarding_letter(request):
         
         doc.add_paragraph()
         
-        # Subject
+        # Subject - use first work name if single estimate, otherwise placeholder
         subject_para = doc.add_paragraph()
         subj_run = subject_para.add_run('Sub:-')
         subj_run.font.underline = True
         subject_para.add_run('\t')
-        subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
-        subj_placeholder.font.color.rgb = placeholder_color
-        subj_placeholder.font.italic = True
+        if len(estimates_data) == 1:
+            subj_work = subject_para.add_run(f'{estimates_data[0]["work_name"]} ')
+            subj_work.font.bold = True
+        else:
+            subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
+            subj_placeholder.font.color.rgb = placeholder_color
+            subj_placeholder.font.italic = True
         subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
         
         doc.add_paragraph()
@@ -14680,9 +14682,8 @@ def amc_download_forwarding_letter(request, category):
         subj_run = subject_para.add_run('Sub:-')
         subj_run.font.underline = True
         subject_para.add_run('\t')
-        subj_placeholder = subject_para.add_run(f'[Subject of the letter] ')
-        subj_placeholder.font.color.rgb = placeholder_color
-        subj_placeholder.font.italic = True
+        subj_work = subject_para.add_run(f'{work_name} ')
+        subj_work.font.bold = True
         subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
         
         doc.add_paragraph()
