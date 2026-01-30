@@ -103,12 +103,15 @@ class OTPService:
             getattr(settings, 'TWILIO_PHONE_NUMBER', '')
         ])
         # Email requires host, user, AND password to be properly configured
-        email_configured = all([
-            getattr(settings, 'EMAIL_HOST', ''),
-            getattr(settings, 'EMAIL_HOST_USER', ''),
-            getattr(settings, 'EMAIL_HOST_PASSWORD', '')
-        ])
+        email_host = getattr(settings, 'EMAIL_HOST', '')
+        email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+        email_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+        email_configured = all([email_host, email_user, email_pass])
+        
         dev_mode = settings.DEBUG or (not sms_configured and not email_configured)
+        
+        # Log for debugging
+        logger.info(f"[OTP_DEV_MODE] DEBUG={settings.DEBUG}, sms_configured={sms_configured}, email_configured={email_configured} (host={bool(email_host)}, user={bool(email_user)}, pass={bool(email_pass)}), dev_mode={dev_mode}")
         
         # Build response data
         response_data = {

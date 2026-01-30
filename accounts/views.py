@@ -69,13 +69,18 @@ def login_view(request):
             otp = result.get('data', {}).get('otp')
             dev_mode = result.get('data', {}).get('dev_mode', False)
             
+            # Log for debugging on Railway
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"[LOGIN_OTP] dev_mode={dev_mode}, otp={'***' if otp else 'None'}")
+            
             if dev_mode and otp:
-                # Show OTP on the login page itself
-                show_otp = otp
+                # Store in session AND show on login page
+                request.session['show_otp'] = otp
                 messages.success(request, f'OTP sent! Use the code shown below.')
                 return render(request, 'accounts/login.html', {
                     'identifier': identifier,
-                    'show_otp': show_otp,
+                    'show_otp': otp,
                     'otp_sent': True
                 })
             else:
