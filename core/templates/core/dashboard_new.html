@@ -328,9 +328,9 @@
         }
         
         .module-card .module-actions .btn {
-            flex: 1;
             font-size: 0.7rem;
             padding: 0.3rem 0.5rem;
+            white-space: nowrap;
         }
         
         /* Status Colors */
@@ -607,9 +607,9 @@
                             {% endif %}
                         {% elif card.status == 'locked' or card.status == 'expired' %}
                             {% if card.module.trial_days > 0 and not card.trial_used %}
-                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" style="flex: 1;">
+                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" class="d-inline">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-success btn-sm w-100">
+                                <button type="submit" class="btn btn-success btn-sm">
                                     <i class="bi bi-play-circle me-1"></i> Free Trial
                                 </button>
                             </form>
