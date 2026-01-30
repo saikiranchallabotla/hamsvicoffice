@@ -320,3 +320,12 @@ urlpatterns = [
 # In production with S3, files are served directly from S3
 if settings.DEBUG or os.environ.get('STORAGE_TYPE', 'local') == 'local':
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+
+# -------------------------
+# ERROR HANDLERS (Custom error pages)
+# -------------------------
+handler400 = 'estimate_site.error_views.bad_request'
+handler403 = 'estimate_site.error_views.permission_denied'
+handler404 = 'estimate_site.error_views.page_not_found'
+handler500 = 'estimate_site.error_views.server_error'

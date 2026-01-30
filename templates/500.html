@@ -1,0 +1,283 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Something Went Wrong - Hamsvic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .error-page {
+            padding: 2rem 1rem;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .error-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            max-width: 520px;
+            width: 100%;
+            overflow: hidden;
+            text-align: center;
+        }
+        
+        .error-header {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            padding: 3rem 2rem 2rem;
+        }
+        
+        .error-icon {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .error-icon i {
+            font-size: 3.5rem;
+            color: white;
+        }
+        
+        .error-code {
+            font-size: 5rem;
+            font-weight: 700;
+            color: #991b1b;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .error-body {
+            padding: 2.5rem 2rem;
+        }
+        
+        .error-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+        }
+        
+        .error-message {
+            color: #64748b;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+        
+        .error-info {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+        
+        .error-info h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #991b1b;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .error-info p {
+            margin: 0;
+            color: #7f1d1d;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .what-happened {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+        
+        .what-happened h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.75rem;
+        }
+        
+        .what-happened ul {
+            margin: 0;
+            padding-left: 1.25rem;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        
+        .what-happened li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            color: white;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+            color: white;
+        }
+        
+        .btn-secondary-custom {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #475569;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            margin-left: 0.75rem;
+        }
+        
+        .btn-secondary-custom:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+        
+        .error-footer {
+            padding: 1.5rem 2rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .error-footer p {
+            margin: 0;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        
+        .error-footer a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+        
+        .auto-reported {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #dcfce7;
+            color: #166534;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-page">
+        <div class="error-card">
+            <div class="error-header">
+                <div class="error-icon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <p class="error-code">500</p>
+            </div>
+            
+            <div class="error-body">
+                <h1 class="error-title">Something Went Wrong</h1>
+                <p class="error-message">
+                    We encountered an unexpected error while processing your request. 
+                    Our team has been notified and is working on it.
+                </p>
+                
+                <div class="error-info">
+                    <h4><i class="bi bi-info-circle"></i> What happened?</h4>
+                    <p>
+                        An internal server error occurred. This could be a temporary issue 
+                        or a bug we need to fix. Your data is safe - this error doesn't 
+                        affect any of your saved work.
+                    </p>
+                </div>
+                
+                <div class="what-happened">
+                    <h4><i class="bi bi-arrow-repeat me-2"></i>Try these steps:</h4>
+                    <ul>
+                        <li>Refresh the page and try again</li>
+                        <li>Go back and retry your action</li>
+                        <li>If the problem persists, try again in a few minutes</li>
+                        <li>Clear your browser cache if nothing else works</li>
+                    </ul>
+                </div>
+                
+                <div class="d-flex justify-content-center flex-wrap gap-2">
+                    <a href="javascript:location.reload()" class="btn-primary-custom">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Refresh Page
+                    </a>
+                    <a href="/" class="btn-secondary-custom">
+                        <i class="bi bi-house"></i>
+                        Go to Dashboard
+                    </a>
+                </div>
+                
+                <div class="auto-reported">
+                    <i class="bi bi-check-circle-fill"></i>
+                    This error has been automatically reported
+                </div>
+            </div>
+            
+            <div class="error-footer">
+                <p>
+                    Still having trouble? 
+                    <a href="/support/create-ticket/">Create a Support Ticket</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
