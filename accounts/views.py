@@ -40,6 +40,9 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
     
+    show_otp = None
+    identifier = ''
+    
     if request.method == 'POST':
         identifier = request.POST.get('identifier', '').strip()
         
@@ -62,12 +65,23 @@ def login_view(request):
         result = OTPService.request_otp(identifier, channel)
         
         if result['ok']:
-            # Store OTP in session for popup display
+            # Get OTP for display in dev mode
             otp = result.get('data', {}).get('otp')
-            if otp:
-                request.session['show_otp'] = otp
-            messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
-            return redirect('verify_otp')
+            dev_mode = result.get('data', {}).get('dev_mode', False)
+            
+            if dev_mode and otp:
+                # Show OTP on the login page itself
+                show_otp = otp
+                messages.success(request, f'OTP sent! Use the code shown below.')
+                return render(request, 'accounts/login.html', {
+                    'identifier': identifier,
+                    'show_otp': show_otp,
+                    'otp_sent': True
+                })
+            else:
+                # Production mode - redirect to verify page
+                messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
+                return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])
             return render(request, 'accounts/login.html', {'identifier': identifier})

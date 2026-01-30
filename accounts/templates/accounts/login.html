@@ -4,6 +4,136 @@
 {% block title %}Login - Hamsvic{% endblock %}
 
 {% block auth_content %}
+<!-- OTP Popup Modal - Shows in Development Mode -->
+{% if show_otp %}
+<div id="otpPopup" class="otp-popup-overlay">
+    <div class="otp-popup-modal">
+        <div class="otp-popup-dev-banner">
+            ⚠️ TESTING MODE - SMS/Email services not configured
+        </div>
+        <div class="otp-popup-header">
+            <span class="otp-popup-icon">🔐</span>
+            <h3>Your OTP Code</h3>
+        </div>
+        <div class="otp-popup-code" id="otpCodeDisplay">{{ show_otp }}</div>
+        <button type="button" class="otp-copy-btn" onclick="copyOtpCode()">
+            <span id="copyBtnText">📋 Copy Code</span>
+        </button>
+        <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
+        <a href="{% url 'verify_otp' %}" class="otp-popup-btn">Continue to Verify →</a>
+    </div>
+</div>
+<style>
+.otp-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.otp-popup-modal {
+    background: white;
+    padding: 0;
+    border-radius: 16px;
+    text-align: center;
+    max-width: 360px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: popupIn 0.3s ease;
+    overflow: hidden;
+}
+.otp-popup-dev-banner {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.otp-popup-header {
+    padding: 1.5rem 2rem 0.5rem;
+}
+.otp-popup-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.otp-popup-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #1e293b;
+}
+.otp-popup-code {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 0.5rem;
+    color: #6366f1;
+    padding: 1rem 2rem;
+    background: #f1f5f9;
+    margin: 1rem 2rem;
+    border-radius: 12px;
+    font-family: 'Courier New', monospace;
+}
+.otp-copy-btn {
+    background: none;
+    border: 2px solid #e2e8f0;
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #475569;
+    transition: all 0.2s;
+}
+.otp-copy-btn:hover {
+    border-color: #6366f1;
+    color: #6366f1;
+}
+.otp-popup-note {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin: 1rem 0;
+}
+.otp-popup-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    border: none;
+    padding: 0.875rem 2rem;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    margin: 0.5rem 2rem 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.otp-popup-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    color: white;
+}
+@keyframes popupIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+</style>
+<script>
+function copyOtpCode() {
+    const otp = document.getElementById('otpCodeDisplay').textContent.trim();
+    navigator.clipboard.writeText(otp).then(() => {
+        document.getElementById('copyBtnText').textContent = '✓ Copied!';
+        setTimeout(() => {
+            document.getElementById('copyBtnText').textContent = '📋 Copy Code';
+        }, 2000);
+    });
+}
+</script>
+{% endif %}
+
 <style>
     .auth-card {
         background: white;
