@@ -75,8 +75,7 @@ def login_view(request):
             logger.info(f"[LOGIN_OTP] dev_mode={dev_mode}, otp={'***' if otp else 'None'}")
             
             if dev_mode and otp:
-                # Store in session AND show on login page
-                request.session['show_otp'] = otp
+                # Show OTP on login page only (don't store in session to avoid duplicate)
                 messages.success(request, f'OTP sent! Use the code shown below.')
                 return render(request, 'accounts/login.html', {
                     'identifier': identifier,
