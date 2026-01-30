@@ -96,16 +96,27 @@ class OTPService:
         
         cls._audit_log(identifier, "otp_requested", {"channel": channel})
         
+        # Check if we're in development mode (no SMS/email services configured)
+        sms_configured = all([
+            getattr(settings, 'TWILIO_ACCOUNT_SID', ''),
+            getattr(settings, 'TWILIO_AUTH_TOKEN', ''),
+            getattr(settings, 'TWILIO_PHONE_NUMBER', '')
+        ])
+        email_configured = hasattr(settings, 'EMAIL_HOST') and settings.EMAIL_HOST
+        dev_mode = settings.DEBUG or (not sms_configured and not email_configured)
+        
         # Build response data
         response_data = {
             "expires_in": cls.OTP_TTL,
             "cooldown": cls.RESEND_COOLDOWN,
             "channel": channel,
+            "dev_mode": dev_mode,  # Tell frontend if we're in dev mode
         }
         
-        # Only include OTP in response during development (DEBUG mode)
-        # In production, OTP is sent via SMS/email only - never exposed in API
-        if settings.DEBUG:
+        # Include OTP in response when:
+        # 1. DEBUG mode is enabled, OR
+        # 2. No SMS/Email services are configured (development without services)
+        if dev_mode:
             response_data["otp"] = otp
         
         return cls._success(
