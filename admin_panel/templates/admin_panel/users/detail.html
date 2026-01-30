@@ -91,6 +91,49 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Role Management (Superadmin Only) -->
+        {% if request.user.is_superuser or request.user.account_profile.role == 'superadmin' %}
+        <div class="admin-card">
+            <div class="card-header">
+                <h5><i class="bi bi-shield-lock me-2"></i>Role Management</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning small mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>Security Notice:</strong> Changing roles requires your password for verification.
+                </div>
+                
+                <form action="{% url 'admin_user_change_role' target_user.id %}" method="post" id="roleChangeForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Current Role</label>
+                        <div class="badge bg-secondary fs-6">{{ profile.get_role_display|default:"User" }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">New Role</label>
+                        <select name="role" class="form-select" required>
+                            <option value="">Select new role...</option>
+                            <option value="user" {% if profile.role == 'user' %}selected{% endif %}>User</option>
+                            <option value="admin" {% if profile.role == 'admin' %}selected{% endif %}>Admin</option>
+                            <option value="superadmin" {% if profile.role == 'superadmin' %}selected{% endif %}>Super Admin</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Your Password <span class="text-danger">*</span></label>
+                        <input type="password" name="admin_password" class="form-control" required placeholder="Enter your password to confirm" autocomplete="current-password">
+                        <div class="form-text">Required for security verification</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Are you sure you want to change this user\'s role? This action will be logged.')">
+                        <i class="bi bi-shield-check me-1"></i> Change Role
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
     </div>
     
     <!-- Subscriptions & Payments -->

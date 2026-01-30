@@ -261,15 +261,54 @@ def user_toggle_status(request, user_id):
 def user_change_role(request, user_id):
     """
     Change user role (superadmin only).
+    Requires password verification for security.
     """
     user = get_object_or_404(User, id=user_id)
     profile, _ = UserProfile.objects.get_or_create(user=user)
+    
+    # Security: Require admin's password for role changes
+    admin_password = request.POST.get('admin_password', '')
+    if not admin_password:
+        messages.error(request, 'Password verification is required to change user roles.')
+        return redirect('admin_user_detail', user_id=user.id)
+    
+    if not request.user.check_password(admin_password):
+        messages.error(request, 'Incorrect password. Role change denied for security reasons.')
+        # Log failed attempt
+        from datasets.models import AuditLog
+        AuditLog.log(
+            user=request.user,
+            action='security_alert',
+            obj=user,
+            changes={'attempted_action': 'role_change', 'reason': 'incorrect_password'},
+            metadata={'target_user_id': user.id},
+            request=request
+        )
+        return redirect('admin_user_detail', user_id=user.id)
+    
+    # Prevent self-demotion for superadmins (safety measure)
+    if user.id == request.user.id:
+        messages.warning(request, 'You cannot change your own role. Ask another superadmin.')
+        return redirect('admin_user_detail', user_id=user.id)
 
     old_role = profile.role
     new_role = request.POST.get('role')
     if new_role in dict(UserProfile.ROLE_CHOICES):
         profile.role = new_role
         profile.save()
+        
+        # Update Django staff/superuser status based on role
+        if new_role == 'superadmin':
+            user.is_staff = True
+            user.is_superuser = True
+        elif new_role == 'admin':
+            user.is_staff = True
+            user.is_superuser = False
+        else:
+            user.is_staff = False
+            user.is_superuser = False
+        user.save()
+        
         # --- AUDIT LOG ---
         from datasets.models import AuditLog
         AuditLog.log(
@@ -280,10 +319,10 @@ def user_change_role(request, user_id):
                 'before': {'role': old_role},
                 'after': {'role': new_role},
             },
-            metadata={'user_id': user.id},
+            metadata={'user_id': user.id, 'security_verified': True},
             request=request
         )
-        messages.success(request, f'User {user.username} role changed to {new_role}.')
+        messages.success(request, f'User {user.username} role changed from {old_role} to {new_role}.')
     else:
         messages.error(request, 'Invalid role.')
 
