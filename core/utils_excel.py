@@ -723,16 +723,21 @@ def _eval_excel_formula(formula, ws_vals, ws_formulas, _depth=0):
 def _safe_eval_arith(s):
     """
     Safe arithmetic evaluator for numbers and + - * / parentheses only.
+    Uses AST parsing instead of eval() for security.
     """
     s = s.strip()
     if s == "":
         return 0.0
 
-    # Reject anything unexpected
+    # Reject anything unexpected - only allow digits, decimals, operators, parentheses, spaces
     if re.search(r"[^0-9\.\+\-\*\/\(\)\s]", s):
         raise ValueError("Unsafe expression")
 
-    return eval(s, {"__builtins__": None}, {})
+    # Use AST-based safe evaluation instead of eval()
+    try:
+        return _safe_eval_expr(s)
+    except Exception:
+        raise ValueError("Invalid arithmetic expression")
 
 
 def build_temp_day_rates(filepath, items_list):

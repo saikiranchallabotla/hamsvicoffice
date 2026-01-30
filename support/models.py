@@ -114,16 +114,15 @@ class FAQItem(models.Model):
         super().save(*args, **kwargs)
     
     def record_view(self):
-        self.view_count += 1
-        self.save(update_fields=['view_count'])
-    
+        from django.db.models import F
+        type(self).objects.filter(pk=self.pk).update(view_count=F('view_count') + 1)
+
     def record_helpful(self, is_helpful=True):
+        from django.db.models import F
         if is_helpful:
-            self.helpful_count += 1
+            type(self).objects.filter(pk=self.pk).update(helpful_count=F('helpful_count') + 1)
         else:
-            self.not_helpful_count += 1
-        self.save(update_fields=['helpful_count', 'not_helpful_count'])
-    
+            type(self).objects.filter(pk=self.pk).update(not_helpful_count=F('not_helpful_count') + 1)
     @property
     def helpfulness_score(self):
         total = self.helpful_count + self.not_helpful_count
@@ -233,8 +232,8 @@ class HelpGuide(models.Model):
         self.save()
     
     def record_view(self):
-        self.view_count += 1
-        self.save(update_fields=['view_count'])
+        from django.db.models import F
+        type(self).objects.filter(pk=self.pk).update(view_count=F('view_count') + 1)
     
     def get_tags_list(self):
         if self.tags:
@@ -590,13 +589,13 @@ class Announcement(models.Model):
         return True
     
     def record_view(self):
-        self.view_count += 1
-        self.save(update_fields=['view_count'])
-    
+        from django.db.models import F
+        type(self).objects.filter(pk=self.pk).update(view_count=F('view_count') + 1)
+
     def record_dismiss(self):
-        self.dismiss_count += 1
-        self.save(update_fields=['dismiss_count'])
-    
+        from django.db.models import F
+        type(self).objects.filter(pk=self.pk).update(dismiss_count=F('dismiss_count') + 1)
+
     @classmethod
     def get_active(cls, user=None, module_code=None):
         """Get active announcements for a user/module"""

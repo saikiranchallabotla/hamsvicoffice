@@ -64,9 +64,9 @@ def guide_view(request, guide_slug):
     """
     guide = get_object_or_404(HelpGuide, slug=guide_slug, is_published=True)
     
-    # Increment view count
-    guide.view_count += 1
-    guide.save(update_fields=['view_count'])
+    # Increment view count atomically to prevent race conditions
+    from django.db.models import F
+    HelpGuide.objects.filter(id=guide.id).update(view_count=F('view_count') + 1)
     
     # Get related guides
     related = HelpGuide.objects.filter(

@@ -17,15 +17,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY SETTINGS (ENVIRONMENT-BASED)
 # ==============================================================================
 
-# Load from .env; fall back to insecure default for development only
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-vhzmf%h+a(#4)k&g5da9oa8kx)1ffancns=x^qo2u=p28!+xjx'
-)
+# Secret key - MUST be set in production via environment variable
+# In development, a fallback is provided for convenience
+_dev_secret_key = 'django-insecure-dev-only-key-not-for-production'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+# Debug mode - defaults to False for safety (must explicitly enable)
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+# Validate SECRET_KEY in production
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = _dev_secret_key
+        import warnings
+        warnings.warn(
+            "Using insecure development secret key. Set DJANGO_SECRET_KEY in production!",
+            RuntimeWarning
+        )
+    else:
+        raise ValueError(
+            "DJANGO_SECRET_KEY environment variable is required in production. "
+            "Generate one with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
+        )
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # ==============================================================================
 # HTTPS/SSL SECURITY (Production only)

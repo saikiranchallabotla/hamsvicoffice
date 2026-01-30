@@ -118,9 +118,9 @@ def download_output_file(request, file_id):
     except OutputFile.DoesNotExist:
         return JsonResponse({'error': 'File not found'}, status=404)
     
-    # Increment download counter
-    output_file.download_count += 1
-    output_file.save(update_fields=['download_count'])
+    # Increment download counter atomically to prevent race conditions
+    from django.db.models import F
+    OutputFile.objects.filter(id=file_id).update(download_count=F('download_count') + 1)
     
     # For S3/DO Spaces, generate signed URL
     if hasattr(default_storage, 'url'):

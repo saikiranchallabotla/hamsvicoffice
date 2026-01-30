@@ -245,6 +245,8 @@ def rename_folder(request, folder_id):
 @require_POST
 def delete_folder(request, folder_id):
     """Delete a folder and all its contents permanently."""
+    from django.db import transaction
+    
     org = get_org_from_request(request)
     user = request.user
     
@@ -252,24 +254,27 @@ def delete_folder(request, folder_id):
     
     permanent = request.POST.get('permanent', 'false').lower() == 'true'
     
-    if permanent:
-        # Permanently delete all works and subfolders recursively
-        def delete_folder_contents(f):
-            # Delete all works in this folder
-            f.saved_works.all().delete()
-            # Recursively delete child folders
-            for child in f.children.all():
-                delete_folder_contents(child)
-                child.delete()
-        
-        delete_folder_contents(folder)
-    else:
-        # Move saved works to parent folder or root
-        folder.saved_works.update(folder=folder.parent)
-        folder.children.update(parent=folder.parent)
-    
     folder_name = folder.name
-    folder.delete()
+    
+    # Use transaction to ensure atomic deletion
+    with transaction.atomic():
+        if permanent:
+            # Permanently delete all works and subfolders recursively
+            def delete_folder_contents(f):
+                # Delete all works in this folder
+                f.saved_works.all().delete()
+                # Recursively delete child folders
+                for child in f.children.all():
+                    delete_folder_contents(child)
+                    child.delete()
+            
+            delete_folder_contents(folder)
+        else:
+            # Move saved works to parent folder or root
+            folder.saved_works.update(folder=folder.parent)
+            folder.children.update(parent=folder.parent)
+        
+        folder.delete()
     
     return JsonResponse({
         'success': True,
