@@ -12,7 +12,7 @@ from django.db.models import Count, Q
 from accounts.models import UserProfile
 from subscriptions.models import Module, UserModuleSubscription
 from support.models import Announcement
-from core.models import SavedWork, Organization, Membership
+from core.models import SavedWork, Organization, Membership, LetterSettings
 
 
 @login_required
@@ -151,6 +151,20 @@ def dashboard(request):
     except Exception:
         pass
     
+    # Check if user has filled their letter settings for better results
+    letter_settings_complete = False
+    try:
+        letter_settings = LetterSettings.objects.filter(user=user).first()
+        if letter_settings:
+            # Check if at least the essential fields are filled
+            letter_settings_complete = bool(
+                letter_settings.officer_name or 
+                letter_settings.officer_designation or 
+                letter_settings.department_name
+            )
+    except Exception:
+        pass
+    
     context = {
         'user': user,
         'profile': profile,
@@ -164,6 +178,7 @@ def dashboard(request):
             'modules_available': modules.count(),
         },
         'expiring_soon': expiring_soon,
+        'letter_settings_complete': letter_settings_complete,
     }
     
     return render(request, 'core/dashboard_new.html', context)

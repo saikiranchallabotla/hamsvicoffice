@@ -516,13 +516,31 @@
                 </div>
             </div>
             
-            <!-- Forwarding Letter Details Button - Centered -->
+            <!-- Forwarding Letter Details Section -->
+            {% if not letter_settings_complete %}
+            <div class="letter-settings-prompt" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; border-left: 4px solid #f59e0b; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    <h6 style="margin: 0 0 0.25rem 0; color: #92400e; font-weight: 600;">
+                        <i class="bi bi-lightbulb-fill me-2"></i>Complete Your Profile for Best Results
+                    </h6>
+                    <p style="margin: 0; color: #78350f; font-size: 0.9rem;">
+                        Fill in your Forwarding Letter Details to auto-populate officer information, designations, and addresses in your generated documents.
+                    </p>
+                </div>
+                <a href="{% url 'letter_settings' %}" class="action-btn" style="padding: 0.75rem 1.5rem; font-size: 0.9rem; white-space: nowrap;">
+                    <i class="bi bi-envelope-paper"></i>
+                    Set Up Now
+                </a>
+            </div>
+            {% else %}
+            <!-- Forwarding Letter Details Button - Centered (for users who have already set up) -->
             <div style="display: flex; justify-content: center; margin-bottom: 1.25rem;">
                 <a href="{% url 'letter_settings' %}" class="action-btn" style="padding: 0.875rem 2rem; font-size: 0.95rem;">
                     <i class="bi bi-envelope-paper"></i>
                     Forwarding Letter Details
                 </a>
             </div>
+            {% endif %}
             
             <!-- Module Cards -->
             <h6 class="mb-2 text-muted"><i class="bi bi-boxes me-2"></i>Your Modules</h6>
