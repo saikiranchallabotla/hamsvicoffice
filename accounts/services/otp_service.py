@@ -102,7 +102,12 @@ class OTPService:
             getattr(settings, 'TWILIO_AUTH_TOKEN', ''),
             getattr(settings, 'TWILIO_PHONE_NUMBER', '')
         ])
-        email_configured = hasattr(settings, 'EMAIL_HOST') and settings.EMAIL_HOST
+        # Email requires host, user, AND password to be properly configured
+        email_configured = all([
+            getattr(settings, 'EMAIL_HOST', ''),
+            getattr(settings, 'EMAIL_HOST_USER', ''),
+            getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+        ])
         dev_mode = settings.DEBUG or (not sms_configured and not email_configured)
         
         # Build response data
