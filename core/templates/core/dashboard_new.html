@@ -14,7 +14,7 @@
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: #f8fafc;
             min-height: 100vh;
         }
@@ -607,9 +607,9 @@
                             {% endif %}
                         {% elif card.status == 'locked' or card.status == 'expired' %}
                             {% if card.module.trial_days > 0 and not card.trial_used %}
-                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" class="d-inline">
+                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" style="flex: 1;">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-success btn-sm">
+                                <button type="submit" class="btn btn-success btn-sm w-100">
                                     <i class="bi bi-play-circle me-1"></i> Free Trial
                                 </button>
                             </form>
