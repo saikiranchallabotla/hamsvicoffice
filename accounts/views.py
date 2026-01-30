@@ -541,41 +541,73 @@ def _find_user(identifier: str):
 
 
 def _create_user(identifier: str, data: dict):
-    """Create new user from registration data."""
+    """
+    Create new user from registration data.
+    Uses database transaction to prevent race conditions.
+    """
+    from django.db import transaction, IntegrityError
+    import logging
+    
     phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
     email = data.get('email', '')
     first_name = data.get('first_name', '')
     last_name = data.get('last_name', '')
     company = data.get('company', '')
     
-    # Generate username from phone
-    username = f"user_{phone[-10:]}"
-    counter = 1
-    while User.objects.filter(username=username).exists():
-        username = f"user_{phone[-10:]}_{counter}"
-        counter += 1
-    
     try:
-        # Create user
-        user = User.objects.create(
-            username=username,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-        )
-        user.set_unusable_password()  # No password for OTP-only auth
-        user.save()
-        
-        # Create/update profile
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.phone = phone
-        profile.phone_verified = True
-        profile.company_name = company
-        profile.save()
-        
-        return user
+        with transaction.atomic():
+            # Double-check phone is not already registered (race condition prevention)
+            existing_profile = UserProfile.objects.filter(phone=phone).select_for_update().first()
+            if existing_profile:
+                logging.warning(f"Phone {phone} already registered (race condition caught)")
+                return existing_profile.user
+            
+            # Double-check email is not already registered
+            if email:
+                existing_user = User.objects.filter(email=email).first()
+                if existing_user:
+                    logging.warning(f"Email {email} already registered (race condition caught)")
+                    # If email exists but phone doesn't, could be a conflict
+                    # For now, return None to show error to user
+                    return None
+            
+            # Generate username from phone
+            username = f"user_{phone[-10:]}"
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"user_{phone[-10:]}_{counter}"
+                counter += 1
+            
+            # Create user
+            user = User.objects.create(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+            )
+            user.set_unusable_password()  # No password for OTP-only auth
+            user.save()
+            
+            # Create profile with phone
+            profile = UserProfile.objects.create(
+                user=user,
+                phone=phone,
+                phone_verified=True,
+                company_name=company
+            )
+            
+            logging.info(f"Created new user: {username} with phone: {phone}")
+            return user
+            
+    except IntegrityError as e:
+        # Handle database constraint violations (duplicate phone/email)
+        logging.error(f"IntegrityError creating user: {e}")
+        # Try to find and return existing user by phone
+        profile = UserProfile.objects.filter(phone=phone).select_related('user').first()
+        if profile:
+            return profile.user
+        return None
     except Exception as e:
-        import logging
         logging.error(f"Failed to create user: {e}")
         return None
 
@@ -589,14 +621,24 @@ def _handle_login_success(request, identifier):
     
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     
-    # Update profile
-    if hasattr(user, 'account_profile'):
-        user.account_profile.last_login_at = timezone.now()
+    # Ensure profile exists and update it
+    profile, created = UserProfile.objects.get_or_create(user=user)
+    if created:
+        # Profile was missing (legacy user or edge case) - populate from identifier
         if '@' not in identifier:
-            user.account_profile.phone_verified = True
+            phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
+            profile.phone = phone
+            profile.phone_verified = True
         else:
-            user.account_profile.email_verified = True
-        user.account_profile.save()
+            profile.email_verified = True
+    else:
+        # Update verification status
+        profile.last_login_at = timezone.now()
+        if '@' not in identifier:
+            profile.phone_verified = True
+        else:
+            profile.email_verified = True
+    profile.save()
     
     messages.success(request, f'Welcome back, {user.first_name or user.username}!')
     

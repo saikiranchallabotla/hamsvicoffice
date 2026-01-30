@@ -260,23 +260,34 @@ CELERY_TASK_ROUTES = {
 
 # Use local memory cache for development (no Redis required)
 # Switch to Redis in production by setting REDIS_URL environment variable
+# 
+# IMPORTANT: In production, REDIS_URL MUST be set!
+# Without Redis, OTPs are stored in local memory and will be LOST on:
+#   - Server restart/redeployment
+#   - Worker process recycle
+#   - Load balancer switching to different instance
+#
+# For AWS deployment, set up ElastiCache Redis or use a managed Redis service
 REDIS_URL = os.getenv('REDIS_URL', '')
 
 if REDIS_URL:
-    # Production: Use Redis
+    # Production: Use Redis - OTPs persist across restarts
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
             'LOCATION': REDIS_URL,
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
             }
         }
     }
     # Use database sessions for persistence across redeploys
     SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 else:
-    # Development: Use local memory cache
+    # Development: Use local memory cache (OK for single-instance dev)
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -285,6 +296,15 @@ else:
     }
     # Use database sessions for development
     SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+    
+    # Warn if running in production without Redis
+    if not DEBUG:
+        import warnings
+        warnings.warn(
+            "PRODUCTION WARNING: REDIS_URL is not set! OTPs will be lost on restart. "
+            "Set REDIS_URL environment variable for production deployment.",
+            RuntimeWarning
+        )
 
 # Session settings - keep users logged in
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days

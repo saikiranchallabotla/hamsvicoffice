@@ -96,14 +96,21 @@ class OTPService:
         
         cls._audit_log(identifier, "otp_requested", {"channel": channel})
         
+        # Build response data
+        response_data = {
+            "expires_in": cls.OTP_TTL,
+            "cooldown": cls.RESEND_COOLDOWN,
+            "channel": channel,
+        }
+        
+        # Only include OTP in response during development (DEBUG mode)
+        # In production, OTP is sent via SMS/email only - never exposed in API
+        if settings.DEBUG:
+            response_data["otp"] = otp
+        
         return cls._success(
             "OTP sent successfully.",
-            data={
-                "otp": otp,  # Always return OTP for popup display
-                "expires_in": cls.OTP_TTL,
-                "cooldown": cls.RESEND_COOLDOWN,
-                "channel": channel,
-            }
+            data=response_data
         )
     
     @classmethod
