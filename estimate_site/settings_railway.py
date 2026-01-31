@@ -107,7 +107,7 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
-elif DB_ENGINE == 'postgresql':
+elif DB_ENGINE in ('postgresql', 'postgres', 'postgres_psycopg2'):
     # ✅ Using individual PostgreSQL variables (DB_HOST, DB_NAME, etc.)
     logger.info('✅ Database: PostgreSQL via individual DB_* variables')
     DATABASES = {
