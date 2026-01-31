@@ -28,13 +28,26 @@ def create_user_profile(sender, instance, created, **kwargs):
         UserProfile.objects.get_or_create(user=instance)
         
         # Create default Organization for the user
-        org_slug = instance.username.lower().replace(' ', '-')
+        org_slug = instance.username.lower().replace(' ', '-').replace('_', '-')
+        # Ensure unique slug by appending user id if needed
+        base_slug = org_slug
+        counter = 1
+        while Organization.objects.filter(slug=org_slug).exists():
+            org_slug = f"{base_slug}-{counter}"
+            counter += 1
+        
         org_name = f"{instance.first_name or instance.username}'s Organization"
+        # Ensure unique name
+        base_name = org_name
+        counter = 1
+        while Organization.objects.filter(name=org_name).exists():
+            org_name = f"{base_name} {counter}"
+            counter += 1
         
         organization = Organization.objects.create(
             name=org_name,
             slug=org_slug,
-            plan=Organization.PlanType.FREE,
+            plan="free",  # Use string value, not enum
             owner=instance,
         )
         
@@ -42,7 +55,7 @@ def create_user_profile(sender, instance, created, **kwargs):
         Membership.objects.create(
             user=instance,
             organization=organization,
-            role=Membership.MembershipRole.OWNER,
+            role="owner",  # Use string value, not enum
         )
         
         logger.info(

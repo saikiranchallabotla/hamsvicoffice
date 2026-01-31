@@ -606,13 +606,21 @@ def _create_user(identifier: str, data: dict):
             user.set_unusable_password()  # No password for OTP-only auth
             user.save()
             
-            # Create profile with phone
-            profile = UserProfile.objects.create(
+            # Create or update profile with phone (signal may have already created it)
+            profile, created = UserProfile.objects.get_or_create(
                 user=user,
-                phone=phone,
-                phone_verified=True,
-                company_name=company
+                defaults={
+                    'phone': phone,
+                    'phone_verified': True,
+                    'company_name': company
+                }
             )
+            if not created:
+                # Profile was created by signal, update it with phone info
+                profile.phone = phone
+                profile.phone_verified = True
+                profile.company_name = company
+                profile.save()
             
             logging.info(f"Created new user: {username} with phone: {phone}")
             return user
