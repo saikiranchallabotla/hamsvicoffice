@@ -22,32 +22,86 @@
         /* Sidebar */
         .sidebar {
             position: fixed;
-            top: 0;
             left: 0;
+            top: 0;
             width: var(--sidebar-width);
             height: 100vh;
-            background: #1e1b4b;
-            color: white;
-            padding: 0;
+            background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
+            padding: 1.5rem;
             z-index: 1000;
             overflow-y: auto;
         }
         
         .sidebar-brand {
-            padding: 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .sidebar-brand h4 {
-            margin: 0;
-            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 1rem;
         }
         
-        .sidebar-brand .logo-icon {
-            font-size: 1.5rem;
+        .sidebar-brand .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        
+        .sidebar-brand h1 {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin: 0;
+        }
+        
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .nav-section {
+            color: rgba(255,255,255,0.4);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 1rem 0.75rem 0.5rem;
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 0.5rem;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.82rem;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        
+        .nav-link.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            font-weight: 500;
+        }
+        
+        .nav-link i {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+        }
         }
         
         .sidebar-brand .logo-text {
@@ -400,47 +454,52 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-brand">
-            <h4>
-                <span class="logo-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border-radius: 8px;">
-                    <svg width="24" height="24" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="8" y="8" width="8" height="34" rx="2" fill="#1e1b4b"/>
-                        <path d="M38 8L28 22H35L32 42L44 24H36L38 8Z" fill="#1e1b4b"/>
-                        <rect x="16" y="20" width="14" height="8" rx="1" fill="#1e1b4b"/>
-                    </svg>
-                </span>
-                <span class="logo-text">Hamsvic</span>
-            </h4>
+            <div class="logo" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border-radius: 10px;">
+                <svg width="28" height="28" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="8" y="8" width="8" height="34" rx="2" fill="#1e1b4b"/>
+                    <path d="M38 8L28 22H35L32 42L44 24H36L38 8Z" fill="#1e1b4b"/>
+                    <rect x="16" y="20" width="14" height="8" rx="1" fill="#1e1b4b"/>
+                </svg>
+            </div>
+            <h1>Hamsvic</h1>
         </div>
         
         <nav class="sidebar-nav">
             <div class="nav-section">Main</div>
             <a href="{% url 'dashboard' %}" class="nav-link active">
-                <i class="bi bi-grid-1x2-fill"></i> Dashboard
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
             </a>
             <a href="{% url 'saved_works_list' %}" class="nav-link">
-                <i class="bi bi-folder2-open"></i> My Saved Works
+                <i class="bi bi-folder2-open"></i>
+                <span>My Saved Works</span>
             </a>
             
             <div class="nav-section">Account</div>
             <a href="{% url 'settings' %}" class="nav-link">
-                <i class="bi bi-gear"></i> Settings
+                <i class="bi bi-gear"></i>
+                <span>Settings</span>
             </a>
             <a href="{% url 'payment_history' %}" class="nav-link">
-                <i class="bi bi-receipt"></i> Payment History
+                <i class="bi bi-receipt"></i>
+                <span>Payment History</span>
             </a>
             <a href="{% url 'active_sessions' %}" class="nav-link">
-                <i class="bi bi-phone"></i> Sessions
+                <i class="bi bi-phone"></i>
+                <span>Sessions</span>
             </a>
             
             <div class="nav-section">Support</div>
             <a href="{% url 'help_center' %}" class="nav-link">
-                <i class="bi bi-question-circle"></i> Help Center
+                <i class="bi bi-question-circle"></i>
+                <span>Help Center</span>
             </a>
             
             {% if user.is_superuser or user.is_staff %}
-            <div class="nav-section">Admin</div>
+            <div class="nav-section">Administration</div>
             <a href="{% url 'admin_dashboard' %}" class="nav-link">
-                <i class="bi bi-shield-lock"></i> Admin Panel
+                <i class="bi bi-shield-lock"></i>
+                <span>Admin Panel</span>
             </a>
             {% endif %}
         </nav>

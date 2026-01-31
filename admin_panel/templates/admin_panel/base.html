@@ -121,11 +121,12 @@
             left: 0;
             width: var(--sidebar-width);
             height: 100vh;
-            background: var(--admin-primary);
+            background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
             color: white;
+            padding: 1.5rem;
+            z-index: 1000;
             overflow-y: auto;
             overflow-x: hidden;
-            z-index: 1000;
             display: flex;
             flex-direction: column;
             transition: width 0.3s ease;
@@ -145,103 +146,76 @@
         }
         
         .admin-sidebar .brand {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
             display: flex;
             align-items: center;
-            gap: 0.85rem;
-            background: rgba(0,0,0,0.15);
+            gap: 0.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 1rem;
             flex-shrink: 0;
+        }
+        
+        .admin-sidebar .brand .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
         }
         
         .admin-sidebar .brand h5 {
             margin: 0;
-            font-weight: 800;
+            font-weight: 700;
             color: #ffffff;
             font-size: 1.2rem;
-            letter-spacing: -0.5px;
-        }
-        
-        .admin-sidebar .brand small {
-            display: block;
-            font-size: 0.68rem;
-            color: rgba(255,255,255,0.5);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-weight: 600;
-            margin-top: 2px;
         }
         
         .admin-nav {
-            padding: 1rem 0;
-            flex: 1;
             display: flex;
             flex-direction: column;
+            gap: 0.25rem;
+            flex: 1;
         }
         
         .admin-nav .nav-section {
-            padding: 1.25rem 1.5rem 0.5rem;
-            font-size: 0.65rem;
+            color: rgba(255,255,255,0.4);
+            font-size: 0.7rem;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: rgba(255,255,255,0.35);
-            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding: 1rem 0.75rem 0.5rem;
         }
         
         .admin-nav .nav-link {
             display: flex;
             align-items: center;
-            padding: 0.7rem 1.5rem;
+            gap: 0.5rem;
+            padding: 0.6rem 0.5rem;
             color: rgba(255,255,255,0.7);
             text-decoration: none;
-            font-size: 0.88rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            border-left: 3px solid transparent;
-            margin: 1px 0;
-            position: relative;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.82rem;
         }
         
         .admin-nav .nav-link:hover {
-            background: rgba(59,130,246,0.15);
-            color: #fff;
-            border-left-color: rgba(59,130,246,0.5);
+            background: rgba(255,255,255,0.1);
+            color: white;
         }
         
         .admin-nav .nav-link.active {
-            background: linear-gradient(90deg, rgba(59,130,246,0.25) 0%, rgba(59,130,246,0.08) 100%);
-            color: #fff;
-            border-left-color: var(--admin-accent-light);
-            font-weight: 600;
-        }
-        
-        .admin-nav .nav-link.active::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 3px;
-            height: 50%;
-            background: var(--admin-accent-light);
-            border-radius: 3px 0 0 3px;
+            background: rgba(255,255,255,0.15);
+            color: white;
+            font-weight: 500;
         }
         
         .admin-nav .nav-link i {
+            font-size: 1rem;
             width: 20px;
-            margin-right: 0.85rem;
-            font-size: 1.05rem;
-            opacity: 0.85;
             text-align: center;
-        }
-        
-        .admin-nav .nav-link .badge {
-            margin-left: auto;
-            font-size: 0.65rem;
-            font-weight: 700;
-            border-radius: 6px;
-            padding: 0.25em 0.6em;
-            background: #ef4444 !important;
         }
         
         .nav-divider {
@@ -680,84 +654,76 @@
     <!-- Sidebar -->
     <aside class="admin-sidebar">
         <div class="brand">
-            <div>
-                <h5 class="d-flex align-items-center gap-2">
-                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border-radius: 8px;">
-                        <svg width="20" height="20" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="8" y="8" width="8" height="34" rx="2" fill="#1e1b4b"/>
-                            <path d="M38 8L28 22H35L32 42L44 24H36L38 8Z" fill="#1e1b4b"/>
-                            <rect x="16" y="20" width="14" height="8" rx="1" fill="#1e1b4b"/>
-                        </svg>
-                    </span>
-                    Hamsvic
-                </h5>
-                <small>Admin Panel</small>
+            <div class="logo" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border-radius: 10px;">
+                <svg width="28" height="28" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="8" y="8" width="8" height="34" rx="2" fill="#1e1b4b"/>
+                    <path d="M38 8L28 22H35L32 42L44 24H36L38 8Z" fill="#1e1b4b"/>
+                    <rect x="16" y="20" width="14" height="8" rx="1" fill="#1e1b4b"/>
+                </svg>
             </div>
+            <h5>Hamsvic</h5>
         </div>
         
         <nav class="admin-nav">
-            <!-- Overview Section -->
             <div class="nav-section">Overview</div>
             <a href="{% url 'admin_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
-                <i class="bi bi-grid-1x2-fill"></i> Dashboard
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
             </a>
             <a href="{% url 'admin_analytics' %}" class="nav-link {% if 'analytics' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-bar-chart-fill"></i> Analytics
+                <i class="bi bi-bar-chart-fill"></i>
+                <span>Analytics</span>
             </a>
             
-            <div class="nav-divider"></div>
-            
-            <!-- User & Access Section -->
             <div class="nav-section">Users & Access</div>
             <a href="{% url 'admin_user_list' %}" class="nav-link {% if 'user' in request.resolver_match.url_name and 'analytics' not in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-people-fill"></i> Users
+                <i class="bi bi-people-fill"></i>
+                <span>Users</span>
             </a>
             <a href="{% url 'admin_subscription_list' %}" class="nav-link {% if 'subscription' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-person-check-fill"></i> Subscriptions
+                <i class="bi bi-person-check-fill"></i>
+                <span>Subscriptions</span>
             </a>
             <a href="{% url 'admin_payment_list' %}" class="nav-link {% if 'payment' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-wallet2"></i> Payments
+                <i class="bi bi-wallet2"></i>
+                <span>Payments</span>
             </a>
             
-            <div class="nav-divider"></div>
-            
-            <!-- Products Section -->
             <div class="nav-section">Products</div>
             <a href="{% url 'admin_module_list' %}" class="nav-link {% if 'module' in request.resolver_match.url_name or 'pricing' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-box-seam-fill"></i> Modules
+                <i class="bi bi-box-seam-fill"></i>
+                <span>Modules</span>
             </a>
             <a href="{% url 'admin_data_management' %}" class="nav-link {% if 'data' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-database-fill"></i> Backend Data
+                <i class="bi bi-database-fill"></i>
+                <span>Backend Data</span>
             </a>
             
-            <div class="nav-divider"></div>
-            
-            <!-- Support Section -->
             <div class="nav-section">Support</div>
             <a href="{% url 'admin_ticket_list' %}" class="nav-link {% if 'ticket' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-headset"></i> Tickets
-                {% if open_tickets_count %}<span class="badge">{{ open_tickets_count }}</span>{% endif %}
+                <i class="bi bi-headset"></i>
+                <span>Tickets</span>
             </a>
             <a href="{% url 'admin_faq_list' %}" class="nav-link {% if 'faq' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-patch-question-fill"></i> FAQs
+                <i class="bi bi-patch-question-fill"></i>
+                <span>FAQs</span>
             </a>
             
-            <div class="nav-divider"></div>
-            
-            <!-- Content Section -->
             <div class="nav-section">Content</div>
             <a href="{% url 'admin_announcement_list' %}" class="nav-link {% if 'announcement' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-megaphone-fill"></i> Announcements
+                <i class="bi bi-megaphone-fill"></i>
+                <span>Announcements</span>
             </a>
         </nav>
         
-        <!-- Sidebar Footer -->
         <div class="sidebar-footer">
             <a href="{% url 'dashboard' %}" class="nav-link">
-                <i class="bi bi-arrow-left-circle"></i> Back to App
+                <i class="bi bi-arrow-left-circle"></i>
+                <span>Back to App</span>
             </a>
             <a href="{% url 'logout' %}" class="nav-link" style="color: #ef4444;">
-                <i class="bi bi-box-arrow-right"></i> Sign Out
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Sign Out</span>
             </a>
         </div>
     </aside>
