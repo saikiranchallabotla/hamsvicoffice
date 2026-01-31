@@ -84,14 +84,34 @@ TEMPLATES = [
 WSGI_APPLICATION = 'estimate_site.wsgi.application'
 
 # ==============================================================================
-# DATABASE - Railway PostgreSQL
+# DATABASE - Railway PostgreSQL (Required)
 # ==============================================================================
+# Railway provides PostgreSQL automatically via DATABASE_URL
+# If DATABASE_URL is not set, the app cannot persist data on Railway
+# (SQLite would be ephemeral and deleted on each redeployment)
+
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 if DATABASE_URL:
+    # Using PostgreSQL (✅ data persists across redeployments)
     DATABASES = {
-        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
 else:
+    # ⚠️ WARNING: No DATABASE_URL means no PostgreSQL configured
+    # SQLite would be ephemeral on Railway and deleted on redeployment
+    # To fix: Add PostgreSQL service in Railway dashboard
+    import logging
+    logger = logging.getLogger('estimate_site.settings')
+    logger.critical(
+        '❌ DATABASE_URL not set! User data WILL BE LOST on redeployment. '
+        'Add PostgreSQL service from Railway dashboard to fix this.'
+    )
+    
+    # Fall back to SQLite for development (ephemeral on Railway!)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
