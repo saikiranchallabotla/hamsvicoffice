@@ -653,28 +653,28 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             
             qty_val = qty_map.get(name)
             
-            ws_est.cell(row=row_est, column=1, value=slno).alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=1, value=slno).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=1).border = border_all
             
-            ws_est.cell(row=row_est, column=2, value=qty_val).alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=2, value=qty_val).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=2).border = border_all
             
-            ws_est.cell(row=row_est, column=3, value=unit_plural).alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=3, value=unit_plural).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=3).border = border_all
             
-            ws_est.cell(row=row_est, column=4, value=desc).alignment = Alignment(horizontal="justify", wrap_text=True)
+            ws_est.cell(row=row_est, column=4, value=desc).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
             ws_est.cell(row=row_est, column=4).border = border_all
             
-            ws_est.cell(row=row_est, column=5, value=rate_formula).alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=5, value=rate_formula).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=5).border = border_all
             
-            ws_est.cell(row=row_est, column=6, value=1).alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=6, value=1).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=6).border = border_all
             
-            ws_est.cell(row=row_est, column=7, value=unit_singular).alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=7, value=unit_singular).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=7).border = border_all
             
-            ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}").alignment = Alignment(horizontal="center")
+            ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}").alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=8).border = border_all
             
             row_est += 1
@@ -767,9 +767,9 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             for c in range(1, 9):
                 ws_est.cell(row=r, column=c).border = border_all
                 if c == 4:
-                    ws_est.cell(row=r, column=c).alignment = Alignment(horizontal="left", wrap_text=True)
+                    ws_est.cell(row=r, column=c).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
                 else:
-                    ws_est.cell(row=r, column=c).alignment = Alignment(horizontal="center")
+                    ws_est.cell(row=r, column=c).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=r, column=4).font = Font(bold=True)
             ws_est.cell(row=r, column=8).font = Font(bold=True)
         
