@@ -772,6 +772,39 @@ def workslip(request):
                 except Exception:
                     return 0.0
 
+            # ---- Dynamic column detection for estimate sheet ----
+            # Detect column positions from header row (row 3)
+            header_row = 3
+            col_desc = 4      # D - Description (default)
+            col_qty = 2       # B - Quantity (default)
+            col_unit = 3      # C - Unit (default)
+            col_rate = 5      # E - Rate (default)
+            col_amount = 8    # H - Amount (default)
+            
+            # Scan header row to find actual column positions
+            for c in range(1, 15):  # Scan columns A to O
+                header_val = str(ws_est_sheet.cell(row=header_row, column=c).value or "").strip().lower()
+                if not header_val:
+                    continue
+                    
+                if "description" in header_val or "item" in header_val:
+                    col_desc = c
+                elif "quantity" in header_val or "qty" in header_val:
+                    # Check if it's execution qty or estimate qty
+                    if "exec" not in header_val and "execution" not in header_val:
+                        col_qty = c
+                elif "unit" in header_val and "per" not in header_val:
+                    col_unit = c
+                elif "rate" in header_val:
+                    # Check if it's execution rate or estimate rate - prefer estimate
+                    if "exec" not in header_val and "execution" not in header_val:
+                        col_rate = c
+                elif "amount" in header_val or "amt" in header_val:
+                    if "exec" not in header_val and "execution" not in header_val:
+                        col_amount = c
+            
+            logger.info(f"[WORKSLIP DEBUG] Column detection: desc={col_desc}, qty={col_qty}, unit={col_unit}, rate={col_rate}, amount={col_amount}")
+
             # ---- parse this Estimate sheet ----
             parsed_rows = []
             max_row = ws_est_sheet.max_row
@@ -795,18 +828,18 @@ def workslip(request):
             heading_idx = 0  # to walk through heading_names in order
 
             while r <= max_row:
-                desc = ws_est_sheet.cell(row=r, column=4).value  # D
+                desc = ws_est_sheet.cell(row=r, column=col_desc).value  # Dynamic column
                 desc_str = str(desc or "").strip()
                 desc_upper = desc_str.upper()
 
                 # Rate may be formula; get value from data_only sheet
-                rate_formula = ws_est_sheet.cell(row=r, column=5).value   # E (formula or value)
-                rate_value = ws_est_vals_sheet.cell(row=r, column=5).value  # E (cached value)
+                rate_formula = ws_est_sheet.cell(row=r, column=col_rate).value   # Dynamic column (formula or value)
+                rate_value = ws_est_vals_sheet.cell(row=r, column=col_rate).value  # Dynamic column (cached value)
                 rate_is_empty = (rate_formula is None or str(rate_formula).strip() == "")
 
                 # Quantity may also be formula â†’ use data_only workbook first
-                qty_formula = ws_est_sheet.cell(row=r, column=2).value   # B
-                qty_value = ws_est_vals_sheet.cell(row=r, column=2).value  # B value
+                qty_formula = ws_est_sheet.cell(row=r, column=col_qty).value   # Dynamic column
+                qty_value = ws_est_vals_sheet.cell(row=r, column=col_qty).value  # Dynamic column value
                 qty_is_empty = (qty_formula is None or str(qty_formula).strip() == "")
                 
                 # DEBUG: Log each row's data
@@ -841,7 +874,7 @@ def workslip(request):
                     else:
                         qty_num = to_number(qty_formula)
 
-                    unit = ws_est_sheet.cell(row=r, column=3).value  # C
+                    unit = ws_est_sheet.cell(row=r, column=col_unit).value  # Dynamic column
 
                     # backend item name from desc (for rate lookup, etc.)
                     backend_item_name = desc_to_item.get(desc_str, desc_str)
@@ -855,12 +888,22 @@ def workslip(request):
 
                     # rate: prefer cached numeric from data_only workbook,
                     # fallback to direct numeric or backend
-                    if isinstance(rate_value, (int, float)):
+                    if isinstance(rate_value, (int, float)) and rate_value != 0:
                         rate_num = float(rate_value)
                     else:
                         rate_num = to_number(rate_formula)
-                        if (rate_formula is None or rate_num == 0.0) and backend_item_name in item_to_info:
-                            rate_num = backend_rate_for_item(backend_item_name)
+                        # Fallback: try to get rate from backend using item name or display name
+                        if rate_num == 0.0:
+                            if backend_item_name in item_to_info:
+                                rate_num = backend_rate_for_item(backend_item_name)
+                            elif display_name in item_to_info:
+                                rate_num = backend_rate_for_item(display_name)
+                            # Also try matching by description
+                            elif desc_str in item_to_info:
+                                rate_num = backend_rate_for_item(desc_str)
+                    
+                    # DEBUG: Log rate source
+                    logger.info(f"[WORKSLIP DEBUG] Row {r} rate: formula={rate_formula}, value={rate_value}, final={rate_num}")
 
                     parsed_rows.append({
                         "key": f"{ws_est_sheet.title}_row{r}",
@@ -879,9 +922,9 @@ def workslip(request):
 
             # ---- find GRAND TOTAL *below* items block if present ----
             for rr in range(r, max_row + 1):
-                d2 = str(ws_est_sheet.cell(row=rr, column=4).value or "").strip().upper()
+                d2 = str(ws_est_sheet.cell(row=rr, column=col_desc).value or "").strip().upper()
                 if "GRAND TOTAL" in d2:
-                    grand_total_val = to_number(ws_est_vals_sheet.cell(row=rr, column=8).value)
+                    grand_total_val = to_number(ws_est_vals_sheet.cell(row=rr, column=col_amount).value)
                     break
 
             # store in session
