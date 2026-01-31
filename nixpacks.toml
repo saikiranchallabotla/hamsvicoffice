@@ -10,8 +10,9 @@ aptPkgs = ["poppler-utils"]
 
 [phases.release]
 cmds = [
-    "python manage.py migrate --noinput",
-    "python manage.py collectstatic --noinput",
-    "python manage.py create_admin",
-    "python manage.py seed_modules"
+    "python manage.py collectstatic --noinput"
 ]
+
+# Note: Migrations, admin creation, and module seeding are now done at runtime
+# in init_app.py to handle external database connections that may not be
+# accessible during the Railway build process

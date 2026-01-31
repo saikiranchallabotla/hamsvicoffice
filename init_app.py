@@ -1,11 +1,12 @@
 """
 Startup initialization script - runs on every app start.
-Ensures admin user and modules are created.
+Ensures migrations, admin user, and modules are created.
 """
 import os
 import sys
 import shutil
 import django
+from django.core.management import call_command
 
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'estimate_site.settings_railway')
@@ -17,6 +18,17 @@ from accounts.models import UserProfile
 from subscriptions.models import Module, ModulePricing
 
 User = get_user_model()
+
+
+def run_migrations():
+    """Run Django migrations to set up database schema."""
+    try:
+        print('[INIT] Running migrations...')
+        call_command('migrate', verbosity=0, interactive=False)
+        print('[INIT] ✅ Migrations completed successfully')
+    except Exception as e:
+        print(f'[INIT] ⚠️  Migrations failed: {str(e)}')
+        print('[INIT] Continuing with initialization...')
 
 
 def create_admin():
@@ -253,6 +265,7 @@ def check_storage_status():
 if __name__ == '__main__':
     print('[INIT] Running startup initialization...')
     print('[INIT] ================================================')
+    run_migrations()  # Run migrations first (must happen before other operations)
     setup_database_cache()  # Create cache table if needed
     create_admin()
     seed_modules()
