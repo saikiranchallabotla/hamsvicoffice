@@ -86,13 +86,20 @@ WSGI_APPLICATION = 'estimate_site.wsgi.application'
 # ==============================================================================
 # DATABASE - Railway PostgreSQL (Required)
 # ==============================================================================
-# Railway provides PostgreSQL automatically via DATABASE_URL
-# If DATABASE_URL is not set, the app cannot persist data on Railway
-# (SQLite would be ephemeral and deleted on each redeployment)
+# Supports three configuration methods:
+# 1. DATABASE_URL (preferred - auto-set by Railway)
+# 2. Individual DB_* environment variables (DB_ENGINE, DB_HOST, DB_NAME, etc.)
+# 3. SQLite fallback (development only - ephemeral on Railway!)
+
+import logging
+logger = logging.getLogger('estimate_site.settings')
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+DB_ENGINE = os.environ.get('DB_ENGINE', 'sqlite3')
+
 if DATABASE_URL:
-    # Using PostgreSQL (✅ data persists across redeployments)
+    # ✅ Using DATABASE_URL (Railway auto-provided PostgreSQL)
+    logger.info('✅ Database: PostgreSQL via DATABASE_URL')
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
@@ -100,15 +107,30 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
+elif DB_ENGINE == 'postgresql':
+    # ✅ Using individual PostgreSQL variables (DB_HOST, DB_NAME, etc.)
+    logger.info('✅ Database: PostgreSQL via individual DB_* variables')
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'hamsvic'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'ATOMIC_REQUESTS': True,
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+        }
+    }
 else:
-    # ⚠️ WARNING: No DATABASE_URL means no PostgreSQL configured
-    # SQLite would be ephemeral on Railway and deleted on redeployment
-    # To fix: Add PostgreSQL service in Railway dashboard
-    import logging
-    logger = logging.getLogger('estimate_site.settings')
+    # ⚠️ WARNING: No PostgreSQL configured - using SQLite
     logger.critical(
-        '❌ DATABASE_URL not set! User data WILL BE LOST on redeployment. '
-        'Add PostgreSQL service from Railway dashboard to fix this.'
+        '❌ WARNING: Using SQLite (ephemeral storage on Railway)! '
+        'User data WILL BE LOST on each redeployment. '
+        'To fix: Set DATABASE_URL or DB_ENGINE=postgresql with DB_* variables'
     )
     
     # Fall back to SQLite for development (ephemeral on Railway!)
