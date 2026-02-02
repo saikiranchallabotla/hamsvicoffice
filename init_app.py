@@ -150,7 +150,10 @@ def load_fixtures():
 def seed_module_backends():
     """
     Seed ModuleBackend entries from static data files in core/data/.
-    This restores backends after each Railway deploy when using ephemeral storage.
+    
+    IMPORTANT: This only creates backends if NONE exist for a module+category.
+    Once an admin has created/edited backends, they are never overwritten.
+    This preserves admin customizations across deployments.
     """
     from subscriptions.models import ModuleBackend, Module
     from django.core.files import File
@@ -176,6 +179,7 @@ def seed_module_backends():
     
     backends_created = 0
     backends_skipped = 0
+    backends_restored = 0
     
     for source_file, module_code, category, name, is_default in backend_configs:
         source_path = os.path.join(static_data_dir, source_file)
@@ -191,23 +195,56 @@ def seed_module_backends():
             print(f'[INIT] Warning: Module not found: {module_code}')
             continue
         
-        # Check if backend already exists for this module+category
+        # Check if ANY backend exists for this module+category (active or inactive)
+        # This ensures we NEVER overwrite admin changes
         existing = ModuleBackend.objects.filter(
             module=module,
-            category=category,
-            is_active=True
+            category=category
         ).first()
         
         if existing:
-            # Check if the file exists in media
-            if existing.file and os.path.exists(existing.file.path):
+            # Backend exists - check if file needs restoration (for local storage only)
+            # For S3/R2 storage, files persist automatically
+            storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', '')
+            
+            if 'S3Boto3Storage' in storage_backend:
+                # Using cloud storage - files persist, skip entirely
                 backends_skipped += 1
                 continue
+            
+            # Using local storage - check if file exists
+            if existing.file:
+                try:
+                    file_path = existing.file.path
+                    if os.path.exists(file_path):
+                        # File exists, don't touch it
+                        backends_skipped += 1
+                        continue
+                    else:
+                        # File is missing in local storage - restore it
+                        print(f'[INIT] Restoring missing file for: {existing.name}')
+                        dest_filename = f"{module_code}_{source_file}"
+                        dest_path = os.path.join(media_backends_dir, dest_filename)
+                        
+                        try:
+                            shutil.copy2(source_path, dest_path)
+                            existing.file = f'module_backends/{dest_filename}'
+                            existing.save(update_fields=['file'])  # Only update file, not other fields
+                            backends_restored += 1
+                            print(f'[INIT] Restored backend file: {existing.name}')
+                        except Exception as e:
+                            print(f'[INIT] Error restoring {source_file}: {e}')
+                        continue
+                except Exception:
+                    # Can't determine file path, skip
+                    backends_skipped += 1
+                    continue
             else:
-                # File is missing - need to restore it
-                print(f'[INIT] Restoring missing file for: {name}')
+                # No file set but record exists - skip (admin may have intentionally cleared it)
+                backends_skipped += 1
+                continue
         
-        # Copy file to media directory
+        # No backend exists at all - create initial one
         dest_filename = f"{module_code}_{source_file}"
         dest_path = os.path.join(media_backends_dir, dest_filename)
         
@@ -217,32 +254,26 @@ def seed_module_backends():
             print(f'[INIT] Error copying {source_file}: {e}')
             continue
         
-        # Create or update ModuleBackend entry
-        if existing:
-            # Update existing record with new file path
-            existing.file = f'module_backends/{dest_filename}'
-            existing.save()
-            print(f'[INIT] Restored backend file: {name}')
-        else:
-            # Create new record
-            ModuleBackend.objects.create(
-                module=module,
-                category=category,
-                name=name,
-                code=f'{module_code}_{category}_default',
-                file=f'module_backends/{dest_filename}',
-                is_active=True,
-                is_default=is_default,
-                display_order=0,
-            )
-            print(f'[INIT] Created backend: {name}')
-        
+        # Create new backend record
+        ModuleBackend.objects.create(
+            module=module,
+            category=category,
+            name=name,
+            code=f'{module_code}_{category}_default',
+            file=f'module_backends/{dest_filename}',
+            is_active=True,
+            is_default=is_default,
+            display_order=0,
+        )
+        print(f'[INIT] Created initial backend: {name}')
         backends_created += 1
     
     if backends_created > 0:
-        print(f'[INIT] Seeded {backends_created} module backends from static files')
+        print(f'[INIT] Created {backends_created} initial module backends')
+    if backends_restored > 0:
+        print(f'[INIT] Restored {backends_restored} missing backend files')
     if backends_skipped > 0:
-        print(f'[INIT] Skipped {backends_skipped} backends (already exist)')
+        print(f'[INIT] Preserved {backends_skipped} existing backends (no changes made)')
 
 
 def check_storage_status():
@@ -262,6 +293,82 @@ def check_storage_status():
             print(f'[INIT] ⚠️  Consider configuring S3/R2 storage for production')
 
 
+def check_data_persistence():
+    """
+    Check and report on data persistence configuration.
+    This helps identify issues before user data is lost.
+    """
+    from django.conf import settings
+    from django.db import connection
+    
+    print('[INIT] ================================================')
+    print('[INIT] DATA PERSISTENCE STATUS CHECK')
+    print('[INIT] ================================================')
+    
+    is_production = os.environ.get('RAILWAY_ENVIRONMENT') or not settings.DEBUG
+    all_ok = True
+    
+    # Check 1: Database type
+    db_engine = settings.DATABASES.get('default', {}).get('ENGINE', '')
+    if 'postgresql' in db_engine or 'postgres' in db_engine:
+        print('[INIT] ✅ DATABASE: PostgreSQL (persistent)')
+        
+        # Count user data to show what's being preserved
+        try:
+            from django.contrib.auth.models import User
+            from core.models import LetterSettings, SavedWork, SelfFormattedTemplate
+            from subscriptions.models import ModuleBackend
+            
+            user_count = User.objects.count()
+            letter_count = LetterSettings.objects.count()
+            saved_work_count = SavedWork.objects.count()
+            template_count = SelfFormattedTemplate.objects.count()
+            backend_count = ModuleBackend.objects.count()
+            
+            print(f'[INIT]    • Users: {user_count}')
+            print(f'[INIT]    • Letter Settings: {letter_count}')
+            print(f'[INIT]    • Saved Works: {saved_work_count}')
+            print(f'[INIT]    • Self-Formatted Templates: {template_count}')
+            print(f'[INIT]    • Module Backends (SOR data): {backend_count}')
+        except Exception as e:
+            print(f'[INIT]    • Could not count records: {e}')
+    else:
+        print('[INIT] ❌ DATABASE: SQLite (EPHEMERAL - DATA WILL BE LOST!)')
+        if is_production:
+            print('[INIT]    ACTION REQUIRED: Add PostgreSQL to your Railway project')
+            print('[INIT]    1. Go to Railway dashboard > Your project')
+            print('[INIT]    2. Click "+ Add" > "PostgreSQL"')
+            print('[INIT]    3. Redeploy - DATABASE_URL will be set automatically')
+        all_ok = False
+    
+    # Check 2: File storage type
+    storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', '')
+    if 'S3Boto3Storage' in storage_backend:
+        bucket = settings.STORAGES.get('default', {}).get('OPTIONS', {}).get('bucket_name', 'unknown')
+        print(f'[INIT] ✅ FILE STORAGE: S3/R2 (bucket: {bucket}) (persistent)')
+    else:
+        print('[INIT] ⚠️  FILE STORAGE: Local filesystem')
+        if is_production:
+            print('[INIT]    WARNING: Uploaded templates may be lost on redeploy!')
+            print('[INIT]    RECOMMENDED: Configure S3 or Cloudflare R2 storage')
+            print('[INIT]    Set these environment variables:')
+            print('[INIT]      STORAGE_TYPE=s3 (or r2)')
+            print('[INIT]      AWS_ACCESS_KEY_ID=your-key')
+            print('[INIT]      AWS_SECRET_ACCESS_KEY=your-secret')
+            print('[INIT]      AWS_STORAGE_BUCKET_NAME=your-bucket')
+            all_ok = False
+    
+    # Summary
+    print('[INIT] ------------------------------------------------')
+    if all_ok:
+        print('[INIT] ✅ All data persistence checks PASSED')
+        print('[INIT] ✅ User data WILL persist across deployments')
+    else:
+        print('[INIT] ⚠️  Some data persistence issues detected')
+        print('[INIT] ⚠️  Review the warnings above to prevent data loss')
+    print('[INIT] ================================================')
+
+
 if __name__ == '__main__':
     print('[INIT] Running startup initialization...')
     print('[INIT] ================================================')
@@ -271,6 +378,6 @@ if __name__ == '__main__':
     seed_modules()
     load_fixtures()
     seed_module_backends()  # Restore backends after each deploy
-    check_storage_status()  # Log storage configuration
+    check_data_persistence()  # Comprehensive data persistence check
     print('[INIT] ================================================')
     print('[INIT] Initialization complete!')

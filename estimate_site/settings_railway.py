@@ -127,11 +127,25 @@ elif DB_ENGINE in ('postgresql', 'postgres', 'postgres_psycopg2'):
     }
 else:
     # ⚠️ WARNING: No PostgreSQL configured - using SQLite
+    # This is DANGEROUS in production environments!
     logger.critical(
         '❌ WARNING: Using SQLite (ephemeral storage on Railway)! '
         'User data WILL BE LOST on each redeployment. '
         'To fix: Set DATABASE_URL or DB_ENGINE=postgresql with DB_* variables'
     )
+    
+    # In Railway production environment, refuse to start without PostgreSQL
+    # This prevents silent data loss
+    if os.environ.get('RAILWAY_ENVIRONMENT') and os.environ.get('REQUIRE_POSTGRES', 'false').lower() == 'true':
+        raise RuntimeError(
+            "CRITICAL: No PostgreSQL database configured!\n"
+            "User data (LetterSettings, SavedWorks, Templates) will be lost on every deploy.\n"
+            "To fix:\n"
+            "1. Add PostgreSQL to your Railway project (free)\n"
+            "2. Railway will auto-set DATABASE_URL\n"
+            "3. Redeploy\n"
+            "Or set REQUIRE_POSTGRES=false to use SQLite (NOT recommended for production)"
+        )
     
     # Fall back to SQLite for development (ephemeral on Railway!)
     DATABASES = {
