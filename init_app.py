@@ -149,17 +149,30 @@ def load_fixtures():
 
 def seed_module_backends():
     """
-    Seed ModuleBackend entries from static data files in core/data/.
+    Restore missing backend FILES only (not create new backend records).
     
-    IMPORTANT: This only creates backends if NONE exist for a module+category.
-    Once an admin has created/edited backends, they are never overwritten.
-    This preserves admin customizations across deployments.
+    IMPORTANT: This function does NOT auto-create backends.
+    - If admin has not added any backends, none will be created
+    - Only restores missing files for EXISTING backends (local storage only)
+    - For cloud storage (S3/R2), files persist automatically
+    
+    To seed initial backends, admin must:
+    1. Use Django admin panel, OR
+    2. Set SEED_INITIAL_BACKENDS=true environment variable
     """
     from subscriptions.models import ModuleBackend, Module
-    from django.core.files import File
     
-    # Map of static files to module backends
-    # Format: (source_file, module_code, category, name, is_default)
+    # Check if initial seeding is requested (one-time setup)
+    seed_initial = os.environ.get('SEED_INITIAL_BACKENDS', 'false').lower() == 'true'
+    
+    if not seed_initial:
+        # Only restore missing files for existing backends
+        restore_missing_backend_files()
+        return
+    
+    # === INITIAL SEEDING (only when SEED_INITIAL_BACKENDS=true) ===
+    print('[INIT] SEED_INITIAL_BACKENDS=true - Creating initial backends...')
+    
     backend_configs = [
         ('electrical.xlsx', 'new_estimate', 'electrical', 'Telangana Electrical SOR 2024-25', True),
         ('civil.xlsx', 'new_estimate', 'civil', 'Telangana Civil SOR 2024-25', True),
@@ -173,107 +186,118 @@ def seed_module_backends():
     
     static_data_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
     media_backends_dir = os.path.join(settings.MEDIA_ROOT, 'module_backends')
-    
-    # Ensure media directory exists
     os.makedirs(media_backends_dir, exist_ok=True)
     
     backends_created = 0
-    backends_skipped = 0
-    backends_restored = 0
     
     for source_file, module_code, category, name, is_default in backend_configs:
         source_path = os.path.join(static_data_dir, source_file)
         
         if not os.path.exists(source_path):
-            print(f'[INIT] Warning: Source file not found: {source_file}')
             continue
         
-        # Get the module
         try:
             module = Module.objects.get(code=module_code)
         except Module.DoesNotExist:
-            print(f'[INIT] Warning: Module not found: {module_code}')
             continue
         
-        # Check if ANY backend exists for this module+category (active or inactive)
-        # This ensures we NEVER overwrite admin changes
-        existing = ModuleBackend.objects.filter(
-            module=module,
-            category=category
-        ).first()
+        # Skip if any backend exists for this module+category
+        if ModuleBackend.objects.filter(module=module, category=category).exists():
+            continue
         
-        if existing:
-            # Backend exists - check if file needs restoration (for local storage only)
-            # For S3/R2 storage, files persist automatically
-            storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', '')
-            
-            if 'S3Boto3Storage' in storage_backend:
-                # Using cloud storage - files persist, skip entirely
-                backends_skipped += 1
-                continue
-            
-            # Using local storage - check if file exists
-            if existing.file:
-                try:
-                    file_path = existing.file.path
-                    if os.path.exists(file_path):
-                        # File exists, don't touch it
-                        backends_skipped += 1
-                        continue
-                    else:
-                        # File is missing in local storage - restore it
-                        print(f'[INIT] Restoring missing file for: {existing.name}')
-                        dest_filename = f"{module_code}_{source_file}"
-                        dest_path = os.path.join(media_backends_dir, dest_filename)
-                        
-                        try:
-                            shutil.copy2(source_path, dest_path)
-                            existing.file = f'module_backends/{dest_filename}'
-                            existing.save(update_fields=['file'])  # Only update file, not other fields
-                            backends_restored += 1
-                            print(f'[INIT] Restored backend file: {existing.name}')
-                        except Exception as e:
-                            print(f'[INIT] Error restoring {source_file}: {e}')
-                        continue
-                except Exception:
-                    # Can't determine file path, skip
-                    backends_skipped += 1
-                    continue
-            else:
-                # No file set but record exists - skip (admin may have intentionally cleared it)
-                backends_skipped += 1
-                continue
-        
-        # No backend exists at all - create initial one
+        # Copy file and create backend
         dest_filename = f"{module_code}_{source_file}"
         dest_path = os.path.join(media_backends_dir, dest_filename)
         
         try:
             shutil.copy2(source_path, dest_path)
+            ModuleBackend.objects.create(
+                module=module,
+                category=category,
+                name=name,
+                code=f'{module_code}_{category}_default',
+                file=f'module_backends/{dest_filename}',
+                is_active=True,
+                is_default=is_default,
+                display_order=0,
+            )
+            backends_created += 1
         except Exception as e:
-            print(f'[INIT] Error copying {source_file}: {e}')
-            continue
-        
-        # Create new backend record
-        ModuleBackend.objects.create(
-            module=module,
-            category=category,
-            name=name,
-            code=f'{module_code}_{category}_default',
-            file=f'module_backends/{dest_filename}',
-            is_active=True,
-            is_default=is_default,
-            display_order=0,
-        )
-        print(f'[INIT] Created initial backend: {name}')
-        backends_created += 1
+            print(f'[INIT] Error creating backend {name}: {e}')
     
     if backends_created > 0:
-        print(f'[INIT] Created {backends_created} initial module backends')
-    if backends_restored > 0:
-        print(f'[INIT] Restored {backends_restored} missing backend files')
-    if backends_skipped > 0:
-        print(f'[INIT] Preserved {backends_skipped} existing backends (no changes made)')
+        print(f'[INIT] Created {backends_created} initial backends')
+    
+    print('[INIT] TIP: Remove SEED_INITIAL_BACKENDS env var after first deploy')
+
+
+def restore_missing_backend_files():
+    """
+    Restore missing backend files for EXISTING backends only.
+    Does NOT create new backend records.
+    Only needed for local storage - cloud storage files persist automatically.
+    """
+    from subscriptions.models import ModuleBackend
+    
+    # Skip if using cloud storage
+    storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', '')
+    if 'S3Boto3Storage' in storage_backend:
+        return
+    
+    static_data_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
+    media_backends_dir = os.path.join(settings.MEDIA_ROOT, 'module_backends')
+    
+    # Map of expected source files
+    file_mapping = {
+        'new_estimate_electrical': 'electrical.xlsx',
+        'new_estimate_civil': 'civil.xlsx',
+        'workslip_electrical': 'electrical.xlsx',
+        'workslip_civil': 'civil.xlsx',
+        'temp_works_electrical': 'temp_electrical.xlsx',
+        'temp_works_civil': 'temp_civil.xlsx',
+        'amc_electrical': 'amc_electrical.xlsx',
+        'amc_civil': 'amc_civil.xlsx',
+    }
+    
+    restored = 0
+    
+    for backend in ModuleBackend.objects.filter(file__isnull=False).exclude(file=''):
+        if not backend.file:
+            continue
+        
+        try:
+            file_path = backend.file.path
+            if os.path.exists(file_path):
+                continue  # File exists, skip
+        except Exception:
+            continue
+        
+        # File is missing - try to restore from static data
+        key = f"{backend.module.code}_{backend.category}"
+        source_file = file_mapping.get(key)
+        
+        if not source_file:
+            continue
+        
+        source_path = os.path.join(static_data_dir, source_file)
+        if not os.path.exists(source_path):
+            continue
+        
+        os.makedirs(media_backends_dir, exist_ok=True)
+        dest_filename = f"{backend.module.code}_{source_file}"
+        dest_path = os.path.join(media_backends_dir, dest_filename)
+        
+        try:
+            shutil.copy2(source_path, dest_path)
+            backend.file = f'module_backends/{dest_filename}'
+            backend.save(update_fields=['file'])
+            restored += 1
+            print(f'[INIT] Restored missing file for backend: {backend.name}')
+        except Exception as e:
+            print(f'[INIT] Error restoring file for {backend.name}: {e}')
+    
+    if restored > 0:
+        print(f'[INIT] Restored {restored} missing backend files')
 
 
 def check_storage_status():
