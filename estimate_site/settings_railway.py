@@ -16,7 +16,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ==============================================================================
 # SECRET_KEY MUST be set in Railway environment variables for session persistence
 # If not set, sessions will be invalidated on every deployment!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-hamsvik-default-key-set-in-railway-env-vars-for-persistence')
+# Checks both SECRET_KEY and DJANGO_SECRET_KEY for compatibility
+SECRET_KEY = os.environ.get('SECRET_KEY') or os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-fallback-set-secret-key-in-railway')
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['*']  # Railway handles this at proxy level
 
