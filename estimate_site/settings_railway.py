@@ -14,9 +14,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ==============================================================================
 # CORE SETTINGS
 # ==============================================================================
-SECRET_KEY = os.environ.get('SECRET_KEY', 'railway-pilot-secret-key-change-in-production')
+# SECRET_KEY MUST be set in Railway environment variables for session persistence
+# If not set, sessions will be invalidated on every deployment!
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-hamsvik-default-key-set-in-railway-env-vars-for-persistence')
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['*']  # Railway handles this at proxy level
+
+# CSRF Trusted Origins for Railway
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.railway.app',
+    'https://*.up.railway.app',
+]
+
+# Add custom domain if configured
+CUSTOM_DOMAIN = os.environ.get('CUSTOM_DOMAIN', '')
+if CUSTOM_DOMAIN:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{CUSTOM_DOMAIN}')
+    CSRF_TRUSTED_ORIGINS.append(f'http://{CUSTOM_DOMAIN}')
 
 # ==============================================================================
 # APPLICATION CONFIGURATION
@@ -239,7 +253,18 @@ CACHES = {
         'LOCATION': 'django_cache_table',
     }
 }
+
+# Session Configuration - Database-backed for persistence across deployments
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session on each request
+
+# CSRF Cookie settings
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
 
 # ==============================================================================
 # CELERY - Run tasks synchronously (no Redis/worker needed)
