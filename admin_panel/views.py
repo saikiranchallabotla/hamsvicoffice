@@ -581,58 +581,128 @@ def subscription_list(request):
 @require_http_methods(["GET", "POST"])
 def grant_subscription(request, user_id):
     """
-    Grant a subscription to a user manually.
+    Grant subscriptions to a user manually.
+    Supports granting trial or full access to individual modules or all modules at once.
     """
     user = get_object_or_404(User, id=user_id)
-    modules = Module.objects.filter(is_active=True)
+    modules = Module.objects.filter(is_active=True).order_by('display_order', 'name')
     
     # Get selected module from query param for pre-selection
     selected_module = request.GET.get('module', '')
     
-    if request.method == 'POST':
-        module_id = request.POST.get('module')  # Form field is named 'module'
-        
-        # Handle duration - check for custom days
-        duration = request.POST.get('duration', '30')
-        if duration == 'custom':
-            duration_days = int(request.POST.get('custom_days', 30))
-        else:
-            duration_days = int(duration)
-        
-        status = request.POST.get('sub_type', 'active')  # Form field is named 'sub_type'
-        reason = request.POST.get('note', '')  # Form field is named 'note'
-        
-        module = get_object_or_404(Module, id=module_id)
-        
-        # Check for existing subscription
-        existing = UserModuleSubscription.objects.filter(
+    # Get user's existing subscriptions for display
+    existing_subs = {
+        sub.module_id: sub 
+        for sub in UserModuleSubscription.objects.filter(
             user=user,
-            module=module,
-            status__in=['active', 'trial']
-        ).first()
+            status__in=['active', 'trial'],
+            expires_at__gt=timezone.now()
+        )
+    }
+    
+    if request.method == 'POST':
+        access_type = request.POST.get('access_type', 'full')  # 'trial' or 'full'
+        module_selection = request.POST.get('module_selection', 'individual')  # 'individual' or 'all'
+        selected_module_ids = request.POST.getlist('modules')  # List of module IDs
         
-        if existing:
-            # Extend existing
-            existing.expires_at = existing.expires_at + timedelta(days=duration_days)
-            existing.save()
-            messages.success(request, f'Extended {module.name} subscription by {duration_days} days.')
+        # Handle duration
+        if access_type == 'trial':
+            # Trial duration
+            trial_duration = request.POST.get('trial_duration', '1')
+            if trial_duration == 'custom':
+                duration_days = int(request.POST.get('trial_custom_days', 1))
+            else:
+                duration_days = int(trial_duration)
+            status = 'trial'
         else:
-            # Create new
-            UserModuleSubscription.objects.create(
+            # Full access duration
+            full_duration = request.POST.get('full_duration', '30')
+            if full_duration == 'custom':
+                duration_days = int(request.POST.get('full_custom_days', 30))
+            else:
+                duration_days = int(full_duration)
+            status = 'active'
+        
+        reason = request.POST.get('note', '')
+        
+        # Determine which modules to grant
+        if module_selection == 'all':
+            modules_to_grant = modules
+        else:
+            modules_to_grant = Module.objects.filter(id__in=selected_module_ids, is_active=True)
+        
+        if not modules_to_grant.exists():
+            messages.error(request, 'Please select at least one module.')
+            return redirect('admin_grant_subscription', user_id=user.id)
+        
+        granted_count = 0
+        extended_count = 0
+        
+        for module in modules_to_grant:
+            # Check for existing subscription
+            existing = UserModuleSubscription.objects.filter(
                 user=user,
                 module=module,
-                status=status,
-                started_at=timezone.now(),
-                expires_at=timezone.now() + timedelta(days=duration_days),
+                status__in=['active', 'trial'],
+                expires_at__gt=timezone.now()
+            ).first()
+            
+            if existing:
+                # Extend existing
+                existing.expires_at = existing.expires_at + timedelta(days=duration_days)
+                existing.status = status  # Update status if changing from trial to full
+                existing.save()
+                extended_count += 1
+            else:
+                # Create new
+                UserModuleSubscription.objects.create(
+                    user=user,
+                    module=module,
+                    status=status,
+                    started_at=timezone.now(),
+                    expires_at=timezone.now() + timedelta(days=duration_days),
+                )
+                granted_count += 1
+        
+        access_label = 'Trial' if access_type == 'trial' else 'Full Access'
+        
+        if granted_count > 0 and extended_count > 0:
+            messages.success(
+                request, 
+                f'Granted {access_label} for {granted_count} module(s) and extended {extended_count} existing subscription(s) by {duration_days} days.'
             )
-            messages.success(request, f'Granted {module.name} subscription for {duration_days} days.')
+        elif granted_count > 0:
+            messages.success(
+                request, 
+                f'Granted {access_label} for {granted_count} module(s) for {duration_days} days.'
+            )
+        elif extended_count > 0:
+            messages.success(
+                request, 
+                f'Extended {extended_count} existing subscription(s) by {duration_days} days.'
+            )
         
         return redirect('admin_user_detail', user_id=user.id)
+    
+    # Prepare modules with existing subscription info
+    modules_with_status = []
+    for module in modules:
+        existing_sub = existing_subs.get(module.id)
+        modules_with_status.append({
+            'module': module,
+            'has_subscription': existing_sub is not None,
+            'subscription': existing_sub,
+            'status': existing_sub.status if existing_sub else None,
+            'expires_at': existing_sub.expires_at if existing_sub else None,
+            'days_remaining': existing_sub.days_remaining() if existing_sub else 0,
+        })
     
     context = {
         'target_user': user,
         'modules': modules,
+        'modules_with_status': modules_with_status,
         'selected_module': selected_module,
+        'existing_subs': existing_subs,
     }
     
     return render(request, 'admin_panel/subscriptions/grant.html', context)

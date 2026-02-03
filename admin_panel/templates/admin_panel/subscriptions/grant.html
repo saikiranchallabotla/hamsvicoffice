@@ -8,97 +8,763 @@
 <li class="breadcrumb-item active">Grant Subscription</li>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    .grant-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .user-info-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .user-avatar {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.2rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    
+    .user-details h4 {
+        margin: 0;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .user-details p {
+        margin: 0;
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+    
+    .access-type-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 1.5rem;
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 4px;
+    }
+    
+    .access-type-tab {
+        flex: 1;
+        padding: 1rem 1.5rem;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.95rem;
+        border-radius: 10px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    
+    .access-type-tab.trial {
+        color: #d97706;
+    }
+    
+    .access-type-tab.full {
+        color: #059669;
+    }
+    
+    .access-type-tab.active {
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .access-type-tab.active.trial {
+        color: #d97706;
+    }
+    
+    .access-type-tab.active.full {
+        color: #059669;
+    }
+    
+    .access-section {
+        display: none;
+    }
+    
+    .access-section.active {
+        display: block;
+    }
+    
+    .section-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+        overflow: hidden;
+    }
+    
+    .section-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .section-header h5 {
+        margin: 0;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .section-header.trial {
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    }
+    
+    .section-header.trial h5 {
+        color: #92400e;
+    }
+    
+    .section-header.full {
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    }
+    
+    .section-header.full h5 {
+        color: #065f46;
+    }
+    
+    .section-body {
+        padding: 1.5rem;
+    }
+    
+    .module-selection-type {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .selection-option {
+        flex: 1;
+        padding: 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+    }
+    
+    .selection-option:hover {
+        border-color: #94a3b8;
+    }
+    
+    .selection-option.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+    
+    .selection-option input {
+        display: none;
+    }
+    
+    .selection-option i {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .selection-option .label {
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .selection-option .desc {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-top: 0.25rem;
+    }
+    
+    .module-list {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        max-height: 500px;
+        overflow-y: auto;
+        margin-bottom: 1.5rem;
+    }
+    
+    .module-list.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+    
+    .module-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.15s;
+    }
+    
+    .module-item:last-child {
+        border-bottom: none;
+    }
+    
+    .module-item:hover {
+        background: #f8fafc;
+    }
+    
+    .module-item input {
+        margin-right: 0.75rem;
+        width: 18px;
+        height: 18px;
+    }
+    
+    .module-info {
+        flex: 1;
+    }
+    
+    .module-name {
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .module-status {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    .module-badge {
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .module-badge.active {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+    
+    .module-badge.trial {
+        background: #fef3c7;
+        color: #d97706;
+    }
+    
+    .module-badge.none {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+    
+    .duration-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .duration-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .duration-option {
+        padding: 0.5rem 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+    }
+    
+    .duration-option:hover {
+        border-color: #94a3b8;
+    }
+    
+    .duration-option.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    
+    .duration-option input {
+        display: none;
+    }
+    
+    .custom-days-input {
+        display: none;
+        margin-top: 1rem;
+    }
+    
+    .custom-days-input.show {
+        display: block;
+    }
+    
+    .note-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .submit-section {
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .btn-grant {
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+    
+    .btn-grant.trial {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+    }
+    
+    .btn-grant.trial:hover {
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    }
+    
+    .btn-grant.full {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+    
+    .btn-grant.full:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    }
+    
+    .btn-cancel {
+        padding: 0.875rem 1.5rem;
+        border: 2px solid #e2e8f0;
+        background: white;
+        border-radius: 10px;
+        font-weight: 600;
+        color: #64748b;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+    
+    .btn-cancel:hover {
+        border-color: #94a3b8;
+        color: #475569;
+    }
+    
+    .select-all-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .select-all-bar label {
+        font-weight: 600;
+        color: #475569;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .selected-count {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-6">
-        <div class="admin-card">
-            <div class="card-header">
-                <h5>Grant Subscription</h5>
-            </div>
-            <div class="card-body">
-                <!-- User Info -->
-                <div class="d-flex align-items-center mb-4 p-3 bg-light rounded">
-                    <div class="user-avatar me-3" style="width:48px;height:48px;background:linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;font-weight:600;">
-                        {{ target_user.first_name|slice:":1"|upper|default:"U" }}
+<div class="grant-container">
+    <!-- User Info Card -->
+    <div class="user-info-card">
+        <div class="user-avatar">
+            {{ target_user.first_name|slice:":1"|upper|default:"U" }}
+        </div>
+        <div class="user-details">
+            <h4>{{ target_user.get_full_name|default:target_user.username }}</h4>
+            <p>{{ target_user.email }}</p>
+        </div>
+    </div>
+    
+    <!-- Access Type Tabs -->
+    <div class="access-type-tabs">
+        <button type="button" class="access-type-tab trial active" data-type="trial">
+            <i class="bi bi-clock"></i>
+            Free Trial Access
+        </button>
+        <button type="button" class="access-type-tab full" data-type="full">
+            <i class="bi bi-star-fill"></i>
+            Full Access
+        </button>
+    </div>
+    
+    <!-- Trial Access Section -->
+    <div id="trial-section" class="access-section active">
+        <form method="post" id="trial-form">
+            {% csrf_token %}
+            <input type="hidden" name="access_type" value="trial">
+            
+            <div class="section-card">
+                <div class="section-header trial">
+                    <h5><i class="bi bi-clock"></i> Grant Free Trial Access</h5>
+                </div>
+                <div class="section-body">
+                    <!-- Module Selection Type -->
+                    <label class="form-label fw-semibold mb-2">Select Modules</label>
+                    <div class="module-selection-type">
+                        <label class="selection-option selected" data-value="individual">
+                            <input type="radio" name="module_selection" value="individual" checked>
+                            <i class="bi bi-check2-square"></i>
+                            <div class="label">Individual Modules</div>
+                            <div class="desc">Select specific modules</div>
+                        </label>
+                        <label class="selection-option" data-value="all">
+                            <input type="radio" name="module_selection" value="all">
+                            <i class="bi bi-grid-3x3-gap-fill"></i>
+                            <div class="label">All Modules</div>
+                            <div class="desc">Grant access to all {{ modules_with_status|length }} modules</div>
+                        </label>
                     </div>
-                    <div>
-                        <div class="fw-semibold">{{ target_user.get_full_name|default:target_user.username }}</div>
-                        <div class="text-muted small">{{ target_user.email }}</div>
+                    
+                    <!-- Module List -->
+                    <div class="module-list" id="trial-module-list">
+                        <div class="select-all-bar">
+                            <label>
+                                <input type="checkbox" id="trial-select-all"> Select All ({{ modules_with_status|length }} modules)
+                            </label>
+                            <span class="selected-count" id="trial-selected-count">0 of {{ modules_with_status|length }} selected</span>
+                        </div>
+                        {% for item in modules_with_status %}
+                        <div class="module-item">
+                            <input type="checkbox" name="modules" value="{{ item.module.id }}" 
+                                   id="trial-module-{{ item.module.id }}" class="trial-module-checkbox"
+                                   {% if selected_module == item.module.code %}checked{% endif %}>
+                            <div class="module-info">
+                                <div class="module-name">{{ item.module.name }}</div>
+                                <div class="module-status">
+                                    {% if item.has_subscription %}
+                                        {{ item.subscription.get_status_display }} - {{ item.days_remaining }} days remaining
+                                    {% else %}
+                                        No active subscription
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="module-badge {% if item.subscription.status == 'active' %}active{% elif item.subscription.status == 'trial' %}trial{% else %}none{% endif %}">
+                                {% if item.has_subscription %}
+                                    {{ item.subscription.get_status_display }}
+                                {% else %}
+                                    None
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Trial Duration -->
+                    <div class="duration-section">
+                        <label class="form-label fw-semibold mb-2">Trial Duration</label>
+                        <div class="duration-options" id="trial-duration-options">
+                            <label class="duration-option selected">
+                                <input type="radio" name="trial_duration" value="1" checked> 1 Day
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="trial_duration" value="3"> 3 Days
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="trial_duration" value="7"> 7 Days
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="trial_duration" value="14"> 14 Days
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="trial_duration" value="30"> 30 Days
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="trial_duration" value="custom"> Custom
+                            </label>
+                        </div>
+                        <div class="custom-days-input" id="trial-custom-days">
+                            <input type="number" name="trial_custom_days" class="form-control" 
+                                   min="1" max="365" placeholder="Enter number of days">
+                        </div>
+                    </div>
+                    
+                    <!-- Note -->
+                    <div class="note-section">
+                        <label class="form-label fw-semibold mb-2">Admin Note (Optional)</label>
+                        <textarea name="note" class="form-control" rows="2" 
+                                  placeholder="Optional note for audit log..."></textarea>
+                    </div>
+                    
+                    <!-- Submit -->
+                    <div class="submit-section">
+                        <a href="{% url 'admin_user_detail' target_user.id %}" class="btn-cancel">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn-grant trial">
+                            <i class="bi bi-clock"></i> Grant Trial Access
+                        </button>
                     </div>
                 </div>
-                
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Module <span class="text-danger">*</span></label>
-                        <select name="module" class="form-select" required>
-                            <option value="">Select Module</option>
-                            {% for m in modules %}
-                            <option value="{{ m.id }}" {% if selected_module == m.code %}selected{% endif %}>{{ m.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Subscription Type <span class="text-danger">*</span></label>
-                        <div class="btn-group w-100" role="group">
-                            <input type="radio" class="btn-check" name="sub_type" id="type_trial" value="trial">
-                            <label class="btn btn-outline-secondary" for="type_trial">
-                                <i class="bi bi-clock me-1"></i> Trial
-                            </label>
-                            
-                            <input type="radio" class="btn-check" name="sub_type" id="type_active" value="active" checked>
-                            <label class="btn btn-outline-secondary" for="type_active">
-                                <i class="bi bi-star me-1"></i> Full Access
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Duration</label>
-                            <select name="duration" class="form-select">
-                                <option value="7">7 days</option>
-                                <option value="30" selected>30 days</option>
-                                <option value="90">90 days (3 months)</option>
-                                <option value="180">180 days (6 months)</option>
-                                <option value="365">365 days (1 year)</option>
-                                <option value="custom">Custom</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6" id="customDaysContainer" style="display:none;">
-                            <label class="form-label">Custom Days</label>
-                            <input type="number" name="custom_days" class="form-control" min="1" max="1825" placeholder="Enter days">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Usage Limit</label>
-                        <input type="number" name="usage_limit" class="form-control" value="0" min="0">
-                        <div class="form-text">0 = unlimited uses</div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label">Admin Note</label>
-                        <textarea name="note" class="form-control" rows="2" placeholder="Optional note for audit log..."></textarea>
-                    </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-gift me-1"></i> Grant Subscription
-                        </button>
-                        <a href="{% url 'admin_user_detail' target_user.id %}" class="btn btn-outline-secondary">Cancel</a>
-                    </div>
-                </form>
             </div>
-        </div>
+        </form>
+    </div>
+    
+    <!-- Full Access Section -->
+    <div id="full-section" class="access-section">
+        <form method="post" id="full-form">
+            {% csrf_token %}
+            <input type="hidden" name="access_type" value="full">
+            
+            <div class="section-card">
+                <div class="section-header full">
+                    <h5><i class="bi bi-star-fill"></i> Grant Full Access</h5>
+                </div>
+                <div class="section-body">
+                    <!-- Module Selection Type -->
+                    <label class="form-label fw-semibold mb-2">Select Modules</label>
+                    <div class="module-selection-type">
+                        <label class="selection-option selected" data-value="individual">
+                            <input type="radio" name="module_selection" value="individual" checked>
+                            <i class="bi bi-check2-square"></i>
+                            <div class="label">Individual Modules</div>
+                            <div class="desc">Select specific modules</div>
+                        </label>
+                        <label class="selection-option" data-value="all">
+                            <input type="radio" name="module_selection" value="all">
+                            <i class="bi bi-grid-3x3-gap-fill"></i>
+                            <div class="label">All Modules</div>
+                            <div class="desc">Grant access to all {{ modules_with_status|length }} modules</div>
+                        </label>
+                    </div>
+                    
+                    <!-- Module List -->
+                    <div class="module-list" id="full-module-list">
+                        <div class="select-all-bar">
+                            <label>
+                                <input type="checkbox" id="full-select-all"> Select All ({{ modules_with_status|length }} modules)
+                            </label>
+                            <span class="selected-count" id="full-selected-count">0 of {{ modules_with_status|length }} selected</span>
+                        </div>
+                        {% for item in modules_with_status %}
+                        <div class="module-item">
+                            <input type="checkbox" name="modules" value="{{ item.module.id }}" 
+                                   id="full-module-{{ item.module.id }}" class="full-module-checkbox"
+                                   {% if selected_module == item.module.code %}checked{% endif %}>
+                            <div class="module-info">
+                                <div class="module-name">{{ item.module.name }}</div>
+                                <div class="module-status">
+                                    {% if item.has_subscription %}
+                                        {{ item.subscription.get_status_display }} - {{ item.days_remaining }} days remaining
+                                    {% else %}
+                                        No active subscription
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="module-badge {% if item.subscription.status == 'active' %}active{% elif item.subscription.status == 'trial' %}trial{% else %}none{% endif %}">
+                                {% if item.has_subscription %}
+                                    {{ item.subscription.get_status_display }}
+                                {% else %}
+                                    None
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Full Access Duration -->
+                    <div class="duration-section">
+                        <label class="form-label fw-semibold mb-2">Subscription Duration</label>
+                        <div class="duration-options" id="full-duration-options">
+                            <label class="duration-option">
+                                <input type="radio" name="full_duration" value="7"> 7 Days
+                            </label>
+                            <label class="duration-option selected">
+                                <input type="radio" name="full_duration" value="30" checked> 30 Days
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="full_duration" value="90"> 90 Days
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="full_duration" value="180"> 6 Months
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="full_duration" value="365"> 1 Year
+                            </label>
+                            <label class="duration-option">
+                                <input type="radio" name="full_duration" value="custom"> Custom
+                            </label>
+                        </div>
+                        <div class="custom-days-input" id="full-custom-days">
+                            <input type="number" name="full_custom_days" class="form-control" 
+                                   min="1" max="1825" placeholder="Enter number of days">
+                        </div>
+                    </div>
+                    
+                    <!-- Note -->
+                    <div class="note-section">
+                        <label class="form-label fw-semibold mb-2">Admin Note (Optional)</label>
+                        <textarea name="note" class="form-control" rows="2" 
+                                  placeholder="Optional note for audit log..."></textarea>
+                    </div>
+                    
+                    <!-- Submit -->
+                    <div class="submit-section">
+                        <a href="{% url 'admin_user_detail' target_user.id %}" class="btn-cancel">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn-grant full">
+                            <i class="bi bi-star-fill"></i> Grant Full Access
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
-document.querySelector('select[name="duration"]').addEventListener('change', function() {
-    document.getElementById('customDaysContainer').style.display = this.value === 'custom' ? 'block' : 'none';
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching
+    const tabs = document.querySelectorAll('.access-type-tab');
+    const sections = document.querySelectorAll('.access-section');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const type = this.dataset.type;
+            
+            // Update tabs
+            tabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update sections
+            sections.forEach(s => s.classList.remove('active'));
+            document.getElementById(type + '-section').classList.add('active');
+        });
+    });
+    
+    // Module selection type (individual vs all)
+    document.querySelectorAll('.selection-option').forEach(option => {
+        option.addEventListener('click', function() {
+            const form = this.closest('form');
+            const value = this.dataset.value;
+            
+            // Update selection
+            form.querySelectorAll('.selection-option').forEach(o => o.classList.remove('selected'));
+            this.classList.add('selected');
+            
+            // Toggle module list
+            const moduleList = form.querySelector('.module-list');
+            if (value === 'all') {
+                moduleList.classList.add('disabled');
+            } else {
+                moduleList.classList.remove('disabled');
+            }
+        });
+    });
+    
+    // Duration options
+    document.querySelectorAll('.duration-option').forEach(option => {
+        option.addEventListener('click', function() {
+            const container = this.closest('.duration-options');
+            const form = this.closest('form');
+            const isCustom = this.querySelector('input').value === 'custom';
+            
+            // Update selection
+            container.querySelectorAll('.duration-option').forEach(o => o.classList.remove('selected'));
+            this.classList.add('selected');
+            
+            // Show/hide custom input
+            const customInput = form.querySelector('.custom-days-input');
+            if (isCustom) {
+                customInput.classList.add('show');
+            } else {
+                customInput.classList.remove('show');
+            }
+        });
+    });
+    
+    // Select all functionality
+    function setupSelectAll(prefix) {
+        const selectAll = document.getElementById(prefix + '-select-all');
+        const checkboxes = document.querySelectorAll('.' + prefix + '-module-checkbox');
+        const countSpan = document.getElementById(prefix + '-selected-count');
+        const totalModules = checkboxes.length;
+        
+        function updateCount() {
+            const checked = document.querySelectorAll('.' + prefix + '-module-checkbox:checked').length;
+            countSpan.textContent = checked + ' of ' + totalModules + ' selected';
+        }
+        
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                checkboxes.forEach(cb => cb.checked = this.checked);
+                updateCount();
+            });
+        }
+        
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                const allChecked = document.querySelectorAll('.' + prefix + '-module-checkbox:checked').length === checkboxes.length;
+                if (selectAll) selectAll.checked = allChecked;
+                updateCount();
+            });
+        });
+        
+        // Initial count
+        updateCount();
+    }
+    
+    setupSelectAll('trial');
+    setupSelectAll('full');
+    
+    // Form validation
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const moduleSelection = form.querySelector('input[name="module_selection"]:checked').value;
+            
+            if (moduleSelection === 'individual') {
+                const checked = form.querySelectorAll('input[name="modules"]:checked').length;
+                if (checked === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one module.');
+                    return false;
+                }
+            }
+            
+            // Check custom days if selected
+            const durationInputName = form.querySelector('input[name="access_type"]').value === 'trial' ? 'trial_duration' : 'full_duration';
+            const duration = form.querySelector('input[name="' + durationInputName + '"]:checked');
+            
+            if (duration && duration.value === 'custom') {
+                const customDaysInput = form.querySelector('input[name="' + (form.querySelector('input[name="access_type"]').value === 'trial' ? 'trial_custom_days' : 'full_custom_days') + '"]');
+                if (!customDaysInput.value || parseInt(customDaysInput.value) < 1) {
+                    e.preventDefault();
+                    alert('Please enter a valid number of days.');
+                    return false;
+                }
+            }
+        });
+    });
 });
 </script>
 {% endblock %}
