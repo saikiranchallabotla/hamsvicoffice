@@ -414,10 +414,15 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         if not backend_id and job.result:
             backend_id = job.result.get('backend_id')
         
+        # Determine module code - use 'amc' for AMC module, 'new_estimate' for New Estimate
+        module_code = 'new_estimate'
+        if job.result and job.result.get('module') == 'amc':
+            module_code = 'amc'
+        
         items_list, groups_map, backend_units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=backend_id,
-            module_code='new_estimate'
+            module_code=module_code
         )
         name_to_info = {it["name"]: it for it in items_list}
         
@@ -879,10 +884,15 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json, backend_
         if not backend_id and job.result:
             backend_id = job.result.get('backend_id')
         
+        # Determine module code - use 'amc' for AMC module, 'new_estimate' for New Estimate
+        module_code = 'new_estimate'
+        if job.result and job.result.get('module') == 'amc':
+            module_code = 'amc'
+        
         items_list, groups_map, _, ws_src, _ = load_backend(
             category, settings.BASE_DIR,
             backend_id=backend_id,
-            module_code='new_estimate'
+            module_code=module_code
         )
         name_to_block = {it["name"]: it for it in items_list}
         blocks = [name_to_block[n] for n in fetched if n in name_to_block]
