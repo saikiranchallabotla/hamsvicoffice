@@ -313,6 +313,32 @@
         box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
     }
     
+    .rate-input {
+        width: 70px;
+        padding: 2px 4px;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        text-align: right;
+        font-weight: 500;
+        font-size: 0.7rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        background: #f7fafc;
+    }
+    
+    .rate-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+        background: white;
+    }
+    
+    .rate-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    
     .amount-cell {
         font-weight: 600;
         color: #319795;
@@ -646,6 +672,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_supplemental">
                     <input type="hidden" name="exec_map" id="supp-exec-map-field">
+                    <input type="hidden" name="rate_map" id="supp-rate-map-field">
                     <input type="hidden" name="tp_percent" id="supp-tp-percent-field">
                     <input type="hidden" name="tp_type" id="supp-tp-type-field">
 
@@ -888,6 +915,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="download_workslip">
                 <input type="hidden" name="exec_map" id="ws-exec-map-field">
+                <input type="hidden" name="rate_map" id="ws-rate-map-field">
                 <input type="hidden" name="tp_percent" id="ws-tp-percent-field">
                 <input type="hidden" name="tp_type" id="ws-tp-type-field">
                 <input type="hidden" name="deduct_old_material" id="ws-deduct-old-material-field">
@@ -980,7 +1008,17 @@
                                                        style="background: #fefce8;"
                                                        value="{% if row.qty_exec %}{{ row.qty_exec }}{% endif %}">
                                             </td>
-                                            <td class="rate-cell" style="color: #92400e;">{% if row.rate %}₹{{ row.rate|floatformat:2 }}{% else %}-{% endif %}</td>
+                                            <td class="rate-cell" style="color: #92400e;">
+                                                <div class="rate-input-wrapper" style="display: flex; align-items: center; gap: 2px;">
+                                                    <span style="font-size: 0.7rem;">₹</span>
+                                                    <input type="number"
+                                                           min="0"
+                                                           step="0.01"
+                                                           class="rate-input rate-edit-input"
+                                                           style="width: 70px; font-size: 0.7rem; padding: 2px 4px; border: 1px solid #fcd34d; border-radius: 4px; background: #fefce8;"
+                                                           value="{{ row.rate|floatformat:2 }}">
+                                                </div>
+                                            </td>
                                             <td class="amount-cell" style="color: #92400e;"></td>
                                         </tr>
                                     {% else %}
@@ -1005,7 +1043,23 @@
                                                        class="qty-input qty-exec-input"
                                                        value="{% if row.qty_exec %}{{ row.qty_exec|floatformat:"0" }}{% endif %}">
                                             </td>
-                                            <td>₹{{ row.rate|floatformat:2 }}</td>
+                                            {% if row.row_type == 'supp' %}
+                                            <!-- Supplemental items (freshly added): Rate is display-only -->
+                                            <td class="rate-cell">₹{{ row.rate|floatformat:2 }}</td>
+                                            {% else %}
+                                            <!-- Base items from estimate: Rate is editable -->
+                                            <td class="rate-cell">
+                                                <div class="rate-input-wrapper" style="display: flex; align-items: center; gap: 2px;">
+                                                    <span style="font-size: 0.7rem;">₹</span>
+                                                    <input type="number"
+                                                           min="0"
+                                                           step="0.01"
+                                                           class="rate-input rate-edit-input"
+                                                           style="width: 70px; font-size: 0.7rem; padding: 2px 4px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f7fafc;"
+                                                           value="{{ row.rate|floatformat:2 }}">
+                                                </div>
+                                            </td>
+                                            {% endif %}
                                             <td class="amount-cell"></td>
                                         </tr>
                                     {% endif %}
@@ -1414,8 +1468,17 @@
         var rateCell = row.cells[amtIndex - 1]; // Rate is right before Amount
         if (!rateCell) return;
 
-        var rateText = rateCell.textContent.replace("₹", "").trim();
-        var rate = parseFloat(rateText || "0");
+        // Check if rate cell contains an input (editable rate) or just text
+        var rateInput = rateCell.querySelector(".rate-edit-input");
+        var rate = 0;
+        if (rateInput) {
+            // Editable rate input exists
+            rate = parseFloat(rateInput.value || "0");
+        } else {
+            // Text-only rate (for supplemental items)
+            var rateText = rateCell.textContent.replace("₹", "").trim();
+            rate = parseFloat(rateText || "0");
+        }
         var qty  = parseFloat(qtyInput.value || "0");
         if (isNaN(rate)) rate = 0;
         if (isNaN(qty)) qty = 0;
@@ -1447,6 +1510,15 @@
 
     // Attach listeners to qty inputs
     document.querySelectorAll(".qty-exec-input").forEach(function(inp) {
+        inp.addEventListener("input", function() {
+            var row = inp.closest("tr");
+            recalcRow(row);
+            recalcTotal();
+        });
+    });
+    
+    // Attach listeners to rate inputs (for editable rates)
+    document.querySelectorAll(".rate-edit-input").forEach(function(inp) {
         inp.addEventListener("input", function() {
             var row = inp.closest("tr");
             recalcRow(row);
@@ -1504,28 +1576,48 @@
     });
     recalcTotal();
 
-    // --- Serialize exec_map + TP before Workslip download ---
+    // --- Serialize exec_map + rate_map + TP before Workslip download ---
     var wsForm = document.getElementById("ws-form");
     if (wsForm) {
         wsForm.addEventListener("submit", function() {
             var map = {};
+            var rateMap = {};
             document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
                 if (row.classList.contains("supp-heading-row")) return;
                 var rowType = row.getAttribute("data-row-type");
                 var rowKey  = row.getAttribute("data-row-key");
                 if (!rowType || !rowKey) return;
                 var key = rowKey;
+                
+                // Collect quantity
                 var qtyInput = row.querySelector(".qty-exec-input");
-                if (!qtyInput) return;
-                var val = qtyInput.value;
-                if (val !== "") {
-                    map[key] = val;
+                if (qtyInput) {
+                    var val = qtyInput.value;
+                    if (val !== "") {
+                        map[key] = val;
+                    }
+                }
+                
+                // Collect rate changes (only for editable rate inputs, not for supp items)
+                var rateInput = row.querySelector(".rate-edit-input");
+                if (rateInput) {
+                    var rateVal = rateInput.value;
+                    if (rateVal !== "") {
+                        rateMap[key] = rateVal;
+                    }
                 }
             });
             var execField = document.getElementById("ws-exec-map-field");
             if (execField) {
                 execField.value = JSON.stringify(map);
             }
+            
+            // Save rate_map to hidden field
+            var rateField = document.getElementById("ws-rate-map-field");
+            if (rateField) {
+                rateField.value = JSON.stringify(rateMap);
+            }
+            
             var tpPercentInput = document.getElementById("tp-percent-input");
             var tpTypeSelect   = document.getElementById("tp-type-select");
             var tpPercentField = document.getElementById("ws-tp-percent-field");
@@ -1585,28 +1677,48 @@
         }
     }
 
-    // --- Before submitting supplemental form, also carry exec_map + TP ---
+    // --- Before submitting supplemental form, also carry exec_map + rate_map + TP ---
     var suppForm = document.getElementById("supp-form");
         if (suppForm) {
             suppForm.addEventListener("submit", function() {
                 var map = {};
+                var rateMap = {};
                 document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
                     if (row.classList.contains("supp-heading-row")) return;
                     var rowType = row.getAttribute("data-row-type");
                     var rowKey  = row.getAttribute("data-row-key");
                     if (!rowType || !rowKey) return;
                     var key = rowKey;
+                    
+                    // Collect quantity
                     var qtyInput = row.querySelector(".qty-exec-input");
-                    if (!qtyInput) return;
-                    var val = qtyInput.value;
-                    if (val !== "") {
-                        map[key] = val;
+                    if (qtyInput) {
+                        var val = qtyInput.value;
+                        if (val !== "") {
+                            map[key] = val;
+                        }
+                    }
+                    
+                    // Collect rate changes
+                    var rateInput = row.querySelector(".rate-edit-input");
+                    if (rateInput) {
+                        var rateVal = rateInput.value;
+                        if (rateVal !== "") {
+                            rateMap[key] = rateVal;
+                        }
                     }
                 });
                 var execField = document.getElementById("supp-exec-map-field");
                 if (execField) {
                     execField.value = JSON.stringify(map);
                 }
+                
+                // Save rate_map to hidden field
+                var rateField = document.getElementById("supp-rate-map-field");
+                if (rateField) {
+                    rateField.value = JSON.stringify(rateMap);
+                }
+                
                 var tpPercentInput = document.getElementById("tp-percent-input");
                 var tpTypeSelect   = document.getElementById("tp-type-select");
                 var tpPercentField = document.getElementById("supp-tp-percent-field");
