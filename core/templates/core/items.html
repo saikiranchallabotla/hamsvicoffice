@@ -72,6 +72,34 @@
         border-radius: 3px;
     }
     
+    /* Search Input */
+    .panel-search {
+        padding: 0.4rem;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+    
+    .panel-search input {
+        width: 100%;
+        padding: 0.35rem 0.5rem;
+        padding-left: 1.8rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        transition: all 0.2s ease;
+        background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%23a0aec0' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") no-repeat 0.5rem center;
+    }
+    
+    .panel-search input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+    
+    .panel-search input::placeholder {
+        color: #a0aec0;
+    }
+    
     /* Groups List */
     .groups-list {
         list-style: none;
@@ -722,10 +750,13 @@
             <i class="bi bi-folder2-open"></i>
             Groups
         </div>
+        <div class="panel-search">
+            <input type="text" id="groups-search" placeholder="Search groups..." autocomplete="off">
+        </div>
         <div class="panel-body">
-            <ul class="groups-list">
+            <ul class="groups-list" id="groups-list">
                 {% for g in groups %}
-                    <li>
+                    <li data-group-name="{{ g|lower }}">
                         <a href="{% url 'datas_items' category g %}" 
                            class="group-link {% if g == group %}active{% endif %}">
                             <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
@@ -743,11 +774,14 @@
             <i class="bi bi-check2-square"></i>
             Items in {{ group }}
         </div>
+        <div class="panel-search">
+            <input type="text" id="items-search" placeholder="Search items..." autocomplete="off">
+        </div>
         <div class="panel-body">
             {% if items_info %}
-                <ul class="items-list">
+                <ul class="items-list" id="items-list">
                     {% for info in items_info %}
-                        <li>
+                        <li data-item-name="{{ info.name|lower }}">
                             {% if info.has_subtypes %}
                                 <!-- Item with subtypes - show as clickable to open modal -->
                                 <label class="item-label has-subtypes"
@@ -1081,6 +1115,45 @@
 
 <script src="{% static 'js/job-polling.js' %}"></script>
 <script>
+// ========================================
+// SEARCH FILTER FUNCTIONS
+// ========================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Groups search
+    var groupsSearch = document.getElementById('groups-search');
+    if (groupsSearch) {
+        groupsSearch.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase().trim();
+            var groupItems = document.querySelectorAll('#groups-list li');
+            groupItems.forEach(function(item) {
+                var groupName = item.getAttribute('data-group-name') || '';
+                if (searchTerm === '' || groupName.indexOf(searchTerm) !== -1) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    // Items search
+    var itemsSearch = document.getElementById('items-search');
+    if (itemsSearch) {
+        itemsSearch.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase().trim();
+            var itemElements = document.querySelectorAll('#items-list li');
+            itemElements.forEach(function(item) {
+                var itemName = item.getAttribute('data-item-name') || '';
+                if (searchTerm === '' || itemName.indexOf(searchTerm) !== -1) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+
 // Switch to a different backend (SOR rates file)
 function switchBackend(backendId) {
     if (!backendId) return;

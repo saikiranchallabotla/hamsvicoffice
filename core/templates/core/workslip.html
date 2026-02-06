@@ -72,6 +72,34 @@
         border-radius: 3px;
     }
     
+    /* Search Input Styling */
+    .panel-search {
+        padding: 0.4rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .panel-search input {
+        width: 100%;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.72rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        background: #fff;
+        color: #2d3748;
+        transition: all 0.2s ease;
+    }
+    
+    .panel-search input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+    
+    .panel-search input::placeholder {
+        color: #a0aec0;
+    }
+    
     /* Groups List */
     .groups-list {
         list-style: none;
@@ -638,11 +666,14 @@
             <i class="bi bi-folder2-open"></i>
             Groups (Supplemental)
         </div>
+        <div class="panel-search">
+            <input type="text" id="groups-search" placeholder="Search groups..." autocomplete="off">
+        </div>
         <div class="panel-body">
             {% if groups %}
-                <ul class="groups-list">
+                <ul class="groups-list" id="groups-list">
                     {% for g in groups %}
-                        <li>
+                        <li data-group-name="{{ g|lower }}">
                             <a href="{% url 'workslip_main' %}?group={{ g|urlencode }}&preserve=1" 
                                class="group-link {% if g == current_group %}active{% endif %}">
                                 <i class="bi bi-folder{% if g == current_group %}-fill{% endif %} me-2"></i>
@@ -666,6 +697,9 @@
             <i class="bi bi-plus-square"></i>
             Items in {{ current_group }}
         </div>
+        <div class="panel-search">
+            <input type="text" id="items-search" placeholder="Search items..." autocomplete="off">
+        </div>
         <div class="panel-body">
             {% if items_in_group %}
                 <form id="supp-form" method="post" action="{% url 'workslip_main' %}">
@@ -676,9 +710,9 @@
                     <input type="hidden" name="tp_percent" id="supp-tp-percent-field">
                     <input type="hidden" name="tp_type" id="supp-tp-type-field">
 
-                    <ul class="items-list" id="supp-items-list">
+                    <ul class="items-list" id="items-list">
                         {% for name in items_in_group %}
-                            <li>
+                            <li data-item-name="{{ name|lower }}">
                                 <label class="item-label">
                                     <input type="checkbox"
                                            class="item-checkbox supp-item-checkbox"
@@ -1130,6 +1164,45 @@
 </div>
 
 <script>
+// ========================================
+// SEARCH FILTER FUNCTIONS
+// ========================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Groups search
+    var groupsSearch = document.getElementById('groups-search');
+    if (groupsSearch) {
+        groupsSearch.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase().trim();
+            var groupItems = document.querySelectorAll('#groups-list li');
+            groupItems.forEach(function(item) {
+                var groupName = item.getAttribute('data-group-name') || '';
+                if (searchTerm === '' || groupName.indexOf(searchTerm) !== -1) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    // Items search
+    var itemsSearch = document.getElementById('items-search');
+    if (itemsSearch) {
+        itemsSearch.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase().trim();
+            var itemElements = document.querySelectorAll('#items-list li');
+            itemElements.forEach(function(item) {
+                var itemName = item.getAttribute('data-item-name') || '';
+                if (searchTerm === '' || itemName.indexOf(searchTerm) !== -1) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+
     // --- Target Workslip Selection - Dynamic Upload Fields ---
     function updateUploadFields() {
         var targetSelect = document.getElementById('target-workslip-select');
