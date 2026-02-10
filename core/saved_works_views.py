@@ -18,6 +18,62 @@ from .models import SavedWork, WorkFolder, Organization, Membership
 from .decorators import org_required
 
 
+# ==============================================================================
+# SUBSCRIPTION ACCESS CONTROL FOR SAVED WORKS
+# ==============================================================================
+
+# Mapping from work_type to module_code for subscription checks
+WORK_TYPE_TO_MODULE = {
+    'new_estimate': 'new_estimate',
+    'temporary_works': 'temp_works',
+    'amc': 'amc',
+    'workslip': 'workslip',
+    'bill': 'bill',
+}
+
+
+def check_saved_work_access(user, saved_work):
+    """
+    Check if user has active subscription to access a saved work.
+    
+    Args:
+        user: Django User object
+        saved_work: SavedWork instance
+        
+    Returns:
+        dict: {ok: bool, reason: str, module_code: str}
+    """
+    # Staff/superusers always have access
+    if user.is_staff or user.is_superuser:
+        return {'ok': True, 'reason': 'Admin access', 'module_code': None}
+    
+    work_type = saved_work.work_type
+    module_code = WORK_TYPE_TO_MODULE.get(work_type)
+    
+    if not module_code:
+        # Unknown work type - allow access (fallback)
+        return {'ok': True, 'reason': 'No module restriction', 'module_code': None}
+    
+    try:
+        from subscriptions.services import SubscriptionService
+        result = SubscriptionService.check_access(user, module_code)
+        return {
+            'ok': result.get('ok', False),
+            'reason': result.get('reason', 'Access denied'),
+            'module_code': module_code,
+            'data': result.get('data', {})
+        }
+    except Exception as e:
+        # If subscription service fails, deny access for safety
+        import logging
+        logging.error(f"Subscription check failed for saved work: {e}")
+        return {
+            'ok': False, 
+            'reason': 'Unable to verify subscription. Please try again.',
+            'module_code': module_code
+        }
+
+
 def get_org_from_request(request):
     """Get organization from request, creating default if needed."""
     if hasattr(request, 'organization') and request.organization:
@@ -535,6 +591,19 @@ def resume_saved_work(request, work_id):
     
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
+    # Check subscription access BEFORE allowing resume
+    access_result = check_saved_work_access(user, saved_work)
+    if not access_result['ok']:
+        module_code = access_result.get('module_code')
+        messages.warning(
+            request, 
+            f'You need an active subscription to access this saved work. {access_result["reason"]}'
+        )
+        # Redirect to module subscription page if module_code exists
+        if module_code:
+            return redirect('module_access', module_code=module_code)
+        return redirect('saved_works_list')
+    
     # Restore session state based on work type
     restore_work_data(request, saved_work)
     
@@ -648,9 +717,15 @@ def saved_work_detail(request, work_id):
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     all_folders = WorkFolder.objects.filter(organization=org, user=user)
     
+    # Check subscription access for this work
+    access_result = check_saved_work_access(user, saved_work)
+    
     context = {
         'work': saved_work,
         'folders': all_folders,
+        'has_subscription_access': access_result['ok'],
+        'subscription_reason': access_result.get('reason', ''),
+        'module_code': access_result.get('module_code'),
     }
     
     return render(request, 'core/saved_works/detail.html', context)
@@ -1233,12 +1308,18 @@ def saved_work_detail(request, work_id):
     
     children = saved_work.children.all()
     
+    # Check subscription access for this work
+    access_result = check_saved_work_access(user, saved_work)
+    
     context = {
         'work': saved_work,
         'parent_chain': parent_chain,
         'children': children,
         'can_generate_workslip': saved_work.can_generate_workslip(),
         'can_generate_bill': saved_work.can_generate_bill(),
+        'has_subscription_access': access_result['ok'],
+        'subscription_reason': access_result.get('reason', ''),
+        'module_code': access_result.get('module_code'),
     }
     
     return render(request, 'core/saved_works/detail.html', context)

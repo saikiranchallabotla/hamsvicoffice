@@ -521,6 +521,9 @@
             <div class="common-left">
                 <div class="field-group">
                     <div class="field-group-label"><i class="bi bi-book"></i> Measurement Book Details</div>
+                    <div style="font-size: 0.6rem; color: #059669; margin-bottom: 0.35rem; background: #ecfdf5; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                        <i class="bi bi-magic"></i> <strong>Auto-detect:</strong> If your bill file has M.B.No details, they'll be picked up automatically. Fill these only if the file doesn't have them or you want to override.
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                         <div style="background: #f0f9ff; padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid #bae6fd;">
                             <div style="font-size: 0.68rem; color: #0369a1; font-weight: 600; margin-bottom: 0.35rem;">
@@ -600,26 +603,56 @@
             
             <!-- Right Column: Template Uploads -->
             <div class="common-right">
-                <div class="field-group" style="background: #f0fff4; border-color: #9ae6b4; padding: 0.4rem 0.5rem;">
-                    <div class="field-group-label" style="color: #276749; font-size: 0.68rem; margin-bottom: 0.25rem;"><i class="bi bi-file-earmark-text"></i> Covering Letter Template</div>
+                <!-- Covering Letter Template -->
+                <div class="field-group" style="padding: 0.5rem 0.6rem; {% if covering_letter_template %}background: #f0fff4; border: 2px solid #48bb78;{% else %}background: #fff5f5; border: 2px solid #fc8181;{% endif %} border-radius: 8px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0.3rem;">
+                        <div class="field-group-label" style="{% if covering_letter_template %}color: #276749;{% else %}color: #c53030;{% endif %} font-size: 0.72rem; margin-bottom: 0; font-weight: 600;">
+                            <i class="bi bi-file-earmark-text"></i> Covering Letter
+                        </div>
+                        {% if covering_letter_template %}
+                        <span style="background: #48bb78; color: white; font-size: 0.58rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px;">
+                            <i class="bi bi-check-circle-fill"></i> UPLOADED
+                        </span>
+                        {% else %}
+                        <span style="background: #fc8181; color: white; font-size: 0.58rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px;">
+                            <i class="bi bi-x-circle-fill"></i> NOT UPLOADED
+                        </span>
+                        {% endif %}
+                    </div>
                     {% if covering_letter_template %}
-                    <div style="display:flex; align-items:center; gap:0.3rem; font-size:0.68rem; flex-wrap:wrap;">
-                        <span style="color:#276749; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="bi bi-check-circle-fill"></i> {{ covering_letter_template.name|truncatechars:20 }}</span>
-                        <a href="{% url 'template_download' covering_letter_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.15rem 0.3rem; font-size:0.6rem; text-decoration:none;">
-                            <i class="bi bi-download"></i>
-                        </a>
+                    <div style="background: #e6ffed; border-radius: 5px; padding: 0.25rem 0.4rem; margin-bottom: 0.3rem; font-size: 0.62rem; color: #276749;">
+                        <div style="display:flex; align-items:center; gap:0.3rem;">
+                            <i class="bi bi-file-earmark-word" style="font-size: 0.75rem;"></i>
+                            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;">
+                                {{ covering_letter_template.file_name|default:covering_letter_template.name|truncatechars:25 }}
+                            </span>
+                            <a href="{% url 'template_download' covering_letter_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.1rem 0.25rem; font-size:0.55rem; text-decoration:none;" title="Download">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                        <div style="font-size: 0.55rem; color: #68d391; margin-top: 0.15rem;">
+                            <i class="bi bi-clock"></i> Uploaded: {{ covering_letter_template.updated_at|date:"d M Y, h:i A" }}
+                        </div>
                     </div>
-                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center; margin-top:0.25rem;">
-                        {% csrf_token %}
-                        <input type="hidden" name="template_type" value="covering_letter">
-                        <input type="hidden" name="name" value="Covering Letter">
-                        <input type="hidden" name="next" value="bill">
-                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
-                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
-                            <i class="bi bi-arrow-repeat"></i> Replace
-                        </button>
-                    </form>
+                    <details style="font-size: 0.62rem;">
+                        <summary style="cursor: pointer; color: #718096; user-select: none;">
+                            <i class="bi bi-arrow-repeat"></i> Replace template
+                        </summary>
+                        <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center; margin-top:0.25rem;">
+                            {% csrf_token %}
+                            <input type="hidden" name="template_type" value="covering_letter">
+                            <input type="hidden" name="name" value="Covering Letter">
+                            <input type="hidden" name="next" value="bill">
+                            <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
+                            <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
+                                <i class="bi bi-arrow-repeat"></i> Replace
+                            </button>
+                        </form>
+                    </details>
                     {% else %}
+                    <div style="background: #fff0f0; border-radius: 5px; padding: 0.3rem 0.4rem; margin-bottom: 0.15rem; font-size: 0.6rem; color: #c53030;">
+                        <i class="bi bi-info-circle"></i> Upload your Word (.docx) template to generate covering letters.
+                    </div>
                     <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center;">
                         {% csrf_token %}
                         <input type="hidden" name="template_type" value="covering_letter">
@@ -633,26 +666,56 @@
                     {% endif %}
                 </div>
                 
-                <div class="field-group" style="background: #fffaf0; border-color: #fbd38d; padding: 0.4rem 0.5rem;">
-                    <div class="field-group-label" style="color: #c05621; font-size: 0.68rem; margin-bottom: 0.25rem;"><i class="bi bi-file-earmark-text"></i> Movement Slip Template</div>
+                <!-- Movement Slip Template -->
+                <div class="field-group" style="padding: 0.5rem 0.6rem; margin-top: 0.4rem; {% if movement_slip_template %}background: #fffff0; border: 2px solid #ecc94b;{% else %}background: #fff5f5; border: 2px solid #fc8181;{% endif %} border-radius: 8px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0.3rem;">
+                        <div class="field-group-label" style="{% if movement_slip_template %}color: #975a16;{% else %}color: #c53030;{% endif %} font-size: 0.72rem; margin-bottom: 0; font-weight: 600;">
+                            <i class="bi bi-file-earmark-text"></i> Movement Slip
+                        </div>
+                        {% if movement_slip_template %}
+                        <span style="background: #ecc94b; color: #744210; font-size: 0.58rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px;">
+                            <i class="bi bi-check-circle-fill"></i> UPLOADED
+                        </span>
+                        {% else %}
+                        <span style="background: #fc8181; color: white; font-size: 0.58rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px;">
+                            <i class="bi bi-x-circle-fill"></i> NOT UPLOADED
+                        </span>
+                        {% endif %}
+                    </div>
                     {% if movement_slip_template %}
-                    <div style="display:flex; align-items:center; gap:0.3rem; font-size:0.68rem; flex-wrap:wrap;">
-                        <span style="color:#c05621; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="bi bi-check-circle-fill"></i> {{ movement_slip_template.name|truncatechars:20 }}</span>
-                        <a href="{% url 'template_download' movement_slip_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.15rem 0.3rem; font-size:0.6rem; text-decoration:none;">
-                            <i class="bi bi-download"></i>
-                        </a>
+                    <div style="background: #fefcbf; border-radius: 5px; padding: 0.25rem 0.4rem; margin-bottom: 0.3rem; font-size: 0.62rem; color: #975a16;">
+                        <div style="display:flex; align-items:center; gap:0.3rem;">
+                            <i class="bi bi-file-earmark-word" style="font-size: 0.75rem;"></i>
+                            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;">
+                                {{ movement_slip_template.file_name|default:movement_slip_template.name|truncatechars:25 }}
+                            </span>
+                            <a href="{% url 'template_download' movement_slip_template.id %}" class="bill-btn bill-btn-secondary" style="padding:0.1rem 0.25rem; font-size:0.55rem; text-decoration:none;" title="Download">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                        <div style="font-size: 0.55rem; color: #b7791f; margin-top: 0.15rem;">
+                            <i class="bi bi-clock"></i> Uploaded: {{ movement_slip_template.updated_at|date:"d M Y, h:i A" }}
+                        </div>
                     </div>
-                    <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center; margin-top:0.25rem;">
-                        {% csrf_token %}
-                        <input type="hidden" name="template_type" value="movement_slip">
-                        <input type="hidden" name="name" value="Movement Slip">
-                        <input type="hidden" name="next" value="bill">
-                        <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
-                        <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
-                            <i class="bi bi-arrow-repeat"></i> Replace
-                        </button>
-                    </form>
+                    <details style="font-size: 0.62rem;">
+                        <summary style="cursor: pointer; color: #718096; user-select: none;">
+                            <i class="bi bi-arrow-repeat"></i> Replace template
+                        </summary>
+                        <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center; margin-top:0.25rem;">
+                            {% csrf_token %}
+                            <input type="hidden" name="template_type" value="movement_slip">
+                            <input type="hidden" name="name" value="Movement Slip">
+                            <input type="hidden" name="next" value="bill">
+                            <input type="file" name="file" accept=".docx,.doc" required style="font-size:0.6rem; flex:1; max-width: 140px;">
+                            <button type="submit" class="bill-btn bill-btn-primary" style="padding:0.15rem 0.35rem; font-size:0.6rem;">
+                                <i class="bi bi-arrow-repeat"></i> Replace
+                            </button>
+                        </form>
+                    </details>
                     {% else %}
+                    <div style="background: #fff0f0; border-radius: 5px; padding: 0.3rem 0.4rem; margin-bottom: 0.15rem; font-size: 0.6rem; color: #c53030;">
+                        <i class="bi bi-info-circle"></i> Upload your Word (.docx) template to generate movement slips.
+                    </div>
                     <form action="{% url 'template_upload' %}?next=bill" method="post" enctype="multipart/form-data" style="display:flex; gap:0.3rem; align-items:center;">
                         {% csrf_token %}
                         <input type="hidden" name="template_type" value="movement_slip">
@@ -666,8 +729,8 @@
                     {% endif %}
                 </div>
                 
-                <p class="note" style="margin-top:0.15rem; font-size: 0.62rem;">
-                    <i class="bi bi-info-circle"></i> Upload Word (.docx) with your officer names.
+                <p class="note" style="margin-top:0.2rem; font-size: 0.58rem; color: #718096;">
+                    <i class="bi bi-shield-check"></i> Templates are saved permanently — they persist across updates & redeployments.
                 </p>
             </div>
         </div>

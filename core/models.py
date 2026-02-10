@@ -445,6 +445,11 @@ class UserDocumentTemplate(models.Model):
     """
     User-specific document templates for Covering Letter and Movement Slip.
     Each user can upload their own templates with their officer names.
+    
+    Templates are stored BOTH on disk (FileField) AND in the database (BinaryField).
+    The DB copy ensures templates survive redeployments on platforms with ephemeral
+    filesystems (Railway, Heroku, etc.). On every read, if the disk file is missing
+    but DB data exists, the file is automatically restored from the DB.
     """
     TEMPLATE_TYPE_CHOICES = (
         ("covering_letter", "Covering Letter"),
@@ -454,7 +459,10 @@ class UserDocumentTemplate(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='document_templates')
     template_type = models.CharField(max_length=20, choices=TEMPLATE_TYPE_CHOICES)
     name = models.CharField(max_length=255, help_text="A friendly name for this template")
-    file = models.FileField(upload_to="user_templates/")
+    file = models.FileField(upload_to="user_templates/", blank=True, null=True)
+    # Store file content in the DB so it survives redeployments
+    file_data = models.BinaryField(blank=True, null=True, help_text="Template file content stored in DB for persistence")
+    file_name = models.CharField(max_length=255, blank=True, default="", help_text="Original uploaded file name")
     is_active = models.BooleanField(default=True, help_text="Use this template for document generation")
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -486,6 +494,45 @@ class UserDocumentTemplate(models.Model):
                 is_active=True
             ).exclude(pk=self.pk).update(is_active=False)
         super().save(*args, **kwargs)
+
+    def get_file_bytes(self):
+        """
+        Return the template file content as bytes.
+        Priority: DB stored data > disk file.
+        If DB has data but disk file is missing, restores the disk file too.
+        """
+        import os
+        from django.core.files.base import ContentFile
+
+        # If we have DB-stored data, use that (authoritative source)
+        if self.file_data:
+            # Also restore disk file if missing (for backward compat / local dev)
+            if self.file and not os.path.exists(self.file.path if self.file else ''):
+                try:
+                    self.file.save(self.file_name or 'template.docx', ContentFile(self.file_data), save=False)
+                    # Save without triggering full save() to avoid recursion
+                    UserDocumentTemplate.objects.filter(pk=self.pk).update(file=self.file)
+                except Exception:
+                    pass  # Disk restore is best-effort
+            return bytes(self.file_data)
+
+        # Fallback: read from disk file (legacy templates before DB storage)
+        if self.file:
+            try:
+                path = self.file.path
+                if os.path.exists(path):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    # Backfill DB storage for next time
+                    UserDocumentTemplate.objects.filter(pk=self.pk).update(
+                        file_data=data,
+                        file_name=os.path.basename(path)
+                    )
+                    return data
+            except Exception:
+                pass
+
+        return None
 
 
 # ==============================================================================

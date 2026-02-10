@@ -3344,6 +3344,7 @@ def _extract_header_data_fuzzy_from_wb(wb):
         "tech_sanction": "",
         "agreement": "",
         "agency": "",
+        "mb_details": "",
     }
 
     def clean_value_for_header(val):
@@ -3414,12 +3415,40 @@ def _extract_header_data_fuzzy_from_wb(wb):
                         header["agency"] = clean_value_for_header(s_full)
                         continue
 
+                # ---- MB Details (M.B.No / MB No / Measurement Book) ----
+                if not header["mb_details"]:
+                    if _cell_has_mb_details(low, tokens):
+                        header["mb_details"] = clean_value_for_header(s_full)
+                        continue
+
     return header
+
+
+def _cell_has_mb_details(low, tokens):
+    """
+    Check if a cell's text contains MB (Measurement Book) details.
+    Matches patterns like:
+      - M.B.No, M.B. No, MB No, MB.No, M.B.Nos
+      - Measurement Book
+      - mb no, mb details
+    """
+    # Direct pattern checks on lowercased text
+    import re
+    # M.B.No / M.B. No / M.B.Nos / MB.No / MB No
+    if re.search(r'm\.?b\.?\s*no', low):
+        return True
+    # "measurement" + "book" anywhere
+    if "measurement" in tokens and "book" in tokens:
+        return True
+    # "mb" token + "details" or "no" nearby
+    if "mb" in tokens and ("details" in tokens or "no" in tokens or "nos" in tokens):
+        return True
+    return False
 
 
 def _extract_header_data_from_sheet(ws):
     """
-    Extract header data (name of work, agreement, agency, etc.) from a specific sheet.
+    Extract header data (name of work, agreement, agency, MB details, etc.) from a specific sheet.
     
     This is a per-sheet version of _extract_header_data_fuzzy_from_wb that reads
     data from the first ~40 rows of the given worksheet.
@@ -3432,6 +3461,7 @@ def _extract_header_data_from_sheet(ws):
         "tech_sanction": "...",
         "agreement": "...",
         "agency": "...",
+        "mb_details": "...",
       }
     """
     header = {
@@ -3441,6 +3471,7 @@ def _extract_header_data_from_sheet(ws):
         "tech_sanction": "",
         "agreement": "",
         "agency": "",
+        "mb_details": "",
     }
 
     def clean_value_for_header(val):
@@ -3508,6 +3539,12 @@ def _extract_header_data_from_sheet(ws):
             if not header["agency"]:
                 if "agency" in tokens or "contractor" in tokens or "firm" in tokens:
                     header["agency"] = clean_value_for_header(s_full)
+                    continue
+
+            # ---- MB Details (M.B.No / MB No / Measurement Book) ----
+            if not header["mb_details"]:
+                if _cell_has_mb_details(low, tokens):
+                    header["mb_details"] = clean_value_for_header(s_full)
                     continue
 
     return header
@@ -7478,15 +7515,40 @@ def bill_document(request):
     
     has_multiple_bills = len(bill_sheets) > 1
 
-    # MB details string & CC header (same for all sheets)
-    mb_details_str = _build_mb_details_string(
-        mb_measure_no,
-        mb_measure_p_from,
-        mb_measure_p_to,
-        mb_abs_no,
-        mb_abs_p_from,
-        mb_abs_p_to,
-    )
+    # Try to extract MB details from the uploaded bill file itself
+    file_header = _extract_header_data_fuzzy_from_wb(wb_in)
+    file_mb_details = (file_header.get("mb_details") or "").strip()
+
+    # If user has entered MB details manually, use those; otherwise use file-extracted MB
+    user_entered_mb = any([
+        mb_measure_no, mb_measure_p_from, mb_measure_p_to,
+        mb_abs_no, mb_abs_p_from, mb_abs_p_to,
+    ])
+
+    if user_entered_mb:
+        # User manually entered MB fields — build string from those
+        mb_details_str = _build_mb_details_string(
+            mb_measure_no,
+            mb_measure_p_from,
+            mb_measure_p_to,
+            mb_abs_no,
+            mb_abs_p_from,
+            mb_abs_p_to,
+        )
+    elif file_mb_details:
+        # Auto-extracted from the uploaded bill file
+        mb_details_str = file_mb_details
+    else:
+        # No MB details available at all — build empty string
+        mb_details_str = _build_mb_details_string(
+            mb_measure_no,
+            mb_measure_p_from,
+            mb_measure_p_to,
+            mb_abs_no,
+            mb_abs_p_from,
+            mb_abs_p_to,
+        )
+
     cc_header = _resolve_cc_header(action, nth_number_str=nth_number_str)
     
     # Current month + year
@@ -7563,6 +7625,13 @@ def bill_document(request):
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
                 
+                # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
+                sheet_mb = mb_details_str
+                if not user_entered_mb:
+                    sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
+                    if sheet_mb_from_file:
+                        sheet_mb = sheet_mb_from_file
+                
                 # Get formulas sheet if available
                 ws_formulas = None
                 if wb_formulas:
@@ -7586,7 +7655,7 @@ def bill_document(request):
                     "AGENCY_NAME": sheet_agency_name,
                     "REF_OF_AGREEMENT": sheet_agreement_ref,
                     "AGREEMENT_REF": sheet_agreement_ref,
-                    "MB_DETAILS": mb_details_str,
+                    "MB_DETAILS": sheet_mb,
                     "CC_HEADER": cc_header,
                     "AMOUNT": sheet_total_str,
                     "TOTAL_AMOUNT": sheet_total_str,
@@ -7730,10 +7799,10 @@ def bill_document(request):
             """
             return HttpResponse(error_html, status=200)
         
-        template_path = user_template.file.path
-        
-        if not os.path.exists(template_path):
-            return HttpResponse(f"Template file not found. Please re-upload your template.", status=404)
+        # Read template bytes from DB (survives redeployments)
+        template_bytes = user_template.get_file_bytes()
+        if not template_bytes:
+            return HttpResponse("Template file not found. Please re-upload your template.", status=404)
 
         def replace_in_paragraphs(paragraphs, placeholder_map, mm_yyyy_val):
             for p in paragraphs:
@@ -7759,7 +7828,7 @@ def bill_document(request):
             from docx.opc.constants import RELATIONSHIP_TYPE as RT
             
             # Start with the template and clear its content
-            combined_doc = Document(template_path)
+            combined_doc = Document(io.BytesIO(template_bytes))
             
             # Clear the template content first
             for element in list(combined_doc.element.body):
@@ -7771,6 +7840,13 @@ def bill_document(request):
                 sheet_name_of_work = sheet_header.get("name_of_work", "") or ""
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
+                
+                # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
+                sheet_mb = mb_details_str
+                if not user_entered_mb:
+                    sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
+                    if sheet_mb_from_file:
+                        sheet_mb = sheet_mb_from_file
                 
                 # Get formulas sheet if available
                 ws_formulas = None
@@ -7796,14 +7872,14 @@ def bill_document(request):
                     "{{AGREEMENT_REF}}": sheet_agreement_ref,
                     "{{REF_OF_AGREEMENT}}": sheet_agreement_ref,
                     "{{CC_HEADER}}": cc_header,
-                    "{{MB_DETAILS}}": mb_details_str,
+                    "{{MB_DETAILS}}": sheet_mb,
                     "{{AMOUNT}}": sheet_total_str,
                     "{{TOTAL_AMOUNT}}": sheet_total_str,
                     "{{AMOUNT_IN_WORDS}}": sheet_amount_words,
                 }
                 
                 # Load fresh template for this sheet
-                sheet_doc = Document(template_path)
+                sheet_doc = Document(io.BytesIO(template_bytes))
                 
                 # Replace placeholders in body
                 replace_in_paragraphs(sheet_doc.paragraphs, sheet_placeholder_map, mm_yyyy)
@@ -7857,7 +7933,7 @@ def bill_document(request):
                 "{{AMOUNT_IN_WORDS}}": _number_to_words_rupees(total_amount),
             }
 
-            doc = Document(template_path)
+            doc = Document(io.BytesIO(template_bytes))
             replace_in_paragraphs(doc.paragraphs, placeholder_map, mm_yyyy)
 
             for table in doc.tables:

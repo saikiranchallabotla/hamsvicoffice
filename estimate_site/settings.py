@@ -139,20 +139,25 @@ WSGI_APPLICATION = 'estimate_site.wsgi.application'
 # ==============================================================================
 # Supports DATABASE_URL (Railway/Heroku), individual vars, or SQLite
 
-import dj_database_url
-
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 DB_ENGINE = os.getenv('DB_ENGINE', 'sqlite3')
 
 if DATABASE_URL:
     # Railway, Heroku, Render - auto-configure from DATABASE_URL
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
+    try:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=DATABASE_URL,
+                conn_max_age=600,
+                conn_health_checks=True,
+            )
+        }
+    except ImportError:
+        raise ImportError(
+            "dj-database-url is required when DATABASE_URL is set. "
+            "Install it with: pip install dj-database-url"
         )
-    }
 elif DB_ENGINE == 'postgresql':
     DATABASES = {
         'default': {
@@ -227,15 +232,25 @@ else:
     STATIC_URL = 'static/'
     STATIC_ROOT = BASE_DIR / 'staticfiles'
     
-    # WhiteNoise for serving static files in production without S3
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-        },
-    }
+    # Use simple static files storage in development, WhiteNoise in production
+    if DEBUG:
+        STORAGES = {
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+    else:
+        STORAGES = {
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+            },
+            "staticfiles": {
+                "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+            },
+        }
 
 
 # ==============================================================================
