@@ -556,6 +556,33 @@
         font-weight: 600;
         color: #92400e;
     }
+
+    /* Delete button for supplemental items */
+    .btn-remove-supp {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: #fee2e2;
+        color: #dc2626;
+        cursor: pointer;
+        font-size: 0.55rem;
+        flex-shrink: 0;
+        transition: background 0.15s, color 0.15s, transform 0.15s;
+    }
+    .btn-remove-supp:hover {
+        background: #dc2626;
+        color: white;
+        transform: scale(1.15);
+    }
+    .btn-remove-supp.removing {
+        opacity: 0.5;
+        pointer-events: none;
+    }
 </style>
 
 {% if error %}
@@ -1057,9 +1084,24 @@
                                         </tr>
                                     {% else %}
                                         <tr data-row-type="{{ row.row_type }}"
-                                            data-row-key="{% if row.row_type == 'supp' %}supp:{{ row.name }}{% else %}{{ row.key }}{% endif %}">
+                                            data-row-key="{% if row.row_type == 'supp' %}supp:{{ row.name }}{% else %}{{ row.key }}{% endif %}"
+                                            {% if row.row_type == 'supp' %}data-supp-name="{{ row.name }}"{% endif %}>
                                             <td>{{ row.sl }}</td>
-                                            <td class="desc-col" title="{{ row.desc }}">{{ row.desc }}</td>
+                                            <td class="desc-col" title="{{ row.desc }}">
+                                                {% if row.row_type == 'supp' %}
+                                                <div style="display: flex; align-items: center; gap: 4px;">
+                                                    <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.desc }}</span>
+                                                    <button type="button"
+                                                            class="btn-remove-supp"
+                                                            data-item-name="{{ row.name }}"
+                                                            title="Remove {{ row.name }}">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                </div>
+                                                {% else %}
+                                                {{ row.desc }}
+                                                {% endif %}
+                                            </td>
                                             <td>{{ row.unit }}</td>
                                             <td>{{ row.qty_est }}</td>
                                             {% for phase_exec in row.previous_phases_exec %}
@@ -1448,13 +1490,13 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.addEventListener('change', function(e) {
             var itemName = this.getAttribute('data-item-name');
             var isChecked = this.checked;
-            
+
             // Only process via AJAX when UNCHECKING an already added item
             if (!isChecked) {
                 // Check if this item exists in the preview table
                 var key = "supp:" + itemName;
                 var existingRow = document.querySelector('#ws-table tbody tr[data-row-key="' + key + '"]');
-                
+
                 if (existingRow) {
                     // Item is in preview - remove via AJAX
                     suppToggleQueue.push({
@@ -1468,6 +1510,40 @@ document.addEventListener('DOMContentLoaded', function() {
             // When CHECKING, the form submission with "Add Supplemental Items" button will handle it
         });
     });
+
+    // Attach handlers to delete (X) buttons on supplemental item rows in the preview table
+    function attachSuppDeleteHandlers() {
+        document.querySelectorAll('.btn-remove-supp').forEach(function(btn) {
+            // Avoid attaching duplicate listeners
+            if (btn.dataset.handlerAttached) return;
+            btn.dataset.handlerAttached = '1';
+
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var itemName = this.getAttribute('data-item-name');
+                if (!itemName) return;
+
+                var deleteBtn = this;
+                deleteBtn.classList.add('removing');
+
+                // Uncheck the corresponding checkbox in the items panel (if visible)
+                var checkbox = document.querySelector('.supp-item-checkbox[data-item-name="' + itemName + '"]');
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+
+                // Use the existing AJAX toggle queue to remove from session
+                suppToggleQueue.push({
+                    checkbox: checkbox || { classList: { add: function(){}, remove: function(){} }, checked: false },
+                    item: itemName,
+                    action: 'remove'
+                });
+                processSuppQueue();
+            });
+        });
+    }
+    attachSuppDeleteHandlers();
 
 // Ensure only one IIFE for all logic
 (function() {
