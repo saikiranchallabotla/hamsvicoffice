@@ -174,6 +174,20 @@ class ModuleBackend(models.Model):
         upload_to='module_backends/',
         help_text="Excel file with 'Master Datas' and 'Groups' sheets"
     )
+
+    # Binary backup of file content in database (survives ephemeral filesystem redeployments)
+    file_data = models.BinaryField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Binary copy of the backend file stored in DB for persistence"
+    )
+    file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Original filename for restoration"
+    )
     
     # Display order (lower = appears first)
     display_order = models.PositiveIntegerField(
@@ -214,6 +228,44 @@ class ModuleBackend(models.Model):
             ).exclude(pk=self.pk).update(is_default=False)
         super().save(*args, **kwargs)
     
+    def get_file_bytes(self):
+        """
+        Get the backend file content, preferring DB storage over disk.
+        Restores disk file from DB if missing (for local/ephemeral storage).
+        """
+        import os
+        # 1. If DB has file_data, use it (authoritative)
+        if self.file_data:
+            # Also restore disk file if missing
+            if self.file:
+                try:
+                    file_path = self.file.path
+                    if not os.path.exists(file_path):
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                        with open(file_path, 'wb') as f:
+                            f.write(bytes(self.file_data))
+                except Exception:
+                    pass
+            return bytes(self.file_data)
+
+        # 2. Fallback: read from disk file and backfill DB
+        if self.file:
+            try:
+                file_path = self.file.path
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as f:
+                        data = f.read()
+                    # Backfill DB storage
+                    ModuleBackend.objects.filter(pk=self.pk).update(
+                        file_data=data,
+                        file_name=os.path.basename(file_path)
+                    )
+                    return data
+            except Exception:
+                pass
+
+        return None
+
     @classmethod
     def get_for_module(cls, module_code, category, backend_id=None):
         """

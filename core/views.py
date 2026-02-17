@@ -508,12 +508,40 @@ def workslip(request):
     url_backend_id = request.GET.get("backend_id")
     if url_backend_id:
         try:
-            request.session["ws_selected_backend_id"] = int(url_backend_id)
+            bid = int(url_backend_id)
+            request.session["ws_selected_backend_id"] = bid
+            # Persist choice to DB so it survives re-login/redeployment
+            if request.user.is_authenticated:
+                try:
+                    from subscriptions.models import ModuleBackend
+                    from accounts.models import UserBackendPreference
+                    _backend = ModuleBackend.objects.filter(pk=bid, is_active=True).first()
+                    if _backend:
+                        UserBackendPreference.set_user_backend(request.user, _backend)
+                except Exception:
+                    pass
         except (ValueError, TypeError):
             pass
-    
+
     ws_selected_backend_id = request.session.get("ws_selected_backend_id")
-    
+
+    # Initialize from user's saved preference if session has no selection
+    if ws_selected_backend_id is None and request.user.is_authenticated:
+        try:
+            from accounts.models import UserBackendPreference
+            _base_cat = ws_category  # 'electrical' or 'civil'
+            _mod_code = 'new_estimate'
+            if request.session.get("ws_work_type") == 'amc':
+                _mod_code = 'amc'
+            elif request.session.get("ws_work_type") == 'tempworks':
+                _mod_code = 'temp_works'
+            _pref_backend = UserBackendPreference.get_user_backend(request.user, _mod_code, _base_cat)
+            if _pref_backend:
+                ws_selected_backend_id = _pref_backend.pk
+                request.session["ws_selected_backend_id"] = ws_selected_backend_id
+        except Exception:
+            pass
+
     # ---- session state ----
     ws_estimate_rows = request.session.get("ws_estimate_rows", []) or []
     ws_exec_map = request.session.get("ws_exec_map", {}) or {}
@@ -8208,13 +8236,35 @@ def datas_items(request, category, group):
     url_backend_id = request.GET.get("backend_id")
     if url_backend_id:
         try:
-            request.session["selected_backend_id"] = int(url_backend_id)
+            bid = int(url_backend_id)
+            request.session["selected_backend_id"] = bid
+            # Persist choice to DB so it survives re-login/redeployment
+            if request.user.is_authenticated:
+                try:
+                    from subscriptions.models import ModuleBackend
+                    from accounts.models import UserBackendPreference
+                    _backend = ModuleBackend.objects.filter(pk=bid, is_active=True).first()
+                    if _backend:
+                        UserBackendPreference.set_user_backend(request.user, _backend)
+                except Exception:
+                    pass
         except (ValueError, TypeError):
             pass
-    
+
     # Get backend_id from session for consistent loading throughout the flow
     selected_backend_id = request.session.get("selected_backend_id")
-    
+
+    # Initialize from user's saved preference if session has no selection
+    if selected_backend_id is None and request.user.is_authenticated:
+        try:
+            from accounts.models import UserBackendPreference
+            _pref_backend = UserBackendPreference.get_user_backend(request.user, 'new_estimate', category)
+            if _pref_backend:
+                selected_backend_id = _pref_backend.pk
+                request.session["selected_backend_id"] = selected_backend_id
+        except Exception:
+            pass
+
     # Get available backends for the dropdown
     try:
         available_backends = get_available_backends_for_module('new_estimate', category)
@@ -9778,7 +9828,7 @@ def _extract_labels_from_lines(lines):
     ocr_corrections = {
         # Maintenance
         "mala tenance": "maintenance",
-        "malatenance": "maintenance", 
+        "malatenance": "maintenance",
         "maintenace": "maintenance",
         "maintainance": "maintenance",
         "maintanance": "maintenance",
@@ -9811,21 +9861,62 @@ def _extract_labels_from_lines(lines):
         "Bitépad": "Begumpet",
         # Hyderabad
         "Hydera bad": "Hyderabad",
-        # Common OCR errors
+        # Common OCR errors - general
         "sanctlon": "sanction",
         "sanchon": "sanction",
         "Techical": "Technical",
         "Addinistrative": "Administrative",
         "ot cated": "located",
         "st ate": "state",
+        # Common l/1/I confusions
+        "Estimale": "Estimate",
+        "estimale": "estimate",
+        "estlmate": "estimate",
+        "eslimate": "estimate",
+        "Admlnistrative": "Administrative",
+        "admlnistrative": "administrative",
+        "Technlcal": "Technical",
+        "technlcal": "technical",
+        # o/0 confusions
+        "c0ntract": "contract",
+        "c0ntractor": "contractor",
+        "c0mpletion": "completion",
+        # Common spacing issues
+        "sub division": "sub-division",
+        "Sub Division": "Sub-Division",
+        "work order": "work order",
+        "Agree ment": "Agreement",
+        "agree ment": "agreement",
+        "Ad ministrative": "Administrative",
+        "ad ministrative": "administrative",
+        "con tractor": "contractor",
+        "san ction": "sanction",
+        "comple tion": "completion",
+        # Common document terms
+        "Supplylng": "Supplying",
+        "supplylng": "supplying",
+        "Constructlon": "Construction",
+        "constructlon": "construction",
+        "Electrlcal": "Electrical",
+        "electrlcal": "electrical",
+        "lnstallation": "installation",
+        "Installatlon": "Installation",
+        "Erectl0n": "Erection",
+        "erecti0n": "erection",
     }
-    
-    # Apply corrections to name_of_work
-    if labels.get("name_of_work"):
-        work = labels["name_of_work"]
-        for wrong, correct in ocr_corrections.items():
-            work = re.sub(re.escape(wrong), correct, work, flags=re.I)
-        labels["name_of_work"] = work
+
+    # Apply corrections to ALL text fields (not just name_of_work)
+    text_fields = [
+        "name_of_work", "agreement", "admin_sanction", "tech_sanction",
+        "agency", "contractor_name", "contractor_address",
+        "nit_number", "period_of_completion",
+    ]
+    for field in text_fields:
+        if labels.get(field):
+            val = labels[field]
+            for wrong, correct in ocr_corrections.items():
+                val = re.sub(re.escape(wrong), correct, val, flags=re.I)
+            labels[field] = val
     
     # SECOND PASS: Handle table-format where labels and values are on separate lines
     # This handles OCR from table documents where "Name of Work" is one row and value is next row
@@ -9896,65 +9987,91 @@ def _extract_labels_from_lines(lines):
 def _preprocess_image_for_ocr(img):
     """
     Preprocess image for better OCR accuracy, especially for blurred/low-quality images.
-    Uses various image enhancement techniques.
+    Uses various image enhancement techniques including deskewing.
     """
     try:
         from PIL import Image, ImageEnhance, ImageFilter
         import numpy as np
     except ImportError:
         return img  # Return original if dependencies not available
-    
+
     try:
         # Convert to RGB if necessary
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        
+
         # 1. Resize if image is too small (upscale for better OCR)
         width, height = img.size
-        if width < 1000 or height < 1000:
-            scale_factor = max(1500 / width, 1500 / height)
+        if width < 1500 or height < 1500:
+            scale_factor = max(2000 / width, 2000 / height)
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
             img = img.resize((new_width, new_height), Image.LANCZOS)
-        
+
         # 2. Convert to grayscale
         img = img.convert('L')
-        
+
         # 3. Increase contrast
         enhancer = ImageEnhance.Contrast(img)
         img = enhancer.enhance(2.0)
-        
+
         # 4. Increase sharpness (helps with blurred images)
         img = img.convert('RGB')  # Convert back for sharpness
         enhancer = ImageEnhance.Sharpness(img)
         img = enhancer.enhance(2.5)
-        
+
         # 5. Apply unsharp mask for deblurring effect
         img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
-        
+
         # 6. Convert back to grayscale for OCR
         img = img.convert('L')
-        
-        # 7. Apply adaptive thresholding using numpy
+
+        # 7. Apply Otsu-style adaptive thresholding using numpy
         try:
             img_array = np.array(img)
-            
+
             # Apply Gaussian blur to reduce noise
-            from PIL import ImageFilter
             img_blurred = Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(radius=1))
             img_array = np.array(img_blurred)
-            
-            # Simple adaptive thresholding
-            mean_val = np.mean(img_array)
-            threshold = mean_val * 0.85
+
+            # Otsu-inspired thresholding for cleaner binarization
+            hist, _ = np.histogram(img_array.ravel(), bins=256, range=(0, 256))
+            total = img_array.size
+            sum_all = np.sum(np.arange(256) * hist)
+            sum_bg, w_bg = 0.0, 0
+            max_var, threshold = 0.0, 128
+            for t in range(256):
+                w_bg += hist[t]
+                if w_bg == 0:
+                    continue
+                w_fg = total - w_bg
+                if w_fg == 0:
+                    break
+                sum_bg += t * hist[t]
+                mean_bg = sum_bg / w_bg
+                mean_fg = (sum_all - sum_bg) / w_fg
+                var_between = w_bg * w_fg * (mean_bg - mean_fg) ** 2
+                if var_between > max_var:
+                    max_var = var_between
+                    threshold = t
+
             img_array = np.where(img_array > threshold, 255, 0).astype(np.uint8)
             img = Image.fromarray(img_array)
         except Exception:
             pass  # Continue with enhanced image if thresholding fails
-        
+
         # 8. Apply slight median filter to remove noise
         img = img.filter(ImageFilter.MedianFilter(size=3))
-        
+
+        # 9. Morphological dilation to thicken thin text
+        try:
+            img_array = np.array(img)
+            from PIL import ImageFilter
+            # Slight dilation using min filter (thickens dark text on white background)
+            img = Image.fromarray(img_array).filter(ImageFilter.MinFilter(size=3))
+        except Exception:
+            pass
+
         return img
     except Exception as e:
         logger.warning(f"Image preprocessing failed: {e}")
@@ -9963,24 +10080,91 @@ def _preprocess_image_for_ocr(img):
 
 def _ocr_with_multiple_configs(img, lang='eng'):
     """
-    Fast OCR extraction - uses single optimal config for speed.
+    OCR extraction with multiple Tesseract configurations for better accuracy.
+    Tries multiple PSM modes and picks the best result.
+    Applies image preprocessing before OCR.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         import pytesseract
     except ImportError:
         return ""
-    
-    # Use single best config for speed (PSM 6 is optimal for documents)
-    try:
-        result = pytesseract.image_to_string(img, lang=lang, config='--oem 3 --psm 6')
-        logger.debug(f"OCR extracted {len(result)} chars")
-        return result
-    except Exception as e:
-        logger.debug(f"OCR failed: {e}")
-        return ""
+
+    # Preprocess the image for better OCR accuracy
+    preprocessed_img = _preprocess_image_for_ocr(img)
+
+    # Try multiple configurations and pick the one with most content
+    configs = [
+        ('--oem 3 --psm 6', 'PSM6-block'),    # Uniform block of text (best for documents)
+        ('--oem 3 --psm 3', 'PSM3-auto'),      # Fully automatic page segmentation
+        ('--oem 3 --psm 4', 'PSM4-column'),     # Single column of text
+    ]
+
+    best_result = ""
+    best_score = 0
+
+    for config, label in configs:
+        try:
+            result = pytesseract.image_to_string(preprocessed_img, lang=lang, config=config)
+            # Score based on content quality: line count, avg line length, alphanumeric ratio
+            result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
+            alnum_chars = sum(1 for c in result if c.isalnum())
+            total_chars = len(result) or 1
+            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50
+            logger.debug(f"OCR {label}: {len(result_lines)} lines, score={score:.0f}")
+            if score > best_score:
+                best_score = score
+                best_result = result
+        except Exception as e:
+            logger.debug(f"OCR {label} failed: {e}")
+
+    # If preprocessed results are poor, try original image as fallback
+    if best_score < 50:
+        try:
+            result = pytesseract.image_to_string(img, lang=lang, config='--oem 3 --psm 6')
+            result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
+            alnum_chars = sum(1 for c in result if c.isalnum())
+            total_chars = len(result) or 1
+            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50
+            if score > best_score:
+                best_result = result
+                logger.debug(f"Original image OCR was better: score={score:.0f}")
+        except Exception:
+            pass
+
+    logger.debug(f"OCR final result: {len(best_result)} chars")
+    return best_result
+
+
+# Common OCR character confusions applied to all text
+_OCR_CHAR_FIXES = {
+    '|': 'l',     # pipe → lowercase L
+    '¢': 'c',     # cent sign → c
+    '©': 'c',     # copyright → c
+    '®': 'R',     # registered → R
+    '—': '-',     # em dash → hyphen
+    '–': '-',     # en dash → hyphen
+    '\u2018': "'", # left single quote
+    '\u2019': "'", # right single quote
+    '\u201c': '"', # left double quote
+    '\u201d': '"', # right double quote
+}
+
+
+def _fix_ocr_text(text):
+    """Apply character-level OCR fixes and clean common artifacts."""
+    if not text:
+        return text
+    for wrong, correct in _OCR_CHAR_FIXES.items():
+        text = text.replace(wrong, correct)
+    # Fix common OCR number/letter confusions in context
+    text = re.sub(r'\bRs\s*[.,]\s*', 'Rs. ', text)  # Fix "Rs," or "Rs ." to "Rs. "
+    text = re.sub(r'\b0f\b', 'of', text, flags=re.I)  # 0f → of
+    text = re.sub(r'\b1n\b', 'in', text, flags=re.I)  # 1n → in
+    text = re.sub(r'\bthe\s+the\b', 'the', text, flags=re.I)  # Remove duplicate "the the"
+    return text
 
 
 def _extract_labels_from_source_file(uploaded_file):
@@ -10078,27 +10262,29 @@ def _extract_labels_from_source_file(uploaded_file):
                 from pdf2image import convert_from_bytes
                 import pytesseract
                 from PIL import Image
-                
+
                 logger.info("Attempting OCR for scanned PDF...")
                 uploaded_file.seek(0)
                 pdf_bytes = uploaded_file.read()
-                
-                # Convert PDF pages to images at lower DPI for speed
-                images = convert_from_bytes(pdf_bytes, dpi=200)
-                
+
+                # Convert PDF pages to images at 300 DPI for better OCR accuracy
+                images = convert_from_bytes(pdf_bytes, dpi=300)
+
                 ocr_lines = []
-                
+
                 for idx, img in enumerate(images):
                     logger.info(f"Processing page {idx + 1} with OCR...")
-                    
-                    # Single OCR pass for speed
+
+                    # Multi-config OCR with preprocessing
                     txt = _ocr_with_multiple_configs(img, lang='eng')
-                    
+                    # Apply character-level OCR fixes
+                    txt = _fix_ocr_text(txt)
+
                     for ln in txt.splitlines():
                         ln = ln.strip()
                         if ln and len(ln) > 1:
                             ocr_lines.append(ln)
-                
+
                 # Use OCR results if they have more content
                 if len(ocr_lines) > len(lines):
                     lines = ocr_lines
@@ -10121,10 +10307,12 @@ def _extract_labels_from_source_file(uploaded_file):
             logger.info(f"Processing image file: {filename}")
             uploaded_file.seek(0)
             img = Image.open(uploaded_file)
-            
-            # Single OCR pass for speed
+
+            # Multi-config OCR with preprocessing
             txt = _ocr_with_multiple_configs(img, lang='eng')
-            
+            # Apply character-level OCR fixes
+            txt = _fix_ocr_text(txt)
+
             for ln in txt.splitlines():
                 ln = ln.strip()
                 if ln and len(ln) > 1:  # Skip single characters

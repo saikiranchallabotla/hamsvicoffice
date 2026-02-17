@@ -576,6 +576,11 @@ def add_module_backend(request, module_code):
                         'Please verify the file format.'
                     )
             
+            # Read file bytes for DB persistence
+            uploaded_file.seek(0)
+            file_bytes = uploaded_file.read()
+            uploaded_file.seek(0)
+
             # Create backend
             backend = ModuleBackend(
                 module=module,
@@ -586,6 +591,8 @@ def add_module_backend(request, module_code):
                 is_default=is_default,
                 display_order=int(display_order) if display_order else 0,
                 file=uploaded_file,
+                file_data=file_bytes,
+                file_name=uploaded_file.name,
             )
             backend.save()
             
@@ -657,11 +664,16 @@ def edit_module_backend(request, backend_id):
                     if old_path.exists():
                         old_path.unlink()
                 
+                # Save file bytes to DB for persistence
+                uploaded_file.seek(0)
+                backend.file_data = uploaded_file.read()
+                uploaded_file.seek(0)
+                backend.file_name = uploaded_file.name
                 backend.file = uploaded_file
             except Exception as e:
                 messages.error(request, f'Error processing file: {str(e)}')
                 return redirect('admin_edit_module_backend', backend_id=backend_id)
-        
+
         backend.save()
         
         # Audit log

@@ -234,20 +234,25 @@ def seed_module_backends():
 def restore_missing_backend_files():
     """
     Restore missing backend files for EXISTING backends only.
-    Does NOT create new backend records.
+    Does NOT create new backend records or overwrite user-uploaded backends.
+
+    Priority for restoring files:
+    1. Database file_data (user's actual uploaded file - authoritative)
+    2. Static default files from core/data/ (only as last resort for seeded backends)
+
     Only needed for local storage - cloud storage files persist automatically.
     """
     from subscriptions.models import ModuleBackend
-    
+
     # Skip if using cloud storage
     storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', '')
     if 'S3Boto3Storage' in storage_backend:
         return
-    
+
     static_data_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
     media_backends_dir = os.path.join(settings.MEDIA_ROOT, 'module_backends')
-    
-    # Map of expected source files
+
+    # Map of default source files (only for initially seeded backends)
     file_mapping = {
         'new_estimate_electrical': 'electrical.xlsx',
         'new_estimate_civil': 'civil.xlsx',
@@ -258,46 +263,92 @@ def restore_missing_backend_files():
         'amc_electrical': 'amc_electrical.xlsx',
         'amc_civil': 'amc_civil.xlsx',
     }
-    
-    restored = 0
-    
+
+    restored_from_db = 0
+    restored_from_static = 0
+    backfilled_to_db = 0
+
     for backend in ModuleBackend.objects.filter(file__isnull=False).exclude(file=''):
         if not backend.file:
             continue
-        
+
+        # Check if disk file exists
         try:
             file_path = backend.file.path
-            if os.path.exists(file_path):
-                continue  # File exists, skip
+            file_exists = os.path.exists(file_path)
         except Exception:
+            file_exists = False
+
+        if file_exists:
+            # File exists on disk - backfill to DB if not already stored
+            if not backend.file_data:
+                try:
+                    with open(file_path, 'rb') as f:
+                        data = f.read()
+                    ModuleBackend.objects.filter(pk=backend.pk).update(
+                        file_data=data,
+                        file_name=os.path.basename(file_path)
+                    )
+                    backfilled_to_db += 1
+                except Exception:
+                    pass
             continue
-        
-        # File is missing - try to restore from static data
+
+        # File is missing on disk - try to restore from DB first (user's actual file)
+        if backend.file_data:
+            try:
+                os.makedirs(media_backends_dir, exist_ok=True)
+                restore_name = backend.file_name or os.path.basename(backend.file.name)
+                dest_path = os.path.join(media_backends_dir, restore_name)
+                with open(dest_path, 'wb') as f:
+                    f.write(bytes(backend.file_data))
+                # Update file field to point to restored file (without changing updated_at)
+                ModuleBackend.objects.filter(pk=backend.pk).update(
+                    file=f'module_backends/{restore_name}'
+                )
+                restored_from_db += 1
+                print(f'[INIT] Restored backend from DB: {backend.name}')
+                continue
+            except Exception as e:
+                print(f'[INIT] Error restoring from DB for {backend.name}: {e}')
+
+        # Last resort: try static data (only for seeded backends)
         key = f"{backend.module.code}_{backend.category}"
         source_file = file_mapping.get(key)
-        
+
         if not source_file:
             continue
-        
+
         source_path = os.path.join(static_data_dir, source_file)
         if not os.path.exists(source_path):
             continue
-        
+
         os.makedirs(media_backends_dir, exist_ok=True)
         dest_filename = f"{backend.module.code}_{source_file}"
         dest_path = os.path.join(media_backends_dir, dest_filename)
-        
+
         try:
             shutil.copy2(source_path, dest_path)
-            backend.file = f'module_backends/{dest_filename}'
-            backend.save(update_fields=['file'])
-            restored += 1
-            print(f'[INIT] Restored missing file for backend: {backend.name}')
+            # Read file data for DB backup
+            with open(dest_path, 'rb') as f:
+                data = f.read()
+            # Use queryset update to avoid changing updated_at
+            ModuleBackend.objects.filter(pk=backend.pk).update(
+                file=f'module_backends/{dest_filename}',
+                file_data=data,
+                file_name=dest_filename
+            )
+            restored_from_static += 1
+            print(f'[INIT] Restored backend from static data: {backend.name}')
         except Exception as e:
             print(f'[INIT] Error restoring file for {backend.name}: {e}')
-    
-    if restored > 0:
-        print(f'[INIT] Restored {restored} missing backend files')
+
+    if restored_from_db > 0:
+        print(f'[INIT] Restored {restored_from_db} backends from database')
+    if restored_from_static > 0:
+        print(f'[INIT] Restored {restored_from_static} backends from static files')
+    if backfilled_to_db > 0:
+        print(f'[INIT] Backfilled {backfilled_to_db} backend files to database')
 
 
 def check_storage_status():

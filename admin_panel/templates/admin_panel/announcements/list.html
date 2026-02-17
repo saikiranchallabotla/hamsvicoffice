@@ -36,11 +36,11 @@
                         <div class="small text-muted text-truncate" style="max-width:250px;">{{ announcement.message|truncatechars:50 }}</div>
                     </td>
                     <td>
-                        <span class="badge {% if announcement.type == 'warning' %}bg-warning text-dark{% elif announcement.type == 'danger' %}bg-danger{% elif announcement.type == 'success' %}bg-success{% else %}bg-info{% endif %}">
-                            {{ announcement.get_type_display }}
+                        <span class="badge {% if announcement.announcement_type == 'warning' %}bg-warning text-dark{% elif announcement.announcement_type == 'danger' %}bg-danger{% elif announcement.announcement_type == 'success' %}bg-success{% else %}bg-info{% endif %}">
+                            {{ announcement.get_announcement_type_display }}
                         </span>
                     </td>
-                    <td>{{ announcement.get_target_display }}</td>
+                    <td>{{ announcement.get_target_audience_display }}</td>
                     <td>
                         {% if announcement.is_active %}
                             <span class="badge bg-success">Active</span>
@@ -49,7 +49,7 @@
                         {% endif %}
                     </td>
                     <td>{{ announcement.created_at|date:"d M Y" }}</td>
-                    <td>{{ announcement.expires_at|date:"d M Y"|default:"-" }}</td>
+                    <td>{{ announcement.ends_at|date:"d M Y"|default:"-" }}</td>
                     <td>
                         <div class="d-flex gap-1">
                             <a href="{% url 'admin_announcement_edit' announcement.id %}" class="btn btn-sm btn-outline-primary">
