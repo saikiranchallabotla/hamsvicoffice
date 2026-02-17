@@ -1063,7 +1063,7 @@
     // Template popup functions
     function handleTemplateDocClick(btn, docType, docName) {
         const templateAvailable = btn.getAttribute('data-template-available') === 'true';
-        
+
         if (!templateAvailable) {
             // Show popup
             showTemplatePopup(docType, docName);
@@ -1080,11 +1080,16 @@
                     form.appendChild(hiddenInput);
                 }
                 hiddenInput.value = docType;
-                
+
                 // Sync common fields and submit
                 syncCommonToForm(form);
                 form.action = "{% url 'bill_document' %}";
                 form.submit();
+
+                // Remove the hidden input after submission so it does not
+                // interfere with subsequent native button clicks (L.S forms)
+                // when the server returns a file download and the page stays.
+                setTimeout(function() { hiddenInput.remove(); }, 100);
             }
         }
     }

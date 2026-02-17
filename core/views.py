@@ -41,6 +41,39 @@ BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core"
 
 _inflect_engine = inflect.engine()
 
+
+def _apply_print_settings(wb, landscape=False):
+    """
+    Apply standard print settings to all sheets in a workbook:
+      - A4 paper, fit all columns to 1 page width
+      - Portrait (default) or Landscape
+      - Times New Roman font on all populated cells
+    """
+    for ws in wb.worksheets:
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.page_setup.orientation = 'landscape' if landscape else 'portrait'
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0  # unlimited pages vertically
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+        max_r = ws.max_row or 0
+        max_c = ws.max_column or 0
+        for r in range(1, max_r + 1):
+            for c in range(1, max_c + 1):
+                cell = ws.cell(row=r, column=c)
+                if cell.value is not None:
+                    f = cell.font
+                    cell.font = Font(
+                        name='Times New Roman',
+                        bold=f.bold,
+                        italic=f.italic,
+                        size=f.size,
+                        color=f.color,
+                        underline=f.underline,
+                        strikethrough=f.strikethrough,
+                    )
+
+
 # ============================================================================
 # PHASE 3B: HELPER FUNCTIONS FOR ORGANIZATION & ASYNC PROCESSING
 # ============================================================================
@@ -2243,7 +2276,13 @@ def workslip(request):
             if ws_supp_items:
                 ws_blocks = wb_out.active
                 ws_blocks.title = "ItemBlocks"
-                current_row = 1
+                # Add "Name of Work" header
+                ws_blocks.merge_cells("A1:J1")
+                hdr = ws_blocks["A1"]
+                hdr.value = f"Name of the work : {ws_work_name}" if ws_work_name else "Name of the work : "
+                hdr.font = Font(bold=True, size=11)
+                hdr.alignment = Alignment(horizontal="left", vertical="center")
+                current_row = 3  # start blocks after header + blank row
                 if ws_data is not None:
                     for name in ws_supp_items:
                         info = item_to_info.get(name)
@@ -2954,6 +2993,9 @@ def workslip(request):
                 ws_idx = wb_out.sheetnames.index("WorkSlip")
                 if ws_idx > 0:
                     wb_out.move_sheet("WorkSlip", offset=-ws_idx)
+
+            # Apply print settings: Landscape, A4, fit columns, Times New Roman
+            _apply_print_settings(wb_out, landscape=True)
 
             # return file
             resp = HttpResponse(
@@ -5105,6 +5147,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no items parsed from upload"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -5172,6 +5215,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no workslip items parsed from upload"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -5316,6 +5360,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no items parsed from any First Bill sheets"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -5457,6 +5502,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no items parsed from any Nth Bill sheets"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -6493,6 +6539,7 @@ def build_estimate_wb(ws_src, blocks):
                 "error": "Could not detect any items in the uploaded Estimate (all sheets).",
             })
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -6555,6 +6602,7 @@ def build_estimate_wb(ws_src, blocks):
                 "error": "Could not detect any executed items in the uploaded WorkSlip (all sheets).",
             })
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -6611,6 +6659,7 @@ def build_estimate_wb(ws_src, blocks):
             dobr=dobr,
         )
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -6668,6 +6717,7 @@ def build_estimate_wb(ws_src, blocks):
             dobr=dobr,
         )
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -7767,6 +7817,7 @@ def bill_document(request):
             except Exception as e:
                 return HttpResponse(f"Error filling LS template: {e}", status=500)
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -10713,6 +10764,7 @@ def _fill_template_file(template_file, placeholder_map):
                         if changed:
                             cell.value = txt
 
+        _apply_print_settings(wb)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -10757,8 +10809,10 @@ def self_formatted_form_page(request):
       - List of saved formats
     Optimized: Limited query with only necessary fields for faster load.
     """
-    # Only fetch the fields needed for display, limit to recent 20 formats
-    saved_formats = SelfFormattedTemplate.objects.only(
+    # Only fetch the current user's formats (not other users')
+    saved_formats = SelfFormattedTemplate.objects.filter(
+        user=request.user
+    ).only(
         'id', 'name', 'created_at'
     ).order_by("-created_at")[:20]
     error_message = request.GET.get("error")  # optional error via redirect
@@ -10867,6 +10921,8 @@ def self_formatted_save_format(request):
         description=format_description,
         template_file=template_file,
         custom_placeholders=raw_custom,
+        user=request.user,
+        organization=request.organization,
     )
     fmt.save()
 
@@ -10880,7 +10936,7 @@ def self_formatted_use_format(request, pk):
       GET  -> show page asking only for source_file upload.
       POST -> generate document using saved template + placeholders.
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk)
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
 
     if request.method == "GET":
         return render(request, "core/self_formatted_use.html", {
@@ -10930,7 +10986,7 @@ def self_formatted_delete_format(request, pk):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk)
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
 
     template = fmt.template_file
     storage = template.storage if template else None
@@ -10950,7 +11006,7 @@ def self_formatted_edit_format(request, pk):
     GET: show edit form
     POST: apply updates (name, description, optional new template file, custom placeholders)
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk)
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
 
     if request.method == "GET":
         preview_text = None
@@ -11559,7 +11615,14 @@ def temp_download_output(request, category):
     thin = Side(border_style="thin", color="000000")
     border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
 
-    cursor = 1  # current row in Output
+    # Add "Name of Work" header at top of Output sheet
+    ws_out.merge_cells("A1:J1")
+    hdr = ws_out["A1"]
+    hdr.value = f"Name of the work : {work_name}" if work_name else "Name of the work : "
+    hdr.font = Font(bold=True, size=11)
+    hdr.alignment = Alignment(horizontal="left", vertical="center")
+
+    cursor = 3  # start blocks after header + blank row
     rate_rows = []  # each element: (entry_index, row_in_output)
 
     # =====================================================
@@ -11795,6 +11858,7 @@ def temp_download_output(request, category):
             wb.move_sheet("Estimate", offset=-est_idx)
 
     # ----- return workbook -----
+    _apply_print_settings(wb)
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -12784,6 +12848,7 @@ def estimate(request):
                         wb_out.move_sheet(sheet_name, offset=(i - current_idx))
             
             # Return the estimate workbook
+            _apply_print_settings(wb_out)
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )

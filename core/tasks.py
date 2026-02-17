@@ -485,14 +485,23 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         wb = Workbook()
         ws_out = wb.active
         ws_out.title = "Output"
-        
+
         thin = Side(border_style="thin", color="000000")
         border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
-        
-        cursor = 1
+
+        # Add "Name of Work" header at top of Output sheet
+        ws_out.merge_cells("A1:J1")
+        c1 = ws_out["A1"]
+        c1.value = f"Name of the work : {normalize_text(work_name)}" if work_name else "Name of the work : "
+        c1.font = Font(bold=True, size=11)
+        c1.alignment = Alignment(horizontal="left", vertical="center")
+        for col in range(1, 11):
+            ws_out.cell(row=1, column=col).border = border_all
+
+        cursor = 3  # start item blocks after header + blank row
         rate_pos = {}
         data_serial = 1
-        
+
         # Build Output sheet
         for idx, name in enumerate(fetched):
             if idx % max(1, len(fetched) // 5) == 0:
@@ -787,7 +796,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             est_idx = wb.sheetnames.index("Estimate")
             if est_idx > 0:
                 wb.move_sheet("Estimate", offset=-est_idx)
-        
+
+        # Apply print settings: Portrait, A4, fit columns, Times New Roman
+        from core.views import _apply_print_settings
+        _apply_print_settings(wb)
+
         # Save to file
         output_buffer = BytesIO()
         wb.save(output_buffer)
@@ -902,7 +915,10 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json, backend_
         job.progress = 80
         job.current_step = "Saving Excel file..."
         job.save()
-        
+
+        from core.views import _apply_print_settings
+        _apply_print_settings(est_wb)
+
         # Save to file
         output_buffer = BytesIO()
         est_wb.save(output_buffer)
