@@ -829,12 +829,15 @@ def announcement_list(request):
     """
     List all announcements.
     """
-    announcements = Announcement.objects.order_by('-created_at')
-    
+    announcements_qs = Announcement.objects.order_by('-created_at')
+    paginator = Paginator(announcements_qs, 20)
+    page_number = request.GET.get('page')
+    announcements = paginator.get_page(page_number)
+
     context = {
         'announcements': announcements,
     }
-    
+
     return render(request, 'admin_panel/announcements/list.html', context)
 
 
@@ -852,6 +855,13 @@ def announcement_edit(request, announcement_id=0):
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         message = request.POST.get('message', '').strip()
+
+        if not title or not message:
+            messages.error(request, 'Title and message are required.')
+            return render(request, 'admin_panel/announcements/edit.html', {
+                'announcement': announcement,
+            })
+
         announcement_type = request.POST.get('announcement_type', 'info')
         target_audience = request.POST.get('target_audience', 'all')
         is_active = request.POST.get('is_active') == 'on'
@@ -859,59 +869,81 @@ def announcement_edit(request, announcement_id=0):
         is_banner = request.POST.get('is_banner') == 'on'
         link_url = request.POST.get('link_url', '').strip()
         link_text = request.POST.get('link_text', 'Learn More').strip()
-        
-        # Parse datetime fields - treat input as IST (Asia/Kolkata)
-        from datetime import datetime
-        import pytz
-        ist = pytz.timezone('Asia/Kolkata')
-        
+
+        # Parse datetime fields
+        from datetime import datetime as dt
         starts_at_str = request.POST.get('starts_at', '').strip()
         ends_at_str = request.POST.get('ends_at', '').strip()
-        
-        if starts_at_str:
-            # Parse the datetime-local format and localize to IST
-            naive_dt = datetime.strptime(starts_at_str, '%Y-%m-%dT%H:%M')
-            starts_at = ist.localize(naive_dt)
-        else:
-            starts_at = timezone.now()
-        
-        if ends_at_str:
-            naive_dt = datetime.strptime(ends_at_str, '%Y-%m-%dT%H:%M')
-            ends_at = ist.localize(naive_dt)
-        else:
-            ends_at = None
-        
-        if announcement:
-            announcement.title = title
-            announcement.message = message
-            announcement.announcement_type = announcement_type
-            announcement.target_audience = target_audience
-            announcement.is_active = is_active
-            announcement.is_dismissible = is_dismissible
-            announcement.is_banner = is_banner
-            announcement.link_url = link_url
-            announcement.link_text = link_text
-            announcement.starts_at = starts_at
-            announcement.ends_at = ends_at
-            announcement.save()
-            messages.success(request, 'Announcement updated.')
-        else:
-            Announcement.objects.create(
-                title=title,
-                message=message,
-                announcement_type=announcement_type,
-                target_audience=target_audience,
-                is_active=is_active,
-                is_dismissible=is_dismissible,
-                is_banner=is_banner,
-                link_url=link_url,
-                link_text=link_text,
-                starts_at=starts_at,
-                ends_at=ends_at,
-                created_by=request.user,
-            )
-            messages.success(request, 'Announcement created.')
-        
+
+        try:
+            if starts_at_str:
+                try:
+                    import pytz
+                    ist = pytz.timezone('Asia/Kolkata')
+                    naive_dt = dt.strptime(starts_at_str, '%Y-%m-%dT%H:%M')
+                    starts_at = ist.localize(naive_dt)
+                except ImportError:
+                    from zoneinfo import ZoneInfo
+                    naive_dt = dt.strptime(starts_at_str, '%Y-%m-%dT%H:%M')
+                    starts_at = naive_dt.replace(tzinfo=ZoneInfo('Asia/Kolkata'))
+            else:
+                starts_at = timezone.now()
+
+            if ends_at_str:
+                try:
+                    import pytz
+                    ist = pytz.timezone('Asia/Kolkata')
+                    naive_dt = dt.strptime(ends_at_str, '%Y-%m-%dT%H:%M')
+                    ends_at = ist.localize(naive_dt)
+                except ImportError:
+                    from zoneinfo import ZoneInfo
+                    naive_dt = dt.strptime(ends_at_str, '%Y-%m-%dT%H:%M')
+                    ends_at = naive_dt.replace(tzinfo=ZoneInfo('Asia/Kolkata'))
+            else:
+                ends_at = None
+        except (ValueError, Exception) as e:
+            messages.error(request, f'Invalid date format: {e}')
+            return render(request, 'admin_panel/announcements/edit.html', {
+                'announcement': announcement,
+            })
+
+        try:
+            if announcement:
+                announcement.title = title
+                announcement.message = message
+                announcement.announcement_type = announcement_type
+                announcement.target_audience = target_audience
+                announcement.is_active = is_active
+                announcement.is_dismissible = is_dismissible
+                announcement.is_banner = is_banner
+                announcement.link_url = link_url
+                announcement.link_text = link_text
+                announcement.starts_at = starts_at
+                announcement.ends_at = ends_at
+                announcement.save()
+                messages.success(request, 'Announcement updated.')
+            else:
+                Announcement.objects.create(
+                    title=title,
+                    message=message,
+                    announcement_type=announcement_type,
+                    target_audience=target_audience,
+                    is_active=is_active,
+                    is_dismissible=is_dismissible,
+                    is_banner=is_banner,
+                    link_url=link_url,
+                    link_text=link_text,
+                    starts_at=starts_at,
+                    ends_at=ends_at,
+                    created_by=request.user,
+                )
+                messages.success(request, 'Announcement created.')
+        except Exception as e:
+            messages.error(request, f'Error saving announcement: {e}')
+            return render(request, 'admin_panel/announcements/edit.html', {
+                'announcement': announcement,
+            })
+
         return redirect('admin_announcement_list')
     
     context = {

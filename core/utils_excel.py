@@ -187,26 +187,45 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     elif category_key.startswith('amc_'):
         base_category = category_key.replace('amc_', '')
     
+    # Helper to resolve backend file path (with DB fallback)
+    def _resolve_backend_path(backend_obj):
+        """Try disk path first, then restore from DB if needed."""
+        if not backend_obj or not backend_obj.file:
+            return None
+        try:
+            fpath = backend_obj.file.path
+            if os.path.exists(fpath):
+                return fpath
+        except Exception:
+            pass
+        # Try restoring from DB via get_file_bytes()
+        if hasattr(backend_obj, 'get_file_bytes'):
+            try:
+                data = backend_obj.get_file_bytes()
+                if data and backend_obj.file:
+                    return backend_obj.file.path
+            except Exception:
+                pass
+        return None
+
     # 1. Try ModuleBackend by specific ID
     if backend_id:
         try:
             from subscriptions.models import ModuleBackend
             backend = ModuleBackend.objects.filter(pk=backend_id, is_active=True).first()
-            if backend and backend.file:
-                filepath = backend.file.path
+            filepath = _resolve_backend_path(backend)
         except (OperationalError, ProgrammingError, Exception):
             pass
-    
+
     # 2. Try user's preferred backend
     if not filepath and user and user.is_authenticated and module_code:
         try:
             from accounts.models import UserBackendPreference
             backend = UserBackendPreference.get_user_backend(user, module_code, base_category)
-            if backend and backend.file:
-                filepath = backend.file.path
+            filepath = _resolve_backend_path(backend)
         except (OperationalError, ProgrammingError, Exception):
             pass
-    
+
     # 3. Try ModuleBackend default for module + category
     module_backend_checked = False
     if not filepath and module_code:
@@ -214,8 +233,7 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
             from subscriptions.models import ModuleBackend
             module_backend_checked = True
             backend = ModuleBackend.get_for_module(module_code, base_category)
-            if backend and backend.file:
-                filepath = backend.file.path
+            filepath = _resolve_backend_path(backend)
         except (OperationalError, ProgrammingError, Exception):
             pass
     
