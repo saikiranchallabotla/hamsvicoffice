@@ -1087,21 +1087,7 @@
                                             data-row-key="{% if row.row_type == 'supp' %}supp:{{ row.name }}{% else %}{{ row.key }}{% endif %}"
                                             {% if row.row_type == 'supp' %}data-supp-name="{{ row.name }}"{% endif %}>
                                             <td>{{ row.sl }}</td>
-                                            <td class="desc-col" title="{{ row.desc }}">
-                                                {% if row.row_type == 'supp' %}
-                                                <div style="display: flex; align-items: center; gap: 4px;">
-                                                    <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.desc }}</span>
-                                                    <button type="button"
-                                                            class="btn-remove-supp"
-                                                            data-item-name="{{ row.name }}"
-                                                            title="Remove {{ row.name }}">
-                                                        <i class="bi bi-x-lg"></i>
-                                                    </button>
-                                                </div>
-                                                {% else %}
-                                                {{ row.desc }}
-                                                {% endif %}
-                                            </td>
+                                            <td class="desc-col" title="{{ row.desc }}">{{ row.desc }}</td>
                                             <td>{{ row.unit }}</td>
                                             <td>{{ row.qty_est }}</td>
                                             {% for phase_exec in row.previous_phases_exec %}
@@ -1136,7 +1122,19 @@
                                                 </div>
                                             </td>
                                             {% endif %}
-                                            <td class="amount-cell"></td>
+                                            <td class="amount-cell">
+                                                {% if row.row_type == 'supp' %}
+                                                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                                                    <span class="amount-value"></span>
+                                                    <button type="button"
+                                                            class="btn-remove-supp"
+                                                            data-item-name="{{ row.name }}"
+                                                            title="Remove {{ row.name }}">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                </div>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                     {% endif %}
                                 {% endfor %}
@@ -1635,7 +1633,12 @@ document.addEventListener('DOMContentLoaded', function() {
         var amount = rate * qty;
         var amtCell = row.querySelector(".amount-cell");
         if (amtCell) {
-            amtCell.textContent = amount > 0 ? "₹" + amount.toFixed(2) : "";
+            var amtValue = amtCell.querySelector(".amount-value");
+            if (amtValue) {
+                amtValue.textContent = amount > 0 ? "₹" + amount.toFixed(2) : "";
+            } else {
+                amtCell.textContent = amount > 0 ? "₹" + amount.toFixed(2) : "";
+            }
         }
     }
 
