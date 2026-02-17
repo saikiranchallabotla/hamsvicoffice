@@ -792,12 +792,24 @@ window.toggleHelpPopup = function() {
             });
 
             if (response.ok) {
+                // Guard: ensure server returned a file, not an HTML page (e.g. redirect)
+                const contentType = response.headers.get('Content-Type') || '';
+                if (contentType.includes('text/html')) {
+                    alert('Session expired or access denied. Please refresh the page and try again.');
+                    return;
+                }
+
                 // Extract filename from Content-Disposition header
-                let filename = 'document_' + new Date().getTime() + '.docx';
                 const disposition = response.headers.get('Content-Disposition');
+                let filename = '';
                 if (disposition) {
                     const match = disposition.match(/filename="?([^";\n]+)"?/);
-                    if (match && match[1]) filename = match[1];
+                    if (match && match[1]) filename = match[1].trim();
+                }
+                // Fallback: derive extension from Content-Type
+                if (!filename) {
+                    const ext = contentType.includes('spreadsheet') ? '.xlsx' : contentType.includes('text/plain') ? '.txt' : '.docx';
+                    filename = 'Filled_document' + ext;
                 }
 
                 const blob = await response.blob();
