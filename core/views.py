@@ -10654,9 +10654,14 @@ def _fill_template_file(template_file, placeholder_map):
     # -------- DOCX --------
     if ext == "docx":
         # Build XML-safe replacement map
+        # Strip characters illegal in XML 1.0 (OCR can produce control chars)
+        _xml_illegal = re.compile(
+            r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFE\uFFFF]'
+        )
         safe_map = {}
         for ph, val in placeholder_map.items():
-            safe_map[ph] = xml_escape(str(val) if val is not None else "")
+            clean = _xml_illegal.sub('', str(val) if val is not None else "")
+            safe_map[ph] = xml_escape(clean)
 
         # Read original file bytes
         original_data = template_file.read()
