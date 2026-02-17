@@ -10586,45 +10586,104 @@ def _build_placeholder_map(labels, lines, custom_text: str):
     return placeholder_map
 
 
+def _replace_placeholders_in_docx_xml(xml_str, safe_map):
+    """
+    Replace {{PLACEHOLDER}} values in DOCX XML text.
+    Handles placeholders split across multiple <w:t> elements within a paragraph.
+    """
+    # Pass 1: direct replacement (handles placeholders inside a single <w:t>)
+    for ph, val in safe_map.items():
+        xml_str = xml_str.replace(ph, val)
+
+    # Pass 2: handle placeholders split across <w:t> elements within <w:p>
+    t_pattern = re.compile(r'(<w:t[^>]*>)(.*?)(</w:t>)', re.DOTALL)
+
+    def _process_paragraph(match):
+        para = match.group(0)
+        t_matches = list(t_pattern.finditer(para))
+        if len(t_matches) < 2:
+            return para  # single or no text runs, nothing to join
+
+        # Concatenate text across all runs in this paragraph
+        combined = ''.join(m.group(2) for m in t_matches)
+
+        # Check if any placeholder still exists in the combined text
+        new_combined = combined
+        changed = False
+        for ph, val in safe_map.items():
+            if ph in new_combined:
+                new_combined = new_combined.replace(ph, val)
+                changed = True
+
+        if not changed:
+            return para
+
+        # Rebuild: put all text in the first <w:t>, empty the rest
+        result = para
+        for i, m in enumerate(reversed(t_matches)):
+            idx = len(t_matches) - 1 - i
+            if idx == 0:
+                # First run gets the full replaced text; preserve space
+                open_tag = m.group(1)
+                if 'xml:space' not in open_tag:
+                    open_tag = open_tag.replace('<w:t', '<w:t xml:space="preserve"', 1)
+                replacement = f'{open_tag}{new_combined}{m.group(3)}'
+            else:
+                replacement = f'{m.group(1)}{m.group(3)}'
+            result = result[:m.start()] + replacement + result[m.end():]
+
+        return result
+
+    xml_str = re.sub(r'<w:p[ >].*?</w:p>', _process_paragraph, xml_str, flags=re.DOTALL)
+    return xml_str
+
+
 def _fill_template_file(template_file, placeholder_map):
     """
     Apply placeholders to template_file and return a HttpResponse with the
     filled file.
+    Uses ZIP-level XML replacement for DOCX to preserve all document features
+    (themes, fonts, styles, images, headers/footers, compatibility settings).
     """
+    import zipfile
+    from xml.sax.saxutils import escape as xml_escape
+
     template_name = template_file.name or "template"
     ext = template_name.lower().rsplit(".", 1)[-1] if "." in template_name else ""
 
     # -------- DOCX --------
     if ext == "docx":
-        doc = Document(template_file)
+        # Build XML-safe replacement map
+        safe_map = {}
+        for ph, val in placeholder_map.items():
+            safe_map[ph] = xml_escape(str(val) if val is not None else "")
 
-        def replace_in_paragraphs(paragraphs):
-            for p in paragraphs:
-                # join all runs to a single string to handle placeholders split across runs
-                full = ''.join([r.text or '' for r in p.runs])
-                new_full = full
-                for ph, val in placeholder_map.items():
-                    new_full = new_full.replace(ph, str(val) if val is not None else "")
-                if new_full != full:
-                    # write back into runs: put entire text in first run, clear others
-                    if p.runs:
-                        p.runs[0].text = new_full
-                        for rr in p.runs[1:]:
-                            rr.text = ''
-                    else:
-                        p.add_run(new_full)
+        # Read original file bytes
+        original_data = template_file.read()
 
-        replace_in_paragraphs(doc.paragraphs)
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    replace_in_paragraphs(cell.paragraphs)
+        # Process DOCX as ZIP — only touch XML text, preserve everything else
+        input_buf = io.BytesIO(original_data)
+        output_buf = io.BytesIO()
 
-        buf = io.BytesIO()
-        doc.save(buf)
-        buf.seek(0)
+        with zipfile.ZipFile(input_buf, 'r') as zin:
+            with zipfile.ZipFile(output_buf, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+
+                    # Only modify XML parts inside word/ that may contain text
+                    if item.filename.startswith('word/') and item.filename.endswith('.xml'):
+                        try:
+                            xml_str = data.decode('utf-8')
+                            xml_str = _replace_placeholders_in_docx_xml(xml_str, safe_map)
+                            data = xml_str.encode('utf-8')
+                        except Exception:
+                            pass  # Not a text XML, skip
+
+                    zout.writestr(item, data)
+
+        output_buf.seek(0)
         resp = HttpResponse(
-            buf.getvalue(),
+            output_buf.getvalue(),
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         resp["Content-Disposition"] = f'attachment; filename="Filled_{os.path.basename(template_name)}"'
