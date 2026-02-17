@@ -596,6 +596,30 @@
                         </div>
                     </div>
                     
+                    <!-- Promo Code -->
+                    <div style="margin-bottom:1rem; padding:0.75rem; background:#f0fdf4; border:1px dashed #86efac; border-radius:8px;">
+                        <label style="font-size:0.8rem; font-weight:600; color:#166534; margin-bottom:0.4rem; display:block;">
+                            <i class="bi bi-ticket-perforated me-1"></i> Have a Promo Code?
+                        </label>
+                        <div style="display:flex; gap:0.5rem;">
+                            <input type="text" id="couponCode" placeholder="Enter code"
+                                   style="flex:1; padding:0.4rem 0.6rem; border:1px solid #d1d5db; border-radius:6px; font-size:0.85rem; text-transform:uppercase;">
+                            <button type="button" id="applyCouponBtn"
+                                    style="padding:0.4rem 0.8rem; background:#16a34a; color:white; border:none; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">
+                                Apply
+                            </button>
+                        </div>
+                        <div id="couponMessage" style="font-size:0.78rem; margin-top:0.3rem;"></div>
+                    </div>
+
+                    <!-- Coupon discount row (hidden initially) -->
+                    <div id="couponDiscountRow" class="order-row discount" style="display:none; padding:0.4rem 0;">
+                        <span class="label" id="couponDiscountLabel">
+                            <i class="bi bi-ticket-perforated-fill me-1"></i> Promo discount
+                        </span>
+                        <span class="value" id="couponDiscountValue"></span>
+                    </div>
+
                     <!-- Features -->
                     <ul class="features-list">
                         <li><i class="bi bi-check-circle-fill"></i> Unlimited module usage</li>
@@ -723,7 +747,7 @@
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    body: `pricing_id={{ pricing.id }}`
+                    body: `pricing_id={{ pricing.id }}&coupon_code=${encodeURIComponent(window._appliedCoupon || '')}`
                 });
                 const data = await res.json();
                 
@@ -830,6 +854,48 @@
                 payBtn.innerHTML = '<i class="bi bi-lock-fill"></i> Pay Securely';
             }
         });
+
+        // Promo code handling
+        window._appliedCoupon = '';
+        const applyCouponBtn = document.getElementById('applyCouponBtn');
+        if (applyCouponBtn) {
+            applyCouponBtn.addEventListener('click', async function() {
+                const codeInput = document.getElementById('couponCode');
+                const msg = document.getElementById('couponMessage');
+                const code = (codeInput.value || '').trim();
+                if (!code) { msg.innerHTML = '<span style="color:#dc2626;">Please enter a code.</span>'; return; }
+
+                applyCouponBtn.disabled = true;
+                applyCouponBtn.textContent = '...';
+
+                try {
+                    const res = await fetch("{% url 'validate_coupon' %}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: 'coupon_code=' + encodeURIComponent(code) + '&amount={{ pricing.sale_price|floatformat:2 }}'
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                        window._appliedCoupon = data.code;
+                        msg.innerHTML = '<span style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> ' + data.description + ' applied!</span>';
+                        const row = document.getElementById('couponDiscountRow');
+                        const val = document.getElementById('couponDiscountValue');
+                        if (row && val) { val.textContent = '- \u20b9' + parseFloat(data.discount).toFixed(0); row.style.display = 'flex'; }
+                        codeInput.disabled = true;
+                        applyCouponBtn.textContent = 'Applied';
+                    } else {
+                        window._appliedCoupon = '';
+                        msg.innerHTML = '<span style="color:#dc2626;">' + (data.error || 'Invalid code.') + '</span>';
+                        applyCouponBtn.disabled = false;
+                        applyCouponBtn.textContent = 'Apply';
+                    }
+                } catch (e) {
+                    msg.innerHTML = '<span style="color:#dc2626;">Network error. Try again.</span>';
+                    applyCouponBtn.disabled = false;
+                    applyCouponBtn.textContent = 'Apply';
+                }
+            });
+        }
     </script>
 </body>
 </html>

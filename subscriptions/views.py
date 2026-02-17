@@ -263,6 +263,42 @@ def create_order_view(request):
 
 @login_required
 @require_POST
+def validate_coupon_view(request):
+    """Validate a promo/coupon code and return discount info."""
+    from subscriptions.models import Coupon
+    from decimal import Decimal
+
+    code = (request.POST.get('coupon_code') or '').strip().upper()
+    amount_str = request.POST.get('amount', '0')
+
+    if not code:
+        return JsonResponse({'ok': False, 'error': 'Please enter a promo code.'})
+
+    try:
+        amount = Decimal(amount_str)
+    except Exception:
+        amount = Decimal('0')
+
+    try:
+        coupon = Coupon.objects.get(code=code)
+    except Coupon.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Invalid promo code.'})
+
+    can_use, error = coupon.can_use(request.user, amount)
+    if not can_use:
+        return JsonResponse({'ok': False, 'error': error})
+
+    discount = coupon.calculate_discount(amount)
+    return JsonResponse({
+        'ok': True,
+        'code': coupon.code,
+        'discount': str(discount),
+        'description': coupon.description or f'{coupon.discount_value}% off',
+    })
+
+
+@login_required
+@require_POST
 def verify_payment_view(request):
     """
     Verify payment after Razorpay callback.
