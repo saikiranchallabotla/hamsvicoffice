@@ -646,14 +646,41 @@
             .sidebar {
                 transform: translateX(-100%);
                 transition: transform 0.3s;
+                width: var(--sidebar-width);
+                padding: 1.5rem;
             }
-            
+
             .sidebar.open {
                 transform: translateX(0);
             }
-            
+
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.4);
+                z-index: 999;
+                opacity: 0;
+                transition: opacity 0.3s;
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+                opacity: 1;
+            }
+
             .main-content {
                 margin-left: 0;
+            }
+
+            .sidebar-brand h1,
+            .nav-section,
+            .nav-link span {
+                display: block;
+            }
+
+            .hamburger-btn {
+                display: flex !important;
             }
         }
         
@@ -911,11 +938,17 @@
         </nav>
     </aside>
     
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
         <header class="top-header">
             <div class="page-title">
+                <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle sidebar menu" style="display:none;align-items:center;justify-content:center;width:40px;height:40px;background:linear-gradient(135deg,var(--primary),var(--primary-light));color:white;border:none;border-radius:12px;cursor:pointer;font-size:1.2rem;margin-right:8px;box-shadow:0 4px 15px rgba(79,70,229,0.3);transition:all 0.3s;">
+                    <i class="bi bi-list"></i>
+                </button>
                 <a href="{% url 'dashboard' %}" class="back-to-dashboard" title="Back to Dashboard">
                     <i class="bi bi-arrow-left"></i>
                 </a>
@@ -990,54 +1023,19 @@
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
-    
+
+    <!-- Unified UI Feedback System -->
+    {% load static %}
+    <script src="{% static 'js/error-handler.js' %}"></script>
+
     <script>
-    // Global Toast notification function
-    function showToast(message, type = 'info', title = null, duration = 5000) {
-        const container = document.getElementById('toastContainer');
-        const icons = {
-            success: 'bi-check-circle-fill',
-            error: 'bi-x-circle-fill',
-            warning: 'bi-exclamation-triangle-fill',
-            info: 'bi-info-circle-fill'
-        };
-        const titles = {
-            success: 'Success',
-            error: 'Error',
-            warning: 'Warning',
-            info: 'Info'
-        };
-        
-        const toast = document.createElement('div');
-        toast.className = `toast-notification ${type}`;
-        toast.innerHTML = `
-            <i class="bi ${icons[type]} toast-icon"></i>
-            <div class="toast-content">
-                <div class="toast-title">${title || titles[type]}</div>
-                <div class="toast-message">${message}</div>
-            </div>
-            <button class="toast-close" onclick="this.parentElement.classList.add('hiding'); setTimeout(() => this.parentElement.remove(), 300);">
-                <i class="bi bi-x"></i>
-            </button>
-        `;
-        container.appendChild(toast);
-        
-        setTimeout(() => {
-            if (toast.parentElement) {
-                toast.classList.add('hiding');
-                setTimeout(() => toast.remove(), 300);
-            }
-        }, duration);
+    // Global Toast - delegates to unified system
+    function showToast(message, type, title, duration) {
+        if (window.HamsvicErrors) {
+            window.HamsvicErrors.showToast(message, type || 'info', duration || 4000);
+        }
     }
-    
-    // Override default alert to use toast
-    window.alert = function(message) {
-        showToast(message, 'info');
-    };
-    
+
     // Notification Bell Functions
     let notificationDropdownOpen = false;
     
@@ -1117,7 +1115,10 @@
                     `;
                 }
             })
-            .catch(err => console.error('Error loading notifications:', err));
+            .catch(err => {
+                console.error('Error loading notifications:', err);
+                if (window.HamsvicErrors && !navigator.onLine) HamsvicErrors.showOffline();
+            });
     }
     
     function markAsRead(id) {
@@ -1139,7 +1140,8 @@
                     loadNotifications();
                     showToast('All announcements marked as read', 'success');
                 }
-            });
+            })
+            .catch(err => console.error('Error marking all read:', err));
     }
     
     // Load notifications on page load
@@ -1151,117 +1153,33 @@
     
     // =========================================================================
     // SINGLE DEVICE LOGIN - Session Validity Check
-    // Polls the server to check if this session was invalidated by a login
-    // from another device. If so, shows a popup and redirects to login.
     // =========================================================================
     let sessionCheckInterval = null;
     let isSessionInvalid = false;
-    
+
     function checkSessionValidity() {
-        // Don't check if already invalid or modal is showing
         if (isSessionInvalid) return;
-        
+
         fetch('/accounts/api/auth/check-session/', {
             method: 'GET',
             credentials: 'same-origin',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(response => response.json())
         .then(data => {
             if (!data.valid && data.reason === 'kicked_out') {
                 isSessionInvalid = true;
-                showLoggedOutModal(data.message);
+                if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+                HamsvicErrors.showSessionExpired(data.message || 'You have been logged out because your account was accessed from another device.');
             } else if (!data.valid) {
-                // Other reasons (expired, not found) - just redirect
                 isSessionInvalid = true;
-                window.location.href = '/accounts/login/';
+                if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+                HamsvicErrors.showSessionExpired();
             }
         })
         .catch(err => {
             console.log('Session check error (will retry):', err);
         });
-    }
-    
-    function showLoggedOutModal(message) {
-        // Stop further checks
-        if (sessionCheckInterval) {
-            clearInterval(sessionCheckInterval);
-        }
-        
-        // Create modal backdrop
-        const backdrop = document.createElement('div');
-        backdrop.id = 'loggedOutBackdrop';
-        backdrop.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
-            z-index: 99998;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: fadeIn 0.3s ease-out;
-        `;
-        
-        // Create modal
-        const modal = document.createElement('div');
-        modal.style.cssText = `
-            background: white;
-            border-radius: 16px;
-            padding: 32px;
-            max-width: 420px;
-            width: 90%;
-            text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            animation: slideUp 0.3s ease-out;
-        `;
-        modal.innerHTML = `
-            <style>
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-            </style>
-            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                <i class="bi bi-laptop" style="font-size: 28px; color: #ef4444;"></i>
-            </div>
-            <h3 style="margin: 0 0 12px; color: #1e293b; font-size: 1.5rem; font-weight: 600;">Logged Out</h3>
-            <p style="margin: 0 0 24px; color: #64748b; line-height: 1.6;">
-                ${message || 'You have been logged out because your account was accessed from another device.'}
-            </p>
-            <p style="margin: 0 0 24px; color: #94a3b8; font-size: 0.875rem;">
-                <i class="bi bi-info-circle me-1"></i>
-                Only one device can be logged in at a time.
-            </p>
-            <button onclick="window.location.href='/accounts/login/';" style="
-                width: 100%;
-                padding: 14px 24px;
-                background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-size: 1rem;
-                font-weight: 600;
-                cursor: pointer;
-                transition: transform 0.2s, box-shadow 0.2s;
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 20px rgba(79, 70, 229, 0.3)';"
-               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                <i class="bi bi-box-arrow-in-right me-2"></i>Login Again
-            </button>
-        `;
-        
-        backdrop.appendChild(modal);
-        document.body.appendChild(backdrop);
-        
-        // Play notification sound (optional)
-        try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleA0QpeSxf0EBq+DJkl4WC7DowYhRBAW17c2OYxoXtO3Kj2QdGLTtyZBmHxi07cqQZR8YtO3Jj2UeGLTtyY9lHhi07cmPZR4YtO3Jj2UeGLTtyY9lHhi07cmPZR4YtO3Jj2UeGLTtyY9lHhi07cmPZR4YtO3Jj2UeGLTtyY9lHhi07cmP');
-            audio.volume = 0.3;
-            audio.play().catch(() => {});
-        } catch(e) {}
     }
     
     // Start session checking if user is authenticated
@@ -1272,8 +1190,49 @@
         sessionCheckInterval = setInterval(checkSessionValidity, 10000);
     });
     {% endif %}
+
+    // =========================================================================
+    // Mobile Sidebar Toggle
+    // =========================================================================
+    (function() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const hamburger = document.getElementById('hamburgerBtn');
+
+        function openSidebar() {
+            if (sidebar) sidebar.classList.add('open');
+            if (overlay) overlay.classList.add('show');
+        }
+
+        function closeSidebar() {
+            if (sidebar) sidebar.classList.remove('open');
+            if (overlay) overlay.classList.remove('show');
+        }
+
+        if (hamburger) {
+            hamburger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (sidebar && sidebar.classList.contains('open')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            });
+        }
+
+        if (overlay) {
+            overlay.addEventListener('click', closeSidebar);
+        }
+
+        // Close sidebar when a nav link is clicked on mobile
+        document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 768) closeSidebar();
+            });
+        });
+    })();
     </script>
-    
+
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

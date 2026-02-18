@@ -250,7 +250,7 @@ function handleFileSelect() {
     
     // Validate extension
     if (!file.name.match(/\.(xlsx|xls)$/i)) {
-        alert('Please upload an Excel file (.xlsx or .xls)');
+        showToast('Please upload an Excel file (.xlsx or .xls)', 'warning');
         clearFile();
         return;
     }

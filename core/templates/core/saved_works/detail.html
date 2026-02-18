@@ -309,7 +309,7 @@
             if (data.success) {
                 location.reload();
             } else {
-                alert(data.error || 'Failed to save changes');
+                showToast(data.error || 'Failed to save changes', 'error');
             }
         });
     }
@@ -329,7 +329,7 @@
             if (data.success) {
                 window.location.href = '/saved-works/' + data.work_id + '/';
             } else {
-                alert(data.error || 'Failed to duplicate work');
+                showToast(data.error || 'Failed to duplicate work', 'error');
             }
         });
     }
@@ -349,7 +349,7 @@
             if (data.success) {
                 window.location.href = '{% url "saved_works_list" %}';
             } else {
-                alert(data.error || 'Failed to delete work');
+                showToast(data.error || 'Failed to delete work', 'error');
             }
         });
     }

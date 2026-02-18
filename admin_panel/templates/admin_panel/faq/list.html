@@ -74,7 +74,7 @@
                             </a>
                             <form action="{% url 'admin_faq_item_delete' faq.id %}" method="post" class="d-inline">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this FAQ?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this FAQ?" data-confirm-title="Delete FAQ" data-confirm-ok="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>

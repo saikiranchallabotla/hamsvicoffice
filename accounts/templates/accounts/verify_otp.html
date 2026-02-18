@@ -302,7 +302,7 @@ document.getElementById('otpForm').addEventListener('submit', function(e) {
     
     if (otpFull.value.length !== 6) {
         e.preventDefault();
-        alert('Please enter complete 6-digit OTP');
+        showToast('Please enter complete 6-digit OTP', 'warning');
         return;
     }
     
@@ -364,14 +364,14 @@ resendBtn.addEventListener('click', async function() {
                 }
             }, 1000);
             
-            alert('OTP sent successfully!');
+            showToast('OTP sent successfully!', 'success');
         } else {
-            alert(data.reason || 'Failed to resend OTP');
+            showToast(data.reason || 'Failed to resend OTP', 'error');
             resendBtn.disabled = false;
             resendBtn.innerHTML = 'Didn\'t receive code? <strong>Resend OTP</strong>';
         }
     } catch (err) {
-        alert('Network error. Please try again.');
+        showToast('Network error. Please try again.', 'error');
         resendBtn.disabled = false;
         resendBtn.innerHTML = 'Didn\'t receive code? <strong>Resend OTP</strong>';
     }

@@ -50,9 +50,9 @@
                                     <a href="{% url 'template_upload' %}?type=covering_letter" class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-arrow-repeat me-1"></i>Replace
                                     </a>
-                                    <form action="{% url 'template_delete' covering_letter.id %}" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                    <form action="{% url 'template_delete' covering_letter.id %}" method="post" class="d-inline">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this template?" data-confirm-title="Delete Template" data-confirm-ok="Delete">
                                             <i class="bi bi-trash me-1"></i>Delete
                                         </button>
                                     </form>
@@ -97,9 +97,9 @@
                                     <a href="{% url 'template_upload' %}?type=movement_slip" class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-arrow-repeat me-1"></i>Replace
                                     </a>
-                                    <form action="{% url 'template_delete' movement_slip.id %}" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                    <form action="{% url 'template_delete' movement_slip.id %}" method="post" class="d-inline">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this template?" data-confirm-title="Delete Template" data-confirm-ok="Delete">
                                             <i class="bi bi-trash me-1"></i>Delete
                                         </button>
                                     </form>
@@ -160,9 +160,9 @@
                                             </button>
                                         </form>
                                         {% endif %}
-                                        <form action="{% url 'template_delete' template.id %}" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                        <form action="{% url 'template_delete' template.id %}" method="post" class="d-inline">
                                             {% csrf_token %}
-                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete" data-confirm="Delete this template?" data-confirm-title="Delete Template" data-confirm-ok="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>

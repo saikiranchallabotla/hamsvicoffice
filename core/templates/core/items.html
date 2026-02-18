@@ -1400,14 +1400,14 @@ function selectSubtype(subtypeName, buttonElement) {
         } else {
             // Restore original state
             icon.className = originalClass;
-            alert('Error: ' + (data.message || 'Unknown error'));
+            showToast('Error: ' + (data.message || 'Unknown error'), 'error');
         }
     })
     .catch(function(error) {
         buttonElement.classList.remove('processing');
         icon.className = originalClass;
         console.error('Error toggling subtype:', error);
-        alert('Network error. Please try again.');
+        showToast('Network error. Please try again.', 'error');
     });
 }
 
@@ -2145,17 +2145,15 @@ document.addEventListener('keydown', function(e) {
 
     // ---- Save Project button: prompt name, then POST to save_project ----
     if (saveBtn && form && projectNameField && qtyMapField) {
-        saveBtn.addEventListener("click", function(e) {
+        saveBtn.addEventListener("click", async function(e) {
             e.preventDefault();
-            var projName = window.prompt("Enter project name to save:");
-            if (!projName) {
-                return;
-            }
+            var projName = await HamsvicErrors.showPrompt({ title: 'Save Project', message: 'Enter a name for this project.', placeholder: 'Project name' });
+            if (!projName) return;
             projectNameField.value = projName;
 
             var m = buildQtyMap();
             qtyMapField.value = JSON.stringify(m);
-            
+
             if (unitMapField) {
                 var um = buildUnitMapLocal();
                 unitMapField.value = JSON.stringify(um);
@@ -2201,7 +2199,7 @@ document.addEventListener('keydown', function(e) {
         });
         
         if (items.length === 0) {
-            alert("Please add items with quantities to generate specification report");
+            showToast("Please add items with quantities to generate specification report", "warning");
             return;
         }
         
@@ -2267,7 +2265,7 @@ document.addEventListener('keydown', function(e) {
         });
         
         if (items.length === 0) {
-            alert("Please add items with quantities to generate forwarding letter");
+            showToast("Please add items with quantities to generate forwarding letter", "warning");
             return;
         }
         
@@ -2527,7 +2525,7 @@ function getUnitMapForSave() {
 function createNewFolder() {
     const folderName = document.getElementById('newFolderName').value.trim();
     if (!folderName) {
-        alert('Please enter a folder name');
+        showToast('Please enter a folder name', 'warning');
         return;
     }
     
@@ -2553,11 +2551,11 @@ function createNewFolder() {
             select.appendChild(option);
             hideNewFolderInput();
         } else {
-            alert('Error: ' + (data.error || 'Failed to create folder'));
+            showToast('Error: ' + (data.error || 'Failed to create folder'), 'error');
         }
     })
     .catch(error => {
-        alert('Error creating folder: ' + error);
+        showToast('Error creating folder: ' + error, 'error');
     });
 }
 
@@ -2630,19 +2628,19 @@ function saveCurrentWork() {
                 // Show toast notification instead of alert
                 showSaveToast(data.message || 'Work saved successfully!');
             } else {
-                alert('Error: ' + (data.error || 'Failed to save work'));
+                showToast('Error: ' + (data.error || 'Failed to save work'), 'error');
             }
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
         })
         .catch(error => {
-            alert('Error saving work: ' + error);
+            showToast('Error saving work: ' + error, 'error');
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
         });
     })
     .catch(error => {
-        alert('Error saving quantities: ' + error);
+        showToast('Error saving quantities: ' + error, 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
     });

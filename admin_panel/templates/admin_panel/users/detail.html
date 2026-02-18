@@ -127,7 +127,7 @@
                         <div class="form-text">Required for security verification</div>
                     </div>
                     
-                    <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Are you sure you want to change this user\'s role? This action will be logged.')">
+                    <button type="submit" class="btn btn-warning w-100" data-confirm="Are you sure you want to change this user's role? This action will be logged." data-confirm-title="Change User Role" data-confirm-type="warning" data-confirm-ok="Change Role">
                         <i class="bi bi-shield-check me-1"></i> Change Role
                     </button>
                 </form>
@@ -180,7 +180,7 @@
                                 {% if sub.status in 'active,trial' %}
                                 <form action="{% url 'admin_revoke_subscription' sub.id %}" method="post" class="d-inline">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Revoke this subscription?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Revoke this subscription?" data-confirm-title="Revoke Subscription" data-confirm-ok="Revoke">
                                         Revoke
                                     </button>
                                 </form>

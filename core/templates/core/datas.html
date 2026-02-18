@@ -121,7 +121,7 @@ function setWorkType(type) {
 
 function goToCategory(anchor, cat) {
     if (!selectedWorkType) {
-        alert("Please select Original Work or Repair Work first.");
+        showToast("Please select Original Work or Repair Work first.", "warning");
         return false;
     }
 

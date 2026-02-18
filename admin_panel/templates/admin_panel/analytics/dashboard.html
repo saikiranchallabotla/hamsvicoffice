@@ -1027,7 +1027,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (error) {
                 console.error('Error updating charts:', error);
                 // Show error feedback
-                alert('Failed to load data. Please try again.');
+                showToast('Failed to load data. Please try again.', 'error');
             } finally {
                 isLoading = false;
                 if (regLoading) regLoading.classList.remove('show');

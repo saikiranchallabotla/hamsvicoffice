@@ -493,7 +493,7 @@
             if (file.name.endsWith('.xlsx')) {
                 showFileInfo(file, 'estimate');
             } else {
-                alert('Please select a .xlsx file');
+                showToast('Please select a .xlsx file', 'warning');
                 this.value = '';
             }
         }
@@ -523,7 +523,7 @@
                 fileInput.files = files;
                 showFileInfo(files[0], 'estimate');
             } else {
-                alert('Please drop a .xlsx file');
+                showToast('Please drop a .xlsx file', 'warning');
             }
         }
     }, false);
@@ -546,7 +546,7 @@
             if (file.name.endsWith('.xlsx')) {
                 showFileInfo(file, 'documents');
             } else {
-                alert('Please select a .xlsx file');
+                showToast('Please select a .xlsx file', 'warning');
                 this.value = '';
             }
         }
@@ -576,7 +576,7 @@
                 documentsFileInput.files = files;
                 showFileInfo(files[0], 'documents');
             } else {
-                alert('Please drop a .xlsx file');
+                showToast('Please drop a .xlsx file', 'warning');
             }
         }
     }, false);
@@ -590,7 +590,7 @@
             specHiddenInput.files = dt.files;
         } else {
             e.preventDefault();
-            alert('Please select a file first');
+            showToast('Please select a file first', 'warning');
         }
     });
     
@@ -602,7 +602,7 @@
             forwardHiddenInput.files = dt.files;
         } else {
             e.preventDefault();
-            alert('Please select a file first');
+            showToast('Please select a file first', 'warning');
         }
     });
     

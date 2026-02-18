@@ -746,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const checked = form.querySelectorAll('input[name="modules"]:checked').length;
                 if (checked === 0) {
                     e.preventDefault();
-                    alert('Please select at least one module.');
+                    showToast('Please select at least one module.', 'warning');
                     return false;
                 }
             }
@@ -759,7 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const customDaysInput = form.querySelector('input[name="' + (form.querySelector('input[name="access_type"]').value === 'trial' ? 'trial_custom_days' : 'full_custom_days') + '"]');
                 if (!customDaysInput.value || parseInt(customDaysInput.value) < 1) {
                     e.preventDefault();
-                    alert('Please enter a valid number of days.');
+                    showToast('Please enter a valid number of days.', 'warning');
                     return false;
                 }
             }

@@ -57,7 +57,7 @@
                             </a>
                             <form action="{% url 'admin_announcement_delete' announcement.id %}" method="post" class="d-inline">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this announcement?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this announcement?" data-confirm-title="Delete Announcement" data-confirm-ok="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>

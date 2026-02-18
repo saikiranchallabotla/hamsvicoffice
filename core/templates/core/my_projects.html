@@ -123,10 +123,9 @@
                                 </a>
 
                                 {# Delete project #}
-                                <form method="post" action="{% url 'delete_project' p.id %}"
-                                      onsubmit="return confirm('Delete this project permanently?');">
+                                <form method="post" action="{% url 'delete_project' p.id %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn-delete">Delete</button>
+                                    <button type="submit" class="btn-delete" data-confirm="Delete this project permanently?" data-confirm-title="Delete Project" data-confirm-ok="Delete">Delete</button>
                                 </form>
                             </div>
                         </td>

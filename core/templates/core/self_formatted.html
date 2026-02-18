@@ -536,9 +536,9 @@
                         <span class="name">{{ fmt.name }}</span>
                         <div class="actions">
                             <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
-                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" onsubmit="return confirm('Delete?');">
+                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;">
                                 {% csrf_token %}
-                                <button type="submit" class="del"><i class="bi bi-x"></i></button>
+                                <button type="submit" class="del" data-confirm="Delete this saved format?" data-confirm-title="Delete Format" data-confirm-ok="Delete"><i class="bi bi-x"></i></button>
                             </form>
                         </div>
                     </div>
@@ -773,7 +773,7 @@ window.toggleHelpPopup = function() {
         const sourceFile = document.getElementById('dialog-use-source-file').files[0];
 
         if (!sourceFile) {
-            alert('Please select a source file');
+            showToast('Please select a source file', 'warning');
             return;
         }
 
@@ -792,21 +792,18 @@ window.toggleHelpPopup = function() {
             });
 
             if (response.ok) {
-                // Guard: ensure server returned a file, not an HTML page (e.g. redirect)
                 const contentType = response.headers.get('Content-Type') || '';
                 if (contentType.includes('text/html')) {
-                    alert('Session expired or access denied. Please refresh the page and try again.');
+                    HamsvicErrors.showSessionExpired('Session expired or access denied. Please log in again.');
                     return;
                 }
 
-                // Extract filename from Content-Disposition header
                 const disposition = response.headers.get('Content-Disposition');
                 let filename = '';
                 if (disposition) {
                     const match = disposition.match(/filename="?([^";\n]+)"?/);
                     if (match && match[1]) filename = match[1].trim();
                 }
-                // Fallback: derive extension from Content-Type
                 if (!filename) {
                     const ext = contentType.includes('spreadsheet') ? '.xlsx' : contentType.includes('text/plain') ? '.txt' : '.docx';
                     filename = 'Filled_document' + ext;
@@ -824,10 +821,10 @@ window.toggleHelpPopup = function() {
                 document.getElementById('use-format-dialog').close();
             } else {
                 const text = await response.text();
-                alert('Error: ' + text);
+                showToast('Error: ' + text, 'error');
             }
         } catch (error) {
-            alert('Error generating document: ' + error.message);
+            showToast('Error generating document: ' + error.message, 'error');
         } finally {
             if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="bi bi-lightning-fill"></i> Generate'; }
         }
@@ -842,7 +839,7 @@ window.toggleHelpPopup = function() {
         previewBtn.addEventListener('click', async function() {
             combinePlaceholders();
             const sourceFile = document.getElementById('source-file');
-            if (!sourceFile.files.length) { alert('Select a source file first.'); return; }
+            if (!sourceFile.files.length) { showToast('Select a source file first.', 'warning'); return; }
             
             // Show loading state
             const previewIcon = document.getElementById('preview-icon');
@@ -881,7 +878,7 @@ window.toggleHelpPopup = function() {
                     table.innerHTML = html;
                 }
                 container.classList.add('show');
-            } catch (err) { alert('Preview failed: ' + err.message); }
+            } catch (err) { showToast('Preview failed: ' + err.message, 'error'); }
             finally {
                 // Restore button state
                 previewBtn.disabled = false;

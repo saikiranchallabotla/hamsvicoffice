@@ -344,7 +344,7 @@
                         {% if sub.status in 'active,trial' %}
                         <form action="{% url 'admin_revoke_subscription' sub.id %}" method="post" class="d-inline">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger btn-action" onclick="return confirm('Revoke this subscription?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger btn-action" data-confirm="Revoke this subscription?" data-confirm-title="Revoke Subscription" data-confirm-ok="Revoke">
                                 Revoke
                             </button>
                         </form>

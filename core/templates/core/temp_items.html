@@ -1497,7 +1497,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     if (items.length === 0) {
-      alert("Please add items with quantities to generate specification report");
+      showToast("Please add items with quantities to generate specification report", "warning");
       return;
     }
     
@@ -1557,7 +1557,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     if (items.length === 0) {
-      alert("Please add items with quantities to generate forwarding letter");
+      showToast("Please add items with quantities to generate forwarding letter", "warning");
       return;
     }
     

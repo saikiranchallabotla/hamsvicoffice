@@ -726,181 +726,167 @@
         window.location.href = `/saved-works/?folder=${selectedFolderId}`;
     }
     
-    function createSubfolder() {
-        const folderName = prompt('Enter new subfolder name:');
-        if (folderName && folderName.trim()) {
+    async function createSubfolder() {
+        const folderName = await HamsvicErrors.showPrompt({ title: 'New Subfolder', message: 'Enter a name for the new subfolder.', placeholder: 'Folder name' });
+        if (!folderName) return;
+        try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch('/saved-works/folder/create/', {
+            const res = await fetch('/saved-works/folder/create/', {
                 method: 'POST',
-                body: new URLSearchParams({ 
-                    name: folderName.trim(),
-                    parent_id: selectedFolderId,
-                    color: '#6366f1'
-                }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to create subfolder');
+                body: new URLSearchParams({ name: folderName, parent_id: selectedFolderId, color: '#6366f1' }),
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
             });
-        }
+            const data = await res.json();
+            if (data.success) location.reload();
+            else showToast(data.error || 'Failed to create subfolder', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
-    function renameSelectedFolder() {
-        const newName = prompt('Enter new folder name:', selectedFolderName);
-        if (newName && newName !== selectedFolderName) {
+
+    async function renameSelectedFolder() {
+        const newName = await HamsvicErrors.showPrompt({ title: 'Rename Folder', placeholder: 'New folder name', defaultValue: selectedFolderName });
+        if (!newName || newName === selectedFolderName) return;
+        try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch(`/saved-works/folder/${selectedFolderId}/rename/`, {
+            const res = await fetch(`/saved-works/folder/${selectedFolderId}/rename/`, {
                 method: 'POST',
                 body: new URLSearchParams({ name: newName }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to rename');
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
             });
-        }
+            const data = await res.json();
+            if (data.success) location.reload();
+            else showToast(data.error || 'Failed to rename', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
-    // Direct button-based folder actions
-    function deleteFolder(folderId, folderName) {
-        if (confirm(`Are you sure you want to delete folder "${folderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
+
+    async function deleteFolder(folderId, folderName) {
+        const confirmed = await HamsvicErrors.showConfirm({
+            title: 'Delete Folder',
+            message: `Are you sure you want to delete folder "${folderName}" permanently? All works and subfolders inside will be permanently deleted.`,
+            confirmText: 'Delete', type: 'danger'
+        });
+        if (!confirmed) return;
+        try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch(`/saved-works/folder/${folderId}/delete/`, {
+            const res = await fetch(`/saved-works/folder/${folderId}/delete/`, {
                 method: 'POST',
                 body: new URLSearchParams({ permanent: 'true' }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to delete folder');
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
             });
-        }
+            const data = await res.json();
+            if (data.success) location.reload();
+            else showToast(data.error || 'Failed to delete folder', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
-    function renameFolder(folderId, folderName) {
-        const newName = prompt('Enter new folder name:', folderName);
-        if (newName && newName !== folderName) {
+
+    async function renameFolder(folderId, folderName) {
+        const newName = await HamsvicErrors.showPrompt({ title: 'Rename Folder', placeholder: 'New folder name', defaultValue: folderName });
+        if (!newName || newName === folderName) return;
+        try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch(`/saved-works/folder/${folderId}/rename/`, {
+            const res = await fetch(`/saved-works/folder/${folderId}/rename/`, {
                 method: 'POST',
                 body: new URLSearchParams({ name: newName }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to rename folder');
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
             });
-        }
+            const data = await res.json();
+            if (data.success) location.reload();
+            else showToast(data.error || 'Failed to rename folder', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
-    function deleteSelectedFolder() {
-        if (confirm(`Are you sure you want to delete folder "${selectedFolderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
+
+    async function deleteSelectedFolder() {
+        const confirmed = await HamsvicErrors.showConfirm({
+            title: 'Delete Folder',
+            message: `Are you sure you want to delete folder "${selectedFolderName}" permanently? All works and subfolders inside will be permanently deleted.`,
+            confirmText: 'Delete', type: 'danger'
+        });
+        if (!confirmed) return;
+        try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch(`/saved-works/folder/${selectedFolderId}/delete/`, {
+            const res = await fetch(`/saved-works/folder/${selectedFolderId}/delete/`, {
                 method: 'POST',
                 body: new URLSearchParams({ permanent: 'true' }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to delete folder');
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
             });
-        }
+            const data = await res.json();
+            if (data.success) location.reload();
+            else showToast(data.error || 'Failed to delete folder', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
+
     // Work actions
     function resumeWork() {
         window.location.href = `/saved-works/${selectedWorkId}/resume/`;
     }
-    
+
     function moveWork() {
         document.getElementById('moveWorkId').value = selectedWorkId;
         new bootstrap.Modal(document.getElementById('moveFolderModal')).show();
     }
-    
-    function duplicateSelectedWork() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        fetch(`/saved-works/${selectedWorkId}/duplicate/`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken }
-        })
-        .then(res => res.json())
-        .then(data => {
+
+    async function duplicateSelectedWork() {
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const res = await fetch(`/saved-works/${selectedWorkId}/duplicate/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await res.json();
             if (data.success) location.reload();
-            else alert(data.error || 'Failed to duplicate');
-        });
+            else showToast(data.error || 'Failed to duplicate', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
-    function deleteSelectedWork() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        fetch(`/saved-works/${selectedWorkId}/delete/`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken }
-        })
-        .then(res => res.json())
-        .then(data => {
+
+    async function deleteSelectedWork() {
+        const confirmed = await HamsvicErrors.showConfirm({
+            title: 'Delete Work',
+            message: 'Are you sure you want to delete this saved work?',
+            confirmText: 'Delete', type: 'danger'
+        });
+        if (!confirmed) return;
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const res = await fetch(`/saved-works/${selectedWorkId}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await res.json();
             if (data.success) location.reload();
-            else alert(data.error || 'Failed to delete');
-        });
+            else showToast(data.error || 'Failed to delete', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
+
     // Create folder
-    function createFolder() {
-        const form = document.getElementById('newFolderForm');
-        const formData = new FormData(form);
-        
-        fetch('/saved-works/folder/create/', {
-            method: 'POST',
-            body: formData,
-            headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
-        })
-        .then(res => res.json())
-        .then(data => {
+    async function createFolder() {
+        try {
+            const form = document.getElementById('newFolderForm');
+            const formData = new FormData(form);
+            const res = await fetch('/saved-works/folder/create/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
+            });
+            const data = await res.json();
             if (data.success) location.reload();
-            else alert(data.error || 'Failed to create folder');
-        });
+            else showToast(data.error || 'Failed to create folder', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
-    
+
     // Move to folder
-    function moveToFolder() {
-        const workId = document.getElementById('moveWorkId').value;
-        const folderId = document.getElementById('targetFolder').value;
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
-        fetch(`/saved-works/${workId}/move/`, {
-            method: 'POST',
-            body: new URLSearchParams({ folder_id: folderId }),
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            }
-        })
-        .then(res => res.json())
-        .then(data => {
+    async function moveToFolder() {
+        try {
+            const workId = document.getElementById('moveWorkId').value;
+            const folderId = document.getElementById('targetFolder').value;
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const res = await fetch(`/saved-works/${workId}/move/`, {
+                method: 'POST',
+                body: new URLSearchParams({ folder_id: folderId }),
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
+            });
+            const data = await res.json();
             if (data.success) location.reload();
-            else alert(data.error || 'Failed to move');
-        });
+            else showToast(data.error || 'Failed to move', 'error');
+        } catch (err) { showToast('Network error. Please try again.', 'error'); }
     }
 </script>
 

@@ -194,12 +194,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     badge.textContent = 'Selected';
                     label.appendChild(badge);
                 } else {
-                    alert('Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Failed to update preference');
+                showToast('Failed to update preference', 'error');
             });
         });
     });
