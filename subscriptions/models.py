@@ -125,50 +125,63 @@ class ModuleBackend(models.Model):
     """
     Backend data files (SOR rates) for each module.
     Allows multiple backends per module - one for each state/region.
-    
+
     Examples:
     - Estimate module: Telangana Electrical, Telangana Civil, AP Electrical, AP Civil
     - Workslip module: Telangana Electrical, Telangana Civil
     - AMC module: AMC Electrical, AMC Civil
+
+    Persistence & Safety:
+    - file_data (BinaryField) is the AUTHORITATIVE source of truth
+    - file_hash (SHA-256) ensures integrity verification before any write
+    - admin_locked prevents automated overwrites of admin-modified files
+    - version tracks change history for rollback capability
+    - source_type distinguishes admin uploads from automated seeding
     """
     CATEGORY_CHOICES = (
         ('electrical', 'Electrical'),
         ('civil', 'Civil'),
     )
-    
+
+    SOURCE_TYPE_CHOICES = (
+        ('admin', 'Admin Upload'),
+        ('seed', 'Initial Seeding'),
+        ('static', 'Static Fallback'),
+    )
+
     # Link to module
     module = models.ForeignKey(
         Module,
         on_delete=models.CASCADE,
         related_name='backends'
     )
-    
+
     # Category (electrical or civil)
     category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES,
         db_index=True
     )
-    
+
     # Name - you can name it anything (Telangana SOR, AP SOR 2024, etc.)
     name = models.CharField(
         max_length=255,
         help_text="Name for this backend (e.g., 'Telangana SOR 2024-25', 'AP Electrical Rates')"
     )
-    
+
     # Short code for internal reference
     code = models.CharField(
         max_length=50,
         blank=True,
         help_text="Short code (e.g., 'TS_2024', 'AP_2024')"
     )
-    
+
     # Description
     description = models.TextField(
         blank=True,
         help_text="Optional description or notes"
     )
-    
+
     # The actual Excel file
     file = models.FileField(
         upload_to='module_backends/',
@@ -188,24 +201,51 @@ class ModuleBackend(models.Model):
         default='',
         help_text="Original filename for restoration"
     )
-    
+
+    # Integrity & version tracking
+    file_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        default='',
+        help_text="SHA-256 hash of the file content for integrity checks"
+    )
+    version = models.PositiveIntegerField(
+        default=1,
+        help_text="File version counter, incremented on each update"
+    )
+    admin_locked = models.BooleanField(
+        default=False,
+        help_text="If True, automated deployment will NEVER overwrite this file"
+    )
+    last_verified_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Last time file integrity was verified during deployment"
+    )
+    source_type = models.CharField(
+        max_length=20,
+        blank=True,
+        default='admin',
+        help_text="Origin of this backend: admin, seed, or static"
+    )
+
     # Display order (lower = appears first)
     display_order = models.PositiveIntegerField(
         default=0,
         help_text="Order in dropdown (lower appears first)"
     )
-    
+
     # Status
     is_active = models.BooleanField(default=True)
     is_default = models.BooleanField(
         default=False,
         help_text="Use as default when user hasn't selected a specific backend"
     )
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['module', 'category', 'display_order', 'name']
         verbose_name = 'Module Backend'
@@ -214,10 +254,10 @@ class ModuleBackend(models.Model):
             models.Index(fields=['module', 'category', 'is_active']),
             models.Index(fields=['module', 'is_default']),
         ]
-    
+
     def __str__(self):
         return f"{self.module.name} - {self.name} ({self.get_category_display()})"
-    
+
     def save(self, *args, **kwargs):
         # Ensure only one default per module + category
         if self.is_default:
@@ -227,7 +267,40 @@ class ModuleBackend(models.Model):
                 is_default=True
             ).exclude(pk=self.pk).update(is_default=False)
         super().save(*args, **kwargs)
-    
+
+    @staticmethod
+    def compute_hash(data):
+        """Compute SHA-256 hash of file content."""
+        import hashlib
+        if data is None:
+            return ''
+        if isinstance(data, memoryview):
+            data = bytes(data)
+        return hashlib.sha256(data).hexdigest()
+
+    def update_hash(self):
+        """Recompute and store file_hash from file_data."""
+        if self.file_data:
+            self.file_hash = self.compute_hash(bytes(self.file_data))
+        return self.file_hash
+
+    def verify_integrity(self):
+        """
+        Check if the current file_data matches the stored hash.
+        Returns (is_valid, details_dict).
+        """
+        if not self.file_data:
+            return False, {'reason': 'no_file_data'}
+        if not self.file_hash:
+            return False, {'reason': 'no_stored_hash'}
+        current_hash = self.compute_hash(bytes(self.file_data))
+        is_match = current_hash == self.file_hash
+        return is_match, {
+            'stored_hash': self.file_hash,
+            'current_hash': current_hash,
+            'match': is_match,
+        }
+
     def get_file_bytes(self):
         """
         Get the backend file content, preferring DB storage over disk.
@@ -255,10 +328,12 @@ class ModuleBackend(models.Model):
                 if os.path.exists(file_path):
                     with open(file_path, 'rb') as f:
                         data = f.read()
-                    # Backfill DB storage
+                    # Backfill DB storage with hash
+                    file_hash = self.compute_hash(data)
                     ModuleBackend.objects.filter(pk=self.pk).update(
                         file_data=data,
-                        file_name=os.path.basename(file_path)
+                        file_name=os.path.basename(file_path),
+                        file_hash=file_hash,
                     )
                     return data
             except Exception:

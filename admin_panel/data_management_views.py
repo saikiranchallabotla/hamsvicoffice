@@ -581,7 +581,11 @@ def add_module_backend(request, module_code):
             file_bytes = uploaded_file.read()
             uploaded_file.seek(0)
 
-            # Create backend
+            # Compute file hash for integrity tracking
+            import hashlib
+            file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+            # Create backend with full persistence metadata
             backend = ModuleBackend(
                 module=module,
                 name=name,
@@ -593,6 +597,10 @@ def add_module_backend(request, module_code):
                 file=uploaded_file,
                 file_data=file_bytes,
                 file_name=uploaded_file.name,
+                file_hash=file_hash,
+                version=1,
+                source_type='admin',
+                admin_locked=True,  # Admin uploads are protected by default
             )
             backend.save()
             
@@ -646,29 +654,48 @@ def edit_module_backend(request, backend_id):
         backend.display_order = int(request.POST.get('display_order', 0) or 0)
         backend.is_active = request.POST.get('is_active') == 'on'
         
-        # If new file uploaded, replace the old one
+        # If new file uploaded, replace the old one WITH BACKUP
         uploaded_file = request.FILES.get('file')
         if uploaded_file:
             if not uploaded_file.name.endswith(('.xlsx', '.xls')):
                 messages.error(request, 'File must be an Excel file.')
                 return redirect('admin_edit_module_backend', backend_id=backend_id)
-            
+
             try:
                 # Validate Excel file
                 with pd.ExcelFile(uploaded_file) as xl:
                     pass  # Just validate it's a valid Excel file
-                
-                # Delete old file if exists
+
+                # CREATE BACKUP of existing file before replacing
+                from core.deployment_safety import create_backup
+                backup_path = create_backup(backend, reason='admin_edit')
+                if backup_path:
+                    messages.info(
+                        request,
+                        f'Previous version backed up to: {Path(backup_path).name}'
+                    )
+
+                # Delete old disk file (backup already created)
                 if backend.file:
-                    old_path = Path(backend.file.path)
-                    if old_path.exists():
-                        old_path.unlink()
-                
+                    try:
+                        old_path = Path(backend.file.path)
+                        if old_path.exists():
+                            old_path.unlink()
+                    except Exception:
+                        pass
+
                 # Save file bytes to DB for persistence
                 uploaded_file.seek(0)
-                backend.file_data = uploaded_file.read()
+                file_bytes = uploaded_file.read()
                 uploaded_file.seek(0)
+
+                import hashlib
+                backend.file_data = file_bytes
                 backend.file_name = uploaded_file.name
+                backend.file_hash = hashlib.sha256(file_bytes).hexdigest()
+                backend.version = (backend.version or 0) + 1
+                backend.source_type = 'admin'
+                backend.admin_locked = True  # Admin edits are protected
                 backend.file = uploaded_file
             except Exception as e:
                 messages.error(request, f'Error processing file: {str(e)}')
@@ -721,16 +748,25 @@ def delete_module_backend(request, backend_id):
     # Store info for message
     name = backend.name
     module_name = backend.module.name
-    
-    # Delete file
+
+    # CREATE BACKUP before deletion (safety net)
+    from core.deployment_safety import create_backup
+    backup_path = create_backup(backend, reason='admin_delete')
+    if backup_path:
+        messages.info(
+            request,
+            f'Backup created before deletion: {Path(backup_path).name}'
+        )
+
+    # Delete disk file (backup already created)
     if backend.file:
         try:
             file_path = Path(backend.file.path)
             if file_path.exists():
                 file_path.unlink()
-        except:
+        except Exception:
             pass
-    
+
     # Audit log
     from datasets.models import AuditLog
     AuditLog.log(
