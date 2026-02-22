@@ -1,0 +1,281 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Bill Type Selection - {{ work.name }}{% endblock %}
+
+{% block nav_saved_works %}active{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Generate Bill
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .bill-choice-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+    .bill-choice-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .bill-choice-header h2 {
+        font-weight: 700;
+        color: #1e293b;
+    }
+    .bill-choice-header p {
+        color: #64748b;
+        font-size: 1.1rem;
+    }
+    .work-info-banner {
+        background: linear-gradient(135deg, #fef2f2, #fecaca);
+        border: 1px solid #fca5a5;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .work-info-banner i {
+        font-size: 2rem;
+        color: #dc2626;
+    }
+    .work-info-banner .info-text h5 {
+        margin: 0;
+        font-weight: 600;
+        color: #991b1b;
+    }
+    .work-info-banner .info-text p {
+        margin: 0;
+        color: #ef4444;
+        font-size: 0.9rem;
+    }
+
+    /* Previous Bills */
+    .prev-bills-section {
+        margin-bottom: 2rem;
+    }
+    .prev-bills-section h5 {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 1rem;
+    }
+    .bill-timeline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .bill-card-mini {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        min-width: 200px;
+        flex: 0 0 auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .bill-card-mini .bill-num {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #dc2626;
+    }
+    .bill-card-mini .bill-label {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    /* Bill Type Choice */
+    .bill-number-info {
+        text-align: center;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: #f8fafc;
+        border-radius: 10px;
+    }
+    .bill-number-info .bill-num-large {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #dc2626;
+    }
+    .bill-number-info .bill-ordinal {
+        font-size: 1.1rem;
+        color: #64748b;
+    }
+
+    .bill-type-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    .bill-type-card {
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .bill-type-card:hover {
+        transform: translateY(-3px);
+    }
+    .bill-type-card.part-bill:hover {
+        border-color: #f59e0b;
+        box-shadow: 0 8px 25px rgba(245,158,11,0.15);
+    }
+    .bill-type-card.final-bill:hover {
+        border-color: #dc2626;
+        box-shadow: 0 8px 25px rgba(220,38,38,0.15);
+    }
+    .bill-type-card .card-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 1.8rem;
+    }
+    .bill-type-card.part-bill .card-icon {
+        background: #fef3c7;
+        color: #d97706;
+    }
+    .bill-type-card.final-bill .card-icon {
+        background: #fecaca;
+        color: #dc2626;
+    }
+    .bill-type-card h4 {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #1e293b;
+    }
+    .bill-type-card p {
+        color: #64748b;
+        font-size: 0.95rem;
+        margin: 0;
+    }
+    .bill-type-card .cc-header-preview {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: #f1f5f9;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #334155;
+    }
+
+    @media (max-width: 768px) {
+        .bill-type-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="bill-choice-container">
+    <div class="bill-choice-header">
+        <h2>Select Bill Type</h2>
+        <p>Choose the type of bill to generate from your workslip</p>
+    </div>
+
+    <div class="work-info-banner">
+        <i class="bi bi-receipt"></i>
+        <div class="info-text">
+            <h5>{{ work.name }}</h5>
+            <p>{{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %} &middot; {{ work.category|title }}</p>
+        </div>
+    </div>
+
+    {% if has_bills %}
+    <!-- Previous Bills -->
+    <div class="prev-bills-section">
+        <h5><i class="bi bi-clock-history me-2"></i>Previous Bills</h5>
+        <div class="bill-timeline">
+            {% for bill in all_bills %}
+            <div class="bill-card-mini">
+                <div class="bill-num">Bill-{{ bill.bill_number }}</div>
+                <div class="bill-label">{{ bill.get_bill_type_display_label }}</div>
+                <div class="mt-1">
+                    {% if bill.status == 'completed' %}
+                    <span class="badge bg-success">Completed</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">{{ bill.get_status_display }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bill Number Info -->
+    <div class="bill-number-info">
+        <div class="bill-ordinal">Generating</div>
+        <div class="bill-num-large">Bill #{{ next_bill_num }}</div>
+        <div class="bill-ordinal">{{ ordinal }} Bill</div>
+    </div>
+
+    <!-- Bill Type Selection -->
+    <h5 class="mb-3"><i class="bi bi-arrow-right-circle me-2"></i>Select Bill Type</h5>
+    <div class="bill-type-cards">
+        <!-- Part Bill -->
+        <form method="post" action="{% url 'generate_bill_with_type' work.id %}" class="bill-type-form">
+            {% csrf_token %}
+            <input type="hidden" name="bill_type" value="{% if next_bill_num == 1 %}first_part{% else %}nth_part{% endif %}">
+            <input type="hidden" name="bill_number" value="{{ next_bill_num }}">
+            <div class="bill-type-card part-bill" onclick="this.closest('form').submit();">
+                <div class="card-icon">
+                    <i class="bi bi-file-earmark-text"></i>
+                </div>
+                <h4>{{ ordinal }} & Part Bill</h4>
+                <p>Generate a part bill - more bills can follow after this one</p>
+                <div class="cc-header-preview">
+                    CC {{ ordinal }} & Part Bill
+                </div>
+            </div>
+        </form>
+
+        <!-- Final Bill -->
+        <form method="post" action="{% url 'generate_bill_with_type' work.id %}" class="bill-type-form">
+            {% csrf_token %}
+            <input type="hidden" name="bill_type" value="{% if next_bill_num == 1 %}first_final{% else %}nth_final{% endif %}">
+            <input type="hidden" name="bill_number" value="{{ next_bill_num }}">
+            <div class="bill-type-card final-bill" onclick="this.closest('form').submit();">
+                <div class="card-icon">
+                    <i class="bi bi-file-earmark-check"></i>
+                </div>
+                <h4>{{ ordinal }} & Final Bill</h4>
+                <p>Generate the final bill - this marks the work as complete</p>
+                <div class="cc-header-preview">
+                    CC {{ ordinal }} & Final Bill
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if all_workslips %}
+    <!-- Workslip Reference Info -->
+    <div class="alert alert-info mt-4" style="border-radius: 10px;">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Bill Calculation:</strong>
+        {% if next_bill_num > 1 %}
+        Total quantity till date will be taken from the latest workslip (Workslip-{{ all_workslips|last.workslip_number }}), and previous bill (Bill-{{ next_bill_num|add:"-1" }}) quantities will be deducted.
+        {% else %}
+        Executed quantities will be taken from the workslip for this bill.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="text-center mt-4">
+        <a href="{% url 'saved_works_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Saved Works
+        </a>
+    </div>
+</div>
+
+{% endblock %}

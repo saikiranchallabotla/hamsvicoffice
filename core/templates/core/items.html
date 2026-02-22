@@ -1101,9 +1101,9 @@
                         Clear All
                     </a>
                     
-                    <button type="button" class="btn-action btn-save" data-bs-toggle="modal" data-bs-target="#saveWorkModal">
-                        <i class="bi bi-save"></i>
-                        Save Work
+                    <button type="button" class="btn-action btn-save {% if request.session.is_resumed_work %}btn-update-mode{% endif %}" data-bs-toggle="modal" data-bs-target="#saveWorkModal">
+                        <i class="bi {% if request.session.is_resumed_work %}bi-pencil-square{% else %}bi-save{% endif %}"></i>
+                        {% if request.session.is_resumed_work %}Update Work{% else %}Save Work{% endif %}
                     </button>
                 </div>
                 </div><!-- End of estimate-table-wrapper -->
@@ -2377,8 +2377,8 @@ document.addEventListener('keydown', function(e) {
 <div class="modal fade" id="saveWorkModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
-                <h5 class="modal-title"><i class="bi bi-save me-2"></i>Save Your Work</h5>
+            <div class="modal-header" id="saveWorkModalHeader" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                <h5 class="modal-title" id="saveWorkModalTitle"><i class="bi bi-save me-2"></i>Save Your Work</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -2627,18 +2627,29 @@ function saveCurrentWork() {
             if (data.success) {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('saveWorkModal'));
                 modal.hide();
-                // Show toast notification instead of alert
-                showSaveToast(data.message || 'Work saved successfully!');
+                // Update the work ID for future saves
+                document.getElementById('saveWorkId').value = data.work_id;
+                // Show toast - distinguish between save and update
+                const isUpdate = data.message && data.message.includes('updated');
+                showSaveToast(data.message || (isUpdate ? 'Work updated successfully!' : 'Work saved successfully!'));
+                // Switch to Update mode for next save
+                btn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Update Work';
+                btn.className = 'btn btn-warning';
+                // Also update the floating button if present
+                const floatingBtn = document.querySelector('.btn-action.btn-save');
+                if (floatingBtn) {
+                    floatingBtn.innerHTML = '<i class="bi bi-pencil-square"></i> Update Work';
+                    floatingBtn.classList.add('btn-update-mode');
+                }
             } else {
                 alert('Error: ' + (data.error || 'Failed to save work'));
             }
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
         })
         .catch(error => {
             alert('Error saving work: ' + error);
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+            btn.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Update Work';
         });
     })
     .catch(error => {
@@ -2661,7 +2672,11 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
                     select.innerHTML += `<option value="${folder.id}">${folder.name}</option>`;
                 });
             }
-            
+
+            const headerEl = document.getElementById('saveWorkModalHeader');
+            const titleEl = document.getElementById('saveWorkModalTitle');
+            const btnEl = document.getElementById('saveWorkBtn');
+
             // If there's a current work (resumed from saved), pre-populate the form
             if (data.current_work) {
                 document.getElementById('saveWorkId').value = data.current_work.id;
@@ -2670,10 +2685,18 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
                 if (data.current_work.folder_id) {
                     select.value = data.current_work.folder_id;
                 }
-                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
+                // Show Update mode
+                titleEl.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Update Work';
+                headerEl.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+                btnEl.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Update Work';
+                btnEl.className = 'btn btn-warning';
             } else {
                 document.getElementById('saveWorkId').value = '';
-                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+                // Show Save mode
+                titleEl.innerHTML = '<i class="bi bi-save me-2"></i>Save Your Work';
+                headerEl.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+                btnEl.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
+                btnEl.className = 'btn btn-primary';
             }
         });
 });
