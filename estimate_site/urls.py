@@ -41,22 +41,6 @@ urlpatterns = [
     path('datasets/', include('datasets.urls')),
 
     # -------------------------
-    # Saved Works (Save & Resume Feature)
-    # -------------------------
-    path('saved-works/', saved_works_views.saved_works_list, name='saved_works_list'),
-    path('saved-works/save/', saved_works_views.save_work, name='save_work'),
-    path('saved-works/modal-data/', saved_works_views.get_save_work_modal_data, name='get_save_work_modal_data'),
-    path('saved-works/folder/create/', saved_works_views.create_folder, name='create_folder'),
-    path('saved-works/folder/<int:folder_id>/rename/', saved_works_views.rename_folder, name='rename_folder'),
-    path('saved-works/folder/<int:folder_id>/delete/', saved_works_views.delete_folder, name='delete_folder'),
-    path('saved-works/<int:work_id>/', saved_works_views.saved_work_detail, name='saved_work_detail'),
-    path('saved-works/<int:work_id>/resume/', saved_works_views.resume_saved_work, name='resume_saved_work'),
-    path('saved-works/<int:work_id>/update/', saved_works_views.update_saved_work, name='update_saved_work'),
-    path('saved-works/<int:work_id>/delete/', saved_works_views.delete_saved_work, name='delete_saved_work'),
-    path('saved-works/<int:work_id>/move/', saved_works_views.move_to_folder, name='move_to_folder'),
-    path('saved-works/<int:work_id>/duplicate/', saved_works_views.duplicate_saved_work, name='duplicate_saved_work'),
-
-    # -------------------------
     # Legacy Authentication (will be deprecated)
     # -------------------------
     path('register/', auth_views.register, name='register_legacy'),
@@ -103,9 +87,9 @@ urlpatterns = [
     path('saved-works/<int:work_id>/generate-bill/', saved_works_views.generate_bill_from_saved, name='generate_bill_from_saved'),
     path('saved-works/<int:work_id>/generate-next-bill/', saved_works_views.generate_next_bill_from_saved, name='generate_next_bill_from_saved'),
     path('saved-works/<int:work_id>/action/', saved_works_views.saved_work_action, name='saved_work_action'),
-    path('folders/create/', saved_works_views.create_folder, name='create_folder'),
-    path('folders/<int:folder_id>/rename/', saved_works_views.rename_folder, name='rename_folder'),
-    path('folders/<int:folder_id>/delete/', saved_works_views.delete_folder, name='delete_folder'),
+    path('saved-works/folder/create/', saved_works_views.create_folder, name='create_folder'),
+    path('saved-works/folder/<int:folder_id>/rename/', saved_works_views.rename_folder, name='rename_folder'),
+    path('saved-works/folder/<int:folder_id>/delete/', saved_works_views.delete_folder, name='delete_folder'),
 
     # -------------------------
     # Main pages - Redirect home to dashboard

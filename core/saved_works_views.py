@@ -781,29 +781,6 @@ def get_module_url(saved_work):
 # ==============================================================================
 
 @login_required(login_url='login')
-def saved_work_detail(request, work_id):
-    """View details of a saved work."""
-    org = get_org_from_request(request)
-    user = request.user
-    
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-    all_folders = WorkFolder.objects.filter(organization=org, user=user)
-    
-    # Check subscription access for this work
-    access_result = check_saved_work_access(user, saved_work)
-    
-    context = {
-        'work': saved_work,
-        'folders': all_folders,
-        'has_subscription_access': access_result['ok'],
-        'subscription_reason': access_result.get('reason', ''),
-        'module_code': access_result.get('module_code'),
-    }
-    
-    return render(request, 'core/saved_works/detail.html', context)
-
-
-@login_required(login_url='login')
 @require_POST
 def update_saved_work(request, work_id):
     """Update saved work metadata (name, folder, notes)."""

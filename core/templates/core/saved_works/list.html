@@ -456,10 +456,15 @@
                         <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>
                         <td>
                             {% if work.work_type == 'new_estimate' %}
-                                <!-- Inline E / W / B buttons for estimates -->
-                                <div class="d-flex gap-1 flex-wrap align-items-center" style="font-size:0.75rem;">
-                                    <a href="{% url 'saved_work_detail' work.id %}" class="btn btn-primary btn-sm py-0 px-2" title="Resume Estimate" style="font-weight:700;font-size:0.75rem;">E</a>
-                                    {% with chain=workflow_chains|default:"{}"|dictsort:"0" %}{% endwith %}
+                                <!-- Inline E / W / B workflow buttons for estimates -->
+                                <div class="d-flex gap-1 flex-wrap align-items-center">
+                                    <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-sm py-0 px-2" title="Resume Estimate" style="font-weight:700;font-size:0.75rem;">E</a>
+                                    {% for ws in work.get_related_workslips %}
+                                    <a href="{% url 'saved_work_detail' ws.id %}" class="btn btn-success btn-sm py-0 px-2" title="WorkSlip {{ ws.workslip_number }}: {{ ws.name }}" style="font-weight:700;font-size:0.75rem;">W{{ ws.workslip_number }}</a>
+                                    {% endfor %}
+                                    {% for bill in work.get_related_bills %}
+                                    <a href="{% url 'saved_work_detail' bill.id %}" class="btn btn-danger btn-sm py-0 px-2" title="Bill {{ bill.bill_number }}: {{ bill.name }}" style="font-weight:700;font-size:0.75rem;">B{{ bill.bill_number }}</a>
+                                    {% endfor %}
                                 </div>
                             {% else %}
                                 -
