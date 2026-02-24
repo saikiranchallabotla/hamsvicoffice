@@ -1202,6 +1202,7 @@ def generate_bill_from_saved(request, work_id):
         messages.error(request, 'Only workslips or estimates can be used to generate bills.')
         return redirect('saved_works_list')
     
+<<<<<<< HEAD
     work_data = saved_work.work_data or {}
     
     # Store source info in session for bill page
@@ -1228,13 +1229,15 @@ def generate_bill_from_saved(request, work_id):
     return redirect('bill')
 
     # Legacy code below kept for reference - now handled by generate_bill_with_type
+=======
+>>>>>>> parent of 252bdc4 (Merge pull request #9 from saikiranchallabotla/claude/fix-backend-injection-Jh4lI)
     work_data = saved_work.work_data or {}
-
+    
     # Store source info in session for bill page
     request.session['bill_source_work_id'] = saved_work.id
     request.session['bill_source_work_type'] = saved_work.work_type
     request.session['bill_source_work_name'] = saved_work.name
-
+    
     if saved_work.work_type == 'workslip':
         # Load workslip data for bill generation
         request.session['bill_from_workslip'] = True

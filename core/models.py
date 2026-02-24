@@ -650,6 +650,7 @@ class SavedWork(models.Model):
         """Check if this work can generate a bill (Estimates and Workslips can)"""
         return self.work_type in ['new_estimate', 'workslip']
 <<<<<<< HEAD
+<<<<<<< HEAD
     
 =======
 
@@ -721,6 +722,9 @@ class SavedWork(models.Model):
             self._collect_bills(child, result)
 
 >>>>>>> parent of 7c1512f (Merge pull request #11 from saikiranchallabotla/claude/fix-workslip-bill-regression-EkMQa)
+=======
+    
+>>>>>>> parent of 252bdc4 (Merge pull request #9 from saikiranchallabotla/claude/fix-backend-injection-Jh4lI)
     def get_children_by_type(self, work_type):
         """Get all child works of a specific type"""
         return self.children.filter(work_type=work_type)
