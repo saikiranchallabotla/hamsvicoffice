@@ -671,13 +671,6 @@ class SavedWork(models.Model):
             "workslip": "bi-file-earmark-text",
             "bill": "bi-receipt",
             "temporary_works": "bi-tools",
-            "amc": "bi-calendar-check",
-        }
-        return icons.get(self.work_type, "bi-file-earmark")
-    
-    def get_work_type_color(self):
-        """Return color class for work type"""
-        colors = {
             "new_estimate": "primary",
             "workslip": "success",
             "bill": "danger",
@@ -746,13 +739,6 @@ class SavedWork(models.Model):
             return f'CC {ordinal} & Part Bill'
         elif bill_type.endswith('_final'):
 >>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
-            return f'CC {ordinal} & Final Bill'
-        return f'CC Bill-{n}'
-
-    def get_root_estimate(self):
-        """Walk up parent chain to find the root estimate"""
-        current = self
-        while current.parent:
             current = current.parent
         if current.work_type == 'new_estimate':
             return current
