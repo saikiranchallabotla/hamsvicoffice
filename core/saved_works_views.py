@@ -648,9 +648,21 @@ def saved_work_detail(request, work_id):
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     all_folders = WorkFolder.objects.filter(organization=org, user=user)
     
+<<<<<<< HEAD
     context = {
         'work': saved_work,
         'folders': all_folders,
+=======
+    # Check subscription access for this work
+    access_result = check_saved_work_access(user, saved_work)
+    
+    context = {
+        'work': saved_work,
+        'folders': all_folders,
+        'has_subscription_access': access_result['ok'],
+        'subscription_reason': access_result.get('reason', ''),
+        'module_code': access_result.get('module_code'),
+>>>>>>> parent of cfe3716 (Merge pull request #12 from saikiranchallabotla/claude/fix-saved-work-regression-RP5Zu)
     }
     
     return render(request, 'core/saved_works/detail.html', context)
@@ -890,7 +902,6 @@ def load_item_rates_from_backend(category, item_names):
                 logger.warning(f"[LOAD_RATES DEBUG] Item '{name}' NOT FOUND in backend!")
                 result[name] = {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name}
         
-        return result
         
     except Exception as e:
         logger.error(f"[LOAD_RATES DEBUG] Error loading item rates: {e}")
@@ -900,6 +911,7 @@ def load_item_rates_from_backend(category, item_names):
 
 
 @login_required(login_url='login')
+          return org
 def generate_workslip_from_saved(request, work_id):
     """
     Generate a workslip from a saved estimate.
