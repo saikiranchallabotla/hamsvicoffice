@@ -404,10 +404,7 @@ def home(request):
     if not request.user.is_authenticated:
         # Show landing page with login/register options
         return render(request, "core/landing.html")
-    try:
         return render(request, "core/home.html")
-    except Exception:
-        return HttpResponse("Home page temporarily unavailable.")
 
 
 @login_required(login_url='login')

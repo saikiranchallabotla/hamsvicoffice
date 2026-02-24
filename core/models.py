@@ -649,7 +649,78 @@ class SavedWork(models.Model):
     def can_generate_bill(self):
         """Check if this work can generate a bill (Estimates and Workslips can)"""
         return self.work_type in ['new_estimate', 'workslip']
+<<<<<<< HEAD
     
+=======
+
+    def get_next_bill_number(self):
+        """Get the next bill number based on existing bills in the workflow chain"""
+        # Find all bills in this workflow chain
+        root = self.get_root_estimate()
+        if root:
+            max_bill = root.children.filter(work_type='bill').order_by('-bill_number').first()
+            if max_bill:
+                return max_bill.bill_number + 1
+        # Also check self children
+        max_bill = self.children.filter(work_type='bill').order_by('-bill_number').first()
+        if max_bill:
+            return max_bill.bill_number + 1
+        return 1
+
+    def get_bill_type_display_label(self):
+        """Get display label like 'CC First & Part Bill', 'CC Second & Final Bill'"""
+        ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
+                    6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
+        n = self.bill_number
+        ordinal = ordinals.get(n, f'{n}th')
+        if self.bill_type.endswith('_part'):
+            return f'CC {ordinal} & Part Bill'
+        elif self.bill_type.endswith('_final'):
+            return f'CC {ordinal} & Final Bill'
+        return f'CC Bill-{n}'
+
+    def get_root_estimate(self):
+        """Walk up parent chain to find the root estimate"""
+        current = self
+        while current.parent:
+            current = current.parent
+        if current.work_type == 'new_estimate':
+            return current
+        return None
+
+    def get_all_workslips(self):
+        """Get all workslips in this workflow chain, ordered by workslip_number"""
+        root = self.get_root_estimate()
+        if not root:
+            return []
+        workslips = []
+        self._collect_workslips(root, workslips)
+        return sorted(workslips, key=lambda w: w.workslip_number)
+
+    def _collect_workslips(self, node, result):
+        """Recursively collect workslips from the workflow tree"""
+        if node.work_type == 'workslip':
+            result.append(node)
+        for child in node.children.all():
+            self._collect_workslips(child, result)
+
+    def get_all_bills(self):
+        """Get all bills in this workflow chain, ordered by bill_number"""
+        root = self.get_root_estimate()
+        if not root:
+            return []
+        bills = []
+        self._collect_bills(root, bills)
+        return sorted(bills, key=lambda w: w.bill_number)
+
+    def _collect_bills(self, node, result):
+        """Recursively collect bills from the workflow tree"""
+        if node.work_type == 'bill':
+            result.append(node)
+        for child in node.children.all():
+            self._collect_bills(child, result)
+
+>>>>>>> parent of 7c1512f (Merge pull request #11 from saikiranchallabotla/claude/fix-workslip-bill-regression-EkMQa)
     def get_children_by_type(self, work_type):
         """Get all child works of a specific type"""
         return self.children.filter(work_type=work_type)

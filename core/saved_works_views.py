@@ -1227,6 +1227,32 @@ def generate_bill_from_saved(request, work_id):
     messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
     return redirect('bill')
 
+    # Legacy code below kept for reference - now handled by generate_bill_with_type
+    work_data = saved_work.work_data or {}
+
+    # Store source info in session for bill page
+    request.session['bill_source_work_id'] = saved_work.id
+    request.session['bill_source_work_type'] = saved_work.work_type
+    request.session['bill_source_work_name'] = saved_work.name
+
+    if saved_work.work_type == 'workslip':
+        # Load workslip data for bill generation
+        request.session['bill_from_workslip'] = True
+        request.session['bill_ws_rows'] = work_data.get('ws_estimate_rows', [])
+        request.session['bill_ws_exec_map'] = work_data.get('ws_exec_map', {})
+        request.session['bill_ws_tp_percent'] = work_data.get('ws_tp_percent', 0)
+        request.session['bill_ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
+    else:
+        # Load estimate data for bill generation
+        request.session['bill_from_workslip'] = False
+        request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
+        request.session['bill_qty_map'] = work_data.get('qty_map', {})
+    
+    request.session.modified = True
+    
+    messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
+    return redirect('bill')
+
 
 @login_required(login_url='login')
 def saved_work_detail(request, work_id):
