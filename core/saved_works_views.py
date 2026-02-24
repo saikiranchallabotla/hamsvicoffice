@@ -659,10 +659,16 @@ def restore_work_data(request, saved_work):
         request.session['ws_estimate_grand_total'] = work_data.get('ws_estimate_grand_total', 0.0)
         request.session['ws_work_name'] = work_data.get('ws_work_name', '')
         request.session['ws_deduct_old_material'] = work_data.get('ws_deduct_old_material', 0.0)
+        request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
+        request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
+        request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
         request.session['ws_current_phase'] = work_data.get('ws_current_phase', 1)
+        request.session['ws_target_workslip'] = work_data.get('ws_target_workslip', 1)
         request.session['ws_previous_phases'] = work_data.get('ws_previous_phases', [])
         request.session['ws_previous_ae_data'] = work_data.get('ws_previous_ae_data', [])
-        
+        request.session['ws_previous_supp_items'] = work_data.get('ws_previous_supp_items', [])
+        request.session['ws_metadata'] = work_data.get('ws_metadata', {})
+
         # Force session save
         request.session.modified = True
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")
@@ -694,8 +700,8 @@ def get_module_url(saved_work):
         return reverse('datas_groups', kwargs={'category': category})
     
     elif work_type == 'workslip':
-        return reverse('workslip_main')
-    
+        return reverse('workslip_main') + '?preserve=1'
+
     elif work_type == 'temporary_works':
         return reverse('temp_groups', kwargs={'category': category})
     
@@ -708,29 +714,6 @@ def get_module_url(saved_work):
 # ==============================================================================
 # SAVED WORK DETAILS & ACTIONS
 # ==============================================================================
-
-@login_required(login_url='login')
-def saved_work_detail(request, work_id):
-    """View details of a saved work."""
-    org = get_org_from_request(request)
-    user = request.user
-    
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-    all_folders = WorkFolder.objects.filter(organization=org, user=user)
-    
-    # Check subscription access for this work
-    access_result = check_saved_work_access(user, saved_work)
-    
-    context = {
-        'work': saved_work,
-        'folders': all_folders,
-        'has_subscription_access': access_result['ok'],
-        'subscription_reason': access_result.get('reason', ''),
-        'module_code': access_result.get('module_code'),
-    }
-    
-    return render(request, 'core/saved_works/detail.html', context)
-
 
 @login_required(login_url='login')
 @require_POST
@@ -935,7 +918,7 @@ def load_item_rates_from_backend(category, item_names):
         ws = wb["Master Datas"]
         
         # Detect items and their blocks - capture ws_data for description lookup
-        items_list, groups_map, ws_data, _ = load_backend(category, settings.BASE_DIR)
+        items_list, groups_map, _, ws_data, _ = load_backend(category, settings.BASE_DIR)
         
         logger.info(f"[LOAD_RATES DEBUG] Found {len(items_list)} items in backend")
         

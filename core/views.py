@@ -633,7 +633,7 @@ def workslip(request):
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
     except Exception:
-        items_list, groups_map, ws_data, filepath = [], {}, None, ""
+        items_list, groups_map, units_map, ws_data, filepath = [], {}, {}, None, ""
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
     current_group = request.GET.get("group") or (groups[0] if groups else "")
@@ -3307,8 +3307,15 @@ def workslip_ajax_toggle_supp(request):
         item_info = None
         if action_taken == "added":
             try:
-                # Load backend for the default category
-                category = "original"
+                # Load backend for the current workslip category
+                ws_category = request.session.get("ws_category", "electrical") or "electrical"
+                ws_work_type = request.session.get("ws_work_type", "new_estimate") or "new_estimate"
+                if ws_work_type == 'amc':
+                    category = f'amc_{ws_category}'
+                elif ws_work_type == 'tempworks':
+                    category = f'temp_{ws_category}'
+                else:
+                    category = ws_category
                 items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
                 
                 # Get rate
