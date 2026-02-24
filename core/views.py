@@ -1,4 +1,4 @@
-﻿# core/views.py
+# core/views.py
 
 import json
 import os
