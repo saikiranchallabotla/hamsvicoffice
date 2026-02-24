@@ -65,7 +65,7 @@
         </div>
 
         <div class="form-group">
-            <button type="submit">Generate Document</button>
+            <button type="submit" id="generate-btn">Generate Document</button>
         </div>
     </form>
 
@@ -77,52 +77,20 @@
     <p class="back-link"><a href="{% url 'self_formatted_form_page' %}">← Back to Self-Formatted Forms</a></p>
 </div>
 
-<script src="{% static 'js/job-polling.js' %}"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const form = document.getElementById("format-form");
-        
-        form.addEventListener("submit", async function (e) {
-            e.preventDefault();
+        const btn = document.getElementById("generate-btn");
 
-            // Show loading modal
-            const modal = JobPoller.createLoadingModal('formatting');
-            modal.show();
-
-            // Submit form asynchronously
-            const job = await JobPoller.submitFormAsync(form);
-            
-            if (!job) {
-                modal.setMessage('Error: Failed to start document generation');
-                setTimeout(() => modal.hide(), 2000);
-                return;
-            }
-
-            // Poll for job completion
-            JobPoller.pollUntilComplete(
-                job.job_id,
-                job.status_url,
-                {
-                    onProgress: (data) => {
-                        const percent = data.progress || 0;
-                        const step = data.current_step || 'Generating document...';
-                        modal.setProgress(percent);
-                        modal.setMessage(step);
-                    },
-                    onComplete: (data) => {
-                        modal.hide();
-                        setTimeout(() => {
-                            modal.remove();
-                            JobPoller.showResultModal(data);
-                        }, 500);
-                    },
-                    onError: (error) => {
-                        modal.setMessage('Error: ' + error);
-                        setTimeout(() => modal.hide(), 3000);
-                    },
-                },
-                1000  // Poll every second
-            );
+        form.addEventListener("submit", function () {
+            // Disable button and show feedback while the browser downloads
+            btn.disabled = true;
+            btn.textContent = "Generating...";
+            // Re-enable after a few seconds (browser will start the download)
+            setTimeout(function () {
+                btn.disabled = false;
+                btn.textContent = "Generate Document";
+            }, 5000);
         });
     });
 </script>

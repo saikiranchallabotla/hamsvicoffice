@@ -485,14 +485,23 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         wb = Workbook()
         ws_out = wb.active
         ws_out.title = "Output"
-        
+
         thin = Side(border_style="thin", color="000000")
         border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
-        
-        cursor = 1
+
+        # Add "Name of Work" header at top of Output sheet
+        ws_out.merge_cells("A1:J1")
+        c1 = ws_out["A1"]
+        c1.value = f"Name of the work : {normalize_text(work_name)}" if work_name else "Name of the work : "
+        c1.font = Font(bold=True, size=11)
+        c1.alignment = Alignment(horizontal="left", vertical="center")
+        for col in range(1, 11):
+            ws_out.cell(row=1, column=col).border = border_all
+
+        cursor = 3  # start item blocks after header + blank row
         rate_pos = {}
         data_serial = 1
-        
+
         # Build Output sheet
         for idx, name in enumerate(fetched):
             if idx % max(1, len(fetched) // 5) == 0:
@@ -787,7 +796,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             est_idx = wb.sheetnames.index("Estimate")
             if est_idx > 0:
                 wb.move_sheet("Estimate", offset=-est_idx)
-        
+
+        # Apply print settings: Portrait, A4, fit columns, Times New Roman
+        from core.views import _apply_print_settings
+        _apply_print_settings(wb)
+
         # Save to file
         output_buffer = BytesIO()
         wb.save(output_buffer)
@@ -902,7 +915,10 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json, backend_
         job.progress = 80
         job.current_step = "Saving Excel file..."
         job.save()
-        
+
+        from core.views import _apply_print_settings
+        _apply_print_settings(est_wb)
+
         # Save to file
         output_buffer = BytesIO()
         est_wb.save(output_buffer)
@@ -1073,6 +1089,7 @@ def generate_bill_document_task(self, job_id):
         
         def _extract_header_data_fuzzy_from_wb(wb):
             """Extract header data from workbook."""
+            import re as _re
             header = {
                 "name_of_work": "",
                 "estimate_amount": "",
@@ -1080,6 +1097,7 @@ def generate_bill_document_task(self, job_id):
                 "tech_sanction": "",
                 "agreement": "",
                 "agency": "",
+                "mb_details": "",
             }
             
             def clean_value(val):
@@ -1089,6 +1107,15 @@ def generate_bill_document_task(self, job_id):
                 if ":" in s:
                     s = s.split(":", 1)[1].strip()
                 return s
+            
+            def _has_mb(low, tokens):
+                if _re.search(r'm\.?b\.?\s*no', low):
+                    return True
+                if "measurement" in tokens and "book" in tokens:
+                    return True
+                if "mb" in tokens and ("details" in tokens or "no" in tokens or "nos" in tokens):
+                    return True
+                return False
             
             for ws in wb.worksheets:
                 max_row = min(ws.max_row, 40)
@@ -1110,6 +1137,8 @@ def generate_bill_document_task(self, job_id):
                             header["agreement"] = clean_value(s_full)
                         if not header["agency"] and ("agency" in tokens or "contractor" in tokens or "firm" in tokens):
                             header["agency"] = clean_value(s_full)
+                        if not header["mb_details"] and _has_mb(low, tokens):
+                            header["mb_details"] = clean_value(s_full)
             
             return header
         
@@ -1177,11 +1206,25 @@ def generate_bill_document_task(self, job_id):
         name_of_work = header.get("name_of_work", "")
         agreement_ref = header.get("agreement", "")
         agency_name = header.get("agency", "")
+        file_mb_details = (header.get("mb_details") or "").strip()
         
-        mb_details_str = _build_mb_details_string(
+        # Use user-entered MB if provided, else use file-extracted MB
+        user_entered_mb = any([
             mb_measure_no, mb_measure_p_from, mb_measure_p_to,
-            mb_abs_no, mb_abs_p_from, mb_abs_p_to
-        )
+            mb_abs_no, mb_abs_p_from, mb_abs_p_to,
+        ])
+        if user_entered_mb:
+            mb_details_str = _build_mb_details_string(
+                mb_measure_no, mb_measure_p_from, mb_measure_p_to,
+                mb_abs_no, mb_abs_p_from, mb_abs_p_to
+            )
+        elif file_mb_details:
+            mb_details_str = file_mb_details
+        else:
+            mb_details_str = _build_mb_details_string(
+                mb_measure_no, mb_measure_p_from, mb_measure_p_to,
+                mb_abs_no, mb_abs_p_from, mb_abs_p_to
+            )
         cc_header = _resolve_cc_header(action, nth_number_str)
         total_amount = _extract_total_from_bill(wb_in)
         total_amount_str = f"{float(total_amount):,.2f}"

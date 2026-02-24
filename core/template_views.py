@@ -63,6 +63,10 @@ def template_upload_view(request):
         if not name:
             name = f"My {template_type.replace('_', ' ').title()}"
         
+        # Read file content into memory for DB storage
+        file_bytes = file.read()
+        file.seek(0)  # Reset for FileField save
+        
         # Create or update the template
         # Deactivate existing templates of this type
         UserDocumentTemplate.objects.filter(
@@ -70,12 +74,14 @@ def template_upload_view(request):
             template_type=template_type
         ).update(is_active=False)
         
-        # Create new template
+        # Create new template with both file and DB-stored content
         template = UserDocumentTemplate.objects.create(
             user=request.user,
             template_type=template_type,
             name=name,
             file=file,
+            file_data=file_bytes,
+            file_name=file.name,
             is_active=True
         )
         
@@ -122,9 +128,28 @@ def template_activate_view(request, template_id):
 @login_required
 @require_GET
 def template_download_view(request, template_id):
-    """Download a template file."""
+    """Download a template file. Serves from DB if disk file is missing."""
+    import io
+    from django.http import HttpResponse as DlResponse
     template = get_object_or_404(UserDocumentTemplate, id=template_id, user=request.user)
-    return FileResponse(template.file.open('rb'), as_attachment=True, filename=os.path.basename(template.file.name))
+    
+    # Try DB-stored data first (survives redeployments)
+    file_bytes = template.get_file_bytes()
+    if file_bytes:
+        fname = template.file_name or os.path.basename(template.file.name if template.file else 'template.docx')
+        response = DlResponse(
+            file_bytes,
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{fname}"'
+        return response
+    
+    # Fallback to disk file
+    if template.file:
+        return FileResponse(template.file.open('rb'), as_attachment=True, filename=os.path.basename(template.file.name))
+    
+    messages.error(request, 'Template file not found. Please re-upload.')
+    return redirect('template_list')
 
 
 def get_user_template(user, template_type):

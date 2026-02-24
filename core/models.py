@@ -445,6 +445,11 @@ class UserDocumentTemplate(models.Model):
     """
     User-specific document templates for Covering Letter and Movement Slip.
     Each user can upload their own templates with their officer names.
+    
+    Templates are stored BOTH on disk (FileField) AND in the database (BinaryField).
+    The DB copy ensures templates survive redeployments on platforms with ephemeral
+    filesystems (Railway, Heroku, etc.). On every read, if the disk file is missing
+    but DB data exists, the file is automatically restored from the DB.
     """
     TEMPLATE_TYPE_CHOICES = (
         ("covering_letter", "Covering Letter"),
@@ -454,7 +459,10 @@ class UserDocumentTemplate(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='document_templates')
     template_type = models.CharField(max_length=20, choices=TEMPLATE_TYPE_CHOICES)
     name = models.CharField(max_length=255, help_text="A friendly name for this template")
-    file = models.FileField(upload_to="user_templates/")
+    file = models.FileField(upload_to="user_templates/", blank=True, null=True)
+    # Store file content in the DB so it survives redeployments
+    file_data = models.BinaryField(blank=True, null=True, help_text="Template file content stored in DB for persistence")
+    file_name = models.CharField(max_length=255, blank=True, default="", help_text="Original uploaded file name")
     is_active = models.BooleanField(default=True, help_text="Use this template for document generation")
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -486,6 +494,45 @@ class UserDocumentTemplate(models.Model):
                 is_active=True
             ).exclude(pk=self.pk).update(is_active=False)
         super().save(*args, **kwargs)
+
+    def get_file_bytes(self):
+        """
+        Return the template file content as bytes.
+        Priority: DB stored data > disk file.
+        If DB has data but disk file is missing, restores the disk file too.
+        """
+        import os
+        from django.core.files.base import ContentFile
+
+        # If we have DB-stored data, use that (authoritative source)
+        if self.file_data:
+            # Also restore disk file if missing (for backward compat / local dev)
+            if self.file and not os.path.exists(self.file.path if self.file else ''):
+                try:
+                    self.file.save(self.file_name or 'template.docx', ContentFile(self.file_data), save=False)
+                    # Save without triggering full save() to avoid recursion
+                    UserDocumentTemplate.objects.filter(pk=self.pk).update(file=self.file)
+                except Exception:
+                    pass  # Disk restore is best-effort
+            return bytes(self.file_data)
+
+        # Fallback: read from disk file (legacy templates before DB storage)
+        if self.file:
+            try:
+                path = self.file.path
+                if os.path.exists(path):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    # Backfill DB storage for next time
+                    UserDocumentTemplate.objects.filter(pk=self.pk).update(
+                        file_data=data,
+                        file_name=os.path.basename(path)
+                    )
+                    return data
+            except Exception:
+                pass
+
+        return None
 
 
 # ==============================================================================
@@ -585,7 +632,17 @@ class SavedWork(models.Model):
     
     # Workslip tracking - which workslip number this is (1, 2, 3, etc.)
     workslip_number = models.IntegerField(default=1, help_text="Workslip number for multi-workslip generation")
-    
+
+    # Bill tracking - which bill number this is (1, 2, 3, etc.) and type (part/final)
+    BILL_TYPE_CHOICES = (
+        ("first_part", "First & Part Bill"),
+        ("first_final", "First & Final Bill"),
+        ("nth_part", "Nth & Part Bill"),
+        ("nth_final", "Nth & Final Bill"),
+    )
+    bill_number = models.IntegerField(default=1, help_text="Bill number for multi-bill generation")
+    bill_type = models.CharField(max_length=30, choices=BILL_TYPE_CHOICES, blank=True, default='', help_text="Type of bill (part/final)")
+
     # Progress tracking
     progress_percent = models.IntegerField(default=0)  # 0-100
     last_step = models.CharField(max_length=255, blank=True)  # Last step user was on
@@ -651,8 +708,11 @@ class SavedWork(models.Model):
         return self.work_type in ['new_estimate', 'workslip']
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     
 =======
+=======
+>>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
 
     def get_next_bill_number(self):
         """Get the next bill number based on existing bills in the workflow chain"""
@@ -672,11 +732,20 @@ class SavedWork(models.Model):
         """Get display label like 'CC First & Part Bill', 'CC Second & Final Bill'"""
         ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
                     6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
+<<<<<<< HEAD
         n = self.bill_number
         ordinal = ordinals.get(n, f'{n}th')
         if self.bill_type.endswith('_part'):
             return f'CC {ordinal} & Part Bill'
         elif self.bill_type.endswith('_final'):
+=======
+        n = self.bill_number or 1
+        ordinal = ordinals.get(n, f'{n}th')
+        bill_type = self.bill_type or ''
+        if bill_type.endswith('_part'):
+            return f'CC {ordinal} & Part Bill'
+        elif bill_type.endswith('_final'):
+>>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
             return f'CC {ordinal} & Final Bill'
         return f'CC Bill-{n}'
 
@@ -721,14 +790,17 @@ class SavedWork(models.Model):
         for child in node.children.all():
             self._collect_bills(child, result)
 
+<<<<<<< HEAD
 >>>>>>> parent of 7c1512f (Merge pull request #11 from saikiranchallabotla/claude/fix-workslip-bill-regression-EkMQa)
 =======
     
 >>>>>>> parent of 252bdc4 (Merge pull request #9 from saikiranchallabotla/claude/fix-backend-injection-Jh4lI)
+=======
+>>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
     def get_children_by_type(self, work_type):
         """Get all child works of a specific type"""
         return self.children.filter(work_type=work_type)
-    
+
     def get_workflow_chain(self):
         """Get the full workflow chain (parent → self → children)"""
         chain = []

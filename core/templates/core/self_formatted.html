@@ -771,29 +771,52 @@ window.toggleHelpPopup = function() {
         event.preventDefault();
         const formatPk = document.getElementById('dialog-format-pk').value;
         const sourceFile = document.getElementById('dialog-use-source-file').files[0];
-        
+
         if (!sourceFile) {
             alert('Please select a source file');
             return;
         }
-        
+
+        // Disable generate button while processing
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Generating...'; }
+
         const formData = new FormData();
         formData.append('source_file', sourceFile);
         formData.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
-        
+
         try {
             const response = await fetch('/self-formatted/use/' + formatPk + '/', {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (response.ok) {
-                // If response is a file download
+                // Guard: ensure server returned a file, not an HTML page (e.g. redirect)
+                const contentType = response.headers.get('Content-Type') || '';
+                if (contentType.includes('text/html')) {
+                    alert('Session expired or access denied. Please refresh the page and try again.');
+                    return;
+                }
+
+                // Extract filename from Content-Disposition header
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = '';
+                if (disposition) {
+                    const match = disposition.match(/filename="?([^";\n]+)"?/);
+                    if (match && match[1]) filename = match[1].trim();
+                }
+                // Fallback: derive extension from Content-Type
+                if (!filename) {
+                    const ext = contentType.includes('spreadsheet') ? '.xlsx' : contentType.includes('text/plain') ? '.txt' : '.docx';
+                    filename = 'Filled_document' + ext;
+                }
+
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'document_' + new Date().getTime() + '.docx';
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
@@ -805,6 +828,8 @@ window.toggleHelpPopup = function() {
             }
         } catch (error) {
             alert('Error generating document: ' + error.message);
+        } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="bi bi-lightning-fill"></i> Generate'; }
         }
     };
 

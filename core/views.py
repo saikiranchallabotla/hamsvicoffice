@@ -1,4 +1,4 @@
-﻿# core/views.py
+# core/views.py
 
 import json
 import os
@@ -40,6 +40,39 @@ p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
 
 _inflect_engine = inflect.engine()
+
+
+def _apply_print_settings(wb, landscape=False):
+    """
+    Apply standard print settings to all sheets in a workbook:
+      - A4 paper, fit all columns to 1 page width
+      - Portrait (default) or Landscape
+      - Times New Roman font on all populated cells
+    """
+    for ws in wb.worksheets:
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.page_setup.orientation = 'landscape' if landscape else 'portrait'
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0  # unlimited pages vertically
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+        max_r = ws.max_row or 0
+        max_c = ws.max_column or 0
+        for r in range(1, max_r + 1):
+            for c in range(1, max_c + 1):
+                cell = ws.cell(row=r, column=c)
+                if cell.value is not None:
+                    f = cell.font
+                    cell.font = Font(
+                        name='Times New Roman',
+                        bold=f.bold,
+                        italic=f.italic,
+                        size=f.size,
+                        color=f.color,
+                        underline=f.underline,
+                        strikethrough=f.strikethrough,
+                    )
+
 
 # ============================================================================
 # PHASE 3B: HELPER FUNCTIONS FOR ORGANIZATION & ASYNC PROCESSING
@@ -504,12 +537,40 @@ def workslip(request):
     url_backend_id = request.GET.get("backend_id")
     if url_backend_id:
         try:
-            request.session["ws_selected_backend_id"] = int(url_backend_id)
+            bid = int(url_backend_id)
+            request.session["ws_selected_backend_id"] = bid
+            # Persist choice to DB so it survives re-login/redeployment
+            if request.user.is_authenticated:
+                try:
+                    from subscriptions.models import ModuleBackend
+                    from accounts.models import UserBackendPreference
+                    _backend = ModuleBackend.objects.filter(pk=bid, is_active=True).first()
+                    if _backend:
+                        UserBackendPreference.set_user_backend(request.user, _backend)
+                except Exception:
+                    pass
         except (ValueError, TypeError):
             pass
-    
+
     ws_selected_backend_id = request.session.get("ws_selected_backend_id")
-    
+
+    # Initialize from user's saved preference if session has no selection
+    if ws_selected_backend_id is None and request.user.is_authenticated:
+        try:
+            from accounts.models import UserBackendPreference
+            _base_cat = ws_category  # 'electrical' or 'civil'
+            _mod_code = 'new_estimate'
+            if request.session.get("ws_work_type") == 'amc':
+                _mod_code = 'amc'
+            elif request.session.get("ws_work_type") == 'tempworks':
+                _mod_code = 'temp_works'
+            _pref_backend = UserBackendPreference.get_user_backend(request.user, _mod_code, _base_cat)
+            if _pref_backend:
+                ws_selected_backend_id = _pref_backend.pk
+                request.session["ws_selected_backend_id"] = ws_selected_backend_id
+        except Exception:
+            pass
+
     # ---- session state ----
     ws_estimate_rows = request.session.get("ws_estimate_rows", []) or []
     ws_exec_map = request.session.get("ws_exec_map", {}) or {}
@@ -567,7 +628,7 @@ def workslip(request):
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
     except Exception:
-        items_list, groups_map, ws_data, filepath = [], {}, None, ""
+        items_list, groups_map, units_map, ws_data, filepath = [], {}, {}, None, ""
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
     current_group = request.GET.get("group") or (groups[0] if groups else "")
@@ -2144,7 +2205,13 @@ def workslip(request):
             if ws_supp_items:
                 ws_blocks = wb_out.active
                 ws_blocks.title = "ItemBlocks"
-                current_row = 1
+                # Add "Name of Work" header
+                ws_blocks.merge_cells("A1:J1")
+                hdr = ws_blocks["A1"]
+                hdr.value = f"Name of the work : {ws_work_name}" if ws_work_name else "Name of the work : "
+                hdr.font = Font(bold=True, size=11)
+                hdr.alignment = Alignment(horizontal="left", vertical="center")
+                current_row = 3  # start blocks after header + blank row
                 if ws_data is not None:
                     for name in ws_supp_items:
                         info = item_to_info.get(name)
@@ -2848,6 +2915,9 @@ def workslip(request):
                 if ws_idx > 0:
                     wb_out.move_sheet("WorkSlip", offset=-ws_idx)
 
+            # Apply print settings: Landscape, A4, fit columns, Times New Roman
+            _apply_print_settings(wb_out, landscape=True)
+
             # return file
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -3153,8 +3223,15 @@ def workslip_ajax_toggle_supp(request):
         item_info = None
         if action_taken == "added":
             try:
-                # Load backend for the default category
-                category = "original"
+                # Load backend for the current workslip category
+                ws_category = request.session.get("ws_category", "electrical") or "electrical"
+                ws_work_type = request.session.get("ws_work_type", "new_estimate") or "new_estimate"
+                if ws_work_type == 'amc':
+                    category = f'amc_{ws_category}'
+                elif ws_work_type == 'tempworks':
+                    category = f'temp_{ws_category}'
+                else:
+                    category = ws_category
                 items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
                 
                 # Get rate
@@ -3260,6 +3337,7 @@ def _extract_header_data_fuzzy_from_wb(wb):
         "tech_sanction": "",
         "agreement": "",
         "agency": "",
+        "mb_details": "",
     }
 
     def clean_value_for_header(val):
@@ -3330,12 +3408,40 @@ def _extract_header_data_fuzzy_from_wb(wb):
                         header["agency"] = clean_value_for_header(s_full)
                         continue
 
+                # ---- MB Details (M.B.No / MB No / Measurement Book) ----
+                if not header["mb_details"]:
+                    if _cell_has_mb_details(low, tokens):
+                        header["mb_details"] = clean_value_for_header(s_full)
+                        continue
+
     return header
+
+
+def _cell_has_mb_details(low, tokens):
+    """
+    Check if a cell's text contains MB (Measurement Book) details.
+    Matches patterns like:
+      - M.B.No, M.B. No, MB No, MB.No, M.B.Nos
+      - Measurement Book
+      - mb no, mb details
+    """
+    # Direct pattern checks on lowercased text
+    import re
+    # M.B.No / M.B. No / M.B.Nos / MB.No / MB No
+    if re.search(r'm\.?b\.?\s*no', low):
+        return True
+    # "measurement" + "book" anywhere
+    if "measurement" in tokens and "book" in tokens:
+        return True
+    # "mb" token + "details" or "no" nearby
+    if "mb" in tokens and ("details" in tokens or "no" in tokens or "nos" in tokens):
+        return True
+    return False
 
 
 def _extract_header_data_from_sheet(ws):
     """
-    Extract header data (name of work, agreement, agency, etc.) from a specific sheet.
+    Extract header data (name of work, agreement, agency, MB details, etc.) from a specific sheet.
     
     This is a per-sheet version of _extract_header_data_fuzzy_from_wb that reads
     data from the first ~40 rows of the given worksheet.
@@ -3348,6 +3454,7 @@ def _extract_header_data_from_sheet(ws):
         "tech_sanction": "...",
         "agreement": "...",
         "agency": "...",
+        "mb_details": "...",
       }
     """
     header = {
@@ -3357,6 +3464,7 @@ def _extract_header_data_from_sheet(ws):
         "tech_sanction": "",
         "agreement": "",
         "agency": "",
+        "mb_details": "",
     }
 
     def clean_value_for_header(val):
@@ -3424,6 +3532,12 @@ def _extract_header_data_from_sheet(ws):
             if not header["agency"]:
                 if "agency" in tokens or "contractor" in tokens or "firm" in tokens:
                     header["agency"] = clean_value_for_header(s_full)
+                    continue
+
+            # ---- MB Details (M.B.No / MB No / Measurement Book) ----
+            if not header["mb_details"]:
+                if _cell_has_mb_details(low, tokens):
+                    header["mb_details"] = clean_value_for_header(s_full)
                     continue
 
     return header
@@ -4956,6 +5070,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no items parsed from upload"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -5023,6 +5138,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no workslip items parsed from upload"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -5167,6 +5283,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no items parsed from any First Bill sheets"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -5308,6 +5425,7 @@ def bill(request):
             if created == 0:
                 return JsonResponse({"error": "no items parsed from any Nth Bill sheets"}, status=400)
 
+            _apply_print_settings(wb_out)
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -6344,6 +6462,7 @@ def build_estimate_wb(ws_src, blocks):
                 "error": "Could not detect any items in the uploaded Estimate (all sheets).",
             })
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -6406,6 +6525,7 @@ def build_estimate_wb(ws_src, blocks):
                 "error": "Could not detect any executed items in the uploaded WorkSlip (all sheets).",
             })
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -6462,6 +6582,7 @@ def build_estimate_wb(ws_src, blocks):
             dobr=dobr,
         )
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -6519,6 +6640,7 @@ def build_estimate_wb(ws_src, blocks):
             dobr=dobr,
         )
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -7394,15 +7516,40 @@ def bill_document(request):
     
     has_multiple_bills = len(bill_sheets) > 1
 
-    # MB details string & CC header (same for all sheets)
-    mb_details_str = _build_mb_details_string(
-        mb_measure_no,
-        mb_measure_p_from,
-        mb_measure_p_to,
-        mb_abs_no,
-        mb_abs_p_from,
-        mb_abs_p_to,
-    )
+    # Try to extract MB details from the uploaded bill file itself
+    file_header = _extract_header_data_fuzzy_from_wb(wb_in)
+    file_mb_details = (file_header.get("mb_details") or "").strip()
+
+    # If user has entered MB details manually, use those; otherwise use file-extracted MB
+    user_entered_mb = any([
+        mb_measure_no, mb_measure_p_from, mb_measure_p_to,
+        mb_abs_no, mb_abs_p_from, mb_abs_p_to,
+    ])
+
+    if user_entered_mb:
+        # User manually entered MB fields — build string from those
+        mb_details_str = _build_mb_details_string(
+            mb_measure_no,
+            mb_measure_p_from,
+            mb_measure_p_to,
+            mb_abs_no,
+            mb_abs_p_from,
+            mb_abs_p_to,
+        )
+    elif file_mb_details:
+        # Auto-extracted from the uploaded bill file
+        mb_details_str = file_mb_details
+    else:
+        # No MB details available at all — build empty string
+        mb_details_str = _build_mb_details_string(
+            mb_measure_no,
+            mb_measure_p_from,
+            mb_measure_p_to,
+            mb_abs_no,
+            mb_abs_p_from,
+            mb_abs_p_to,
+        )
+
     cc_header = _resolve_cc_header(action, nth_number_str=nth_number_str)
     
     # Current month + year
@@ -7479,6 +7626,13 @@ def bill_document(request):
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
                 
+                # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
+                sheet_mb = mb_details_str
+                if not user_entered_mb:
+                    sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
+                    if sheet_mb_from_file:
+                        sheet_mb = sheet_mb_from_file
+                
                 # Get formulas sheet if available
                 ws_formulas = None
                 if wb_formulas:
@@ -7502,7 +7656,7 @@ def bill_document(request):
                     "AGENCY_NAME": sheet_agency_name,
                     "REF_OF_AGREEMENT": sheet_agreement_ref,
                     "AGREEMENT_REF": sheet_agreement_ref,
-                    "MB_DETAILS": mb_details_str,
+                    "MB_DETAILS": sheet_mb,
                     "CC_HEADER": cc_header,
                     "AMOUNT": sheet_total_str,
                     "TOTAL_AMOUNT": sheet_total_str,
@@ -7586,6 +7740,7 @@ def bill_document(request):
             except Exception as e:
                 return HttpResponse(f"Error filling LS template: {e}", status=500)
 
+        _apply_print_settings(wb_out)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -7646,10 +7801,10 @@ def bill_document(request):
             """
             return HttpResponse(error_html, status=200)
         
-        template_path = user_template.file.path
-        
-        if not os.path.exists(template_path):
-            return HttpResponse(f"Template file not found. Please re-upload your template.", status=404)
+        # Read template bytes from DB (survives redeployments)
+        template_bytes = user_template.get_file_bytes()
+        if not template_bytes:
+            return HttpResponse("Template file not found. Please re-upload your template.", status=404)
 
         def replace_in_paragraphs(paragraphs, placeholder_map, mm_yyyy_val):
             for p in paragraphs:
@@ -7675,7 +7830,7 @@ def bill_document(request):
             from docx.opc.constants import RELATIONSHIP_TYPE as RT
             
             # Start with the template and clear its content
-            combined_doc = Document(template_path)
+            combined_doc = Document(io.BytesIO(template_bytes))
             
             # Clear the template content first
             for element in list(combined_doc.element.body):
@@ -7687,6 +7842,13 @@ def bill_document(request):
                 sheet_name_of_work = sheet_header.get("name_of_work", "") or ""
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
+                
+                # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
+                sheet_mb = mb_details_str
+                if not user_entered_mb:
+                    sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
+                    if sheet_mb_from_file:
+                        sheet_mb = sheet_mb_from_file
                 
                 # Get formulas sheet if available
                 ws_formulas = None
@@ -7712,14 +7874,14 @@ def bill_document(request):
                     "{{AGREEMENT_REF}}": sheet_agreement_ref,
                     "{{REF_OF_AGREEMENT}}": sheet_agreement_ref,
                     "{{CC_HEADER}}": cc_header,
-                    "{{MB_DETAILS}}": mb_details_str,
+                    "{{MB_DETAILS}}": sheet_mb,
                     "{{AMOUNT}}": sheet_total_str,
                     "{{TOTAL_AMOUNT}}": sheet_total_str,
                     "{{AMOUNT_IN_WORDS}}": sheet_amount_words,
                 }
                 
                 # Load fresh template for this sheet
-                sheet_doc = Document(template_path)
+                sheet_doc = Document(io.BytesIO(template_bytes))
                 
                 # Replace placeholders in body
                 replace_in_paragraphs(sheet_doc.paragraphs, sheet_placeholder_map, mm_yyyy)
@@ -7773,7 +7935,7 @@ def bill_document(request):
                 "{{AMOUNT_IN_WORDS}}": _number_to_words_rupees(total_amount),
             }
 
-            doc = Document(template_path)
+            doc = Document(io.BytesIO(template_bytes))
             replace_in_paragraphs(doc.paragraphs, placeholder_map, mm_yyyy)
 
             for table in doc.tables:
@@ -8048,13 +8210,35 @@ def datas_items(request, category, group):
     url_backend_id = request.GET.get("backend_id")
     if url_backend_id:
         try:
-            request.session["selected_backend_id"] = int(url_backend_id)
+            bid = int(url_backend_id)
+            request.session["selected_backend_id"] = bid
+            # Persist choice to DB so it survives re-login/redeployment
+            if request.user.is_authenticated:
+                try:
+                    from subscriptions.models import ModuleBackend
+                    from accounts.models import UserBackendPreference
+                    _backend = ModuleBackend.objects.filter(pk=bid, is_active=True).first()
+                    if _backend:
+                        UserBackendPreference.set_user_backend(request.user, _backend)
+                except Exception:
+                    pass
         except (ValueError, TypeError):
             pass
-    
+
     # Get backend_id from session for consistent loading throughout the flow
     selected_backend_id = request.session.get("selected_backend_id")
-    
+
+    # Initialize from user's saved preference if session has no selection
+    if selected_backend_id is None and request.user.is_authenticated:
+        try:
+            from accounts.models import UserBackendPreference
+            _pref_backend = UserBackendPreference.get_user_backend(request.user, 'new_estimate', category)
+            if _pref_backend:
+                selected_backend_id = _pref_backend.pk
+                request.session["selected_backend_id"] = selected_backend_id
+        except Exception:
+            pass
+
     # Get available backends for the dropdown
     try:
         available_backends = get_available_backends_for_module('new_estimate', category)
@@ -9618,7 +9802,7 @@ def _extract_labels_from_lines(lines):
     ocr_corrections = {
         # Maintenance
         "mala tenance": "maintenance",
-        "malatenance": "maintenance", 
+        "malatenance": "maintenance",
         "maintenace": "maintenance",
         "maintainance": "maintenance",
         "maintanance": "maintenance",
@@ -9651,21 +9835,62 @@ def _extract_labels_from_lines(lines):
         "Bitépad": "Begumpet",
         # Hyderabad
         "Hydera bad": "Hyderabad",
-        # Common OCR errors
+        # Common OCR errors - general
         "sanctlon": "sanction",
         "sanchon": "sanction",
         "Techical": "Technical",
         "Addinistrative": "Administrative",
         "ot cated": "located",
         "st ate": "state",
+        # Common l/1/I confusions
+        "Estimale": "Estimate",
+        "estimale": "estimate",
+        "estlmate": "estimate",
+        "eslimate": "estimate",
+        "Admlnistrative": "Administrative",
+        "admlnistrative": "administrative",
+        "Technlcal": "Technical",
+        "technlcal": "technical",
+        # o/0 confusions
+        "c0ntract": "contract",
+        "c0ntractor": "contractor",
+        "c0mpletion": "completion",
+        # Common spacing issues
+        "sub division": "sub-division",
+        "Sub Division": "Sub-Division",
+        "work order": "work order",
+        "Agree ment": "Agreement",
+        "agree ment": "agreement",
+        "Ad ministrative": "Administrative",
+        "ad ministrative": "administrative",
+        "con tractor": "contractor",
+        "san ction": "sanction",
+        "comple tion": "completion",
+        # Common document terms
+        "Supplylng": "Supplying",
+        "supplylng": "supplying",
+        "Constructlon": "Construction",
+        "constructlon": "construction",
+        "Electrlcal": "Electrical",
+        "electrlcal": "electrical",
+        "lnstallation": "installation",
+        "Installatlon": "Installation",
+        "Erectl0n": "Erection",
+        "erecti0n": "erection",
     }
-    
-    # Apply corrections to name_of_work
-    if labels.get("name_of_work"):
-        work = labels["name_of_work"]
-        for wrong, correct in ocr_corrections.items():
-            work = re.sub(re.escape(wrong), correct, work, flags=re.I)
-        labels["name_of_work"] = work
+
+    # Apply corrections to ALL text fields (not just name_of_work)
+    text_fields = [
+        "name_of_work", "agreement", "admin_sanction", "tech_sanction",
+        "agency", "contractor_name", "contractor_address",
+        "nit_number", "period_of_completion",
+    ]
+    for field in text_fields:
+        if labels.get(field):
+            val = labels[field]
+            for wrong, correct in ocr_corrections.items():
+                val = re.sub(re.escape(wrong), correct, val, flags=re.I)
+            labels[field] = val
     
     # SECOND PASS: Handle table-format where labels and values are on separate lines
     # This handles OCR from table documents where "Name of Work" is one row and value is next row
@@ -9736,65 +9961,91 @@ def _extract_labels_from_lines(lines):
 def _preprocess_image_for_ocr(img):
     """
     Preprocess image for better OCR accuracy, especially for blurred/low-quality images.
-    Uses various image enhancement techniques.
+    Uses various image enhancement techniques including deskewing.
     """
     try:
         from PIL import Image, ImageEnhance, ImageFilter
         import numpy as np
     except ImportError:
         return img  # Return original if dependencies not available
-    
+
     try:
         # Convert to RGB if necessary
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        
+
         # 1. Resize if image is too small (upscale for better OCR)
         width, height = img.size
-        if width < 1000 or height < 1000:
-            scale_factor = max(1500 / width, 1500 / height)
+        if width < 1500 or height < 1500:
+            scale_factor = max(2000 / width, 2000 / height)
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
             img = img.resize((new_width, new_height), Image.LANCZOS)
-        
+
         # 2. Convert to grayscale
         img = img.convert('L')
-        
+
         # 3. Increase contrast
         enhancer = ImageEnhance.Contrast(img)
         img = enhancer.enhance(2.0)
-        
+
         # 4. Increase sharpness (helps with blurred images)
         img = img.convert('RGB')  # Convert back for sharpness
         enhancer = ImageEnhance.Sharpness(img)
         img = enhancer.enhance(2.5)
-        
+
         # 5. Apply unsharp mask for deblurring effect
         img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
-        
+
         # 6. Convert back to grayscale for OCR
         img = img.convert('L')
-        
-        # 7. Apply adaptive thresholding using numpy
+
+        # 7. Apply Otsu-style adaptive thresholding using numpy
         try:
             img_array = np.array(img)
-            
+
             # Apply Gaussian blur to reduce noise
-            from PIL import ImageFilter
             img_blurred = Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(radius=1))
             img_array = np.array(img_blurred)
-            
-            # Simple adaptive thresholding
-            mean_val = np.mean(img_array)
-            threshold = mean_val * 0.85
+
+            # Otsu-inspired thresholding for cleaner binarization
+            hist, _ = np.histogram(img_array.ravel(), bins=256, range=(0, 256))
+            total = img_array.size
+            sum_all = np.sum(np.arange(256) * hist)
+            sum_bg, w_bg = 0.0, 0
+            max_var, threshold = 0.0, 128
+            for t in range(256):
+                w_bg += hist[t]
+                if w_bg == 0:
+                    continue
+                w_fg = total - w_bg
+                if w_fg == 0:
+                    break
+                sum_bg += t * hist[t]
+                mean_bg = sum_bg / w_bg
+                mean_fg = (sum_all - sum_bg) / w_fg
+                var_between = w_bg * w_fg * (mean_bg - mean_fg) ** 2
+                if var_between > max_var:
+                    max_var = var_between
+                    threshold = t
+
             img_array = np.where(img_array > threshold, 255, 0).astype(np.uint8)
             img = Image.fromarray(img_array)
         except Exception:
             pass  # Continue with enhanced image if thresholding fails
-        
+
         # 8. Apply slight median filter to remove noise
         img = img.filter(ImageFilter.MedianFilter(size=3))
-        
+
+        # 9. Morphological dilation to thicken thin text
+        try:
+            img_array = np.array(img)
+            from PIL import ImageFilter
+            # Slight dilation using min filter (thickens dark text on white background)
+            img = Image.fromarray(img_array).filter(ImageFilter.MinFilter(size=3))
+        except Exception:
+            pass
+
         return img
     except Exception as e:
         logger.warning(f"Image preprocessing failed: {e}")
@@ -9803,24 +10054,91 @@ def _preprocess_image_for_ocr(img):
 
 def _ocr_with_multiple_configs(img, lang='eng'):
     """
-    Fast OCR extraction - uses single optimal config for speed.
+    OCR extraction with multiple Tesseract configurations for better accuracy.
+    Tries multiple PSM modes and picks the best result.
+    Applies image preprocessing before OCR.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         import pytesseract
     except ImportError:
         return ""
-    
-    # Use single best config for speed (PSM 6 is optimal for documents)
-    try:
-        result = pytesseract.image_to_string(img, lang=lang, config='--oem 3 --psm 6')
-        logger.debug(f"OCR extracted {len(result)} chars")
-        return result
-    except Exception as e:
-        logger.debug(f"OCR failed: {e}")
-        return ""
+
+    # Preprocess the image for better OCR accuracy
+    preprocessed_img = _preprocess_image_for_ocr(img)
+
+    # Try multiple configurations and pick the one with most content
+    configs = [
+        ('--oem 3 --psm 6', 'PSM6-block'),    # Uniform block of text (best for documents)
+        ('--oem 3 --psm 3', 'PSM3-auto'),      # Fully automatic page segmentation
+        ('--oem 3 --psm 4', 'PSM4-column'),     # Single column of text
+    ]
+
+    best_result = ""
+    best_score = 0
+
+    for config, label in configs:
+        try:
+            result = pytesseract.image_to_string(preprocessed_img, lang=lang, config=config)
+            # Score based on content quality: line count, avg line length, alphanumeric ratio
+            result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
+            alnum_chars = sum(1 for c in result if c.isalnum())
+            total_chars = len(result) or 1
+            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50
+            logger.debug(f"OCR {label}: {len(result_lines)} lines, score={score:.0f}")
+            if score > best_score:
+                best_score = score
+                best_result = result
+        except Exception as e:
+            logger.debug(f"OCR {label} failed: {e}")
+
+    # If preprocessed results are poor, try original image as fallback
+    if best_score < 50:
+        try:
+            result = pytesseract.image_to_string(img, lang=lang, config='--oem 3 --psm 6')
+            result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
+            alnum_chars = sum(1 for c in result if c.isalnum())
+            total_chars = len(result) or 1
+            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50
+            if score > best_score:
+                best_result = result
+                logger.debug(f"Original image OCR was better: score={score:.0f}")
+        except Exception:
+            pass
+
+    logger.debug(f"OCR final result: {len(best_result)} chars")
+    return best_result
+
+
+# Common OCR character confusions applied to all text
+_OCR_CHAR_FIXES = {
+    '|': 'l',     # pipe → lowercase L
+    '¢': 'c',     # cent sign → c
+    '©': 'c',     # copyright → c
+    '®': 'R',     # registered → R
+    '—': '-',     # em dash → hyphen
+    '–': '-',     # en dash → hyphen
+    '\u2018': "'", # left single quote
+    '\u2019': "'", # right single quote
+    '\u201c': '"', # left double quote
+    '\u201d': '"', # right double quote
+}
+
+
+def _fix_ocr_text(text):
+    """Apply character-level OCR fixes and clean common artifacts."""
+    if not text:
+        return text
+    for wrong, correct in _OCR_CHAR_FIXES.items():
+        text = text.replace(wrong, correct)
+    # Fix common OCR number/letter confusions in context
+    text = re.sub(r'\bRs\s*[.,]\s*', 'Rs. ', text)  # Fix "Rs," or "Rs ." to "Rs. "
+    text = re.sub(r'\b0f\b', 'of', text, flags=re.I)  # 0f → of
+    text = re.sub(r'\b1n\b', 'in', text, flags=re.I)  # 1n → in
+    text = re.sub(r'\bthe\s+the\b', 'the', text, flags=re.I)  # Remove duplicate "the the"
+    return text
 
 
 def _extract_labels_from_source_file(uploaded_file):
@@ -9918,27 +10236,29 @@ def _extract_labels_from_source_file(uploaded_file):
                 from pdf2image import convert_from_bytes
                 import pytesseract
                 from PIL import Image
-                
+
                 logger.info("Attempting OCR for scanned PDF...")
                 uploaded_file.seek(0)
                 pdf_bytes = uploaded_file.read()
-                
-                # Convert PDF pages to images at lower DPI for speed
-                images = convert_from_bytes(pdf_bytes, dpi=200)
-                
+
+                # Convert PDF pages to images at 300 DPI for better OCR accuracy
+                images = convert_from_bytes(pdf_bytes, dpi=300)
+
                 ocr_lines = []
-                
+
                 for idx, img in enumerate(images):
                     logger.info(f"Processing page {idx + 1} with OCR...")
-                    
-                    # Single OCR pass for speed
+
+                    # Multi-config OCR with preprocessing
                     txt = _ocr_with_multiple_configs(img, lang='eng')
-                    
+                    # Apply character-level OCR fixes
+                    txt = _fix_ocr_text(txt)
+
                     for ln in txt.splitlines():
                         ln = ln.strip()
                         if ln and len(ln) > 1:
                             ocr_lines.append(ln)
-                
+
                 # Use OCR results if they have more content
                 if len(ocr_lines) > len(lines):
                     lines = ocr_lines
@@ -9961,10 +10281,12 @@ def _extract_labels_from_source_file(uploaded_file):
             logger.info(f"Processing image file: {filename}")
             uploaded_file.seek(0)
             img = Image.open(uploaded_file)
-            
-            # Single OCR pass for speed
+
+            # Multi-config OCR with preprocessing
             txt = _ocr_with_multiple_configs(img, lang='eng')
-            
+            # Apply character-level OCR fixes
+            txt = _fix_ocr_text(txt)
+
             for ln in txt.splitlines():
                 ln = ln.strip()
                 if ln and len(ln) > 1:  # Skip single characters
@@ -10238,45 +10560,109 @@ def _build_placeholder_map(labels, lines, custom_text: str):
     return placeholder_map
 
 
+def _replace_placeholders_in_docx_xml(xml_str, safe_map):
+    """
+    Replace {{PLACEHOLDER}} values in DOCX XML text.
+    Handles placeholders split across multiple <w:t> elements within a paragraph.
+    """
+    # Pass 1: direct replacement (handles placeholders inside a single <w:t>)
+    for ph, val in safe_map.items():
+        xml_str = xml_str.replace(ph, val)
+
+    # Pass 2: handle placeholders split across <w:t> elements within <w:p>
+    t_pattern = re.compile(r'(<w:t[^>]*>)(.*?)(</w:t>)', re.DOTALL)
+
+    def _process_paragraph(match):
+        para = match.group(0)
+        t_matches = list(t_pattern.finditer(para))
+        if len(t_matches) < 2:
+            return para  # single or no text runs, nothing to join
+
+        # Concatenate text across all runs in this paragraph
+        combined = ''.join(m.group(2) for m in t_matches)
+
+        # Check if any placeholder still exists in the combined text
+        new_combined = combined
+        changed = False
+        for ph, val in safe_map.items():
+            if ph in new_combined:
+                new_combined = new_combined.replace(ph, val)
+                changed = True
+
+        if not changed:
+            return para
+
+        # Rebuild: put all text in the first <w:t>, empty the rest
+        result = para
+        for i, m in enumerate(reversed(t_matches)):
+            idx = len(t_matches) - 1 - i
+            if idx == 0:
+                # First run gets the full replaced text; preserve space
+                open_tag = m.group(1)
+                if 'xml:space' not in open_tag:
+                    open_tag = open_tag.replace('<w:t', '<w:t xml:space="preserve"', 1)
+                replacement = f'{open_tag}{new_combined}{m.group(3)}'
+            else:
+                replacement = f'{m.group(1)}{m.group(3)}'
+            result = result[:m.start()] + replacement + result[m.end():]
+
+        return result
+
+    xml_str = re.sub(r'<w:p[ >].*?</w:p>', _process_paragraph, xml_str, flags=re.DOTALL)
+    return xml_str
+
+
 def _fill_template_file(template_file, placeholder_map):
     """
     Apply placeholders to template_file and return a HttpResponse with the
     filled file.
+    Uses ZIP-level XML replacement for DOCX to preserve all document features
+    (themes, fonts, styles, images, headers/footers, compatibility settings).
     """
+    import zipfile
+    from xml.sax.saxutils import escape as xml_escape
+
     template_name = template_file.name or "template"
     ext = template_name.lower().rsplit(".", 1)[-1] if "." in template_name else ""
 
     # -------- DOCX --------
     if ext == "docx":
-        doc = Document(template_file)
+        # Build XML-safe replacement map
+        # Strip characters illegal in XML 1.0 (OCR can produce control chars)
+        _xml_illegal = re.compile(
+            r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFE\uFFFF]'
+        )
+        safe_map = {}
+        for ph, val in placeholder_map.items():
+            clean = _xml_illegal.sub('', str(val) if val is not None else "")
+            safe_map[ph] = xml_escape(clean)
 
-        def replace_in_paragraphs(paragraphs):
-            for p in paragraphs:
-                # join all runs to a single string to handle placeholders split across runs
-                full = ''.join([r.text or '' for r in p.runs])
-                new_full = full
-                for ph, val in placeholder_map.items():
-                    new_full = new_full.replace(ph, str(val) if val is not None else "")
-                if new_full != full:
-                    # write back into runs: put entire text in first run, clear others
-                    if p.runs:
-                        p.runs[0].text = new_full
-                        for rr in p.runs[1:]:
-                            rr.text = ''
-                    else:
-                        p.add_run(new_full)
+        # Read original file bytes
+        original_data = template_file.read()
 
-        replace_in_paragraphs(doc.paragraphs)
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    replace_in_paragraphs(cell.paragraphs)
+        # Process DOCX as ZIP — only touch XML text, preserve everything else
+        input_buf = io.BytesIO(original_data)
+        output_buf = io.BytesIO()
 
-        buf = io.BytesIO()
-        doc.save(buf)
-        buf.seek(0)
+        with zipfile.ZipFile(input_buf, 'r') as zin:
+            with zipfile.ZipFile(output_buf, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+
+                    # Only modify XML parts inside word/ that may contain text
+                    if item.filename.startswith('word/') and item.filename.endswith('.xml'):
+                        try:
+                            xml_str = data.decode('utf-8')
+                            xml_str = _replace_placeholders_in_docx_xml(xml_str, safe_map)
+                            data = xml_str.encode('utf-8')
+                        except Exception:
+                            pass  # Not a text XML, skip
+
+                    zout.writestr(item, data)
+
+        output_buf.seek(0)
         resp = HttpResponse(
-            buf.getvalue(),
+            output_buf.getvalue(),
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         resp["Content-Disposition"] = f'attachment; filename="Filled_{os.path.basename(template_name)}"'
@@ -10301,6 +10687,7 @@ def _fill_template_file(template_file, placeholder_map):
                         if changed:
                             cell.value = txt
 
+        _apply_print_settings(wb)
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -10345,8 +10732,10 @@ def self_formatted_form_page(request):
       - List of saved formats
     Optimized: Limited query with only necessary fields for faster load.
     """
-    # Only fetch the fields needed for display, limit to recent 20 formats
-    saved_formats = SelfFormattedTemplate.objects.only(
+    # Only fetch the current user's formats (not other users')
+    saved_formats = SelfFormattedTemplate.objects.filter(
+        user=request.user
+    ).only(
         'id', 'name', 'created_at'
     ).order_by("-created_at")[:20]
     error_message = request.GET.get("error")  # optional error via redirect
@@ -10455,6 +10844,8 @@ def self_formatted_save_format(request):
         description=format_description,
         template_file=template_file,
         custom_placeholders=raw_custom,
+        user=request.user,
+        organization=request.organization,
     )
     fmt.save()
 
@@ -10468,7 +10859,7 @@ def self_formatted_use_format(request, pk):
       GET  -> show page asking only for source_file upload.
       POST -> generate document using saved template + placeholders.
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk)
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
 
     if request.method == "GET":
         return render(request, "core/self_formatted_use.html", {
@@ -10518,7 +10909,7 @@ def self_formatted_delete_format(request, pk):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk)
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
 
     template = fmt.template_file
     storage = template.storage if template else None
@@ -10538,7 +10929,7 @@ def self_formatted_edit_format(request, pk):
     GET: show edit form
     POST: apply updates (name, description, optional new template file, custom placeholders)
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk)
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
 
     if request.method == "GET":
         preview_text = None
@@ -11147,7 +11538,14 @@ def temp_download_output(request, category):
     thin = Side(border_style="thin", color="000000")
     border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
 
-    cursor = 1  # current row in Output
+    # Add "Name of Work" header at top of Output sheet
+    ws_out.merge_cells("A1:J1")
+    hdr = ws_out["A1"]
+    hdr.value = f"Name of the work : {work_name}" if work_name else "Name of the work : "
+    hdr.font = Font(bold=True, size=11)
+    hdr.alignment = Alignment(horizontal="left", vertical="center")
+
+    cursor = 3  # start blocks after header + blank row
     rate_rows = []  # each element: (entry_index, row_in_output)
 
     # =====================================================
@@ -11383,6 +11781,7 @@ def temp_download_output(request, category):
             wb.move_sheet("Estimate", offset=-est_idx)
 
     # ----- return workbook -----
+    _apply_print_settings(wb)
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -12372,6 +12771,7 @@ def estimate(request):
                         wb_out.move_sheet(sheet_name, offset=(i - current_idx))
             
             # Return the estimate workbook
+            _apply_print_settings(wb_out)
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
