@@ -149,81 +149,30 @@ def load_fixtures():
 
 def seed_module_backends():
     """
-    NON-DESTRUCTIVE backend persistence during deployment.
-
-    This function guarantees:
-    - No automatic renaming of backend files
-    - No automatic rewriting of existing backend file contents
-    - Admin-modified files survive all redeployments
-    - Overwrites ONLY with hash mismatch detection + backup
-    - admin_locked backends are NEVER touched by automation
-
-    Flow:
-    1. Pre-deployment validation (integrity check all backends)
-    2. Conflict detection (disk vs DB hash comparison)
-    3. Backup creation (before any file write)
-    4. Safe restoration (only missing disk files from authoritative DB)
-    5. Optional initial seeding (only when SEED_INITIAL_BACKENDS=true)
+    Restore missing backend FILES only (not create new backend records).
+    
+    IMPORTANT: This function does NOT auto-create backends.
+    - If admin has not added any backends, none will be created
+    - Only restores missing files for EXISTING backends (local storage only)
+    - For cloud storage (S3/R2), files persist automatically
+    
+    To seed initial backends, admin must:
+    1. Use Django admin panel, OR
+    2. Set SEED_INITIAL_BACKENDS=true environment variable
     """
     from subscriptions.models import ModuleBackend, Module
-    from core.deployment_safety import (
-        log_deployment_event,
-        run_pre_deployment_checks,
-        compute_file_hash,
-    )
-
-    print('[INIT] ---- Backend Persistence Engine (Non-Destructive) ----')
-
-    # Phase 1: Pre-deployment validation
-    log_deployment_event('START', 'Beginning backend persistence check')
-    all_ok, report = run_pre_deployment_checks()
-    print(f'[INIT] Pre-check: {report["total_backends"]} backends '
-          f'({report["healthy"]} healthy, {report["disk_missing"]} disk-missing, '
-          f'{report["conflicts"]} conflicts, {report["admin_locked"]} admin-locked)')
-
-    # Phase 2: Backfill hashes for any backends missing them
-    _backfill_missing_hashes()
-
-    # Phase 3: Non-destructive file restoration
-    restore_missing_backend_files()
-
-    # Phase 4: Optional initial seeding (only when explicitly requested)
+    
+    # Check if initial seeding is requested (one-time setup)
     seed_initial = os.environ.get('SEED_INITIAL_BACKENDS', 'false').lower() == 'true'
-    if seed_initial:
-        _seed_initial_backends()
-
-    log_deployment_event('COMPLETE', 'Backend persistence check finished')
-    print('[INIT] ---- Backend Persistence Engine Complete ----')
-
-
-def _backfill_missing_hashes():
-    """Backfill file_hash for any backends that have file_data but no hash."""
-    from subscriptions.models import ModuleBackend
-    from core.deployment_safety import compute_file_hash
-
-    updated = 0
-    for backend in ModuleBackend.objects.filter(file_data__isnull=False).exclude(file_data=b''):
-        if not backend.file_hash and backend.file_data:
-            file_hash = compute_file_hash(bytes(backend.file_data))
-            ModuleBackend.objects.filter(pk=backend.pk).update(file_hash=file_hash)
-            updated += 1
-
-    if updated > 0:
-        print(f'[INIT] Backfilled file hashes for {updated} backends')
-
-
-def _seed_initial_backends():
-    """
-    Create initial backend records ONLY when no backends exist for a module+category.
-    This is a one-time setup operation triggered by SEED_INITIAL_BACKENDS=true.
-
-    Safety: Uses exists() check - never overwrites existing records.
-    """
-    from subscriptions.models import ModuleBackend, Module
-    from core.deployment_safety import compute_file_hash, log_deployment_event
-
+    
+    if not seed_initial:
+        # Only restore missing files for existing backends
+        restore_missing_backend_files()
+        return
+    
+    # === INITIAL SEEDING (only when SEED_INITIAL_BACKENDS=true) ===
     print('[INIT] SEED_INITIAL_BACKENDS=true - Creating initial backends...')
-
+    
     backend_configs = [
         ('electrical.xlsx', 'new_estimate', 'electrical', 'Telangana Electrical SOR 2024-25', True),
         ('civil.xlsx', 'new_estimate', 'civil', 'Telangana Civil SOR 2024-25', True),
@@ -234,107 +183,76 @@ def _seed_initial_backends():
         ('amc_electrical.xlsx', 'amc', 'electrical', 'AMC Electrical Rates', True),
         ('amc_civil.xlsx', 'amc', 'civil', 'AMC Civil Rates', True),
     ]
-
+    
     static_data_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
     media_backends_dir = os.path.join(settings.MEDIA_ROOT, 'module_backends')
     os.makedirs(media_backends_dir, exist_ok=True)
-
+    
     backends_created = 0
-
+    
     for source_file, module_code, category, name, is_default in backend_configs:
         source_path = os.path.join(static_data_dir, source_file)
-
+        
         if not os.path.exists(source_path):
             continue
-
+        
         try:
             module = Module.objects.get(code=module_code)
         except Module.DoesNotExist:
             continue
-
-        # SAFETY: Skip if ANY backend exists for this module+category
+        
+        # Skip if any backend exists for this module+category
         if ModuleBackend.objects.filter(module=module, category=category).exists():
-            log_deployment_event(
-                'SKIP_SEED',
-                f'Backend already exists for {module_code}/{category}, skipping seed',
-            )
             continue
-
-        # Copy file and create backend with full metadata
+        
+        # Copy file and create backend
         dest_filename = f"{module_code}_{source_file}"
         dest_path = os.path.join(media_backends_dir, dest_filename)
-
+        
         try:
             shutil.copy2(source_path, dest_path)
-            with open(dest_path, 'rb') as f:
-                file_data = f.read()
-            file_hash = compute_file_hash(file_data)
-
             ModuleBackend.objects.create(
                 module=module,
                 category=category,
                 name=name,
                 code=f'{module_code}_{category}_default',
                 file=f'module_backends/{dest_filename}',
-                file_data=file_data,
-                file_name=dest_filename,
-                file_hash=file_hash,
-                version=1,
-                source_type='seed',
-                admin_locked=False,
                 is_active=True,
                 is_default=is_default,
                 display_order=0,
             )
             backends_created += 1
-            log_deployment_event('SEED', f'Created initial backend: {name}')
         except Exception as e:
             print(f'[INIT] Error creating backend {name}: {e}')
-
+    
     if backends_created > 0:
         print(f'[INIT] Created {backends_created} initial backends')
-
+    
     print('[INIT] TIP: Remove SEED_INITIAL_BACKENDS env var after first deploy')
 
 
 def restore_missing_backend_files():
     """
-    NON-DESTRUCTIVE restoration of missing backend disk files.
+    Restore missing backend files for EXISTING backends only.
+    Does NOT create new backend records or overwrite user-uploaded backends.
 
-    This function ONLY restores files that are missing from disk.
-    It NEVER overwrites existing files. It NEVER renames files.
-
-    Safety guarantees:
-    1. admin_locked backends are NEVER modified by automation
-    2. Existing disk files are NEVER overwritten (hash comparison first)
-    3. DB file_data is ALWAYS authoritative - static fallback is last resort
-    4. Backups are created before any write operation
-    5. Original filenames are preserved (no renaming)
-    6. Every operation is logged with before/after hash
-    7. file_hash is computed and stored on every restoration
-    8. Backends with source_type='admin' get extra protection
+    Priority for restoring files:
+    1. Database file_data (user's actual uploaded file - authoritative)
+    2. Static default files from core/data/ (only as last resort for seeded backends)
 
     Only needed for local storage - cloud storage files persist automatically.
     """
     from subscriptions.models import ModuleBackend
-    from core.deployment_safety import (
-        compute_file_hash,
-        compute_file_hash_from_path,
-        safe_write_backend_file,
-        create_backup,
-        log_deployment_event,
-    )
 
-    # Skip if using cloud storage (files persist automatically)
+    # Skip if using cloud storage
     storage_backend = settings.STORAGES.get('default', {}).get('BACKEND', '')
     if 'S3Boto3Storage' in storage_backend:
-        log_deployment_event('SKIP', 'Cloud storage detected, skipping disk restoration')
         return
 
     static_data_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
     media_backends_dir = os.path.join(settings.MEDIA_ROOT, 'module_backends')
 
-    # Static file mapping (ONLY used as absolute last resort for seed-type backends)
+    # Map of default source files (only for initially seeded backends)
     file_mapping = {
         'new_estimate_electrical': 'electrical.xlsx',
         'new_estimate_civil': 'civil.xlsx',
@@ -346,172 +264,59 @@ def restore_missing_backend_files():
         'amc_civil': 'amc_civil.xlsx',
     }
 
-    stats = {
-        'skipped_locked': 0,
-        'skipped_identical': 0,
-        'restored_from_db': 0,
-        'restored_from_static': 0,
-        'backfilled_to_db': 0,
-        'errors': 0,
-    }
-
-    from django.utils import timezone as tz
+    restored_from_db = 0
+    restored_from_static = 0
+    backfilled_to_db = 0
 
     for backend in ModuleBackend.objects.filter(file__isnull=False).exclude(file=''):
         if not backend.file:
             continue
 
-        # ---- SAFETY: Never touch admin-locked backends ----
-        if getattr(backend, 'admin_locked', False):
-            stats['skipped_locked'] += 1
-            log_deployment_event('SKIP_LOCKED', f'Admin-locked, not touching', backend=backend)
-            continue
-
-        # Check disk file status
+        # Check if disk file exists
         try:
             file_path = backend.file.path
             file_exists = os.path.exists(file_path)
         except Exception:
             file_exists = False
-            file_path = None
 
-        # ================================================================
-        # CASE 1: File EXISTS on disk
-        # ================================================================
         if file_exists:
-            # Backfill to DB if not already stored (non-destructive)
+            # File exists on disk - backfill to DB if not already stored
             if not backend.file_data:
                 try:
                     with open(file_path, 'rb') as f:
                         data = f.read()
-                    file_hash = compute_file_hash(data)
                     ModuleBackend.objects.filter(pk=backend.pk).update(
                         file_data=data,
-                        file_name=os.path.basename(file_path),
-                        file_hash=file_hash,
-                        last_verified_at=tz.now(),
+                        file_name=os.path.basename(file_path)
                     )
-                    stats['backfilled_to_db'] += 1
-                    log_deployment_event(
-                        'BACKFILL',
-                        f'Backfilled disk->DB (hash={file_hash[:12]}...)',
-                        backend=backend,
-                    )
-                except Exception as e:
-                    stats['errors'] += 1
-                    log_deployment_event('ERROR', f'Backfill failed: {e}', backend=backend)
-            else:
-                # Both exist - verify integrity only, no writes
-                disk_hash = compute_file_hash_from_path(file_path)
-                db_hash = compute_file_hash(bytes(backend.file_data))
-
-                if disk_hash == db_hash:
-                    # Consistent - just update verification timestamp
-                    update_fields = {'last_verified_at': tz.now()}
-                    if not backend.file_hash:
-                        update_fields['file_hash'] = db_hash
-                    ModuleBackend.objects.filter(pk=backend.pk).update(**update_fields)
-                else:
-                    # CONFLICT: Disk differs from DB
-                    # DB is authoritative for admin uploads, but we log and do NOT overwrite disk
-                    # The admin's disk modifications should be preserved
-                    log_deployment_event(
-                        'CONFLICT',
-                        f'Disk hash ({disk_hash[:12]}) differs from DB ({db_hash[:12]}). '
-                        f'NOT overwriting - admin modifications preserved on disk.',
-                        backend=backend,
-                    )
-                    # If source is admin, trust disk and update DB from disk
-                    source = getattr(backend, 'source_type', '') or 'admin'
-                    if source == 'admin':
-                        try:
-                            with open(file_path, 'rb') as f:
-                                disk_data = f.read()
-                            ModuleBackend.objects.filter(pk=backend.pk).update(
-                                file_data=disk_data,
-                                file_hash=disk_hash,
-                                last_verified_at=tz.now(),
-                            )
-                            log_deployment_event(
-                                'SYNC_DISK_TO_DB',
-                                f'Admin backend: synced disk->DB (hash={disk_hash[:12]}...)',
-                                backend=backend,
-                            )
-                        except Exception as e:
-                            log_deployment_event(
-                                'ERROR',
-                                f'Disk->DB sync failed: {e}',
-                                backend=backend,
-                            )
+                    backfilled_to_db += 1
+                except Exception:
+                    pass
             continue
 
-        # ================================================================
-        # CASE 2: File MISSING on disk - restore from DB (authoritative)
-        # ================================================================
+        # File is missing on disk - try to restore from DB first (user's actual file)
         if backend.file_data:
             try:
                 os.makedirs(media_backends_dir, exist_ok=True)
-
-                # PRESERVE original filename - never rename
                 restore_name = backend.file_name or os.path.basename(backend.file.name)
                 dest_path = os.path.join(media_backends_dir, restore_name)
-
-                data = bytes(backend.file_data)
-                file_hash = compute_file_hash(data)
-
-                success, action, details = safe_write_backend_file(
-                    backend, data, dest_path, reason='db_restore'
+                with open(dest_path, 'wb') as f:
+                    f.write(bytes(backend.file_data))
+                # Update file field to point to restored file (without changing updated_at)
+                ModuleBackend.objects.filter(pk=backend.pk).update(
+                    file=f'module_backends/{restore_name}'
                 )
-
-                if success:
-                    # Update file field to point to restored file
-                    # Use queryset.update() to avoid changing updated_at
-                    ModuleBackend.objects.filter(pk=backend.pk).update(
-                        file=f'module_backends/{restore_name}',
-                        file_hash=file_hash,
-                        last_verified_at=tz.now(),
-                    )
-                    stats['restored_from_db'] += 1
-                    log_deployment_event(
-                        'RESTORE_DB',
-                        f'Restored from DB (hash={file_hash[:12]}..., name={restore_name})',
-                        backend=backend,
-                    )
-                else:
-                    stats['errors'] += 1
-
+                restored_from_db += 1
+                print(f'[INIT] Restored backend from DB: {backend.name}')
                 continue
-
             except Exception as e:
-                stats['errors'] += 1
-                log_deployment_event('ERROR', f'DB restore failed: {e}', backend=backend)
+                print(f'[INIT] Error restoring from DB for {backend.name}: {e}')
 
-        # ================================================================
-        # CASE 3: LAST RESORT - static data (ONLY for seed-type backends)
-        # ================================================================
-        # SAFETY: Only use static fallback for backends that were originally seeded,
-        # NEVER for admin-uploaded backends. Admin backends without DB data are logged
-        # as errors but NOT overwritten with generic templates.
-        source = getattr(backend, 'source_type', '') or ''
-        if source == 'admin':
-            log_deployment_event(
-                'WARN',
-                f'Admin backend has no DB data and no disk file. '
-                f'Cannot restore - requires manual admin re-upload.',
-                backend=backend,
-            )
-            stats['errors'] += 1
-            continue
-
+        # Last resort: try static data (only for seeded backends)
         key = f"{backend.module.code}_{backend.category}"
         source_file = file_mapping.get(key)
 
         if not source_file:
-            log_deployment_event(
-                'WARN',
-                f'No static fallback available for {key}',
-                backend=backend,
-            )
             continue
 
         source_path = os.path.join(static_data_dir, source_file)
@@ -519,58 +324,31 @@ def restore_missing_backend_files():
             continue
 
         os.makedirs(media_backends_dir, exist_ok=True)
-
-        # PRESERVE the backend's existing filename pattern, don't rename
-        existing_name = backend.file_name or os.path.basename(backend.file.name)
-        if not existing_name or existing_name == '':
-            existing_name = f"{backend.module.code}_{source_file}"
-        dest_path = os.path.join(media_backends_dir, existing_name)
+        dest_filename = f"{backend.module.code}_{source_file}"
+        dest_path = os.path.join(media_backends_dir, dest_filename)
 
         try:
-            with open(source_path, 'rb') as f:
+            shutil.copy2(source_path, dest_path)
+            # Read file data for DB backup
+            with open(dest_path, 'rb') as f:
                 data = f.read()
-            file_hash = compute_file_hash(data)
-
-            success, action, details = safe_write_backend_file(
-                backend, data, dest_path, reason='static_fallback'
+            # Use queryset update to avoid changing updated_at
+            ModuleBackend.objects.filter(pk=backend.pk).update(
+                file=f'module_backends/{dest_filename}',
+                file_data=data,
+                file_name=dest_filename
             )
-
-            if success:
-                ModuleBackend.objects.filter(pk=backend.pk).update(
-                    file=f'module_backends/{existing_name}',
-                    file_data=data,
-                    file_name=existing_name,
-                    file_hash=file_hash,
-                    source_type='static',
-                    last_verified_at=tz.now(),
-                )
-                stats['restored_from_static'] += 1
-                log_deployment_event(
-                    'RESTORE_STATIC',
-                    f'Restored from static (hash={file_hash[:12]}..., name={existing_name})',
-                    backend=backend,
-                )
-            else:
-                stats['errors'] += 1
-
+            restored_from_static += 1
+            print(f'[INIT] Restored backend from static data: {backend.name}')
         except Exception as e:
-            stats['errors'] += 1
-            log_deployment_event('ERROR', f'Static restore failed: {e}', backend=backend)
+            print(f'[INIT] Error restoring file for {backend.name}: {e}')
 
-    # Print summary
-    print(f'[INIT] Backend restoration summary:')
-    if stats['restored_from_db'] > 0:
-        print(f'[INIT]   Restored from DB: {stats["restored_from_db"]}')
-    if stats['restored_from_static'] > 0:
-        print(f'[INIT]   Restored from static: {stats["restored_from_static"]}')
-    if stats['backfilled_to_db'] > 0:
-        print(f'[INIT]   Backfilled to DB: {stats["backfilled_to_db"]}')
-    if stats['skipped_locked'] > 0:
-        print(f'[INIT]   Skipped (admin-locked): {stats["skipped_locked"]}')
-    if stats['skipped_identical'] > 0:
-        print(f'[INIT]   Skipped (identical): {stats["skipped_identical"]}')
-    if stats['errors'] > 0:
-        print(f'[INIT]   Errors: {stats["errors"]}')
+    if restored_from_db > 0:
+        print(f'[INIT] Restored {restored_from_db} backends from database')
+    if restored_from_static > 0:
+        print(f'[INIT] Restored {restored_from_static} backends from static files')
+    if backfilled_to_db > 0:
+        print(f'[INIT] Backfilled {backfilled_to_db} backend files to database')
 
 
 def check_storage_status():
@@ -674,7 +452,7 @@ if __name__ == '__main__':
     create_admin()
     seed_modules()
     load_fixtures()
-    seed_module_backends()  # Non-destructive backend persistence
+    seed_module_backends()  # Restore backends after each deploy
     check_data_persistence()  # Comprehensive data persistence check
     print('[INIT] ================================================')
     print('[INIT] Initialization complete!')

@@ -67,6 +67,34 @@
         padding: 0.4rem;
     }
     
+    /* Search Input Styling */
+    .panel-search {
+        padding: 0.4rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .panel-search input {
+        width: 100%;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.72rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        background: #fff;
+        color: #2d3748;
+        transition: all 0.2s ease;
+    }
+    
+    .panel-search input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    }
+    
+    .panel-search input::placeholder {
+        color: #a0aec0;
+    }
+    
     /* Groups List */
     .groups-list {
         list-style: none;
@@ -510,10 +538,13 @@ function switchBackend(backendId) {
             <i class="bi bi-folder2-open"></i>
             Groups
         </div>
+        <div class="panel-search">
+            <input type="text" id="groups-search" placeholder="Search groups..." autocomplete="off">
+        </div>
         <div class="panel-body">
-            <ul class="groups-list">
+            <ul class="groups-list" id="groups-list">
                 {% for g in groups %}
-                    <li>
+                    <li data-group-name="{{ g|lower }}">
                         <a href="{% url 'amc_items' category g %}" 
                            class="group-link {% if g == group %}active{% endif %}">
                             <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
@@ -531,11 +562,14 @@ function switchBackend(backendId) {
             <i class="bi bi-check2-square"></i>
             Items in {{ group }}
         </div>
+        <div class="panel-search">
+            <input type="text" id="items-search" placeholder="Search items..." autocomplete="off">
+        </div>
         <div class="panel-body">
             {% if items_info %}
-                <ul class="items-list">
+                <ul class="items-list" id="items-list">
                     {% for info in items_info %}
-                        <li>
+                        <li data-item-name="{{ info.name|lower }}">
                             <label class="item-label">
                                 <input type="checkbox"
                                        class="item-checkbox"
@@ -748,6 +782,46 @@ function switchBackend(backendId) {
 </div>
 
 <script src="{% static 'js/job-polling.js' %}"></script>
+<script>
+// ========================================
+// SEARCH FILTER FUNCTIONS
+// ========================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Groups search
+    var groupsSearch = document.getElementById('groups-search');
+    if (groupsSearch) {
+        groupsSearch.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase().trim();
+            var groupItems = document.querySelectorAll('#groups-list li');
+            groupItems.forEach(function(item) {
+                var groupName = item.getAttribute('data-group-name') || '';
+                if (searchTerm === '' || groupName.indexOf(searchTerm) !== -1) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    // Items search
+    var itemsSearch = document.getElementById('items-search');
+    if (itemsSearch) {
+        itemsSearch.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase().trim();
+            var itemElements = document.querySelectorAll('#items-list li');
+            itemElements.forEach(function(item) {
+                var itemName = item.getAttribute('data-item-name') || '';
+                if (searchTerm === '' || itemName.indexOf(searchTerm) !== -1) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+</script>
 <script>
 (function() {
     // URLs for AJAX operations
