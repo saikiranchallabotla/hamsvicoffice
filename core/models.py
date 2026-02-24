@@ -771,13 +771,6 @@ class SavedWork(models.Model):
 
     def _collect_bills(self, node, result):
         """Recursively collect bills from the workflow tree"""
-        if node.work_type == 'bill':
-            result.append(node)
-        for child in node.children.all():
-            self._collect_bills(child, result)
-
-<<<<<<< HEAD
->>>>>>> parent of 7c1512f (Merge pull request #11 from saikiranchallabotla/claude/fix-workslip-bill-regression-EkMQa)
 =======
     
 >>>>>>> parent of 252bdc4 (Merge pull request #9 from saikiranchallabotla/claude/fix-backend-injection-Jh4lI)
@@ -846,13 +839,6 @@ class LetterSettings(models.Model):
     def __str__(self):
         return f"Letter Settings for {self.user.username}"
     
-    def get_from_section(self):
-        """Get formatted from section text"""
-        parts = []
-        if self.officer_name:
-            name_qual = self.officer_name
-            if self.officer_qualification:
-                name_qual += f", {self.officer_qualification}"
             parts.append(name_qual)
         if self.officer_designation:
             parts.append(self.officer_designation)
