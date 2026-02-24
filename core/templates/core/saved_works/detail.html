@@ -19,7 +19,7 @@
         padding: 2rem;
         margin-bottom: 1.5rem;
     }
-    
+
     .work-header {
         display: flex;
         align-items: flex-start;
@@ -27,7 +27,7 @@
         padding-bottom: 1.5rem;
         border-bottom: 1px solid #e2e8f0;
     }
-    
+
     .work-icon-large {
         width: 70px;
         height: 70px;
@@ -39,31 +39,32 @@
         margin-right: 1.5rem;
         flex-shrink: 0;
     }
-    
+
     .work-icon-large.primary { background: #dbeafe; color: #2563eb; }
     .work-icon-large.success { background: #dcfce7; color: #16a34a; }
+    .work-icon-large.danger  { background: #fee2e2; color: #dc2626; }
     .work-icon-large.warning { background: #fef3c7; color: #d97706; }
-    .work-icon-large.info { background: #cffafe; color: #0891b2; }
-    
+    .work-icon-large.info    { background: #cffafe; color: #0891b2; }
+
     .work-title-large {
         font-size: 1.75rem;
         font-weight: 700;
         color: #1e293b;
         margin-bottom: 0.5rem;
     }
-    
+
     .info-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1.5rem;
     }
-    
+
     .info-item {
         padding: 1rem;
         background: #f8fafc;
         border-radius: 8px;
     }
-    
+
     .info-label {
         font-size: 0.75rem;
         text-transform: uppercase;
@@ -71,19 +72,19 @@
         margin-bottom: 0.5rem;
         font-weight: 600;
     }
-    
+
     .info-value {
         font-size: 1rem;
         color: #1e293b;
         font-weight: 500;
     }
-    
+
     .progress-section {
         margin-top: 2rem;
         padding-top: 1.5rem;
         border-top: 1px solid #e2e8f0;
     }
-    
+
     .progress-bar-large {
         height: 10px;
         background: #e2e8f0;
@@ -91,19 +92,19 @@
         overflow: hidden;
         margin-bottom: 0.5rem;
     }
-    
+
     .progress-bar-large .fill {
         height: 100%;
         background: linear-gradient(90deg, #6366f1, #8b5cf6);
         transition: width 0.3s;
     }
-    
+
     .notes-section {
         margin-top: 2rem;
         padding-top: 1.5rem;
         border-top: 1px solid #e2e8f0;
     }
-    
+
     .data-preview {
         background: #f1f5f9;
         padding: 1rem;
@@ -113,13 +114,146 @@
         max-height: 300px;
         overflow-y: auto;
     }
-    
+
     .action-buttons {
         display: flex;
         gap: 1rem;
         margin-top: 2rem;
         padding-top: 1.5rem;
         border-top: 1px solid #e2e8f0;
+        flex-wrap: wrap;
+    }
+
+    /* ===== Workflow Navigation Buttons (E, W, B) ===== */
+    .workflow-nav {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .workflow-nav h6 {
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 1rem;
+    }
+
+    .workflow-btn-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        align-items: center;
+    }
+
+    .workflow-btn-row .row-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        width: 80px;
+        flex-shrink: 0;
+    }
+
+    .wf-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 56px;
+        height: 44px;
+        padding: 0 16px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s;
+        text-decoration: none;
+        position: relative;
+    }
+
+    .wf-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .wf-btn.active-item {
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+    }
+
+    /* E button - Estimate (blue) */
+    .wf-btn-e {
+        background: #2563eb;
+        color: white;
+        border-color: #2563eb;
+    }
+    .wf-btn-e:hover { background: #1d4ed8; color: white; }
+
+    /* W buttons - WorkSlip (green) */
+    .wf-btn-w {
+        background: #16a34a;
+        color: white;
+        border-color: #16a34a;
+    }
+    .wf-btn-w:hover { background: #15803d; color: white; }
+    .wf-btn-w.updated {
+        background: #166534;
+        border-color: #166534;
+    }
+
+    /* B buttons - Bill (red/orange) */
+    .wf-btn-b {
+        background: #dc2626;
+        color: white;
+        border-color: #dc2626;
+    }
+    .wf-btn-b:hover { background: #b91c1c; color: white; }
+    .wf-btn-b.updated {
+        background: #991b1b;
+        border-color: #991b1b;
+    }
+
+    /* Status badge on buttons */
+    .wf-btn .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        position: absolute;
+        top: 4px;
+        right: 4px;
+    }
+    .wf-btn .status-dot.completed { background: #22c55e; }
+    .wf-btn .status-dot.in-progress { background: #f59e0b; }
+
+    /* Prompt Modal Styles */
+    .prompt-option {
+        display: block;
+        width: 100%;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s;
+        font-size: 0.95rem;
+    }
+
+    .prompt-option:hover {
+        border-color: #6366f1;
+        background: #eef2ff;
+    }
+
+    .prompt-option .option-title {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 2px;
+    }
+
+    .prompt-option .option-desc {
+        font-size: 0.8rem;
+        color: #64748b;
     }
 </style>
 
@@ -134,6 +268,7 @@
 </nav>
 
 <div class="work-detail-card">
+    <!-- Header -->
     <div class="work-header">
         <div class="work-icon-large {{ work.get_work_type_color }}">
             <i class="{{ work.get_work_type_icon }}"></i>
@@ -153,13 +288,9 @@
                 {% endif %}
             </div>
         </div>
-        <div>
-            <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary">
-                <i class="bi bi-play-fill me-1"></i>Resume Work
-            </a>
-        </div>
     </div>
-    
+
+    <!-- Info Grid -->
     <div class="info-grid">
         <div class="info-item">
             <div class="info-label">Category</div>
@@ -178,7 +309,8 @@
             <div class="info-value">{{ work.last_step|default:"Not started" }}</div>
         </div>
     </div>
-    
+
+    <!-- Progress -->
     <div class="progress-section">
         <h6 class="mb-3">Progress</h6>
         <div class="progress-bar-large">
@@ -189,25 +321,109 @@
             <small class="text-muted">{{ work.progress_percent }}% Complete</small>
         </div>
     </div>
-    
+
+    <!-- ========================================= -->
+    <!-- WORKFLOW NAVIGATION: E, W1-W3, B1-B3      -->
+    <!-- ========================================= -->
+    {% if root_estimate %}
+    <div class="workflow-nav">
+        <h6><i class="bi bi-diagram-3 me-2"></i>Workflow Navigation</h6>
+
+        <!-- Row 1: Estimate (E) -->
+        <div class="workflow-btn-row">
+            <span class="row-label">Estimate</span>
+            <button class="wf-btn wf-btn-e {% if work.id == root_estimate.id %}active-item{% endif %}"
+                    onclick="handleEstimateClick({{ root_estimate.id }})"
+                    title="Resume Estimate: {{ root_estimate.name }}">
+                E
+                <span class="status-dot {% if root_estimate.status == 'completed' %}completed{% else %}in-progress{% endif %}"></span>
+            </button>
+        </div>
+
+        <!-- Row 2: WorkSlips (W1, W2, W3...) -->
+        <div class="workflow-btn-row">
+            <span class="row-label">WorkSlips</span>
+            {% for ws in workslips %}
+            <button class="wf-btn wf-btn-w {% if work.id == ws.id %}active-item{% endif %} {% if ws.status == 'completed' %}updated{% endif %}"
+                    onclick="handleWorkslipClick({{ ws.id }}, {{ ws.workslip_number }}, '{{ ws.status }}')"
+                    title="WorkSlip {{ ws.workslip_number }}: {{ ws.name }} ({{ ws.get_status_display }})">
+                W{{ ws.workslip_number }}
+                <span class="status-dot {% if ws.status == 'completed' %}completed{% else %}in-progress{% endif %}"></span>
+            </button>
+            {% endfor %}
+            {% if workslips|length == 0 %}
+            <span class="text-muted" style="font-size: 0.85rem;">No workslips yet. Generate from Estimate.</span>
+            {% endif %}
+        </div>
+
+        <!-- Row 3: Bills (B1, B2, B3...) -->
+        <div class="workflow-btn-row">
+            <span class="row-label">Bills</span>
+            {% for bill in bills %}
+            <button class="wf-btn wf-btn-b {% if work.id == bill.id %}active-item{% endif %} {% if bill.status == 'completed' %}updated{% endif %}"
+                    onclick="handleBillClick({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                    title="Bill {{ bill.bill_number }}: {{ bill.name }} ({{ bill.get_status_display }})">
+                B{{ bill.bill_number }}
+                <span class="status-dot {% if bill.status == 'completed' %}completed{% else %}in-progress{% endif %}"></span>
+            </button>
+            {% endfor %}
+            {% if bills|length == 0 and workslips|length > 0 %}
+            <button class="wf-btn wf-btn-b" onclick="handleGenerateFirstBill()"
+                    title="Generate Bill 1 from WorkSlip">
+                <i class="bi bi-plus-lg me-1"></i>B1
+            </button>
+            {% elif bills|length == 0 %}
+            <span class="text-muted" style="font-size: 0.85rem;">Bills available after WorkSlip 1 exists.</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if work.notes %}
     <div class="notes-section">
         <h6 class="mb-3">Notes</h6>
         <p class="text-muted">{{ work.notes }}</p>
     </div>
     {% endif %}
-    
+
     <div class="notes-section">
         <h6 class="mb-3">Work Data Preview</h6>
         <div class="data-preview">
             <pre>{{ work.work_data|pprint }}</pre>
         </div>
     </div>
-    
+
+    <!-- Action Buttons -->
     <div class="action-buttons">
+        {% if work.work_type == 'new_estimate' %}
+        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-play-fill me-1"></i>Resume Estimate
+        </a>
+        {% if can_generate_workslip %}
+        <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success btn-lg">
+            <i class="bi bi-file-earmark-text me-1"></i>Generate WorkSlip
+        </a>
+        {% endif %}
+        {% elif work.work_type == 'workslip' %}
+        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-success btn-lg">
+            <i class="bi bi-play-fill me-1"></i>Resume WorkSlip
+        </a>
+        {% if work.status == 'completed' %}
+        <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info btn-lg">
+            <i class="bi bi-arrow-right-circle me-1"></i>Next WorkSlip
+        </a>
+        {% endif %}
+        {% if can_generate_bill %}
+        <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger btn-lg">
+            <i class="bi bi-receipt me-1"></i>Generate Bill
+        </a>
+        {% endif %}
+        {% else %}
         <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-lg">
             <i class="bi bi-play-fill me-1"></i>Resume Work
         </a>
+        {% endif %}
+
         <button class="btn btn-outline-primary btn-lg" onclick="duplicateWork()">
             <i class="bi bi-copy me-1"></i>Duplicate
         </button>
@@ -217,6 +433,64 @@
         <button class="btn btn-outline-danger btn-lg ms-auto" data-bs-toggle="modal" data-bs-target="#deleteModal">
             <i class="bi bi-trash me-1"></i>Delete
         </button>
+    </div>
+</div>
+
+<!-- ======================================== -->
+<!-- WORKSLIP PROMPT MODAL                     -->
+<!-- ======================================== -->
+<div class="modal fade" id="workslipPromptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="wsPromptTitle">WorkSlip Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="wsPromptBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================== -->
+<!-- BILL PROMPT MODAL                         -->
+<!-- ======================================== -->
+<div class="modal fade" id="billPromptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="billPromptTitle">Bill Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="billPromptBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================== -->
+<!-- BILL TYPE PROMPT MODAL (First & Part / First & Final) -->
+<!-- ======================================== -->
+<div class="modal fade" id="billTypeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Select Bill Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <button class="prompt-option" onclick="selectBillType('first_part')">
+                    <div class="option-title"><i class="bi bi-receipt me-2"></i>CC First & Part Bill</div>
+                    <div class="option-desc">Generate a partial bill for work completed so far</div>
+                </button>
+                <button class="prompt-option" onclick="selectBillType('first_final')">
+                    <div class="option-title"><i class="bi bi-receipt-cutoff me-2"></i>CC First & Final Bill</div>
+                    <div class="option-desc">Generate a final bill for completed work</div>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -234,17 +508,6 @@
                     <div class="mb-3">
                         <label class="form-label">Work Name</label>
                         <input type="text" class="form-control" name="name" value="{{ work.name }}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Folder</label>
-                        <select class="form-select" name="folder_id">
-                            <option value="none" {% if not work.folder %}selected{% endif %}>Unfiled (No Folder)</option>
-                            {% for folder in folders %}
-                            <option value="{{ folder.id }}" {% if work.folder and work.folder.id == folder.id %}selected{% endif %}>
-                                {{ folder.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Status</label>
@@ -293,10 +556,159 @@
 </div>
 
 <script>
+    const csrfToken = '{{ csrf_token }}';
+
+    // ========================================
+    // E BUTTON: Resume Estimate
+    // ========================================
+    function handleEstimateClick(estimateId) {
+        // Resume Estimate — redirect to resume with Update Work flow
+        window.location.href = '/saved-works/' + estimateId + '/resume/';
+    }
+
+    // ========================================
+    // W BUTTONS: WorkSlip prompt flow
+    // ========================================
+    function handleWorkslipClick(wsId, wsNumber, wsStatus) {
+        const title = document.getElementById('wsPromptTitle');
+        const body = document.getElementById('wsPromptBody');
+
+        if (wsStatus === 'completed') {
+            // WorkSlip is completed — offer Update or Start Next
+            const nextNum = wsNumber + 1;
+            title.textContent = 'WorkSlip ' + wsNumber + ' Actions';
+            body.innerHTML = `
+                <button class="prompt-option" onclick="doWorkslipAction('update', ${wsId})">
+                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update WorkSlip ${wsNumber}</div>
+                    <div class="option-desc">Open and edit WorkSlip ${wsNumber}</div>
+                </button>
+                <button class="prompt-option" onclick="doWorkslipAction('start_next', ${wsId})">
+                    <div class="option-title"><i class="bi bi-plus-circle-fill me-2"></i>Start WorkSlip ${nextNum}</div>
+                    <div class="option-desc">Generate a new WorkSlip ${nextNum} using existing engine</div>
+                </button>
+            `;
+        } else {
+            // WorkSlip is in progress — just update
+            title.textContent = 'WorkSlip ' + wsNumber;
+            body.innerHTML = `
+                <button class="prompt-option" onclick="doWorkslipAction('update', ${wsId})">
+                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update WorkSlip ${wsNumber}</div>
+                    <div class="option-desc">Continue editing WorkSlip ${wsNumber}</div>
+                </button>
+            `;
+        }
+
+        new bootstrap.Modal(document.getElementById('workslipPromptModal')).show();
+    }
+
+    function doWorkslipAction(action, wsId) {
+        bootstrap.Modal.getInstance(document.getElementById('workslipPromptModal')).hide();
+
+        if (action === 'update') {
+            window.location.href = '/saved-works/' + wsId + '/resume/';
+        } else if (action === 'start_next') {
+            window.location.href = '/saved-works/' + wsId + '/generate-next-workslip/';
+        }
+    }
+
+    // ========================================
+    // B BUTTONS: Bill prompt flow
+    // ========================================
+    let pendingBillWorkslipId = null;
+
+    function handleBillClick(billId, billNumber, billStatus) {
+        const title = document.getElementById('billPromptTitle');
+        const body = document.getElementById('billPromptBody');
+
+        if (billStatus === 'completed') {
+            // Bill is completed — offer Update or Generate Next
+            const nextNum = billNumber + 1;
+            title.textContent = 'Bill ' + billNumber + ' Actions';
+            body.innerHTML = `
+                <button class="prompt-option" onclick="doBillAction('update', ${billId})">
+                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update Bill ${billNumber}</div>
+                    <div class="option-desc">Open and review Bill ${billNumber}</div>
+                </button>
+                <button class="prompt-option" onclick="doBillAction('start_next', ${billId})">
+                    <div class="option-title"><i class="bi bi-plus-circle-fill me-2"></i>Generate Bill ${nextNum}</div>
+                    <div class="option-desc">Generate next bill using progressive billing engine</div>
+                </button>
+            `;
+        } else {
+            // Bill is in progress — just update
+            title.textContent = 'Bill ' + billNumber;
+            body.innerHTML = `
+                <button class="prompt-option" onclick="doBillAction('update', ${billId})">
+                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update Bill ${billNumber}</div>
+                    <div class="option-desc">Continue editing Bill ${billNumber}</div>
+                </button>
+            `;
+        }
+
+        new bootstrap.Modal(document.getElementById('billPromptModal')).show();
+    }
+
+    function doBillAction(action, billId) {
+        bootstrap.Modal.getInstance(document.getElementById('billPromptModal')).hide();
+
+        if (action === 'update') {
+            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+        } else if (action === 'start_next') {
+            window.location.href = '/saved-works/' + billId + '/generate-next-bill/';
+        }
+    }
+
+    // ========================================
+    // GENERATE FIRST BILL (B1) from WorkSlip
+    // ========================================
+    function handleGenerateFirstBill() {
+        {% if workslips|length > 0 %}
+        // Find the first workslip to generate bill from
+        pendingBillWorkslipId = {{ workslips.0.id }};
+        new bootstrap.Modal(document.getElementById('billTypeModal')).show();
+        {% else %}
+        alert('No workslips exist yet. Generate a WorkSlip first.');
+        {% endif %}
+    }
+
+    function selectBillType(billType) {
+        bootstrap.Modal.getInstance(document.getElementById('billTypeModal')).hide();
+
+        if (!pendingBillWorkslipId) {
+            alert('Error: No workslip selected for bill generation.');
+            return;
+        }
+
+        // Store bill type in session via AJAX then redirect to bill generation
+        fetch('/saved-works/' + pendingBillWorkslipId + '/action/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            },
+            body: 'action=generate_first_bill&bill_type=' + billType
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                alert(data.error || 'Failed to generate bill.');
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert('Network error. Please try again.');
+        });
+    }
+
+    // ========================================
+    // EDIT / DELETE / DUPLICATE
+    // ========================================
     function saveChanges() {
         const form = document.getElementById('editForm');
         const formData = new FormData(form);
-        
+
         fetch('{% url "update_saved_work" work.id %}', {
             method: 'POST',
             body: formData,
@@ -313,10 +725,8 @@
             }
         });
     }
-    
+
     function duplicateWork() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
         fetch('{% url "duplicate_saved_work" work.id %}', {
             method: 'POST',
             headers: {
@@ -333,10 +743,8 @@
             }
         });
     }
-    
+
     function deleteWork() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
         fetch('{% url "delete_saved_work" work.id %}', {
             method: 'POST',
             headers: {

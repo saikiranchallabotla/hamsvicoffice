@@ -436,9 +436,9 @@
                     </tr>
                     {% endfor %}
                     
-                    <!-- Show works -->
+                    <!-- Show works with E/W/B workflow buttons -->
                     {% for work in works %}
-                    <tr ondblclick="window.location.href='{% url 'resume_saved_work' work.id %}'"
+                    <tr ondblclick="window.location.href='{% url 'saved_work_detail' work.id %}'"
                         oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name }}')">
                         <td>
                             <div class="file-name">
@@ -450,57 +450,45 @@
                             </div>
                         </td>
                         <td class="file-type">
-                            {{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %}
-                            {% if work.status == 'completed' %}<span class="badge bg-success ms-1">✓</span>{% endif %}
+                            {{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %}{% if work.work_type == 'bill' %}-{{ work.bill_number }}{% endif %}
+                            {% if work.status == 'completed' %}<span class="badge bg-success ms-1">Done</span>{% elif work.status == 'in_progress' %}<span class="badge bg-warning ms-1">WIP</span>{% endif %}
                         </td>
                         <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>
-                        <td>-</td>
+                        <td>
+                            {% if work.work_type == 'new_estimate' %}
+                                <!-- Inline E / W / B buttons for estimates -->
+                                <div class="d-flex gap-1 flex-wrap align-items-center" style="font-size:0.75rem;">
+                                    <a href="{% url 'saved_work_detail' work.id %}" class="btn btn-primary btn-sm py-0 px-2" title="Resume Estimate" style="font-weight:700;font-size:0.75rem;">E</a>
+                                    {% with chain=workflow_chains|default:"{}"|dictsort:"0" %}{% endwith %}
+                                </div>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                         <td class="file-actions">
                             <div class="btn-group btn-group-sm">
-                                {% if module_access|default_if_none:"{}"|dictsort:"0" %}
-                                    {% with work_type=work.work_type %}
-                                        {% if work_type == 'new_estimate' and module_access.new_estimate %}
-                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
-                                            <i class="bi bi-play-fill"></i>
-                                        </a>
-                                        {% elif work_type == 'temporary_works' and module_access.temporary_works %}
-                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
-                                            <i class="bi bi-play-fill"></i>
-                                        </a>
-                                        {% elif work_type == 'amc' and module_access.amc %}
-                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
-                                            <i class="bi bi-play-fill"></i>
-                                        </a>
-                                        {% elif work_type == 'workslip' and module_access.workslip %}
-                                        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
-                                            <i class="bi bi-play-fill"></i>
-                                        </a>
-                                        {% else %}
-                                        <a href="{% url 'module_access' work_type %}" class="btn btn-secondary" title="Subscribe to access">
-                                            <i class="bi bi-lock-fill"></i>
-                                        </a>
-                                        {% endif %}
-                                    {% endwith %}
-                                {% else %}
+                                <a href="{% url 'saved_work_detail' work.id %}" class="btn btn-outline-primary" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
                                 <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary" title="Resume">
                                     <i class="bi bi-play-fill"></i>
                                 </a>
-                                {% endif %}
                                 {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
                                     {% if module_access.can_generate_workslip %}
                                     <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success" title="Generate Workslip">
                                         <i class="bi bi-file-earmark-text"></i>
                                     </a>
-                                    {% else %}
-                                    <a href="{% url 'module_access' 'workslip' %}" class="btn btn-secondary" title="Subscribe to generate workslip">
-                                        <i class="bi bi-lock-fill"></i>
-                                    </a>
                                     {% endif %}
                                 {% endif %}
                                 {% if work.work_type == 'workslip' and work.status == 'completed' %}
                                     {% if module_access.can_generate_workslip %}
-                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info" title="Generate Workslip-{{ work.workslip_number|add:1 }}">
-                                        <i class="bi bi-arrow-right-circle"></i> WS-{{ work.workslip_number|add:1 }}
+                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info" title="Next WorkSlip">
+                                        <i class="bi bi-arrow-right-circle"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if module_access.can_generate_bill %}
+                                    <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger" title="Generate Bill">
+                                        <i class="bi bi-receipt"></i>
                                     </a>
                                     {% endif %}
                                 {% endif %}
