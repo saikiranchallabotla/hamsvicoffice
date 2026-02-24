@@ -725,11 +725,12 @@ class SavedWork(models.Model):
         """Get display label like 'CC First & Part Bill', 'CC Second & Final Bill'"""
         ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
                     6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
-        n = self.bill_number
+        n = self.bill_number or 1
         ordinal = ordinals.get(n, f'{n}th')
-        if self.bill_type.endswith('_part'):
+        bill_type = self.bill_type or ''
+        if bill_type.endswith('_part'):
             return f'CC {ordinal} & Part Bill'
-        elif self.bill_type.endswith('_final'):
+        elif bill_type.endswith('_final'):
             return f'CC {ordinal} & Final Bill'
         return f'CC Bill-{n}'
 
