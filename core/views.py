@@ -1,4 +1,4 @@
-# core/views.py
+﻿# core/views.py
 
 import json
 import os
@@ -437,7 +437,10 @@ def home(request):
     if not request.user.is_authenticated:
         # Show landing page with login/register options
         return render(request, "core/landing.html")
+    try:
         return render(request, "core/home.html")
+    except Exception:
+        return HttpResponse("Home page temporarily unavailable.")
 
 
 @login_required(login_url='login')
@@ -497,6 +500,7 @@ def workslip(request):
         # Clear all workslip session data for a fresh start
         request.session["ws_estimate_rows"] = []
         request.session["ws_exec_map"] = {}
+        request.session["ws_rate_map"] = {}  # Map of row_key -> custom rate (for user-modified rates)
         request.session["ws_tp_percent"] = 0.0
         request.session["ws_tp_type"] = "Excess"
         request.session["ws_supp_items"] = []
@@ -574,6 +578,7 @@ def workslip(request):
     # ---- session state ----
     ws_estimate_rows = request.session.get("ws_estimate_rows", []) or []
     ws_exec_map = request.session.get("ws_exec_map", {}) or {}
+    ws_rate_map = request.session.get("ws_rate_map", {}) or {}  # Custom rate changes by user
     ws_tp_percent = request.session.get("ws_tp_percent", 0.0)
     ws_tp_type = request.session.get("ws_tp_type", "Excess")
     ws_supp_items = request.session.get("ws_supp_items", []) or []
@@ -628,7 +633,7 @@ def workslip(request):
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
     except Exception:
-        items_list, groups_map, units_map, ws_data, filepath = [], {}, {}, None, ""
+        items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
     current_group = request.GET.get("group") or (groups[0] if groups else "")
@@ -1049,6 +1054,7 @@ def workslip(request):
         # B) (optional) update preview
         elif action == "update_preview":
             exec_str = request.POST.get("exec_map", "")
+            rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
             tp_type = request.POST.get("tp_type", "Excess")
 
@@ -1065,7 +1071,22 @@ def workslip(request):
                 except Exception:
                     pass
 
+            # Parse rate_map for custom rate changes
+            new_rate_map = {}
+            if rate_str:
+                try:
+                    raw = json.loads(rate_str)
+                    if isinstance(raw, dict):
+                        for k, v in raw.items():
+                            try:
+                                new_rate_map[str(k)] = float(v)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
             ws_exec_map.update(new_exec_map)
+            ws_rate_map.update(new_rate_map)
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else 0.0
             except Exception:
@@ -1073,6 +1094,7 @@ def workslip(request):
             ws_tp_type = tp_type if tp_type in ("Less", "Excess") else "Excess"
 
             request.session["ws_exec_map"] = ws_exec_map
+            request.session["ws_rate_map"] = ws_rate_map
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
 
@@ -1087,12 +1109,14 @@ def workslip(request):
                     new_list.append(nm)
             ws_supp_items = new_list
 
-            # merge exec_map & TP coming from hidden fields
+            # merge exec_map, rate_map & TP coming from hidden fields
             exec_str = request.POST.get("exec_map", "")
+            rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
             tp_type = request.POST.get("tp_type", "Excess")
 
             ws_exec_map_session = request.session.get("ws_exec_map", {}) or {}
+            ws_rate_map_session = request.session.get("ws_rate_map", {}) or {}
             new_exec_map = {}
             if exec_str:
                 try:
@@ -1106,8 +1130,25 @@ def workslip(request):
                 except Exception:
                     pass
 
+            # Parse rate_map for custom rate changes
+            new_rate_map = {}
+            if rate_str:
+                try:
+                    raw = json.loads(rate_str)
+                    if isinstance(raw, dict):
+                        for k, v in raw.items():
+                            try:
+                                new_rate_map[str(k)] = float(v)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
             ws_exec_map = ws_exec_map_session.copy()
             ws_exec_map.update(new_exec_map)
+            
+            ws_rate_map = ws_rate_map_session.copy()
+            ws_rate_map.update(new_rate_map)
 
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else 0.0
@@ -1123,6 +1164,7 @@ def workslip(request):
 
             request.session["ws_supp_items"] = ws_supp_items
             request.session["ws_exec_map"] = filtered_exec_map
+            request.session["ws_rate_map"] = ws_rate_map
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
 
@@ -2077,6 +2119,7 @@ def workslip(request):
         # E) Download Workslip
         elif action == "download_workslip":
             exec_str = request.POST.get("exec_map", "")
+            rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
             tp_type = request.POST.get("tp_type", "Excess")
             deduct_old_material_str = request.POST.get("deduct_old_material", "")
@@ -2106,6 +2149,23 @@ def workslip(request):
             ws_exec_map = ws_exec_map_session.copy()
             ws_exec_map.update(new_exec_map)
 
+            # merge UI rate_map into session map
+            ws_rate_map_session = request.session.get("ws_rate_map", {}) or {}
+            new_rate_map = {}
+            if rate_str:
+                try:
+                    raw = json.loads(rate_str)
+                    if isinstance(raw, dict):
+                        for k, v in raw.items():
+                            try:
+                                new_rate_map[str(k)] = float(v)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+            ws_rate_map = ws_rate_map_session.copy()
+            ws_rate_map.update(new_rate_map)
+
             # Use form values if provided, otherwise fall back to session values (from uploaded workslip)
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else request.session.get("ws_tp_percent", 0.0)
@@ -2120,6 +2180,7 @@ def workslip(request):
                 ws_deduct_old_material = request.session.get("ws_deduct_old_material", 0.0)
 
             request.session["ws_exec_map"] = ws_exec_map
+            request.session["ws_rate_map"] = ws_rate_map
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
             request.session["ws_deduct_old_material"] = ws_deduct_old_material
@@ -2162,6 +2223,16 @@ def workslip(request):
                         except Exception:
                             return 0.0
                 return 0.0
+
+            # helper to get rate for a row, considering custom rates from ws_rate_map
+            def get_rate_for_row(row_key, original_rate):
+                """Get the rate for a row, using custom rate from ws_rate_map if available."""
+                if row_key in ws_rate_map:
+                    try:
+                        return float(ws_rate_map[row_key])
+                    except Exception:
+                        return original_rate
+                return original_rate
 
             # ---------- build supplemental description+rate from backend ----------
             item_to_info = {it["name"]: it for it in items_list}
@@ -2408,7 +2479,8 @@ def workslip(request):
                 )
 
                 unit = row.get("unit") or ""
-                rate = float(row.get("rate", 0) or 0)
+                original_rate = float(row.get("rate", 0) or 0)
+                rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
                 desc_est = row.get("desc") or row.get("item_name") or ""
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
@@ -2557,8 +2629,15 @@ def workslip(request):
                         supp_qty = float(supp.get("qty", 0) or 0)
                         supp_desc = supp.get("desc", supp_name)
                         supp_unit = supp.get("unit", "-") or "-"
-                        supp_rate = float(supp.get("rate", 0) or 0)
+                        
+                        # Apply custom rate if user modified it
+                        prev_supp_key = f"prev_supp:{phase_num}:{supp_name}"
+                        original_supp_rate = float(supp.get("rate", 0) or 0)
+                        supp_rate = get_rate_for_row(prev_supp_key, original_supp_rate)
                         supp_amount = supp.get("amount", supp_qty * supp_rate)
+                        # Recalculate amount if rate was modified
+                        if prev_supp_key in ws_rate_map:
+                            supp_amount = supp_qty * supp_rate
                         
                         ws_ws.cell(out_row, COL_SL, sl_counter)
                         ws_ws.cell(out_row, COL_DESC, supp_name)
@@ -2582,7 +2661,7 @@ def workslip(request):
                             ws_ws.cell(out_row, phase_amt_col).fill = phase_fill
                         
                         # Check if user entered current workslip quantity for this previous supp item
-                        prev_supp_key = f"prev_supp:{phase_num}:{supp_name}"
+                        # prev_supp_key is already defined above when getting rate
                         prev_supp_curr_qty = float(ws_exec_map.get(prev_supp_key, 0) or 0)
                         
                         if prev_supp_curr_qty > 0:
@@ -3060,6 +3139,11 @@ def workslip(request):
                         "amount": item_data["phase_amounts"].get(phase_idx, 0),
                     })
                 
+                # Apply custom rate from ws_rate_map if user modified it
+                prev_supp_rate = item_data["rate"]
+                if supp_key in ws_rate_map:
+                    prev_supp_rate = ws_rate_map[supp_key]
+                
                 prev_supp_row = {
                     "row_type": "prev_supp",
                     "key": supp_key,
@@ -3068,7 +3152,7 @@ def workslip(request):
                     "desc": item_data["name"],
                     "qty_est": "-",
                     "unit": item_data["unit"],
-                    "rate": item_data["rate"],
+                    "rate": prev_supp_rate,
                     "qty_exec": ws_exec_map.get(supp_key, ""),
                     "supp_section": section_num,
                     "previous_phases_exec": prev_phases_exec,  # List of {phase, qty, amount}
@@ -3223,15 +3307,8 @@ def workslip_ajax_toggle_supp(request):
         item_info = None
         if action_taken == "added":
             try:
-                # Load backend for the current workslip category
-                ws_category = request.session.get("ws_category", "electrical") or "electrical"
-                ws_work_type = request.session.get("ws_work_type", "new_estimate") or "new_estimate"
-                if ws_work_type == 'amc':
-                    category = f'amc_{ws_category}'
-                elif ws_work_type == 'tempworks':
-                    category = f'temp_{ws_category}'
-                else:
-                    category = ws_category
+                # Load backend for the default category
+                category = "original"
                 items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
                 
                 # Get rate

@@ -1,11 +1,11 @@
 <!-- Save Work Modal - Include this in any module template -->
-<!-- Usage: {% include 'core/saved_works/save_modal.html' with work_type='workslip' category='electrical' %} -->
+<!-- Usage: { % include 'core/saved_works/save_modal.html' with work_type='workslip' category='electrical' % } -->
 
 <div class="modal fade" id="saveWorkModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header" id="saveWorkModalHeader" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
-                <h5 class="modal-title" id="saveWorkModalTitle"><i class="bi bi-save me-2"></i>Save Your Work</h5>
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                <h5 class="modal-title"><i class="bi bi-save me-2"></i>Save Your Work</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -14,22 +14,15 @@
                     <input type="hidden" name="work_type" value="{{ work_type|default:'new_estimate' }}">
                     <input type="hidden" name="category" value="{{ category|default:'electrical' }}">
                     <input type="hidden" name="work_id" id="saveWorkId" value="">
-
-                    <!-- Resumed work indicator -->
-                    <div class="alert alert-warning d-none" id="resumedWorkAlert" style="border-radius: 8px;">
-                        <i class="bi bi-pencil-square me-2"></i>
-                        <strong>Updating existing work:</strong> <span id="resumedWorkName"></span>
-                        <br><small class="text-muted">Changes will be saved to the same file. To start fresh, go to Dashboard.</small>
-                    </div>
-
+                    
                     <div class="mb-3">
                         <label class="form-label fw-bold">Work Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" name="work_name" id="saveWorkName"
+                        <input type="text" class="form-control" name="work_name" id="saveWorkName" 
                                required placeholder="Enter a name for this work"
                                style="border-radius: 8px;">
-                        <small class="text-muted" id="saveWorkNameHint">Give your work a descriptive name so you can find it later.</small>
+                        <small class="text-muted">Give your work a descriptive name so you can find it later.</small>
                     </div>
-
+                    
                     <div class="mb-3">
                         <label class="form-label fw-bold">Folder</label>
                         <select class="form-select" name="folder_id" id="saveWorkFolder" style="border-radius: 8px;">
@@ -38,18 +31,18 @@
                         </select>
                         <small class="text-muted">Organize your work in folders for easy access.</small>
                     </div>
-
+                    
                     <div class="mb-3">
                         <label class="form-label fw-bold">Notes (Optional)</label>
-                        <textarea class="form-control" name="notes" id="saveWorkNotes" rows="2"
+                        <textarea class="form-control" name="notes" id="saveWorkNotes" rows="2" 
                                   placeholder="Add any notes about this work..."
                                   style="border-radius: 8px;"></textarea>
                     </div>
-
+                    
                     <div class="alert alert-info d-flex align-items-center" style="border-radius: 8px;">
                         <i class="bi bi-info-circle me-2 fs-5"></i>
                         <div>
-                            <strong>Tip:</strong> You can access your saved works anytime from
+                            <strong>Tip:</strong> You can access your saved works anytime from 
                             <a href="/saved-works/">My Saved Works</a>.
                         </div>
                     </div>
@@ -85,25 +78,16 @@
         gap: 8px;
         font-weight: 600;
     }
-
+    
     .save-work-btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
     }
-
+    
     .save-work-btn i {
         font-size: 1.1rem;
     }
-
-    .save-work-btn.update-mode {
-        background: linear-gradient(135deg, #d97706, #f59e0b);
-        box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4);
-    }
-
-    .save-work-btn.update-mode:hover {
-        box-shadow: 0 6px 20px rgba(217, 119, 6, 0.5);
-    }
-
+    
     /* Current work indicator */
     .current-work-indicator {
         position: fixed;
@@ -117,7 +101,7 @@
         font-size: 0.85rem;
         max-width: 250px;
     }
-
+    
     .current-work-indicator .work-name {
         font-weight: 600;
         color: #1e293b;
@@ -125,7 +109,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-
+    
     .current-work-indicator .work-status {
         color: #64748b;
         font-size: 0.75rem;
@@ -133,33 +117,13 @@
 </style>
 
 <script>
-// Set the IS_RESUMED_WORK flag from Django session via template context
-var IS_RESUMED_WORK = {% if request.session.is_resumed_work %}true{% else %}false{% endif %};
-var CURRENT_WORK_ID = '{{ request.session.current_work_id|default:"" }}';
-
 document.addEventListener('DOMContentLoaded', function() {
     // Load folders when modal opens
     const saveWorkModal = document.getElementById('saveWorkModal');
     if (saveWorkModal) {
         saveWorkModal.addEventListener('show.bs.modal', loadSaveModalData);
     }
-
-    // Update floating save button text if this is a resumed work
-    updateFloatingSaveButton();
 });
-
-function updateFloatingSaveButton() {
-    // Check if there's a floating save button and we're in update mode
-    const floatingBtn = document.querySelector('.save-work-btn');
-    if (!floatingBtn) return;
-
-    // The is_resumed_work flag is set by the view when resuming
-    const isResumed = (typeof IS_RESUMED_WORK !== 'undefined') ? IS_RESUMED_WORK : false;
-    if (isResumed) {
-        floatingBtn.innerHTML = '<i class="bi bi-pencil-square"></i> Update Work';
-        floatingBtn.classList.add('update-mode');
-    }
-}
 
 function loadSaveModalData() {
     fetch('/saved-works/modal-data/')
@@ -175,45 +139,19 @@ function loadSaveModalData() {
                 option.style.color = folder.color;
                 folderSelect.appendChild(option);
             });
-
-            const isResumed = (typeof IS_RESUMED_WORK !== 'undefined') ? IS_RESUMED_WORK : false;
-            const alertEl = document.getElementById('resumedWorkAlert');
-            const nameInput = document.getElementById('saveWorkName');
-            const titleEl = document.getElementById('saveWorkModalTitle');
-            const headerEl = document.getElementById('saveWorkModalHeader');
-            const btnEl = document.getElementById('saveWorkBtn');
-
-            // If there's a current work (resumed), show Update mode
+            
+            // If there's a current work, populate the form
             if (data.current_work) {
                 document.getElementById('saveWorkId').value = data.current_work.id;
-                nameInput.value = data.current_work.name;
+                document.getElementById('saveWorkName').value = data.current_work.name;
                 document.getElementById('saveWorkNotes').value = data.current_work.notes || '';
                 if (data.current_work.folder_id) {
                     folderSelect.value = data.current_work.folder_id;
                 }
-
-                // Show Update UI
-                titleEl.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Update Work';
-                headerEl.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
-                btnEl.innerHTML = '<i class="bi bi-pencil-square me-1"></i>Update Work';
-                btnEl.className = 'btn btn-warning';
-
-                // Show resumed work alert
-                alertEl.classList.remove('d-none');
-                document.getElementById('resumedWorkName').textContent = data.current_work.name;
-
-                // Disable name change hint
-                document.getElementById('saveWorkNameHint').textContent = 'The work will be saved with the same name. You can change it if needed.';
-
+                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
             } else {
-                // Fresh save mode
                 document.getElementById('saveWorkId').value = '';
-                titleEl.innerHTML = '<i class="bi bi-save me-2"></i>Save Your Work';
-                headerEl.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
-                btnEl.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
-                btnEl.className = 'btn btn-primary';
-                alertEl.classList.add('d-none');
-                document.getElementById('saveWorkNameHint').textContent = 'Give your work a descriptive name so you can find it later.';
+                document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
             }
         });
 }
@@ -221,12 +159,12 @@ function loadSaveModalData() {
 function saveCurrentWork() {
     const form = document.getElementById('saveWorkForm');
     const formData = new FormData(form);
-
+    
     const btn = document.getElementById('saveWorkBtn');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
     btn.disabled = true;
-
+    
     fetch('/saved-works/save/', {
         method: 'POST',
         body: formData,
@@ -238,24 +176,22 @@ function saveCurrentWork() {
     .then(data => {
         btn.innerHTML = originalText;
         btn.disabled = false;
-
+        
         if (data.success) {
             // Update the saved work ID for future saves
             document.getElementById('saveWorkId').value = data.work_id;
-
+            
             // Show success message
             showToast(data.message, 'success');
-
+            
             // Close modal
             bootstrap.Modal.getInstance(document.getElementById('saveWorkModal')).hide();
-
-            // Switch to Update mode for subsequent saves
-            document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-pencil-square me-1"></i>Update Work';
-            document.getElementById('saveWorkBtn').className = 'btn btn-warning';
-            document.getElementById('saveWorkModalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Update Work';
-
+            
+            // Update button text
+            document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
+            
             // Show current work indicator
-            showCurrentWorkIndicator(formData.get('work_name'), data.message.includes('updated'));
+            showCurrentWorkIndicator(formData.get('work_name'));
         } else {
             showToast(data.error || 'Failed to save work', 'error');
         }
@@ -277,11 +213,11 @@ function showToast(message, type) {
         toastContainer.style.zIndex = '9999';
         document.body.appendChild(toastContainer);
     }
-
+    
     const toastId = 'toast-' + Date.now();
     const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
     const icon = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-circle';
-
+    
     const toastHtml = `
         <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
             <div class="d-flex">
@@ -292,17 +228,17 @@ function showToast(message, type) {
             </div>
         </div>
     `;
-
+    
     toastContainer.insertAdjacentHTML('beforeend', toastHtml);
     const toastEl = document.getElementById(toastId);
     const toast = new bootstrap.Toast(toastEl);
     toast.show();
-
+    
     // Remove toast element after it's hidden
     toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
 }
 
-function showCurrentWorkIndicator(workName, isUpdate) {
+function showCurrentWorkIndicator(workName) {
     let indicator = document.getElementById('currentWorkIndicator');
     if (!indicator) {
         indicator = document.createElement('div');
@@ -310,20 +246,17 @@ function showCurrentWorkIndicator(workName, isUpdate) {
         indicator.className = 'current-work-indicator';
         document.body.appendChild(indicator);
     }
-
-    const statusText = isUpdate ? 'Updated just now' : 'Saved just now';
-    const iconClass = isUpdate ? 'bi-pencil-square text-warning' : 'bi-save-fill text-success';
-
+    
     indicator.innerHTML = `
         <div class="d-flex align-items-center">
-            <i class="bi ${iconClass} me-2"></i>
+            <i class="bi bi-save-fill text-success me-2"></i>
             <div>
                 <div class="work-name">${workName}</div>
-                <div class="work-status">${statusText}</div>
+                <div class="work-status">Saved just now</div>
             </div>
         </div>
     `;
-
+    
     // Hide after 5 seconds
     setTimeout(() => {
         indicator.style.opacity = '0';
