@@ -7637,20 +7637,49 @@ def bill_document(request):
     def _extract_total_from_sheet(ws, ws_formulas=None):
         total = 0.0
         max_scan = min(ws.max_row, 200)
-        
+        max_col = min(ws.max_column or 1, 30)
+
+        # --- Step 1: find the header row and detect "amount" columns ---
+        # Scan the first ~20 rows for a row that looks like a header
+        # (contains multiple text cells, one of which has the word "amount").
+        amount_cols = []  # list of (col_index, header_text)
+        header_row = None
+        for r in range(1, min(max_scan, 25) + 1):
+            row_amount_cols = []
+            for c in range(1, max_col + 1):
+                hdr = str(ws.cell(row=r, column=c).value or "").strip()
+                if hdr and "amount" in hdr.lower():
+                    row_amount_cols.append(c)
+            if row_amount_cols:
+                amount_cols = row_amount_cols
+                header_row = r
+                break  # use the first row that has "amount" header(s)
+
+        # Pick the rightmost "amount" column; fall back to [8, 9, 10]
+        if amount_cols:
+            amt_col_to_use = [max(amount_cols)]
+        else:
+            amt_col_to_use = [8, 9, 10]
+
+        # --- Step 2: find the "Total" / "Grand Total" row ---
         for r in range(1, max_scan + 1):
-            for check_col in [3, 4, 5]:
+            for check_col in range(1, max_col + 1):
                 cell_val = str(ws.cell(row=r, column=check_col).value or "").strip().lower()
-                
-                if cell_val == "total":
-                    for amt_col in [8, 9, 10]:
+
+                # Match "total", "grand total" but skip "sub total" / "subtotal"
+                is_total = (
+                    cell_val in ("total", "grand total")
+                    or cell_val.startswith("grand total")
+                )
+                if is_total and not cell_val.startswith("sub total") and not cell_val.startswith("subtotal"):
+                    for amt_col in amt_col_to_use:
                         amt_val = ws.cell(row=r, column=amt_col).value
-                        
+
                         if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
                             try:
                                 formula_cell = ws_formulas.cell(row=r, column=amt_col)
                                 formula_val = formula_cell.value
-                                
+
                                 if isinstance(formula_val, str) and formula_val.startswith('='):
                                     match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
                                     if match:
@@ -7666,7 +7695,7 @@ def bill_document(request):
                                                 amt_val = float(val1) - float(val2)
                             except Exception:
                                 pass
-                        
+
                         try:
                             num_val = float(amt_val) if amt_val else 0
                             if num_val != 0:
@@ -7905,28 +7934,49 @@ def bill_document(request):
         # If multiple bill sheets, create combined document with page breaks
         if has_multiple_bills:
             from docx.opc.constants import RELATIONSHIP_TYPE as RT
-            
+            from docx.oxml.ns import qn as _qn
+            from docx.oxml import OxmlElement as _OxmlElement
+            from copy import deepcopy as _deepcopy
+
             # Start with the template and clear its content
             combined_doc = Document(io.BytesIO(template_bytes))
-            
+
             # Clear the template content first
             for element in list(combined_doc.element.body):
                 combined_doc.element.body.remove(element)
-            
+
+            # Collect original numId -> abstractNumId mappings from the template
+            _wns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+            _orig_num_ids = {}  # {numId_str: abstractNumId_str}
+            try:
+                _numbering_part = combined_doc.part.numbering_part
+                _numbering_elem = _numbering_part._element
+                for _num_el in _numbering_elem.findall(_qn('w:num')):
+                    _nid = _num_el.get(_qn('w:numId'))
+                    _abs_el = _num_el.find(_qn('w:abstractNumId'))
+                    if _nid and _abs_el is not None:
+                        _orig_num_ids[_nid] = _abs_el.get(_qn('w:val'))
+            except Exception:
+                _numbering_part = None
+                _numbering_elem = None
+
+            # Track the next available numId
+            _next_num_id = max((int(k) for k in _orig_num_ids), default=0) + 1
+
             for sheet_idx, bill_ws in enumerate(bill_sheets, start=1):
                 # Extract per-sheet header data
                 sheet_header = _extract_header_data_from_sheet(bill_ws)
                 sheet_name_of_work = sheet_header.get("name_of_work", "") or ""
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
-                
+
                 # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
                 sheet_mb = mb_details_str
                 if not user_entered_mb:
                     sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
                     if sheet_mb_from_file:
                         sheet_mb = sheet_mb_from_file
-                
+
                 # Get formulas sheet if available
                 ws_formulas = None
                 if wb_formulas:
@@ -7934,7 +7984,7 @@ def bill_document(request):
                         ws_formulas = wb_formulas[bill_ws.title]
                     except:
                         pass
-                
+
                 # Calculate total for this sheet
                 sheet_total = _extract_total_from_sheet(bill_ws, ws_formulas)
                 try:
@@ -7942,7 +7992,7 @@ def bill_document(request):
                 except:
                     sheet_total_str = str(sheet_total)
                 sheet_amount_words = _number_to_words_rupees(sheet_total)
-                
+
                 # Build placeholder map for this sheet
                 sheet_placeholder_map = {
                     "{{NAME_OF_WORK}}": sheet_name_of_work,
@@ -7956,24 +8006,56 @@ def bill_document(request):
                     "{{TOTAL_AMOUNT}}": sheet_total_str,
                     "{{AMOUNT_IN_WORDS}}": sheet_amount_words,
                 }
-                
+
                 # Load fresh template for this sheet
                 sheet_doc = Document(io.BytesIO(template_bytes))
-                
+
                 # Replace placeholders in body
                 replace_in_paragraphs(sheet_doc.paragraphs, sheet_placeholder_map, mm_yyyy)
-                
+
                 # Replace in tables
                 for table in sheet_doc.tables:
                     for row in table.rows:
                         for cell in row.cells:
                             replace_in_paragraphs(cell.paragraphs, sheet_placeholder_map, mm_yyyy)
-                
+
+                # --- Fix numbering: each covering letter is independent ---
+                # For sheets after the first, create new numId entries that
+                # restart numbering from 1, so reference numbers don't
+                # continue incrementing across covering letters.
+                _num_id_map = {}  # old numId -> new numId (for this sheet)
+                if sheet_idx > 1 and _numbering_elem is not None and _orig_num_ids:
+                    for _old_nid, _abs_id in _orig_num_ids.items():
+                        _new_nid = str(_next_num_id)
+                        _next_num_id += 1
+                        _num_id_map[_old_nid] = _new_nid
+
+                        # Create a <w:num> with lvlOverride to restart from 1
+                        _new_num = _OxmlElement('w:num')
+                        _new_num.set(_qn('w:numId'), _new_nid)
+                        _abs_ref = _OxmlElement('w:abstractNumId')
+                        _abs_ref.set(_qn('w:val'), _abs_id)
+                        _new_num.append(_abs_ref)
+                        _lvl_override = _OxmlElement('w:lvlOverride')
+                        _lvl_override.set(_qn('w:ilvl'), '0')
+                        _start_override = _OxmlElement('w:startOverride')
+                        _start_override.set(_qn('w:val'), '1')
+                        _lvl_override.append(_start_override)
+                        _new_num.append(_lvl_override)
+                        _numbering_elem.append(_new_num)
+
+                    # Update numId references in the sheet_doc body elements
+                    for _body_el in sheet_doc.element.body:
+                        for _numId_el in _body_el.iter(_qn('w:numId')):
+                            _old_val = _numId_el.get(_qn('w:val'))
+                            if _old_val in _num_id_map:
+                                _numId_el.set(_qn('w:val'), _num_id_map[_old_val])
+
                 # Add page break at the END of this document (except for the last one)
                 # This ensures each estimate starts on a new page without blank pages
                 if sheet_idx < len(bill_sheets):
                     sheet_doc.add_page_break()
-                
+
                 # Append this document's content to combined document
                 for element in sheet_doc.element.body:
                     combined_doc.element.body.append(element)

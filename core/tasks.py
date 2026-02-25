@@ -1185,11 +1185,32 @@ def generate_bill_document_task(self, job_id):
             total = 0.0
             for ws in wb.worksheets:
                 max_scan = min(ws.max_row, 200)
+                max_col = min(ws.max_column or 1, 30)
+
+                # Detect "amount" columns from header row
+                amount_cols = []
+                for r in range(1, min(max_scan, 25) + 1):
+                    row_amount_cols = []
+                    for c in range(1, max_col + 1):
+                        hdr = str(ws.cell(row=r, column=c).value or "").strip()
+                        if hdr and "amount" in hdr.lower():
+                            row_amount_cols.append(c)
+                    if row_amount_cols:
+                        amount_cols = row_amount_cols
+                        break
+
+                # Use rightmost "amount" column; fall back to [8, 9, 10]
+                amt_col_to_use = [max(amount_cols)] if amount_cols else [8, 9, 10]
+
                 for r in range(1, max_scan + 1):
-                    for check_col in [3, 4, 5]:
+                    for check_col in range(1, max_col + 1):
                         cell_val = str(ws.cell(row=r, column=check_col).value or "").strip().lower()
-                        if cell_val == "total":
-                            for amt_col in [8, 9, 10]:
+                        is_total = (
+                            cell_val in ("total", "grand total")
+                            or cell_val.startswith("grand total")
+                        )
+                        if is_total and not cell_val.startswith("sub total") and not cell_val.startswith("subtotal"):
+                            for amt_col in amt_col_to_use:
                                 amt_val = ws.cell(row=r, column=amt_col).value
                                 try:
                                     num_val = float(amt_val) if amt_val else 0
