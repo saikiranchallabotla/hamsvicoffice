@@ -1476,6 +1476,108 @@ def saved_work_detail(request, work_id):
         for wt in WORK_TYPE_TO_MODULE:
             module_access[wt] = True
 
+    # ===========================================================
+    # BILL PREVIEW: Build preview rows for workslip/bill types
+    # Shows data as it would appear in the generated Excel bill
+    # ===========================================================
+    bill_preview_rows = []
+    bill_preview_number = 0
+    bill_preview_total = 0.0
+    previous_bill_rows = []  # For Bill 2+ to show deductions
+
+    if saved_work.work_type == 'workslip':
+        work_data = saved_work.work_data or {}
+        ws_rows = work_data.get('ws_estimate_rows', [])
+        ws_exec = work_data.get('ws_exec_map', {}) or {}
+        bill_preview_number = saved_work.workslip_number or 1
+
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            exec_qty = ws_exec.get(key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            rate = float(row.get('rate', 0) or 0)
+            amount = exec_qty * rate
+            bill_preview_total += amount
+            bill_preview_rows.append({
+                'sl': len(bill_preview_rows) + 1,
+                'name': row.get('display_name') or row.get('item_name', ''),
+                'desc': row.get('desc', ''),
+                'unit': row.get('unit', 'Nos'),
+                'qty': exec_qty,
+                'rate': rate,
+                'amount': amount,
+                'key': key,
+            })
+
+        # For Bill 2+, find the previous bill's data for deductions
+        if bill_preview_number > 1:
+            prev_bill = SavedWork.objects.filter(
+                organization=org, user=user, work_type='bill',
+                bill_number=bill_preview_number - 1,
+                parent=root_estimate,
+            ).first()
+            if not prev_bill:
+                # Check if the previous bill is a child of a workslip
+                for ws in workslips:
+                    prev_bill = SavedWork.objects.filter(
+                        organization=org, user=user, work_type='bill',
+                        bill_number=bill_preview_number - 1,
+                        parent=ws,
+                    ).first()
+                    if prev_bill:
+                        break
+
+            if prev_bill:
+                prev_data = prev_bill.work_data or {}
+                prev_ws_rows = prev_data.get('ws_estimate_rows', [])
+                prev_exec = prev_data.get('ws_exec_map', prev_data.get('bill_ws_exec_map', {})) or {}
+                for pidx, prow in enumerate(prev_ws_rows):
+                    pkey = prow.get('key', f'saved_{pidx}')
+                    pqty = prev_exec.get(pkey, 0)
+                    try:
+                        pqty = float(pqty) if pqty else 0.0
+                    except (ValueError, TypeError):
+                        pqty = 0.0
+                    previous_bill_rows.append({
+                        'key': pkey,
+                        'name': prow.get('display_name') or prow.get('item_name', ''),
+                        'qty': pqty,
+                    })
+
+    elif saved_work.work_type == 'bill':
+        work_data = saved_work.work_data or {}
+        ws_rows = work_data.get('bill_ws_rows', work_data.get('ws_estimate_rows', []))
+        ws_exec = work_data.get('bill_ws_exec_map', work_data.get('ws_exec_map', {})) or {}
+        bill_preview_number = saved_work.bill_number or 1
+
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            exec_qty = ws_exec.get(key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            rate = float(row.get('rate', 0) or 0)
+            amount = exec_qty * rate
+            bill_preview_total += amount
+            bill_preview_rows.append({
+                'sl': len(bill_preview_rows) + 1,
+                'name': row.get('display_name') or row.get('item_name', ''),
+                'desc': row.get('desc', ''),
+                'unit': row.get('unit', 'Nos'),
+                'qty': exec_qty,
+                'rate': rate,
+                'amount': amount,
+                'key': key,
+            })
+
     context = {
         'work': saved_work,
         'root_estimate': root_estimate,
@@ -1489,6 +1591,10 @@ def saved_work_detail(request, work_id):
         'subscription_reason': access_result.get('reason', ''),
         'module_code': access_result.get('module_code'),
         'module_access': module_access,
+        'bill_preview_rows': bill_preview_rows,
+        'bill_preview_number': bill_preview_number,
+        'bill_preview_total': bill_preview_total,
+        'previous_bill_rows': json.dumps(previous_bill_rows),
     }
 
     return render(request, 'core/saved_works/detail.html', context)

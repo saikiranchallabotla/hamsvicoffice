@@ -174,13 +174,108 @@
         color: #319795;
         font-weight: 600;
     }
-    
+
     .item-name {
         color: #4a5568;
         font-size: 0.7rem;
         transition: all 0.2s ease;
         line-height: 1.2;
     }
+
+    /* Item with subtypes indicator */
+    .item-label.has-subtypes {
+        cursor: pointer;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border-color: #f59e0b;
+    }
+    .item-label.has-subtypes:hover {
+        background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+        border-color: #d97706;
+    }
+    .item-label.has-subtypes .item-name::after {
+        content: " ▼";
+        font-size: 0.6rem;
+        color: #d97706;
+    }
+    .item-label.has-subtypes .subtype-badge {
+        background: #f59e0b;
+        color: white;
+        font-size: 0.6rem;
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin-left: 4px;
+    }
+    /* Subtypes Dropdown Popup */
+    .subtypes-popup {
+        display: none;
+        position: absolute;
+        z-index: 1000;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        min-width: 220px;
+        max-width: 320px;
+        max-height: 250px;
+        overflow: hidden;
+        animation: popupFadeIn 0.15s ease;
+    }
+    .subtypes-popup.active { display: block; }
+    @keyframes popupFadeIn {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .subtypes-popup-header {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        padding: 0.4rem 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .subtypes-popup-header span { display: flex; align-items: center; gap: 0.3rem; }
+    .subtypes-popup-close {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+    .subtypes-popup-close:hover { background: rgba(255,255,255,0.3); }
+    .subtypes-popup-body {
+        padding: 0.4rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .subtypes-list { list-style: none; padding: 0; margin: 0; }
+    .subtypes-list li { margin-bottom: 0.25rem; }
+    .subtypes-list li:last-child { margin-bottom: 0; }
+    .subtype-option {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.5rem;
+        background: #f8f9fa;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.15s;
+        width: 100%;
+        text-align: left;
+        font-size: 0.75rem;
+    }
+    .subtype-option:hover { background: #e6fffa; border-color: #38a169; }
+    .subtype-option.selected { background: #c6f6d5; border-color: #38a169; }
+    .subtype-option i { color: #38a169; font-size: 0.85rem; }
+    .subtype-name { flex: 1; font-size: 0.72rem; color: #2d3748; line-height: 1.3; }
     
     /* Estimate Panel */
     .work-name-input {
@@ -530,6 +625,17 @@ function switchBackend(backendId) {
 </script>
 {% endif %}
 
+<!-- Subtypes Selection Popup -->
+<div class="subtypes-popup" id="subtypes-modal">
+    <div class="subtypes-popup-header">
+        <span><i class="bi bi-list-ul"></i> <span id="modal-parent-name">Select Type</span></span>
+        <button class="subtypes-popup-close" onclick="closeSubtypesModal()">&times;</button>
+    </div>
+    <div class="subtypes-popup-body">
+        <ul class="subtypes-list" id="subtypes-list"></ul>
+    </div>
+</div>
+
 <div class="layout-3panel">
 
     <!-- LEFT: GROUPS -->
@@ -545,7 +651,7 @@ function switchBackend(backendId) {
             <ul class="groups-list" id="groups-list">
                 {% for g in groups %}
                     <li data-group-name="{{ g|lower }}">
-                        <a href="{% url 'amc_items' category g %}" 
+                        <a href="{% url 'amc_items' category g %}"
                            class="group-link {% if g == group %}active{% endif %}">
                             <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
                             {{ g }}
@@ -570,14 +676,24 @@ function switchBackend(backendId) {
                 <ul class="items-list" id="items-list">
                     {% for info in items_info %}
                         <li data-item-name="{{ info.name|lower }}">
-                            <label class="item-label">
-                                <input type="checkbox"
-                                       class="item-checkbox"
-                                       data-item-name="{{ info.name }}"
-                                       data-fetch-url="{% url 'amc_fetch_item' category group info.name %}"
-                                       {% if info.name in fetched %}checked{% endif %}>
-                                <span class="item-name">{{ info.name }}</span>
-                            </label>
+                            {% if info.has_subtypes %}
+                                <label class="item-label has-subtypes"
+                                       data-parent-name="{{ info.name }}"
+                                       data-subtypes-index="{{ forloop.counter0 }}"
+                                       onclick="openSubtypesModal(this)">
+                                    <span class="item-name">{{ info.name }}</span>
+                                    <span class="subtype-badge">{{ info.subtypes_count }} types</span>
+                                </label>
+                            {% else %}
+                                <label class="item-label">
+                                    <input type="checkbox"
+                                           class="item-checkbox"
+                                           data-item-name="{{ info.name }}"
+                                           data-fetch-url="{% url 'amc_fetch_item' category group info.name %}"
+                                           {% if info.name in fetched %}checked{% endif %}>
+                                    <span class="item-name">{{ info.name }}</span>
+                                </label>
+                            {% endif %}
                         </li>
                     {% endfor %}
                 </ul>
@@ -819,6 +935,134 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
+    }
+});
+</script>
+<script>
+// ========================================
+// SUBTYPES DATA AND MODAL FUNCTIONS
+// ========================================
+var subtypesData = {
+    {% for info in items_info %}
+    {% if info.has_subtypes %}
+    {{ forloop.counter0 }}: {{ info.subtypes|safe }},
+    {% endif %}
+    {% endfor %}
+};
+
+function getCurrentFetchedItems() {
+    var items = [];
+    document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+        var itemName = row.getAttribute('data-item-name');
+        if (itemName) items.push(itemName);
+    });
+    return items;
+}
+
+var currentParentLabel = null;
+
+function openSubtypesModal(labelElement) {
+    var parentName = labelElement.getAttribute('data-parent-name');
+    var subtypesIndex = labelElement.getAttribute('data-subtypes-index');
+    try {
+        var subtypes = subtypesData[subtypesIndex] || [];
+        currentParentLabel = labelElement;
+        document.getElementById('modal-parent-name').textContent = parentName;
+        var subtypesList = document.getElementById('subtypes-list');
+        subtypesList.innerHTML = '';
+        var fetchedItems = getCurrentFetchedItems();
+        subtypes.forEach(function(subtype) {
+            var li = document.createElement('li');
+            var isSelected = fetchedItems.indexOf(subtype) !== -1;
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'subtype-option' + (isSelected ? ' selected' : '');
+            button.setAttribute('data-subtype-name', subtype);
+            button.onclick = function() { selectSubtype(subtype, button); };
+            var typePart = subtype.includes(' : ') ? subtype.split(' : ')[1] : subtype;
+            button.innerHTML = '<i class="bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle') + '"></i>' +
+                               '<span class="subtype-name">' + typePart + '</span>';
+            li.appendChild(button);
+            subtypesList.appendChild(li);
+        });
+        var popup = document.getElementById('subtypes-modal');
+        var rect = labelElement.getBoundingClientRect();
+        popup.style.position = 'fixed';
+        popup.style.top = rect.top + 'px';
+        popup.style.left = (rect.right + 5) + 'px';
+        if (rect.right + 280 + 10 > window.innerWidth) {
+            popup.style.left = (rect.left - 280 - 5) + 'px';
+        }
+        if (rect.top + 200 > window.innerHeight) {
+            popup.style.top = (window.innerHeight - 200 - 10) + 'px';
+        }
+        popup.classList.add('active');
+    } catch (e) {
+        console.error('Error parsing subtypes:', e);
+    }
+}
+
+function closeSubtypesModal() {
+    document.getElementById('subtypes-modal').classList.remove('active');
+    currentParentLabel = null;
+}
+
+function selectSubtype(subtypeName, buttonElement) {
+    var isCurrentlySelected = buttonElement.classList.contains('selected');
+    var action = isCurrentlySelected ? 'remove' : 'add';
+    buttonElement.classList.add('processing');
+    var icon = buttonElement.querySelector('i');
+    var originalClass = icon.className;
+    icon.className = 'bi bi-hourglass-split';
+    var category = "{{ category }}";
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch("/amc/" + category + "/ajax_toggle_item/", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({
+            item: subtypeName,
+            work_name: document.getElementById('work-name-input') ? document.getElementById('work-name-input').value : ''
+        })
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        buttonElement.classList.remove('processing');
+        if (data.status === 'ok') {
+            if (action === 'add') {
+                buttonElement.classList.add('selected');
+                icon.className = 'bi bi-check-circle-fill';
+                if (data.item_info && typeof window.addItemToTable === 'function') {
+                    window.addItemToTable(subtypeName, data.item_info);
+                }
+            } else {
+                buttonElement.classList.remove('selected');
+                icon.className = 'bi bi-circle';
+                if (typeof window.removeItemFromTable === 'function') {
+                    window.removeItemFromTable(subtypeName);
+                }
+            }
+            if (typeof window.updateSerialNumbers === 'function') window.updateSerialNumbers();
+            if (typeof window.recalcTotal === 'function') window.recalcTotal();
+            closeSubtypesModal();
+        } else {
+            icon.className = originalClass;
+            alert('Error: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(function(error) {
+        buttonElement.classList.remove('processing');
+        icon.className = originalClass;
+        console.error('Error toggling subtype:', error);
+    });
+}
+
+// Close popup when clicking outside
+document.addEventListener('click', function(e) {
+    var popup = document.getElementById('subtypes-modal');
+    if (popup && popup.classList.contains('active')) {
+        if (!popup.contains(e.target) && !e.target.closest('.has-subtypes')) {
+            closeSubtypesModal();
+        }
     }
 });
 </script>

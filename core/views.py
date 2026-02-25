@@ -11250,7 +11250,40 @@ def temp_items(request, category, group):
 
     detected_names = {i["name"] for i in items_list}
     display_items = [name for name in group_items if name in detected_names]
-    items_info = [{"name": name} for name in display_items]
+
+    # Build item subtypes map: items with ":" are subtypes
+    item_subtypes = {}  # parent_name -> [list of full subtype names]
+    parent_items = set()
+
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
 
     # units mapping (same as your code)
     item_to_group = {}
@@ -14708,12 +14741,42 @@ def amc_items(request, category, group):
         else:
             return ("Nos", "No")
 
-    items_info = []
+    # Build item subtypes map: items with ":" are subtypes
+    # Group subtypes by their parent name (part before ":")
+    item_subtypes = {}  # parent_name -> [list of full subtype names]
+    parent_items = set()  # items that have subtypes
+
     for name in display_items:
-        items_info.append({
-            "name": name,
-            "rate": item_rates.get(name),
-        })
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "rate": None,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "rate": item_rates.get(name),
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
 
     fetched = request.session.get("amc_fetched_items", [])
 
