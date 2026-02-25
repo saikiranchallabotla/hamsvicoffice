@@ -386,6 +386,241 @@
     </div>
     {% endif %}
 
+    <!-- ========================================= -->
+    <!-- BILL PREVIEW TABLE                         -->
+    <!-- ========================================= -->
+    {% if bill_preview_rows %}
+    <div class="notes-section">
+        <h6 class="mb-3">
+            <i class="bi bi-receipt me-2"></i>
+            Bill {{ bill_preview_number }} Preview
+            <span class="badge bg-info ms-2" style="font-size: 0.7rem;">{{ bill_preview_rows|length }} items</span>
+        </h6>
+
+        <style>
+            .bill-preview-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.8rem;
+            }
+            .bill-preview-table th {
+                background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+                color: white;
+                padding: 0.5rem 0.4rem;
+                font-weight: 600;
+                text-align: center;
+                font-size: 0.72rem;
+                position: sticky;
+                top: 0;
+                z-index: 1;
+            }
+            .bill-preview-table td {
+                padding: 0.4rem 0.35rem;
+                text-align: center;
+                border-bottom: 1px solid #e2e8f0;
+                background: white;
+                font-size: 0.78rem;
+            }
+            .bill-preview-table tbody tr:hover {
+                background: #f5f3ff;
+            }
+            .bill-preview-table .desc-col {
+                text-align: left;
+                max-width: 220px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .bill-preview-table .amt-col {
+                font-weight: 600;
+                color: #16a34a;
+            }
+            .bill-preview-table .rate-col {
+                font-weight: 500;
+                color: #2d3748;
+            }
+            .bill-preview-table .deduct-col {
+                color: #dc2626;
+                font-weight: 500;
+            }
+            .bill-preview-table .qty-editable {
+                width: 80px;
+                padding: 0.25rem 0.4rem;
+                border: 1px solid #c4b5fd;
+                border-radius: 4px;
+                text-align: center;
+                font-weight: 500;
+                font-size: 0.78rem;
+                background: #faf5ff;
+                transition: all 0.2s;
+            }
+            .bill-preview-table .qty-editable:focus {
+                outline: none;
+                border-color: #805ad5;
+                box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.2);
+            }
+            .bill-preview-wrapper {
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+                max-height: 400px;
+                overflow-y: auto;
+            }
+            .bill-preview-total {
+                background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                padding: 0.6rem 1rem;
+                border-radius: 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-top: 0.75rem;
+                border: 1px solid #bbf7d0;
+            }
+            .bill-total-label {
+                font-weight: 600;
+                color: #166534;
+                font-size: 0.85rem;
+            }
+            .bill-total-value {
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #16a34a;
+            }
+        </style>
+
+        <div class="bill-preview-wrapper">
+            <table class="bill-preview-table" id="bill-preview-table">
+                <thead>
+                    <tr>
+                        <th style="width: 45px;">Sl.No</th>
+                        <th>Item Description</th>
+                        <th style="width: 55px;">Unit</th>
+                        {% if bill_preview_number > 1 %}
+                        <th style="width: 100px; background: #7c3aed;">Till Date Qty</th>
+                        {% else %}
+                        <th style="width: 80px;">Quantity</th>
+                        {% endif %}
+                        <th style="width: 80px;">Rate</th>
+                        {% if bill_preview_number > 1 %}
+                        <th style="width: 100px; background: #dc2626;">Deduct Prev Qty</th>
+                        {% endif %}
+                        <th style="width: 110px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in bill_preview_rows %}
+                    <tr data-row-key="{{ row.key }}" data-rate="{{ row.rate }}">
+                        <td>{{ row.sl }}</td>
+                        <td class="desc-col" title="{{ row.desc }}">{{ row.name }}</td>
+                        <td>{{ row.unit }}</td>
+                        {% if bill_preview_number > 1 %}
+                        <td>
+                            <input type="number"
+                                   class="qty-editable bill-qty-input"
+                                   min="0" step="0.01"
+                                   value="{{ row.qty }}"
+                                   data-row-key="{{ row.key }}"
+                                   oninput="recalcBillRow(this)">
+                        </td>
+                        {% else %}
+                        <td>{{ row.qty }}</td>
+                        {% endif %}
+                        <td class="rate-col">₹{{ row.rate|floatformat:2 }}</td>
+                        {% if bill_preview_number > 1 %}
+                        <td class="deduct-col" id="deduct-{{ row.key }}">0.00</td>
+                        {% endif %}
+                        <td class="amt-col" id="amt-{{ row.key }}">₹{{ row.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bill-preview-total">
+            <span class="bill-total-label">
+                <i class="bi bi-currency-rupee me-1"></i>
+                {% if bill_preview_number > 1 %}Net Bill Amount{% else %}Bill {{ bill_preview_number }} Total{% endif %}
+            </span>
+            <span class="bill-total-value">₹<span id="bill-preview-total">{{ bill_preview_total|floatformat:2 }}</span></span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Previous bill data for deductions (Bill 2+ only)
+        var previousBillRows = {{ previous_bill_rows|safe }};
+        var prevQtyMap = {};
+        previousBillRows.forEach(function(r) {
+            if (r.qty > 0) prevQtyMap[r.key] = r.qty;
+        });
+
+        var billNumber = {{ bill_preview_number }};
+
+        // Populate deduction columns on load (Bill 2+ only)
+        if (billNumber > 1) {
+            document.querySelectorAll('#bill-preview-table tbody tr').forEach(function(row) {
+                var key = row.getAttribute('data-row-key');
+                var deductCell = document.getElementById('deduct-' + key);
+                if (deductCell && prevQtyMap[key]) {
+                    deductCell.textContent = parseFloat(prevQtyMap[key]).toFixed(2);
+                }
+            });
+            recalcAllBillRows();
+        }
+
+        window.recalcBillRow = function(input) {
+            var row = input.closest('tr');
+            var key = row.getAttribute('data-row-key');
+            var rate = parseFloat(row.getAttribute('data-rate')) || 0;
+            var tillDateQty = parseFloat(input.value) || 0;
+            var deductQty = prevQtyMap[key] || 0;
+            var netQty = tillDateQty - deductQty;
+            if (netQty < 0) netQty = 0;
+            var amount = netQty * rate;
+
+            var deductCell = document.getElementById('deduct-' + key);
+            if (deductCell) deductCell.textContent = parseFloat(deductQty).toFixed(2);
+
+            var amtCell = document.getElementById('amt-' + key);
+            if (amtCell) amtCell.textContent = '₹' + amount.toFixed(2);
+
+            recalcBillTotal();
+        };
+
+        function recalcAllBillRows() {
+            document.querySelectorAll('#bill-preview-table tbody tr').forEach(function(row) {
+                var key = row.getAttribute('data-row-key');
+                var rate = parseFloat(row.getAttribute('data-rate')) || 0;
+                var qtyInput = row.querySelector('.bill-qty-input');
+                var tillDateQty = qtyInput ? (parseFloat(qtyInput.value) || 0) : parseFloat(row.querySelector('td:nth-child(4)').textContent) || 0;
+                var deductQty = prevQtyMap[key] || 0;
+                var netQty = tillDateQty - deductQty;
+                if (netQty < 0) netQty = 0;
+                var amount = netQty * rate;
+
+                var amtCell = document.getElementById('amt-' + key);
+                if (amtCell) amtCell.textContent = '₹' + amount.toFixed(2);
+            });
+            recalcBillTotal();
+        }
+
+        function recalcBillTotal() {
+            var total = 0;
+            document.querySelectorAll('#bill-preview-table tbody tr').forEach(function(row) {
+                var key = row.getAttribute('data-row-key');
+                var amtCell = document.getElementById('amt-' + key);
+                if (amtCell) {
+                    var val = parseFloat(amtCell.textContent.replace('₹', '')) || 0;
+                    total += val;
+                }
+            });
+            var totalSpan = document.getElementById('bill-preview-total');
+            if (totalSpan) totalSpan.textContent = total.toFixed(2);
+        }
+    })();
+    </script>
+    {% endif %}
+
     <div class="notes-section">
         <h6 class="mb-3">Work Data Preview</h6>
         <div class="data-preview">

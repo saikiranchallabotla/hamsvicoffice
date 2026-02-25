@@ -7635,74 +7635,90 @@ def bill_document(request):
 
     # Helper function to extract total from a single sheet
     def _extract_total_from_sheet(ws, ws_formulas=None):
+        """
+        Extract the total amount from a bill sheet.
+
+        Strategy:
+        1. Scan header rows (1-15) for columns containing "amount" in the header.
+           Use the rightmost such column as the amount column.
+        2. Scan for "Grand Total" or "Total" row (prefer "Grand Total").
+        3. Read the amount value from the identified column in that row.
+        4. Fall back to formula evaluation if cell is empty.
+        """
         total = 0.0
-        max_scan = min(ws.max_row, 200)
-        max_col = min(ws.max_column or 1, 30)
+        max_scan = min(ws.max_row or 0, 200)
+        max_col = min(ws.max_column or 0, 20)
 
-        # --- Step 1: find the header row and detect "amount" columns ---
-        # Scan the first ~20 rows for a row that looks like a header
-        # (contains multiple text cells, one of which has the word "amount").
-        amount_cols = []  # list of (col_index, header_text)
-        header_row = None
-        for r in range(1, min(max_scan, 25) + 1):
-            row_amount_cols = []
+        # Step 1: Find the rightmost column with "amount" in header rows 1-15
+        amount_col = None
+        for r in range(1, min(max_scan, 16)):
             for c in range(1, max_col + 1):
-                hdr = str(ws.cell(row=r, column=c).value or "").strip()
-                if hdr and "amount" in hdr.lower():
-                    row_amount_cols.append(c)
-            if row_amount_cols:
-                amount_cols = row_amount_cols
-                header_row = r
-                break  # use the first row that has "amount" header(s)
+                hdr = str(ws.cell(row=r, column=c).value or "").strip().lower()
+                if "amount" in hdr:
+                    # Always keep the rightmost match
+                    if amount_col is None or c > amount_col:
+                        amount_col = c
 
-        # Pick the rightmost "amount" column; fall back to [8, 9, 10]
-        if amount_cols:
-            amt_col_to_use = [max(amount_cols)]
-        else:
-            amt_col_to_use = [8, 9, 10]
+        # Fallback: if no "amount" header found, use columns 8, 9, 10 (legacy)
+        fallback_cols = [8, 9, 10] if amount_col is None else [amount_col]
 
-        # --- Step 2: find the "Total" / "Grand Total" row ---
+        def _try_get_amount(row, col):
+            """Try to read a numeric amount from a cell, with formula fallback."""
+            amt_val = ws.cell(row=row, column=col).value
+
+            # Formula fallback if cell is empty/zero
+            if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
+                try:
+                    formula_cell = ws_formulas.cell(row=row, column=col)
+                    formula_val = formula_cell.value
+                    if isinstance(formula_val, str) and formula_val.startswith('='):
+                        match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
+                        if match:
+                            col1, row1, op, col2, row2 = match.groups()
+                            def col_to_num(c_letter):
+                                result = 0
+                                for ch in c_letter:
+                                    result = result * 26 + (ord(ch) - ord('A') + 1)
+                                return result
+                            val1 = ws.cell(row=int(row1), column=col_to_num(col1)).value
+                            val2 = ws.cell(row=int(row2), column=col_to_num(col2)).value
+                            if val1 and val2:
+                                if op == '+':
+                                    amt_val = float(val1) + float(val2)
+                                elif op == '-':
+                                    amt_val = float(val1) - float(val2)
+                except Exception:
+                    pass
+
+            try:
+                num_val = float(amt_val) if amt_val else 0
+                if num_val != 0:
+                    return num_val
+            except (TypeError, ValueError):
+                pass
+            return 0.0
+
+        # Step 2: Scan for "Grand Total" first (preferred), then "Total"
+        grand_total_row = None
+        total_row = None
+
         for r in range(1, max_scan + 1):
-            for check_col in range(1, max_col + 1):
+            for check_col in range(1, min(max_col + 1, 8)):
                 cell_val = str(ws.cell(row=r, column=check_col).value or "").strip().lower()
+                if "grand total" in cell_val:
+                    grand_total_row = r
+                elif cell_val == "total":
+                    total_row = r
 
-                # Match "total", "grand total" but skip "sub total" / "subtotal"
-                is_total = (
-                    cell_val in ("total", "grand total")
-                    or cell_val.startswith("grand total")
-                )
-                if is_total and not cell_val.startswith("sub total") and not cell_val.startswith("subtotal"):
-                    for amt_col in amt_col_to_use:
-                        amt_val = ws.cell(row=r, column=amt_col).value
+        # Prefer Grand Total over Total
+        target_row = grand_total_row or total_row
 
-                        if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
-                            try:
-                                formula_cell = ws_formulas.cell(row=r, column=amt_col)
-                                formula_val = formula_cell.value
+        if target_row:
+            for amt_col in fallback_cols:
+                val = _try_get_amount(target_row, amt_col)
+                if val != 0:
+                    return val
 
-                                if isinstance(formula_val, str) and formula_val.startswith('='):
-                                    match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
-                                    if match:
-                                        col1, row1, op, col2, row2 = match.groups()
-                                        def col_to_num(col):
-                                            return ord(col) - ord('A') + 1
-                                        val1 = ws.cell(row=int(row1), column=col_to_num(col1)).value
-                                        val2 = ws.cell(row=int(row2), column=col_to_num(col2)).value
-                                        if val1 and val2:
-                                            if op == '+':
-                                                amt_val = float(val1) + float(val2)
-                                            elif op == '-':
-                                                amt_val = float(val1) - float(val2)
-                            except Exception:
-                                pass
-
-                        try:
-                            num_val = float(amt_val) if amt_val else 0
-                            if num_val != 0:
-                                return num_val
-                        except (TypeError, ValueError):
-                            continue
-                    break
         return total
 
     # 10) LS FORMS (EXCEL) - Multiple sheets support
@@ -7934,9 +7950,9 @@ def bill_document(request):
         # If multiple bill sheets, create combined document with page breaks
         if has_multiple_bills:
             from docx.opc.constants import RELATIONSHIP_TYPE as RT
+            from copy import deepcopy
+            from docx.oxml import OxmlElement
             from docx.oxml.ns import qn as _qn
-            from docx.oxml import OxmlElement as _OxmlElement
-            from copy import deepcopy as _deepcopy
 
             # Start with the template and clear its content
             combined_doc = Document(io.BytesIO(template_bytes))
@@ -7944,24 +7960,6 @@ def bill_document(request):
             # Clear the template content first
             for element in list(combined_doc.element.body):
                 combined_doc.element.body.remove(element)
-
-            # Collect original numId -> abstractNumId mappings from the template
-            _wns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-            _orig_num_ids = {}  # {numId_str: abstractNumId_str}
-            try:
-                _numbering_part = combined_doc.part.numbering_part
-                _numbering_elem = _numbering_part._element
-                for _num_el in _numbering_elem.findall(_qn('w:num')):
-                    _nid = _num_el.get(_qn('w:numId'))
-                    _abs_el = _num_el.find(_qn('w:abstractNumId'))
-                    if _nid and _abs_el is not None:
-                        _orig_num_ids[_nid] = _abs_el.get(_qn('w:val'))
-            except Exception:
-                _numbering_part = None
-                _numbering_elem = None
-
-            # Track the next available numId
-            _next_num_id = max((int(k) for k in _orig_num_ids), default=0) + 1
 
             for sheet_idx, bill_ws in enumerate(bill_sheets, start=1):
                 # Extract per-sheet header data
@@ -8019,45 +8017,77 @@ def bill_document(request):
                         for cell in row.cells:
                             replace_in_paragraphs(cell.paragraphs, sheet_placeholder_map, mm_yyyy)
 
-                # --- Fix numbering: each covering letter is independent ---
-                # For sheets after the first, create new numId entries that
-                # restart numbering from 1, so reference numbers don't
-                # continue incrementing across covering letters.
-                _num_id_map = {}  # old numId -> new numId (for this sheet)
-                if sheet_idx > 1 and _numbering_elem is not None and _orig_num_ids:
-                    for _old_nid, _abs_id in _orig_num_ids.items():
-                        _new_nid = str(_next_num_id)
-                        _next_num_id += 1
-                        _num_id_map[_old_nid] = _new_nid
-
-                        # Create a <w:num> with lvlOverride to restart from 1
-                        _new_num = _OxmlElement('w:num')
-                        _new_num.set(_qn('w:numId'), _new_nid)
-                        _abs_ref = _OxmlElement('w:abstractNumId')
-                        _abs_ref.set(_qn('w:val'), _abs_id)
-                        _new_num.append(_abs_ref)
-                        _lvl_override = _OxmlElement('w:lvlOverride')
-                        _lvl_override.set(_qn('w:ilvl'), '0')
-                        _start_override = _OxmlElement('w:startOverride')
-                        _start_override.set(_qn('w:val'), '1')
-                        _lvl_override.append(_start_override)
-                        _new_num.append(_lvl_override)
-                        _numbering_elem.append(_new_num)
-
-                    # Update numId references in the sheet_doc body elements
-                    for _body_el in sheet_doc.element.body:
-                        for _numId_el in _body_el.iter(_qn('w:numId')):
-                            _old_val = _numId_el.get(_qn('w:val'))
-                            if _old_val in _num_id_map:
-                                _numId_el.set(_qn('w:val'), _num_id_map[_old_val])
-
                 # Add page break at the END of this document (except for the last one)
                 # This ensures each estimate starts on a new page without blank pages
                 if sheet_idx < len(bill_sheets):
                     sheet_doc.add_page_break()
 
-                # Append this document's content to combined document
-                for element in sheet_doc.element.body:
+                # Deep-copy elements before appending to avoid shared references
+                elements_to_add = [deepcopy(el) for el in sheet_doc.element.body]
+
+                # For sheets after the first, restart any Word auto-numbering
+                # so reference numbers don't continue from the previous letter
+                if sheet_idx > 1:
+                    try:
+                        numbering_part = combined_doc.part.numbering_part._element
+                        # Collect unique numId values used in these elements
+                        used_numIds = set()
+                        numId_elems = []
+                        for el in elements_to_add:
+                            for nid_el in el.iter(_qn('w:numId')):
+                                val = nid_el.get(_qn('w:val'))
+                                if val and val != '0':
+                                    used_numIds.add(int(val))
+                                    numId_elems.append(nid_el)
+
+                        if used_numIds:
+                            # Find max existing numId
+                            max_num_id = 0
+                            for num_elem in numbering_part.findall(_qn('w:num')):
+                                nid = int(num_elem.get(_qn('w:numId'), '0'))
+                                if nid > max_num_id:
+                                    max_num_id = nid
+
+                            # Create new numbering instances that restart at 1
+                            id_map = {}
+                            for old_id in used_numIds:
+                                original_num = None
+                                for num_elem in numbering_part.findall(_qn('w:num')):
+                                    if int(num_elem.get(_qn('w:numId'), '0')) == old_id:
+                                        original_num = num_elem
+                                        break
+                                if original_num is None:
+                                    continue
+
+                                max_num_id += 1
+                                new_num = deepcopy(original_num)
+                                new_num.set(_qn('w:numId'), str(max_num_id))
+
+                                # Remove existing overrides
+                                for ov in list(new_num.findall(_qn('w:lvlOverride'))):
+                                    new_num.remove(ov)
+
+                                # Add restart override for level 0
+                                lvl_override = OxmlElement('w:lvlOverride')
+                                lvl_override.set(_qn('w:ilvl'), '0')
+                                start_ov = OxmlElement('w:startOverride')
+                                start_ov.set(_qn('w:val'), '1')
+                                lvl_override.append(start_ov)
+                                new_num.append(lvl_override)
+
+                                numbering_part.append(new_num)
+                                id_map[old_id] = max_num_id
+
+                            # Update numId references in elements to use new numbering
+                            for nid_el in numId_elems:
+                                old_val = int(nid_el.get(_qn('w:val'), '0'))
+                                if old_val in id_map:
+                                    nid_el.set(_qn('w:val'), str(id_map[old_val]))
+                    except Exception:
+                        pass  # If numbering manipulation fails, proceed anyway
+
+                # Append elements to combined document
+                for element in elements_to_add:
                     combined_doc.element.body.append(element)
             
             buf = io.BytesIO()
@@ -11332,7 +11362,40 @@ def temp_items(request, category, group):
 
     detected_names = {i["name"] for i in items_list}
     display_items = [name for name in group_items if name in detected_names]
-    items_info = [{"name": name} for name in display_items]
+
+    # Build item subtypes map: items with ":" are subtypes
+    item_subtypes = {}  # parent_name -> [list of full subtype names]
+    parent_items = set()
+
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
 
     # units mapping (same as your code)
     item_to_group = {}
@@ -14790,12 +14853,42 @@ def amc_items(request, category, group):
         else:
             return ("Nos", "No")
 
-    items_info = []
+    # Build item subtypes map: items with ":" are subtypes
+    # Group subtypes by their parent name (part before ":")
+    item_subtypes = {}  # parent_name -> [list of full subtype names]
+    parent_items = set()  # items that have subtypes
+
     for name in display_items:
-        items_info.append({
-            "name": name,
-            "rate": item_rates.get(name),
-        })
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "rate": None,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "rate": item_rates.get(name),
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
 
     fetched = request.session.get("amc_fetched_items", [])
 

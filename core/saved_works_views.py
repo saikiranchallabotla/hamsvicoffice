@@ -421,11 +421,24 @@ def save_work(request):
             workslip_number = 1
             if work_type == 'workslip':
                 workslip_number = request.session.get('ws_target_workslip', 1) or 1
-            
+
+            # For bills, set bill_number and parent from session
+            bill_number = 1
+            parent = None
+            if work_type == 'bill':
+                bill_number = request.session.get('bill_target_number', 1) or 1
+                parent_id = request.session.get('bill_parent_work_id')
+                if parent_id:
+                    try:
+                        parent = SavedWork.objects.get(id=parent_id, organization=org, user=user)
+                    except SavedWork.DoesNotExist:
+                        pass
+
             saved_work = SavedWork.objects.create(
                 organization=org,
                 user=user,
                 folder=folder,
+                parent=parent,
                 name=work_name,
                 work_type=work_type,
                 work_data=work_data,
@@ -434,6 +447,7 @@ def save_work(request):
                 progress_percent=progress_percent,
                 last_step=last_step,
                 workslip_number=workslip_number,
+                bill_number=bill_number,
             )
             message = f'Work "{work_name}" saved successfully!'
         else:
@@ -445,25 +459,42 @@ def save_work(request):
             saved_work.work_data = work_data
             saved_work.progress_percent = progress_percent
             saved_work.last_step = last_step
-            
+
             # Update workslip_number if this is a workslip
             if work_type == 'workslip':
                 saved_work.workslip_number = request.session.get('ws_target_workslip', 1) or 1
-            
+
+            # Update bill_number if this is a bill
+            if work_type == 'bill':
+                saved_work.bill_number = request.session.get('bill_target_number', 1) or 1
+
             saved_work.save()
             message = f'Work "{work_name}" updated successfully!'
     else:
         # Create new saved work
-        
+
         # For workslips, set the workslip_number
         workslip_number = 1
         if work_type == 'workslip':
             workslip_number = request.session.get('ws_target_workslip', 1) or 1
-        
+
+        # For bills, set bill_number and parent from session
+        bill_number = 1
+        parent = None
+        if work_type == 'bill':
+            bill_number = request.session.get('bill_target_number', 1) or 1
+            parent_id = request.session.get('bill_parent_work_id')
+            if parent_id:
+                try:
+                    parent = SavedWork.objects.get(id=parent_id, organization=org, user=user)
+                except SavedWork.DoesNotExist:
+                    pass
+
         saved_work = SavedWork.objects.create(
             organization=org,
             user=user,
             folder=folder,
+            parent=parent,
             name=work_name,
             work_type=work_type,
             work_data=work_data,
@@ -472,6 +503,7 @@ def save_work(request):
             progress_percent=progress_percent,
             last_step=last_step,
             workslip_number=workslip_number,
+            bill_number=bill_number,
         )
         message = f'Work "{work_name}" saved successfully!'
     
@@ -1342,26 +1374,38 @@ def generate_bill_from_saved(request, work_id):
     request.session['bill_source_work_id'] = saved_work.id
     request.session['bill_source_work_type'] = saved_work.work_type
     request.session['bill_source_work_name'] = saved_work.name
-    request.session['bill_target_number'] = 1  # First bill
-    request.session['bill_sequence_number'] = 1
 
     if saved_work.work_type == 'workslip':
+        # B(N) from W(N): bill_number matches the source workslip_number
+        bill_number = saved_work.workslip_number or 1
+        request.session['bill_target_number'] = bill_number
+        request.session['bill_sequence_number'] = bill_number
+        # Store parent workslip ID so save_work can link the bill to this workslip
+        request.session['bill_parent_work_id'] = saved_work.id
+
         # Load workslip data for bill generation
         request.session['bill_from_workslip'] = True
         request.session['bill_ws_rows'] = work_data.get('ws_estimate_rows', [])
         request.session['bill_ws_exec_map'] = work_data.get('ws_exec_map', {})
         request.session['bill_ws_tp_percent'] = work_data.get('ws_tp_percent', 0)
         request.session['bill_ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
+
+        logger.info(f"[GEN_BILL] Generating Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
+        messages.success(request, f'Ready to generate Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} "{saved_work.name}".')
     else:
-        # Load estimate data for bill generation
+        # Bill from estimate (fallback)
+        request.session['bill_target_number'] = 1
+        request.session['bill_sequence_number'] = 1
+        request.session['bill_parent_work_id'] = saved_work.id
+
         request.session['bill_from_workslip'] = False
         request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
         request.session['bill_qty_map'] = work_data.get('qty_map', {})
 
-    request.session.modified = True
+        logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
+        messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
 
-    logger.info(f"[GEN_BILL] Generating Bill-1 from {saved_work.work_type} '{saved_work.name}' (ID: {work_id})")
-    messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
+    request.session.modified = True
     return redirect('bill')
 
 
@@ -1432,6 +1476,108 @@ def saved_work_detail(request, work_id):
         for wt in WORK_TYPE_TO_MODULE:
             module_access[wt] = True
 
+    # ===========================================================
+    # BILL PREVIEW: Build preview rows for workslip/bill types
+    # Shows data as it would appear in the generated Excel bill
+    # ===========================================================
+    bill_preview_rows = []
+    bill_preview_number = 0
+    bill_preview_total = 0.0
+    previous_bill_rows = []  # For Bill 2+ to show deductions
+
+    if saved_work.work_type == 'workslip':
+        work_data = saved_work.work_data or {}
+        ws_rows = work_data.get('ws_estimate_rows', [])
+        ws_exec = work_data.get('ws_exec_map', {}) or {}
+        bill_preview_number = saved_work.workslip_number or 1
+
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            exec_qty = ws_exec.get(key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            rate = float(row.get('rate', 0) or 0)
+            amount = exec_qty * rate
+            bill_preview_total += amount
+            bill_preview_rows.append({
+                'sl': len(bill_preview_rows) + 1,
+                'name': row.get('display_name') or row.get('item_name', ''),
+                'desc': row.get('desc', ''),
+                'unit': row.get('unit', 'Nos'),
+                'qty': exec_qty,
+                'rate': rate,
+                'amount': amount,
+                'key': key,
+            })
+
+        # For Bill 2+, find the previous bill's data for deductions
+        if bill_preview_number > 1:
+            prev_bill = SavedWork.objects.filter(
+                organization=org, user=user, work_type='bill',
+                bill_number=bill_preview_number - 1,
+                parent=root_estimate,
+            ).first()
+            if not prev_bill:
+                # Check if the previous bill is a child of a workslip
+                for ws in workslips:
+                    prev_bill = SavedWork.objects.filter(
+                        organization=org, user=user, work_type='bill',
+                        bill_number=bill_preview_number - 1,
+                        parent=ws,
+                    ).first()
+                    if prev_bill:
+                        break
+
+            if prev_bill:
+                prev_data = prev_bill.work_data or {}
+                prev_ws_rows = prev_data.get('ws_estimate_rows', [])
+                prev_exec = prev_data.get('ws_exec_map', prev_data.get('bill_ws_exec_map', {})) or {}
+                for pidx, prow in enumerate(prev_ws_rows):
+                    pkey = prow.get('key', f'saved_{pidx}')
+                    pqty = prev_exec.get(pkey, 0)
+                    try:
+                        pqty = float(pqty) if pqty else 0.0
+                    except (ValueError, TypeError):
+                        pqty = 0.0
+                    previous_bill_rows.append({
+                        'key': pkey,
+                        'name': prow.get('display_name') or prow.get('item_name', ''),
+                        'qty': pqty,
+                    })
+
+    elif saved_work.work_type == 'bill':
+        work_data = saved_work.work_data or {}
+        ws_rows = work_data.get('bill_ws_rows', work_data.get('ws_estimate_rows', []))
+        ws_exec = work_data.get('bill_ws_exec_map', work_data.get('ws_exec_map', {})) or {}
+        bill_preview_number = saved_work.bill_number or 1
+
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            exec_qty = ws_exec.get(key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            rate = float(row.get('rate', 0) or 0)
+            amount = exec_qty * rate
+            bill_preview_total += amount
+            bill_preview_rows.append({
+                'sl': len(bill_preview_rows) + 1,
+                'name': row.get('display_name') or row.get('item_name', ''),
+                'desc': row.get('desc', ''),
+                'unit': row.get('unit', 'Nos'),
+                'qty': exec_qty,
+                'rate': rate,
+                'amount': amount,
+                'key': key,
+            })
+
     context = {
         'work': saved_work,
         'root_estimate': root_estimate,
@@ -1445,6 +1591,10 @@ def saved_work_detail(request, work_id):
         'subscription_reason': access_result.get('reason', ''),
         'module_code': access_result.get('module_code'),
         'module_access': module_access,
+        'bill_preview_rows': bill_preview_rows,
+        'bill_preview_number': bill_preview_number,
+        'bill_preview_total': bill_preview_total,
+        'previous_bill_rows': json.dumps(previous_bill_rows),
     }
 
     return render(request, 'core/saved_works/detail.html', context)
