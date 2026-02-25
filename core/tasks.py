@@ -1181,24 +1181,52 @@ def generate_bill_document_task(self, job_id):
             return "CC Bill"
         
         def _extract_total_from_bill(wb):
-            """Extract total amount from bill workbook."""
+            """Extract total amount from bill workbook.
+
+            For each sheet:
+            1. Find the rightmost column with 'amount' in header rows (1-15).
+            2. Look for 'Grand Total' row first, then 'Total' row.
+            3. Read amount from identified column in that row.
+            Falls back to checking columns 8, 9, 10 if no 'amount' header found.
+            """
             total = 0.0
             for ws in wb.worksheets:
-                max_scan = min(ws.max_row, 200)
+                max_scan = min(ws.max_row or 0, 200)
+                max_col = min(ws.max_column or 0, 20)
+
+                # Find rightmost 'amount' header column
+                amount_col = None
+                for r in range(1, min(max_scan, 16)):
+                    for c in range(1, max_col + 1):
+                        hdr = str(ws.cell(row=r, column=c).value or "").strip().lower()
+                        if "amount" in hdr:
+                            if amount_col is None or c > amount_col:
+                                amount_col = c
+
+                check_cols = [amount_col] if amount_col else [8, 9, 10]
+
+                # Scan for Grand Total (preferred) then Total
+                grand_total_row = None
+                total_row = None
                 for r in range(1, max_scan + 1):
-                    for check_col in [3, 4, 5]:
-                        cell_val = str(ws.cell(row=r, column=check_col).value or "").strip().lower()
-                        if cell_val == "total":
-                            for amt_col in [8, 9, 10]:
-                                amt_val = ws.cell(row=r, column=amt_col).value
-                                try:
-                                    num_val = float(amt_val) if amt_val else 0
-                                    if num_val != 0:
-                                        total += num_val
-                                        break
-                                except:
-                                    continue
-                            break
+                    for cc in range(1, min(max_col + 1, 8)):
+                        cell_val = str(ws.cell(row=r, column=cc).value or "").strip().lower()
+                        if "grand total" in cell_val:
+                            grand_total_row = r
+                        elif cell_val == "total":
+                            total_row = r
+
+                target_row = grand_total_row or total_row
+                if target_row:
+                    for amt_col in check_cols:
+                        amt_val = ws.cell(row=target_row, column=amt_col).value
+                        try:
+                            num_val = float(amt_val) if amt_val else 0
+                            if num_val != 0:
+                                total += num_val
+                                break
+                        except:
+                            continue
             return total
         
         # Extract data

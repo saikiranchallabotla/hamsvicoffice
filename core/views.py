@@ -7635,45 +7635,90 @@ def bill_document(request):
 
     # Helper function to extract total from a single sheet
     def _extract_total_from_sheet(ws, ws_formulas=None):
+        """
+        Extract the total amount from a bill sheet.
+
+        Strategy:
+        1. Scan header rows (1-15) for columns containing "amount" in the header.
+           Use the rightmost such column as the amount column.
+        2. Scan for "Grand Total" or "Total" row (prefer "Grand Total").
+        3. Read the amount value from the identified column in that row.
+        4. Fall back to formula evaluation if cell is empty.
+        """
         total = 0.0
-        max_scan = min(ws.max_row, 200)
-        
+        max_scan = min(ws.max_row or 0, 200)
+        max_col = min(ws.max_column or 0, 20)
+
+        # Step 1: Find the rightmost column with "amount" in header rows 1-15
+        amount_col = None
+        for r in range(1, min(max_scan, 16)):
+            for c in range(1, max_col + 1):
+                hdr = str(ws.cell(row=r, column=c).value or "").strip().lower()
+                if "amount" in hdr:
+                    # Always keep the rightmost match
+                    if amount_col is None or c > amount_col:
+                        amount_col = c
+
+        # Fallback: if no "amount" header found, use columns 8, 9, 10 (legacy)
+        fallback_cols = [8, 9, 10] if amount_col is None else [amount_col]
+
+        def _try_get_amount(row, col):
+            """Try to read a numeric amount from a cell, with formula fallback."""
+            amt_val = ws.cell(row=row, column=col).value
+
+            # Formula fallback if cell is empty/zero
+            if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
+                try:
+                    formula_cell = ws_formulas.cell(row=row, column=col)
+                    formula_val = formula_cell.value
+                    if isinstance(formula_val, str) and formula_val.startswith('='):
+                        match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
+                        if match:
+                            col1, row1, op, col2, row2 = match.groups()
+                            def col_to_num(c_letter):
+                                result = 0
+                                for ch in c_letter:
+                                    result = result * 26 + (ord(ch) - ord('A') + 1)
+                                return result
+                            val1 = ws.cell(row=int(row1), column=col_to_num(col1)).value
+                            val2 = ws.cell(row=int(row2), column=col_to_num(col2)).value
+                            if val1 and val2:
+                                if op == '+':
+                                    amt_val = float(val1) + float(val2)
+                                elif op == '-':
+                                    amt_val = float(val1) - float(val2)
+                except Exception:
+                    pass
+
+            try:
+                num_val = float(amt_val) if amt_val else 0
+                if num_val != 0:
+                    return num_val
+            except (TypeError, ValueError):
+                pass
+            return 0.0
+
+        # Step 2: Scan for "Grand Total" first (preferred), then "Total"
+        grand_total_row = None
+        total_row = None
+
         for r in range(1, max_scan + 1):
-            for check_col in [3, 4, 5]:
+            for check_col in range(1, min(max_col + 1, 8)):
                 cell_val = str(ws.cell(row=r, column=check_col).value or "").strip().lower()
-                
-                if cell_val == "total":
-                    for amt_col in [8, 9, 10]:
-                        amt_val = ws.cell(row=r, column=amt_col).value
-                        
-                        if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
-                            try:
-                                formula_cell = ws_formulas.cell(row=r, column=amt_col)
-                                formula_val = formula_cell.value
-                                
-                                if isinstance(formula_val, str) and formula_val.startswith('='):
-                                    match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
-                                    if match:
-                                        col1, row1, op, col2, row2 = match.groups()
-                                        def col_to_num(col):
-                                            return ord(col) - ord('A') + 1
-                                        val1 = ws.cell(row=int(row1), column=col_to_num(col1)).value
-                                        val2 = ws.cell(row=int(row2), column=col_to_num(col2)).value
-                                        if val1 and val2:
-                                            if op == '+':
-                                                amt_val = float(val1) + float(val2)
-                                            elif op == '-':
-                                                amt_val = float(val1) - float(val2)
-                            except Exception:
-                                pass
-                        
-                        try:
-                            num_val = float(amt_val) if amt_val else 0
-                            if num_val != 0:
-                                return num_val
-                        except (TypeError, ValueError):
-                            continue
-                    break
+                if "grand total" in cell_val:
+                    grand_total_row = r
+                elif cell_val == "total":
+                    total_row = r
+
+        # Prefer Grand Total over Total
+        target_row = grand_total_row or total_row
+
+        if target_row:
+            for amt_col in fallback_cols:
+                val = _try_get_amount(target_row, amt_col)
+                if val != 0:
+                    return val
+
         return total
 
     # 10) LS FORMS (EXCEL) - Multiple sheets support
@@ -7905,28 +7950,31 @@ def bill_document(request):
         # If multiple bill sheets, create combined document with page breaks
         if has_multiple_bills:
             from docx.opc.constants import RELATIONSHIP_TYPE as RT
-            
+            from copy import deepcopy
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn as _qn
+
             # Start with the template and clear its content
             combined_doc = Document(io.BytesIO(template_bytes))
-            
+
             # Clear the template content first
             for element in list(combined_doc.element.body):
                 combined_doc.element.body.remove(element)
-            
+
             for sheet_idx, bill_ws in enumerate(bill_sheets, start=1):
                 # Extract per-sheet header data
                 sheet_header = _extract_header_data_from_sheet(bill_ws)
                 sheet_name_of_work = sheet_header.get("name_of_work", "") or ""
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
-                
+
                 # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
                 sheet_mb = mb_details_str
                 if not user_entered_mb:
                     sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
                     if sheet_mb_from_file:
                         sheet_mb = sheet_mb_from_file
-                
+
                 # Get formulas sheet if available
                 ws_formulas = None
                 if wb_formulas:
@@ -7934,7 +7982,7 @@ def bill_document(request):
                         ws_formulas = wb_formulas[bill_ws.title]
                     except:
                         pass
-                
+
                 # Calculate total for this sheet
                 sheet_total = _extract_total_from_sheet(bill_ws, ws_formulas)
                 try:
@@ -7942,7 +7990,7 @@ def bill_document(request):
                 except:
                     sheet_total_str = str(sheet_total)
                 sheet_amount_words = _number_to_words_rupees(sheet_total)
-                
+
                 # Build placeholder map for this sheet
                 sheet_placeholder_map = {
                     "{{NAME_OF_WORK}}": sheet_name_of_work,
@@ -7956,26 +8004,90 @@ def bill_document(request):
                     "{{TOTAL_AMOUNT}}": sheet_total_str,
                     "{{AMOUNT_IN_WORDS}}": sheet_amount_words,
                 }
-                
+
                 # Load fresh template for this sheet
                 sheet_doc = Document(io.BytesIO(template_bytes))
-                
+
                 # Replace placeholders in body
                 replace_in_paragraphs(sheet_doc.paragraphs, sheet_placeholder_map, mm_yyyy)
-                
+
                 # Replace in tables
                 for table in sheet_doc.tables:
                     for row in table.rows:
                         for cell in row.cells:
                             replace_in_paragraphs(cell.paragraphs, sheet_placeholder_map, mm_yyyy)
-                
+
                 # Add page break at the END of this document (except for the last one)
                 # This ensures each estimate starts on a new page without blank pages
                 if sheet_idx < len(bill_sheets):
                     sheet_doc.add_page_break()
-                
-                # Append this document's content to combined document
-                for element in sheet_doc.element.body:
+
+                # Deep-copy elements before appending to avoid shared references
+                elements_to_add = [deepcopy(el) for el in sheet_doc.element.body]
+
+                # For sheets after the first, restart any Word auto-numbering
+                # so reference numbers don't continue from the previous letter
+                if sheet_idx > 1:
+                    try:
+                        numbering_part = combined_doc.part.numbering_part._element
+                        # Collect unique numId values used in these elements
+                        used_numIds = set()
+                        numId_elems = []
+                        for el in elements_to_add:
+                            for nid_el in el.iter(_qn('w:numId')):
+                                val = nid_el.get(_qn('w:val'))
+                                if val and val != '0':
+                                    used_numIds.add(int(val))
+                                    numId_elems.append(nid_el)
+
+                        if used_numIds:
+                            # Find max existing numId
+                            max_num_id = 0
+                            for num_elem in numbering_part.findall(_qn('w:num')):
+                                nid = int(num_elem.get(_qn('w:numId'), '0'))
+                                if nid > max_num_id:
+                                    max_num_id = nid
+
+                            # Create new numbering instances that restart at 1
+                            id_map = {}
+                            for old_id in used_numIds:
+                                original_num = None
+                                for num_elem in numbering_part.findall(_qn('w:num')):
+                                    if int(num_elem.get(_qn('w:numId'), '0')) == old_id:
+                                        original_num = num_elem
+                                        break
+                                if original_num is None:
+                                    continue
+
+                                max_num_id += 1
+                                new_num = deepcopy(original_num)
+                                new_num.set(_qn('w:numId'), str(max_num_id))
+
+                                # Remove existing overrides
+                                for ov in list(new_num.findall(_qn('w:lvlOverride'))):
+                                    new_num.remove(ov)
+
+                                # Add restart override for level 0
+                                lvl_override = OxmlElement('w:lvlOverride')
+                                lvl_override.set(_qn('w:ilvl'), '0')
+                                start_ov = OxmlElement('w:startOverride')
+                                start_ov.set(_qn('w:val'), '1')
+                                lvl_override.append(start_ov)
+                                new_num.append(lvl_override)
+
+                                numbering_part.append(new_num)
+                                id_map[old_id] = max_num_id
+
+                            # Update numId references in elements to use new numbering
+                            for nid_el in numId_elems:
+                                old_val = int(nid_el.get(_qn('w:val'), '0'))
+                                if old_val in id_map:
+                                    nid_el.set(_qn('w:val'), str(id_map[old_val]))
+                    except Exception:
+                        pass  # If numbering manipulation fails, proceed anyway
+
+                # Append elements to combined document
+                for element in elements_to_add:
                     combined_doc.element.body.append(element)
             
             buf = io.BytesIO()
