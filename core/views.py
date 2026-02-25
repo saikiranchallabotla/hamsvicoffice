@@ -2269,6 +2269,34 @@ def workslip(request):
                         break
                 supp_rate_map[name] = rate_val
 
+            # Load prefix mapping for repair mode (used in both ItemBlocks and WorkSlip sheets)
+            item_to_prefix_ws = {}
+            if ws_work_mode == 'repair' and filepath and os.path.exists(filepath):
+                try:
+                    wb_groups_for_prefix = load_workbook(filepath, data_only=False)
+                    ws_groups_for_prefix = wb_groups_for_prefix["Groups"]
+                    header_row_p = None
+                    col_item_p = None
+                    col_prefix_p = None
+                    for r in range(1, ws_groups_for_prefix.max_row + 1):
+                        for c in range(1, ws_groups_for_prefix.max_column + 1):
+                            val = str(ws_groups_for_prefix.cell(row=r, column=c).value or "").strip().lower()
+                            if val == "item name":
+                                header_row_p = r
+                                col_item_p = c
+                            elif val == "prefix":
+                                col_prefix_p = c
+                        if header_row_p:
+                            break
+                    if header_row_p and col_item_p and col_prefix_p:
+                        for r in range(header_row_p + 1, ws_groups_for_prefix.max_row + 1):
+                            nm = ws_groups_for_prefix.cell(r, col_item_p).value
+                            px = ws_groups_for_prefix.cell(r, col_prefix_p).value
+                            if nm and px not in (None, ""):
+                                item_to_prefix_ws[str(nm).strip()] = str(px).strip()
+                except Exception:
+                    pass
+
             # ---------- create workbook ----------
             wb_out = Workbook()
 
@@ -2283,6 +2311,7 @@ def workslip(request):
                 hdr.font = Font(bold=True, size=11)
                 hdr.alignment = Alignment(horizontal="left", vertical="center")
                 current_row = 3  # start blocks after header + blank row
+                data_serial_blocks = 1
                 if ws_data is not None:
                     for name in ws_supp_items:
                         info = item_to_info.get(name)
@@ -2299,7 +2328,18 @@ def workslip(request):
                             col_start=1,
                             col_end=10,
                         )
-                        current_row += (end_row - start_row + 1) + 1  # 1 blank row between blocks
+                        # Add Data serial number to column A of block header row
+                        ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
+                        data_serial_blocks += 1
+                        # Apply repair prefix to description cell (row+2, col D)
+                        if ws_work_mode == 'repair' and item_to_prefix_ws:
+                            prefix = item_to_prefix_ws.get(name, "")
+                            if prefix:
+                                desc_cell_block = ws_blocks.cell(row=current_row + 2, column=4)
+                                base_val = desc_cell_block.value
+                                base_str = str(base_val).strip() if base_val not in (None, "") else ""
+                                desc_cell_block.value = f"{prefix} {base_str}" if base_str else prefix
+                        current_row += (end_row - start_row + 1)  # No blank row between blocks
             else:
                 # no supplemental items â†’ remove default sheet so only WorkSlip will exist
                 default_sheet = wb_out.active
@@ -2708,6 +2748,10 @@ def workslip(request):
                 # actual supplemental rows
                 for name in ws_supp_items:
                     desc_supp = supp_desc_map.get(name, name)
+                    if ws_work_mode == 'repair' and item_to_prefix_ws:
+                        prefix = item_to_prefix_ws.get(name, "")
+                        if prefix:
+                            desc_supp = f"{prefix} {desc_supp}" if desc_supp else prefix
                     unit_pl, _ = units_for(name)
                     rate = float(supp_rate_map.get(name, 0.0) or 0.0)
                     key = f"supp:{name}"
