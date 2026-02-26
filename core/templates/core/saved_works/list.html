@@ -21,7 +21,7 @@
         min-height: 75vh;
         overflow: hidden;
     }
-    
+
     /* Left Sidebar - Folder Tree */
     .explorer-sidebar {
         width: 250px;
@@ -30,7 +30,7 @@
         padding: 0;
         overflow-y: auto;
     }
-    
+
     .sidebar-header {
         padding: 12px 16px;
         font-weight: 600;
@@ -41,11 +41,11 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
+
     .folder-tree {
         padding: 8px 0;
     }
-    
+
     .tree-item {
         display: flex;
         align-items: center;
@@ -57,30 +57,30 @@
         border-left: 3px solid transparent;
         transition: all 0.15s;
     }
-    
+
     .tree-item:hover {
         background: #e8e8e8;
         color: #333;
     }
-    
+
     .tree-item.active {
         background: #e3f2fd;
         border-left-color: #1976d2;
         color: #1976d2;
         font-weight: 500;
     }
-    
+
     .tree-item i {
         margin-right: 10px;
         font-size: 1rem;
     }
-    
+
     .tree-item .badge {
         margin-left: auto;
         font-size: 0.7rem;
         padding: 2px 6px;
     }
-    
+
     /* Main Content Area */
     .explorer-main {
         flex: 1;
@@ -88,7 +88,7 @@
         flex-direction: column;
         min-width: 0;
     }
-    
+
     /* Toolbar */
     .explorer-toolbar {
         display: flex;
@@ -97,8 +97,9 @@
         background: #fafafa;
         border-bottom: 1px solid #e0e0e0;
         gap: 12px;
+        flex-wrap: wrap;
     }
-    
+
     .breadcrumb-nav {
         display: flex;
         align-items: center;
@@ -108,27 +109,28 @@
         padding: 6px 12px;
         flex: 1;
         font-size: 0.9rem;
+        min-width: 200px;
     }
-    
+
     .breadcrumb-nav a {
         color: #1976d2;
         text-decoration: none;
     }
-    
+
     .breadcrumb-nav a:hover {
         text-decoration: underline;
     }
-    
+
     .breadcrumb-nav .separator {
         margin: 0 8px;
         color: #999;
     }
-    
+
     .breadcrumb-nav .current {
         color: #333;
         font-weight: 500;
     }
-    
+
     .toolbar-btn {
         padding: 6px 12px;
         border: 1px solid #ddd;
@@ -141,40 +143,90 @@
         gap: 6px;
         transition: all 0.15s;
     }
-    
+
     .toolbar-btn:hover {
         background: #f0f0f0;
         border-color: #ccc;
     }
-    
+
     .toolbar-btn.primary {
         background: #1976d2;
         color: white;
         border-color: #1976d2;
     }
-    
+
     .toolbar-btn.primary:hover {
         background: #1565c0;
     }
-    
+
+    /* Status Filter Bar */
+    .filter-bar {
+        display: flex;
+        align-items: center;
+        padding: 8px 16px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e0e0e0;
+        gap: 8px;
+    }
+
+    .filter-bar .filter-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-right: 4px;
+    }
+
+    .filter-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-decoration: none;
+        border: 1px solid #d1d5db;
+        background: white;
+        color: #4b5563;
+        transition: all 0.15s;
+        cursor: pointer;
+    }
+
+    .filter-pill:hover {
+        background: #f3f4f6;
+        color: #1f2937;
+        border-color: #9ca3af;
+    }
+
+    .filter-pill.active {
+        background: #2563eb;
+        color: white;
+        border-color: #2563eb;
+    }
+
+    .filter-pill.active:hover {
+        background: #1d4ed8;
+    }
+
     /* File List View */
     .file-list {
         flex: 1;
         overflow-y: auto;
     }
-    
+
     .file-table {
         width: 100%;
         border-collapse: collapse;
     }
-    
+
     .file-table thead {
         background: #f5f5f5;
         position: sticky;
         top: 0;
         z-index: 10;
     }
-    
+
     .file-table th {
         padding: 10px 16px;
         text-align: left;
@@ -186,80 +238,60 @@
         letter-spacing: 0.3px;
         white-space: nowrap;
     }
-    
-    .file-table th:first-child {
-        width: 50%;
-    }
-    
+
     .file-table tbody tr {
         cursor: pointer;
         transition: background 0.1s;
     }
-    
+
     .file-table tbody tr:hover {
         background: #f5f8ff;
     }
-    
+
     .file-table tbody tr.selected {
         background: #e3f2fd;
     }
-    
+
     .file-table td {
         padding: 10px 16px;
         border-bottom: 1px solid #f0f0f0;
         font-size: 0.9rem;
         color: #333;
     }
-    
+
     .file-name {
         display: flex;
         align-items: center;
         gap: 12px;
     }
-    
+
     .file-icon {
         font-size: 1.3rem;
     }
-    
-    .file-icon.folder {
-        color: #f59e0b;
-    }
-    
-    .file-icon.estimate {
-        color: #2563eb;
-    }
-    
-    .file-icon.workslip {
-        color: #16a34a;
-    }
-    
-    .file-icon.bill {
-        color: #dc2626;
-    }
-    
-    .file-icon.temp {
-        color: #d97706;
-    }
-    
-    .file-icon.amc {
-        color: #0891b2;
-    }
-    
+
+    .file-icon.folder { color: #f59e0b; }
+    .file-icon.estimate { color: #2563eb; }
+    .file-icon.workslip { color: #16a34a; }
+    .file-icon.bill { color: #dc2626; }
+    .file-icon.temp { color: #d97706; }
+    .file-icon.amc { color: #0891b2; }
+
     .file-name-text {
         font-weight: 500;
     }
-    
+
     .file-type {
         color: #666;
     }
-    
+
     .file-date {
         color: #666;
         font-size: 0.85rem;
     }
-    
+
     .file-actions {
         text-align: right;
+        white-space: nowrap;
     }
 
     .btn-group-sm .btn {
@@ -271,10 +303,10 @@
         font-size: 0.8rem;
     }
 
-    /* E/W/B Workflow Pill Buttons */
+    /* ===== E/W/B Workflow Pill Buttons ===== */
     .wf-pills {
         display: flex;
-        gap: 4px;
+        gap: 5px;
         flex-wrap: wrap;
         align-items: center;
     }
@@ -283,39 +315,63 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 30px;
-        height: 26px;
-        padding: 0 8px;
+        min-width: 34px;
+        height: 30px;
+        padding: 0 10px;
         border-radius: 6px;
         font-weight: 700;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         text-decoration: none;
-        border: none;
+        border: 2px solid transparent;
         cursor: pointer;
         transition: all 0.15s;
         color: white;
+        position: relative;
     }
 
     .wf-pill:hover {
         transform: translateY(-1px);
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        box-shadow: 0 3px 8px rgba(0,0,0,0.2);
         color: white;
     }
 
-    .wf-pill-e { background: #2563eb; }
+    /* E - Estimate (Blue) */
+    .wf-pill-e { background: #2563eb; border-color: #2563eb; }
     .wf-pill-e:hover { background: #1d4ed8; }
 
-    .wf-pill-w { background: #16a34a; }
+    /* W - WorkSlip (Green) */
+    .wf-pill-w { background: #16a34a; border-color: #16a34a; }
     .wf-pill-w:hover { background: #15803d; }
 
-    .wf-pill-b { background: #dc2626; }
+    /* B - Bill (Red) */
+    .wf-pill-b { background: #dc2626; border-color: #dc2626; }
     .wf-pill-b:hover { background: #b91c1c; }
 
+    /* Active/current pill highlight */
+    .wf-pill-current {
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4);
+        transform: scale(1.08);
+    }
+    .wf-pill-current:hover {
+        transform: scale(1.08) translateY(-1px);
+    }
+
+    /* Dimmed pill (not the current item) */
+    .wf-pill-dim {
+        opacity: 0.55;
+    }
+    .wf-pill-dim:hover {
+        opacity: 1;
+    }
+
+    /* Add / action pills */
     .wf-pill-add {
         background: transparent;
         border: 1.5px dashed #94a3b8;
         color: #64748b;
-        font-size: 0.7rem;
+        font-size: 0.72rem;
+        min-width: 30px;
+        height: 28px;
     }
     .wf-pill-add:hover {
         border-color: #475569;
@@ -325,11 +381,23 @@
 
     .wf-sep {
         width: 1px;
-        height: 18px;
+        height: 20px;
         background: #e2e8f0;
-        margin: 0 2px;
+        margin: 0 3px;
     }
-    
+
+    /* Status dots on pills */
+    .wf-pill .s-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        position: absolute;
+        top: 2px;
+        right: 2px;
+    }
+    .s-dot.done { background: #22c55e; }
+    .s-dot.wip  { background: #fbbf24; }
+
     /* Empty State */
     .empty-folder {
         display: flex;
@@ -339,18 +407,18 @@
         padding: 60px 20px;
         color: #888;
     }
-    
+
     .empty-folder i {
         font-size: 4rem;
         margin-bottom: 16px;
         opacity: 0.4;
     }
-    
+
     .empty-folder h5 {
         color: #555;
         margin-bottom: 8px;
     }
-    
+
     /* Context Menu */
     .context-menu {
         position: fixed;
@@ -363,11 +431,11 @@
         display: none;
         min-width: 180px;
     }
-    
+
     .context-menu.show {
         display: block;
     }
-    
+
     .context-menu-item {
         padding: 8px 16px;
         cursor: pointer;
@@ -376,21 +444,21 @@
         align-items: center;
         gap: 10px;
     }
-    
+
     .context-menu-item:hover {
         background: #f0f0f0;
     }
-    
+
     .context-menu-item.danger {
         color: #dc2626;
     }
-    
+
     .context-menu-divider {
         height: 1px;
         background: #e0e0e0;
         margin: 4px 0;
     }
-    
+
     /* Status bar */
     .explorer-statusbar {
         padding: 8px 16px;
@@ -412,10 +480,10 @@
                 <i class="bi bi-house-door-fill"></i>
                 <span>All Saved Works</span>
             </a>
-            
+
             <div style="padding-left: 16px;">
                 {% for folder in folders %}
-                <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}" 
+                <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}"
                    class="tree-item {% if current_folder.id == folder.id %}active{% endif %}">
                     <i class="bi bi-folder-fill" style="color: {{ folder.color }}"></i>
                     <span>{{ folder.name }}</span>
@@ -425,7 +493,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Main Content Area -->
     <div class="explorer-main">
         <!-- Toolbar -->
@@ -439,7 +507,7 @@
                 <i class="bi bi-folder2-open me-2" style="color: #f59e0b;"></i>
                 <a href="{% url 'saved_works_list' %}">My Saved Works</a>
                 {% for folder in breadcrumb_path %}
-                    <span class="separator">›</span>
+                    <span class="separator">&#8250;</span>
                     {% if forloop.last %}
                         <span class="current">{{ folder.name }}</span>
                     {% else %}
@@ -447,27 +515,41 @@
                     {% endif %}
                 {% endfor %}
             </div>
-            
+
             <button class="toolbar-btn primary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
                 <i class="bi bi-folder-plus"></i> New Folder
             </button>
         </div>
-        
+
+        <!-- Status Filter Bar -->
+        <div class="filter-bar">
+            <span class="filter-label">Status:</span>
+            <a href="?{% if current_folder %}folder={{ current_folder.id }}&{% endif %}status=all"
+               class="filter-pill {% if status_filter == 'all' %}active{% endif %}">All</a>
+            <a href="?{% if current_folder %}folder={{ current_folder.id }}&{% endif %}status=in_progress"
+               class="filter-pill {% if status_filter == 'in_progress' %}active{% endif %}">In Progress</a>
+            <a href="?{% if current_folder %}folder={{ current_folder.id }}&{% endif %}status=completed"
+               class="filter-pill {% if status_filter == 'completed' %}active{% endif %}">Completed</a>
+            <a href="?{% if current_folder %}folder={{ current_folder.id }}&{% endif %}status=archived"
+               class="filter-pill {% if status_filter == 'archived' %}active{% endif %}">Archived</a>
+        </div>
+
         <!-- File List -->
         <div class="file-list">
             <table class="file-table">
                 <thead>
                     <tr>
-                        <th>Name</th>
+                        <th style="width: 35%;">Name</th>
                         <th>Type</th>
-                        <th>Date Modified</th>
-                        <th>Actions</th>
+                        <th>E / W / B</th>
+                        <th>Modified</th>
+                        <th style="text-align:right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <!-- Show folders first -->
                     {% for folder in folders %}
-                    <tr ondblclick="window.location.href='{% url 'saved_works_list' %}?folder={{ folder.id }}'" 
+                    <tr ondblclick="window.location.href='{% url 'saved_works_list' %}?folder={{ folder.id }}'"
                         oncontextmenu="showFolderMenu(event, {{ folder.id }}, '{{ folder.name }}')">
                         <td>
                             <div class="file-name">
@@ -476,6 +558,7 @@
                             </div>
                         </td>
                         <td class="file-type">Folder</td>
+                        <td></td>
                         <td class="file-date">{{ folder.created_at|date:"M d, Y h:i A" }}</td>
                         <td class="file-actions">
                             <div class="btn-group btn-group-sm">
@@ -492,8 +575,8 @@
                         </td>
                     </tr>
                     {% endfor %}
-                    
-                    <!-- Show works with inline E/W/B workflow buttons -->
+
+                    <!-- Show works with E/W/B workflow buttons -->
                     {% for work in works %}
                     <tr oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name|escapejs }}')">
                         <td>
@@ -509,68 +592,94 @@
                             {{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %}{% if work.work_type == 'bill' %}-{{ work.bill_number }}{% endif %}
                             {% if work.status == 'completed' %}<span class="badge bg-success ms-1">Done</span>{% elif work.status == 'in_progress' %}<span class="badge bg-warning ms-1">WIP</span>{% endif %}
                         </td>
-                        <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>
-                        <td class="file-actions">
-                            {% if work.work_type == 'new_estimate' %}
-                            <!-- E / W / B workflow pills for estimates -->
+
+                        <!-- ========== E / W / B Column ========== -->
+                        <td>
+                            {% if work.wf_chain %}
+                            {# Full E/W/B chain - the current work is highlighted, others dimmed #}
                             <div class="wf-pills">
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-e" title="Resume Estimate">E</a>
-                                {% for ws in work.get_related_workslips %}
-                                <a href="{% url 'resume_saved_work' ws.id %}" class="wf-pill wf-pill-w" title="Resume WorkSlip {{ ws.workslip_number }}">W{{ ws.workslip_number }}</a>
+                                {# E - Estimate button #}
+                                <a href="{% url 'resume_saved_work' work.wf_chain.estimate.id %}"
+                                   class="wf-pill wf-pill-e {% if work.id == work.wf_chain.estimate.id %}wf-pill-current{% else %}wf-pill-dim{% endif %}"
+                                   title="Estimate: {{ work.wf_chain.estimate.name }}">
+                                    E
+                                    <span class="s-dot {% if work.wf_chain.estimate.status == 'completed' %}done{% else %}wip{% endif %}"></span>
+                                </a>
+
+                                {# W - WorkSlip buttons #}
+                                {% for ws in work.wf_chain.workslips %}
+                                <a href="{% url 'resume_saved_work' ws.id %}"
+                                   class="wf-pill wf-pill-w {% if work.id == ws.id %}wf-pill-current{% else %}wf-pill-dim{% endif %}"
+                                   title="WorkSlip {{ ws.workslip_number }}: {{ ws.name }} ({{ ws.get_status_display }})">
+                                    W{{ ws.workslip_number }}
+                                    <span class="s-dot {% if ws.status == 'completed' %}done{% else %}wip{% endif %}"></span>
+                                </a>
                                 {% endfor %}
-                                {% for bill in work.get_related_bills %}
-                                <a href="{% url 'resume_saved_work' bill.id %}" class="wf-pill wf-pill-b" title="Resume Bill {{ bill.bill_number }}">B{{ bill.bill_number }}</a>
+
+                                {# B - Bill buttons #}
+                                {% for bill in work.wf_chain.bills %}
+                                <a href="{% url 'resume_saved_work' bill.id %}"
+                                   class="wf-pill wf-pill-b {% if work.id == bill.id %}wf-pill-current{% else %}wf-pill-dim{% endif %}"
+                                   title="Bill {{ bill.bill_number }}: {{ bill.name }} ({{ bill.get_status_display }})">
+                                    B{{ bill.bill_number }}
+                                    <span class="s-dot {% if bill.status == 'completed' %}done{% else %}wip{% endif %}"></span>
+                                </a>
                                 {% endfor %}
+
+                                {# +W / +B action buttons #}
+                                {% if work.work_type == 'new_estimate' and module_access.can_generate_workslip %}
                                 <span class="wf-sep"></span>
-                                {% if module_access.can_generate_workslip %}
                                 <a href="{% url 'generate_workslip_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate New WorkSlip">+W</a>
                                 {% endif %}
-                                <button class="wf-pill wf-pill-add" title="Delete" onclick="event.preventDefault();deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                            {% elif work.work_type == 'workslip' %}
-                            <!-- Workslip row actions -->
-                            <div class="wf-pills">
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-w" title="Resume WorkSlip {{ work.workslip_number }}">W{{ work.workslip_number }}</a>
-                                {% if work.status == 'completed' %}
+                                {% if work.work_type == 'workslip' and work.status == 'completed' %}
                                     {% if module_access.can_generate_workslip %}
+                                    <span class="wf-sep"></span>
                                     <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate Next WorkSlip">+W{{ work.get_next_workslip_number }}</a>
                                     {% endif %}
                                     {% if module_access.can_generate_bill %}
-                                    <a href="{% url 'generate_bill_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate Bill from this WorkSlip">+B</a>
+                                    <a href="{% url 'generate_bill_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate Bill">+B</a>
                                     {% endif %}
                                 {% endif %}
-                                <span class="wf-sep"></span>
-                                <button class="wf-pill wf-pill-add" title="Delete" onclick="event.preventDefault();deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
                             </div>
-                            {% elif work.work_type == 'bill' %}
-                            <!-- Bill row actions -->
+
+                            {% elif work.work_type == 'temporary_works' or work.work_type == 'amc' %}
+                            {# Temp works / AMC - no E/W/B chain, just a resume pill #}
                             <div class="wf-pills">
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-b" title="Resume Bill {{ work.bill_number }}">B{{ work.bill_number }}</a>
-                                <span class="wf-sep"></span>
-                                <button class="wf-pill wf-pill-add" title="Delete" onclick="event.preventDefault();deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-e wf-pill-current" title="Resume {{ work.get_work_type_display }}">
+                                    {% if work.work_type == 'temporary_works' %}TW{% else %}AMC{% endif %}
+                                </a>
                             </div>
+
                             {% else %}
-                            <!-- Other work type (temp works, AMC) -->
+                            {# Standalone workslip/bill with no parent chain #}
                             <div class="wf-pills">
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-e" title="Resume">Resume</a>
-                                <span class="wf-sep"></span>
-                                <button class="wf-pill wf-pill-add" title="Delete" onclick="event.preventDefault();deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                {% if work.work_type == 'workslip' %}
+                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-w wf-pill-current" title="Resume WorkSlip {{ work.workslip_number }}">W{{ work.workslip_number }}</a>
+                                {% elif work.work_type == 'bill' %}
+                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-b wf-pill-current" title="Resume Bill {{ work.bill_number }}">B{{ work.bill_number }}</a>
+                                {% else %}
+                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-e wf-pill-current" title="Resume">E</a>
+                                {% endif %}
                             </div>
                             {% endif %}
+                        </td>
+
+                        <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>
+                        <td class="file-actions">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'saved_work_detail' work.id %}" class="btn btn-outline-secondary" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     {% if not folders %}
                     <tr>
-                        <td colspan="4">
+                        <td colspan="5">
                             <div class="empty-folder">
                                 <i class="bi bi-folder2-open"></i>
                                 <h5>This folder is empty</h5>
@@ -580,10 +689,10 @@
                     </tr>
                     {% endif %}
                     {% endfor %}
-                    
+
                     {% if not folders and not works and not current_folder %}
                     <tr>
-                        <td colspan="4">
+                        <td colspan="5">
                             <div class="empty-folder">
                                 <i class="bi bi-folder-plus"></i>
                                 <h5>No saved works yet</h5>
@@ -603,7 +712,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         <!-- Status Bar -->
         <div class="explorer-statusbar">
             {{ folders|length }} folder(s), {{ works|length }} work(s){% if current_folder %} in "{{ current_folder.name }}"{% endif %}
@@ -633,6 +742,9 @@
 <div class="context-menu" id="workContextMenu">
     <div class="context-menu-item" onclick="resumeWork()">
         <i class="bi bi-play-fill"></i> Resume Work
+    </div>
+    <div class="context-menu-item" onclick="viewWorkDetail()">
+        <i class="bi bi-eye"></i> View Details
     </div>
     <div class="context-menu-divider"></div>
     <div class="context-menu-item" onclick="moveWork()">
@@ -730,9 +842,9 @@
                     <div class="mb-3">
                         <label class="form-label">Select destination folder:</label>
                         <select class="form-select" name="folder_id" id="targetFolder">
-                            <option value="none">📁 Root (Unfiled)</option>
+                            <option value="none">Root (Unfiled)</option>
                             {% for folder in all_folders %}
-                            <option value="{{ folder.id }}">📁 {{ folder.name }}</option>
+                            <option value="{{ folder.id }}">{{ folder.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -751,48 +863,48 @@
     let selectedFolderName = null;
     let selectedWorkId = null;
     let selectedWorkName = null;
-    
+
     // Hide context menus on click elsewhere
     document.addEventListener('click', () => {
         document.querySelectorAll('.context-menu').forEach(m => m.classList.remove('show'));
     });
-    
+
     // Folder context menu
     function showFolderMenu(event, folderId, folderName) {
         event.preventDefault();
         selectedFolderId = folderId;
         selectedFolderName = folderName;
-        
+
         const menu = document.getElementById('folderContextMenu');
         menu.style.left = event.pageX + 'px';
         menu.style.top = event.pageY + 'px';
         menu.classList.add('show');
     }
-    
+
     // Work context menu
     function showWorkMenu(event, workId, workName) {
         event.preventDefault();
         selectedWorkId = workId;
         selectedWorkName = workName;
-        
+
         const menu = document.getElementById('workContextMenu');
         menu.style.left = event.pageX + 'px';
         menu.style.top = event.pageY + 'px';
         menu.classList.add('show');
     }
-    
+
     // Folder actions
     function openFolder() {
         window.location.href = `/saved-works/?folder=${selectedFolderId}`;
     }
-    
+
     function createSubfolder() {
         const folderName = prompt('Enter new subfolder name:');
         if (folderName && folderName.trim()) {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             fetch('/saved-works/folder/create/', {
                 method: 'POST',
-                body: new URLSearchParams({ 
+                body: new URLSearchParams({
                     name: folderName.trim(),
                     parent_id: selectedFolderId,
                     color: '#6366f1'
@@ -809,7 +921,7 @@
             });
         }
     }
-    
+
     function renameSelectedFolder() {
         const newName = prompt('Enter new folder name:', selectedFolderName);
         if (newName && newName !== selectedFolderName) {
@@ -829,7 +941,7 @@
             });
         }
     }
-    
+
     // Direct button-based folder actions
     function deleteFolder(folderId, folderName) {
         if (confirm(`Are you sure you want to delete folder "${folderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
@@ -849,7 +961,7 @@
             });
         }
     }
-    
+
     function renameFolder(folderId, folderName) {
         const newName = prompt('Enter new folder name:', folderName);
         if (newName && newName !== folderName) {
@@ -869,7 +981,7 @@
             });
         }
     }
-    
+
     function deleteSelectedFolder() {
         if (confirm(`Are you sure you want to delete folder "${selectedFolderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -888,17 +1000,21 @@
             });
         }
     }
-    
+
     // Work actions
     function resumeWork() {
         window.location.href = `/saved-works/${selectedWorkId}/resume/`;
     }
-    
+
+    function viewWorkDetail() {
+        window.location.href = `/saved-works/${selectedWorkId}/`;
+    }
+
     function moveWork() {
         document.getElementById('moveWorkId').value = selectedWorkId;
         new bootstrap.Modal(document.getElementById('moveFolderModal')).show();
     }
-    
+
     function duplicateSelectedWork() {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         fetch(`/saved-works/${selectedWorkId}/duplicate/`, {
@@ -911,7 +1027,7 @@
             else alert(data.error || 'Failed to duplicate');
         });
     }
-    
+
     function deleteSelectedWork() {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         fetch(`/saved-works/${selectedWorkId}/delete/`, {
@@ -924,12 +1040,12 @@
             else alert(data.error || 'Failed to delete');
         });
     }
-    
+
     // Create folder
     function createFolder() {
         const form = document.getElementById('newFolderForm');
         const formData = new FormData(form);
-        
+
         fetch('/saved-works/folder/create/', {
             method: 'POST',
             body: formData,
@@ -941,7 +1057,7 @@
             else alert(data.error || 'Failed to create folder');
         });
     }
-    
+
     // Direct delete from inline button
     function deleteWorkDirect(workId, workName) {
         if (!confirm(`Delete "${workName}"? This cannot be undone.`)) return;
@@ -962,7 +1078,7 @@
         const workId = document.getElementById('moveWorkId').value;
         const folderId = document.getElementById('targetFolder').value;
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
+
         fetch(`/saved-works/${workId}/move/`, {
             method: 'POST',
             body: new URLSearchParams({ folder_id: folderId }),
