@@ -130,10 +130,10 @@ def saved_works_list(request):
     user = request.user
     
     # Get filter parameters
-    work_type = request.GET.get('type', 'all')
+    work_type_filter = request.GET.get('type', 'all')
     folder_id = request.GET.get('folder')
     search_query = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', 'in_progress')
+    status_filter = request.GET.get('status', 'all')
     
     # Get current folder if viewing inside a folder
     current_folder = None
@@ -150,8 +150,8 @@ def saved_works_list(request):
     works = SavedWork.objects.filter(organization=org, user=user)
     
     # Apply filters
-    if work_type != 'all':
-        works = works.filter(work_type=work_type)
+    if work_type_filter != 'all':
+        works = works.filter(work_type=work_type_filter)
     
     if folder_id:
         if folder_id == 'unfiled':
@@ -208,11 +208,18 @@ def saved_works_list(request):
         module_access['can_generate_workslip'] = True
         module_access['can_generate_bill'] = True
 
-    # Build workflow chain data for each estimate in the current view
-    # This populates E, W1-W3, B1-B3 buttons for each estimate
-    workflow_chains = {}
-    estimate_works = [w for w in works if w.work_type == 'new_estimate']
-    for est in estimate_works:
+    # Evaluate queryset to list so we can attach workflow chain data
+    works = list(works)
+
+    # Build workflow chain data for ALL works in the current view.
+    # Attach .wf_chain to each work object so the template can render
+    # the full E/W/B navigation for every row.
+    _chain_cache = {}  # Cache chains by root estimate id
+
+    def _build_chain_for_estimate(est):
+        """Build and cache the E/W/B chain for an estimate."""
+        if est.id in _chain_cache:
+            return _chain_cache[est.id]
         ws_list = list(
             SavedWork.objects.filter(
                 organization=org, user=user,
@@ -227,10 +234,29 @@ def saved_works_list(request):
                 Q(parent=est) | Q(parent_id__in=ws_ids)
             ).order_by('bill_number')
         )
-        workflow_chains[est.id] = {
+        chain = {
+            'estimate': est,
             'workslips': ws_list,
             'bills': bill_list,
         }
+        _chain_cache[est.id] = chain
+        return chain
+
+    for w in works:
+        if w.work_type == 'new_estimate':
+            w.wf_chain = _build_chain_for_estimate(w)
+        elif w.work_type in ('workslip', 'bill'):
+            # Walk up the parent chain to find the root estimate
+            root_est = None
+            current = w.parent
+            while current:
+                if current.work_type == 'new_estimate':
+                    root_est = current
+                    break
+                current = current.parent
+            w.wf_chain = _build_chain_for_estimate(root_est) if root_est else None
+        else:
+            w.wf_chain = None
 
     context = {
         'works': works,
@@ -238,13 +264,12 @@ def saved_works_list(request):
         'all_folders': all_folders,
         'current_folder': current_folder,
         'breadcrumb_path': breadcrumb_path,
-        'work_type_filter': work_type,
+        'work_type_filter': work_type_filter,
         'status_filter': status_filter,
         'search_query': search_query,
         'work_type_choices': SavedWork.WORK_TYPE_CHOICES,
         'status_choices': SavedWork.STATUS_CHOICES,
         'module_access': module_access,
-        'workflow_chains': workflow_chains,
     }
 
     return render(request, 'core/saved_works/list.html', context)
