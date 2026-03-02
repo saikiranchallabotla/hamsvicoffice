@@ -334,17 +334,13 @@
 
             <span class="ewb-divider"></span>
 
-            <!-- ── W (WorkSlip 1 or "Generate W1") ── -->
-            {% if workslips|length > 0 %}
-            <button class="ewb-btn ewb-btn-w {% if work.id == workslips.0.id %}viewing{% endif %} {% if workslips.0.status == 'completed' %}done{% endif %}"
-                    onclick="handleW({{ workslips.0.id }}, 1, '{{ workslips.0.status }}')"
-                    title="WorkSlip 1 ({{ workslips.0.get_status_display }})">
-                W
-                {% if workslips.0.status == 'completed' %}
-                <span class="badge-check"><i class="bi bi-check"></i></span>
-                {% else %}
+            <!-- ── W (single button: always shows prompt) ── -->
+            {% if last_workslip %}
+            <button class="ewb-btn ewb-btn-w"
+                    onclick="handleW({{ last_workslip.id }}, {{ last_workslip.workslip_number|default:1 }})"
+                    title="WorkSlip ({{ workslips|length }} created)">
+                W{% if last_workslip.workslip_number > 1 %}{{ last_workslip.workslip_number }}{% endif %}
                 <span class="badge-wip"></span>
-                {% endif %}
             </button>
             {% else %}
             <button class="ewb-btn ewb-btn-w"
@@ -353,22 +349,6 @@
                 W
             </button>
             {% endif %}
-
-            <!-- ── W2, W3 … (additional workslips) ── -->
-            {% for ws in workslips %}
-            {% if ws.workslip_number > 1 %}
-            <button class="ewb-btn ewb-btn-w {% if work.id == ws.id %}viewing{% endif %} {% if ws.status == 'completed' %}done{% endif %}"
-                    onclick="handleWn({{ ws.id }}, {{ ws.workslip_number }}, '{{ ws.status }}')"
-                    title="WorkSlip {{ ws.workslip_number }} ({{ ws.get_status_display }})">
-                W{{ ws.workslip_number }}
-                {% if ws.status == 'completed' %}
-                <span class="badge-check"><i class="bi bi-check"></i></span>
-                {% else %}
-                <span class="badge-wip"></span>
-                {% endif %}
-            </button>
-            {% endif %}
-            {% endfor %}
 
             <span class="ewb-divider"></span>
 
@@ -804,28 +784,22 @@
     }
 
     // ========================================
-    // W — WorkSlip 1 (main W button)
+    // W — WorkSlip button (always shows 2 options)
     // ========================================
-    function handleW(wsId, wsNum, wsStatus) {
+    function handleW(wsId, wsNum) {
         try {
-            if (wsStatus !== 'completed') {
-                // Only one option (Edit) — navigate directly, skip the modal
-                window.location.href = '/saved-works/' + wsId + '/resume/';
-                return;
-            }
-            // Two options: Edit or Create next
+            var nextNum = wsNum + 1;
             var options = [
-                { icon: 'bi-pencil-fill', title: 'Edit WorkSlip 1',
-                  desc: 'Resume editing WorkSlip 1',
+                { icon: 'bi-pencil-fill', title: 'Update WorkSlip ' + wsNum,
+                  desc: 'Edit quantities in WorkSlip ' + wsNum,
                   go: '/saved-works/' + wsId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip 2',
-                  desc: 'Generate a new WorkSlip from this estimate',
+                { icon: 'bi-plus-circle-fill', title: 'Create New WorkSlip (W' + nextNum + ')',
+                  desc: 'Lock previous quantities and start WorkSlip ' + nextNum,
                   go: '/saved-works/' + wsId + '/generate-next-workslip/' }
             ];
             showPrompt('wsPromptModal', 'WorkSlip Actions', options);
         } catch (e) {
             console.error('handleW error:', e);
-            // Fallback: navigate directly
             window.location.href = '/saved-works/' + wsId + '/resume/';
         }
     }
@@ -841,30 +815,6 @@
         } catch (e) {
             console.error('handleWNew error:', e);
             alert('Error generating workslip: ' + e.message);
-        }
-    }
-
-    // W2, W3, … additional workslip buttons
-    function handleWn(wsId, wsNum, wsStatus) {
-        try {
-            if (wsStatus !== 'completed') {
-                // Only one option — navigate directly
-                window.location.href = '/saved-works/' + wsId + '/resume/';
-                return;
-            }
-            var nextNum = wsNum + 1;
-            var options = [
-                { icon: 'bi-pencil-fill', title: 'Edit WorkSlip ' + wsNum,
-                  desc: 'Resume editing WorkSlip ' + wsNum,
-                  go: '/saved-works/' + wsId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip ' + nextNum,
-                  desc: 'Generate WorkSlip ' + nextNum,
-                  go: '/saved-works/' + wsId + '/generate-next-workslip/' }
-            ];
-            showPrompt('wsPromptModal', 'WorkSlip ' + wsNum + ' Actions', options);
-        } catch (e) {
-            console.error('handleWn error:', e);
-            window.location.href = '/saved-works/' + wsId + '/resume/';
         }
     }
 

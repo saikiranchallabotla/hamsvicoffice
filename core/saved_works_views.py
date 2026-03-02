@@ -1316,13 +1316,9 @@ def generate_next_workslip_from_saved(request, work_id):
     
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
-    # Verify this is a completed workslip
+    # Verify this is a workslip
     if saved_work.work_type != 'workslip':
         messages.error(request, 'Only saved workslips can generate next workslips.')
-        return redirect('saved_works_list')
-    
-    if saved_work.status != 'completed':
-        messages.error(request, 'Workslip must be completed before generating the next workslip.')
         return redirect('saved_works_list')
     
     # Load workslip data
@@ -1431,6 +1427,12 @@ def generate_next_workslip_from_saved(request, work_id):
     request.session['ws_metadata'] = metadata
     
     # Set parent work info for saving
+    # Carry forward the source estimate ID so new workslip links to root estimate
+    source_est_id = work_data.get('ws_source_estimate_id')
+    if source_est_id:
+        request.session['ws_source_estimate_id'] = source_est_id
+    elif saved_work.parent_id:
+        request.session['ws_source_estimate_id'] = saved_work.parent_id
     request.session['ws_parent_work_id'] = saved_work.id
     request.session['current_saved_work_id'] = None  # New workslip, not continuing existing
     request.session['current_saved_work_name'] = None
@@ -1772,11 +1774,15 @@ def saved_work_detail(request, work_id):
                 'key': key,
             })
 
+    # Determine last workslip for the W button prompt
+    last_workslip = workslips[-1] if workslips else None
+
     context = {
         'work': saved_work,
         'root_estimate': root_estimate,
         'workslips': workslips,
         'bills': bills,
+        'last_workslip': last_workslip,
         'parent_chain': parent_chain,
         'children': children,
         'can_generate_workslip': saved_work.can_generate_workslip(),
