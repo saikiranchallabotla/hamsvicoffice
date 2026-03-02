@@ -4122,7 +4122,8 @@ def parse_workslip_items(ws):
             elif rate_exec == 0 and qty_exec != 0:
                 rate_exec = amt_exec / qty_exec
 
-        if qty_exec == 0 and rate_exec == 0:
+        # Skip items with zero executed quantity (don't include in bill)
+        if qty_exec == 0:
             continue
 
         unit = str(ws.cell(row=r, column=3).value or "").strip()
@@ -5797,8 +5798,8 @@ def build_estimate_wb(ws_src, blocks):
                 elif rate_exec == 0 and qty_exec != 0:
                     rate_exec = amt_exec / qty_exec
 
-            # Pure heading: has text but no qty & no rate
-            if qty_exec == 0 and rate_exec == 0:
+            # Skip items with zero executed quantity (don't include in bill)
+            if qty_exec == 0:
                 continue
 
             unit = str(ws.cell(row=r, column=3).value or "").strip()  # C
