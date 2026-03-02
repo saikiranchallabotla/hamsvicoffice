@@ -149,6 +149,10 @@ def saved_works_list(request):
     # Get saved works
     works = SavedWork.objects.filter(organization=org, user=user)
     
+    # Hide child works (workslips/bills with a parent) from the list.
+    # They are accessible through the parent estimate's detail page.
+    works = works.filter(parent__isnull=True)
+    
     # Apply filters
     if work_type_filter != 'all':
         works = works.filter(work_type=work_type_filter)
@@ -468,10 +472,15 @@ def save_work(request):
                     except SavedWork.DoesNotExist:
                         pass
 
+            # Auto-inherit parent's folder if no folder specified
+            child_folder = folder
+            if not child_folder and parent and parent.folder:
+                child_folder = parent.folder
+
             saved_work = SavedWork.objects.create(
                 organization=org,
                 user=user,
-                folder=folder,
+                folder=child_folder,
                 parent=parent,
                 name=work_name,
                 work_type=work_type,
@@ -531,10 +540,15 @@ def save_work(request):
                 except SavedWork.DoesNotExist:
                     pass
 
+        # Auto-inherit parent's folder if no folder specified
+        child_folder = folder
+        if not child_folder and parent and parent.folder:
+            child_folder = parent.folder
+
         saved_work = SavedWork.objects.create(
             organization=org,
             user=user,
-            folder=folder,
+            folder=child_folder,
             parent=parent,
             name=work_name,
             work_type=work_type,
@@ -789,8 +803,15 @@ def restore_work_data(request, saved_work):
         request.session['ws_work_name'] = work_data.get('ws_work_name', '')
         request.session['ws_deduct_old_material'] = work_data.get('ws_deduct_old_material', 0.0)
         request.session['ws_current_phase'] = work_data.get('ws_current_phase', 1)
+        request.session['ws_target_workslip'] = work_data.get('ws_target_workslip', 1)
         request.session['ws_previous_phases'] = work_data.get('ws_previous_phases', [])
         request.session['ws_previous_ae_data'] = work_data.get('ws_previous_ae_data', [])
+        request.session['ws_previous_supp_items'] = work_data.get('ws_previous_supp_items', [])
+        request.session['ws_metadata'] = work_data.get('ws_metadata', {})
+        request.session['ws_source_estimate_id'] = work_data.get('ws_source_estimate_id')
+        request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
+        request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
+        request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
         
         # Force session save
         request.session.modified = True
@@ -1215,7 +1236,7 @@ def generate_workslip_from_saved(request, work_id):
     logger.info(f"[GEN_WORKSLIP DEBUG] Parsed grand_total: {grand_total}")
     
     # Get the work_name from the saved estimate data (entered in estimate preview)
-    # This is different from saved_work.name which is just for organizing saved works
+    # This is the "Name of the Work" for Excel, NOT the project/file name (saved_work.name)
     estimate_work_name = work_data.get('work_name', '') or ''
     
     # Set workslip session data - ensure all values are JSON serializable
@@ -1225,7 +1246,7 @@ def generate_workslip_from_saved(request, work_id):
     request.session['ws_tp_type'] = 'Excess'
     request.session['ws_supp_items'] = []
     request.session['ws_estimate_grand_total'] = grand_total
-    request.session['ws_work_name'] = str(estimate_work_name) if estimate_work_name else str(saved_work.name)
+    request.session['ws_work_name'] = str(estimate_work_name)
     request.session['ws_source_estimate_id'] = int(saved_work.id)
     request.session['ws_current_phase'] = 1
     request.session['ws_target_workslip'] = 1
@@ -1235,7 +1256,7 @@ def generate_workslip_from_saved(request, work_id):
     # For Workslip-1: Set initial metadata from estimate
     # work_name and grand_total come from estimate, TP will be entered via UI
     request.session['ws_metadata'] = {
-        'work_name': str(estimate_work_name) if estimate_work_name else str(saved_work.name),
+        'work_name': str(estimate_work_name),
         'estimate_amount': str(grand_total) if grand_total else '',
         'admin_sanction': '',  # To be entered via UI or left blank
         'tech_sanction': '',   # To be entered via UI or left blank
@@ -1358,7 +1379,7 @@ def generate_next_workslip_from_saved(request, work_id):
     request.session['ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
     request.session['ws_supp_items'] = []  # Start fresh supplemental items for new workslip
     request.session['ws_estimate_grand_total'] = work_data.get('ws_estimate_grand_total', 0)
-    request.session['ws_work_name'] = work_data.get('ws_work_name', saved_work.name)
+    request.session['ws_work_name'] = work_data.get('ws_work_name', '')
     request.session['ws_deduct_old_material'] = work_data.get('ws_deduct_old_material', 0)
     request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0)
     request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0)
@@ -1456,7 +1477,7 @@ def generate_bill_from_saved(request, work_id):
         # Pass metadata for bill header (name of work, estimate amount, sanctions, agency)
         ws_metadata = work_data.get('ws_metadata', {})
         request.session['bill_ws_metadata'] = {
-            'name_of_work': ws_metadata.get('work_name', '') or work_data.get('ws_work_name', '') or saved_work.name,
+            'name_of_work': ws_metadata.get('work_name', '') or work_data.get('ws_work_name', ''),
             'estimate_amount': ws_metadata.get('estimate_amount', '') or str(work_data.get('ws_estimate_grand_total', '')),
             'admin_sanction': ws_metadata.get('admin_sanction', ''),
             'tech_sanction': ws_metadata.get('tech_sanction', ''),
@@ -1903,6 +1924,10 @@ def save_with_parent(request):
     progress_percent = calculate_progress(work_data, work_type)
     last_step = get_last_step(request, work_type)
     
+    # Auto-inherit parent's folder if no folder specified
+    if not folder and parent and parent.folder:
+        folder = parent.folder
+
     # Create saved work with parent reference
     saved_work = SavedWork.objects.create(
         organization=org,
