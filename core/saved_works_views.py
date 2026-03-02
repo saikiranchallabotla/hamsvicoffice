@@ -149,6 +149,31 @@ def saved_works_list(request):
     # Get saved works
     works = SavedWork.objects.filter(organization=org, user=user)
     
+    # Fix orphan workslips/bills: link them to their parent estimate
+    # This handles works created before parent-linking was implemented
+    orphan_children = works.filter(
+        parent__isnull=True,
+        work_type__in=['workslip', 'bill'],
+    )
+    for oc in orphan_children:
+        wd = oc.work_data or {}
+        src_id = wd.get('ws_source_estimate_id') or wd.get('bill_source_work_id')
+        if src_id:
+            try:
+                parent_work = SavedWork.objects.get(id=int(src_id), organization=org, user=user)
+                # Walk up to root estimate
+                root = parent_work
+                while root and root.work_type != 'new_estimate' and root.parent:
+                    root = root.parent
+                if root and root.work_type == 'new_estimate':
+                    oc.parent = root
+                    oc.save(update_fields=['parent'])
+            except SavedWork.DoesNotExist:
+                pass
+
+    # Re-fetch works after fixing orphans
+    works = SavedWork.objects.filter(organization=org, user=user)
+
     # Hide child works (workslips/bills with a parent) from the list.
     # They are accessible through the parent estimate's detail page.
     works = works.filter(parent__isnull=True)
@@ -868,7 +893,7 @@ def get_module_url(saved_work):
         return reverse('amc_groups', kwargs={'category': category})
 
     elif work_type == 'bill':
-        return reverse('bill')
+        return reverse('bill') + '?from_saved=1'
 
     return reverse('dashboard')
 
@@ -1503,7 +1528,7 @@ def generate_bill_from_saved(request, work_id):
         messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
 
     request.session.modified = True
-    return redirect('bill')
+    return redirect(reverse('bill') + '?from_saved=1')
 
 
 @login_required(login_url='login')
@@ -1573,6 +1598,27 @@ def saved_work_detail(request, work_id):
                 parent=root_estimate,
             ).order_by('workslip_number')
         )
+
+        # Also find orphan workslips (parent not set) that reference this estimate
+        # via ws_source_estimate_id in their work_data — fix their parent and include them
+        existing_ws_ids = {ws.id for ws in workslips}
+        orphan_workslips = SavedWork.objects.filter(
+            organization=org, user=user,
+            work_type='workslip',
+            parent__isnull=True,
+        )
+        for ow in orphan_workslips:
+            wd = ow.work_data or {}
+            src_id = wd.get('ws_source_estimate_id')
+            if src_id and int(src_id) == root_estimate.id and ow.id not in existing_ws_ids:
+                # Fix the parent relationship
+                ow.parent = root_estimate
+                ow.save(update_fields=['parent'])
+                workslips.append(ow)
+                existing_ws_ids.add(ow.id)
+        # Re-sort workslips by workslip_number after adding orphans
+        workslips.sort(key=lambda w: w.workslip_number or 0)
+
         # Bills: children of root_estimate or children of any of its workslips
         workslip_ids = [ws.id for ws in workslips]
         bills = list(
@@ -1581,6 +1627,25 @@ def saved_work_detail(request, work_id):
                 Q(parent_id__in=workslip_ids, work_type='bill')
             ).filter(organization=org, user=user).order_by('bill_number')
         )
+
+        # Also find orphan bills that reference this estimate or its workslips
+        existing_bill_ids = {b.id for b in bills}
+        orphan_bills = SavedWork.objects.filter(
+            organization=org, user=user,
+            work_type='bill',
+            parent__isnull=True,
+        )
+        for ob in orphan_bills:
+            bd = ob.work_data or {}
+            src_id = bd.get('bill_source_work_id')
+            if src_id:
+                src_id = int(src_id)
+                if (src_id == root_estimate.id or src_id in existing_ws_ids) and ob.id not in existing_bill_ids:
+                    ob.parent = root_estimate
+                    ob.save(update_fields=['parent'])
+                    bills.append(ob)
+                    existing_bill_ids.add(ob.id)
+        bills.sort(key=lambda b: b.bill_number or 0)
 
     # Get workflow chain (parents)
     parent_chain = []
@@ -1799,7 +1864,7 @@ def generate_next_bill_from_saved(request, work_id):
     request.session.modified = True
 
     messages.success(request, f'Ready to generate Bill-{next_bill_number} from "{saved_work.name}".')
-    return redirect('bill')
+    return redirect(reverse('bill') + '?from_saved=1')
 
 
 @login_required(login_url='login')

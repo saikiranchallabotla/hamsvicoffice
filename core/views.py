@@ -5067,6 +5067,21 @@ def bill(request):
     # (temporary) so the view never returns None while refactoring continues.
     method = getattr(request, 'method', '').upper()
     if method == 'GET':
+        # ---- Clear stale Saved Works session data on direct navigation ----
+        # When the bill page is accessed directly (not via Saved Works redirect),
+        # clear any lingering bill session keys so the module works independently.
+        if not request.GET.get('from_saved'):
+            for key in [
+                'bill_from_workslip', 'bill_ws_rows', 'bill_ws_exec_map',
+                'bill_ws_tp_percent', 'bill_ws_tp_type', 'bill_source_work_name',
+                'bill_ws_metadata', 'bill_target_number', 'bill_source_work_id',
+                'bill_source_work_type', 'bill_parent_work_id',
+                'bill_previous_bill_id', 'bill_previous_bill_number',
+                'bill_sequence_number', 'bill_type',
+            ]:
+                request.session.pop(key, None)
+            request.session.modified = True
+
         # Get user's document templates for display
         from core.template_views import get_user_template
         covering_letter_template = get_user_template(request.user, 'covering_letter')
