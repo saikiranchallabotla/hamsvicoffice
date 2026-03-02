@@ -737,6 +737,63 @@
     </div>
 </div>
 
+<!-- PRE-LOADED DATA BANNER (from Saved Works) -->
+{% if bill_from_saved %}
+<div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #34d399; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 12px rgba(52,211,153,0.15);">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem;">
+        <div style="background: #059669; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+            <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <div>
+            <div style="font-weight: 700; color: #065f46; font-size: 0.9rem;">Data Loaded from Saved Works</div>
+            <div style="font-size: 0.72rem; color: #047857;">Source: <strong>{{ bill_preload_source }}</strong> &bull; {{ bill_preload_count }} items &bull; Total: &#8377;{{ bill_preload_total }}</div>
+        </div>
+        {% if bill_preload_tp_percent %}
+        <div style="margin-left: auto; background: #d1fae5; border: 1px solid #6ee7b7; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.7rem; color: #065f46; font-weight: 600;">
+            T.P: {{ bill_preload_tp_percent }}% {{ bill_preload_tp_type }}
+        </div>
+        {% endif %}
+    </div>
+    <div style="font-size: 0.7rem; color: #065f46; background: #a7f3d0; border-radius: 6px; padding: 0.4rem 0.6rem;">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>No file upload needed!</strong> Select bill type below and click generate. You can still upload a file to override this data.
+    </div>
+    {% if bill_preload_items %}
+    <details style="margin-top: 0.5rem;">
+        <summary style="cursor: pointer; font-size: 0.72rem; color: #047857; font-weight: 600; user-select: none;">
+            <i class="bi bi-eye me-1"></i>Preview loaded items ({{ bill_preload_count }})
+        </summary>
+        <div style="max-height: 200px; overflow-y: auto; margin-top: 0.4rem; background: white; border-radius: 8px; border: 1px solid #d1fae5;">
+            <table style="width: 100%; font-size: 0.65rem; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #ecfdf5; position: sticky; top: 0;">
+                        <th style="padding: 0.3rem 0.5rem; text-align: center; border-bottom: 1px solid #d1fae5; width: 30px;">Sl</th>
+                        <th style="padding: 0.3rem 0.5rem; text-align: left; border-bottom: 1px solid #d1fae5;">Description</th>
+                        <th style="padding: 0.3rem 0.5rem; text-align: center; border-bottom: 1px solid #d1fae5; width: 50px;">Unit</th>
+                        <th style="padding: 0.3rem 0.5rem; text-align: right; border-bottom: 1px solid #d1fae5; width: 60px;">Qty</th>
+                        <th style="padding: 0.3rem 0.5rem; text-align: right; border-bottom: 1px solid #d1fae5; width: 70px;">Rate</th>
+                        <th style="padding: 0.3rem 0.5rem; text-align: right; border-bottom: 1px solid #d1fae5; width: 80px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in bill_preload_items %}
+                    <tr style="border-bottom: 1px solid #f0fdf4;">
+                        <td style="padding: 0.25rem 0.5rem; text-align: center; color: #6b7280;">{{ item.sl }}</td>
+                        <td style="padding: 0.25rem 0.5rem; color: #1f2937;">{{ item.desc|truncatechars:80 }}</td>
+                        <td style="padding: 0.25rem 0.5rem; text-align: center; color: #6b7280;">{{ item.unit }}</td>
+                        <td style="padding: 0.25rem 0.5rem; text-align: right; color: #1f2937;">{{ item.qty }}</td>
+                        <td style="padding: 0.25rem 0.5rem; text-align: right; color: #1f2937;">{{ item.rate }}</td>
+                        <td style="padding: 0.25rem 0.5rem; text-align: right; font-weight: 600; color: #059669;">{{ item.amount }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+    {% endif %}
+</div>
+{% endif %}
+
 <!-- BILL SECTION SELECTOR -->
 <div style="background: white; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
     <div style="font-size: 0.75rem; font-weight: 600; color: #718096; margin-bottom: 0.6rem;">
@@ -857,9 +914,15 @@
 
                 <div class="upload-block">
                     <h3><i class="bi bi-file-earmark-spreadsheet me-1"></i>Upload WorkSlip Excel</h3>
+                    {% if bill_from_saved %}
+                    <div style="background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.72rem; color: #065f46;">
+                        <i class="bi bi-check-circle-fill me-1" style="color: #059669;"></i>
+                        <strong>{{ bill_preload_count }} items loaded from "{{ bill_preload_source }}"</strong> &mdash; Upload is optional. Click generate to use loaded data.
+                    </div>
+                    {% endif %}
                     <label>
-                        Select WorkSlip file:
-                        <input type="file" name="bill_file" accept=".xlsx,.xls" required>
+                        Select WorkSlip file{% if bill_from_saved %} (optional — override loaded data){% endif %}:
+                        <input type="file" name="bill_file" accept=".xlsx,.xls" {% if not bill_from_saved %}required{% endif %}>
                     </label>
                     <p class="note">
                         WorkSlip: B: Description, C: Unit, G: Qty(Exec), H: Rate(Exec), I: Amount(Exec).
@@ -1253,6 +1316,11 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
+        {% if bill_from_saved %}
+        // Auto-select the WorkSlip section when data is pre-loaded from Saved Works
+        showBillSection('workslip');
+        {% endif %}
+
         // Handle form submissions with job polling
         document.querySelectorAll("form.bill-form").forEach(function (form) {
             // Track which button was clicked

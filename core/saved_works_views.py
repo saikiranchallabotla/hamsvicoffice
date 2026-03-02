@@ -609,6 +609,7 @@ def collect_work_data(request, work_type):
             'bill_target_number': request.session.get('bill_target_number', 1),
             'bill_type': request.session.get('bill_type', ''),
             'source_workslip_id': request.session.get('bill_source_work_id'),
+            'bill_ws_metadata': request.session.get('bill_ws_metadata', {}),
         }
 
     return work_data
@@ -800,6 +801,7 @@ def restore_work_data(request, saved_work):
         request.session['bill_ws_tp_type'] = work_data.get('bill_ws_tp_type', 'Excess')
         request.session['bill_target_number'] = work_data.get('bill_target_number', 1)
         request.session['bill_type'] = work_data.get('bill_type', '')
+        request.session['bill_ws_metadata'] = work_data.get('bill_ws_metadata', {})
         request.session.modified = True
 
 
@@ -819,7 +821,7 @@ def get_module_url(saved_work):
         return reverse('datas_groups', kwargs={'category': category})
     
     elif work_type == 'workslip':
-        return reverse('workslip_main')
+        return reverse('workslip_main') + '?preserve=1'
     
     elif work_type == 'temporary_works':
         return reverse('temp_groups', kwargs={'category': category})
@@ -1414,6 +1416,18 @@ def generate_bill_from_saved(request, work_id):
         request.session['bill_ws_exec_map'] = work_data.get('ws_exec_map', {})
         request.session['bill_ws_tp_percent'] = work_data.get('ws_tp_percent', 0)
         request.session['bill_ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
+        # Pass metadata for bill header (name of work, estimate amount, sanctions, agency)
+        ws_metadata = work_data.get('ws_metadata', {})
+        request.session['bill_ws_metadata'] = {
+            'name_of_work': ws_metadata.get('work_name', '') or work_data.get('ws_work_name', '') or saved_work.name,
+            'estimate_amount': ws_metadata.get('estimate_amount', '') or str(work_data.get('ws_estimate_grand_total', '')),
+            'admin_sanction': ws_metadata.get('admin_sanction', ''),
+            'tech_sanction': ws_metadata.get('tech_sanction', ''),
+            'agreement': ws_metadata.get('agreement', ''),
+            'agency': ws_metadata.get('agency_name', ''),
+        }
+        # Pass supplemental items if any
+        request.session['bill_ws_supp_items'] = work_data.get('ws_supp_items', [])
 
         logger.info(f"[GEN_BILL] Generating Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
         messages.success(request, f'Ready to generate Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} "{saved_work.name}".')
@@ -1688,6 +1702,9 @@ def generate_next_bill_from_saved(request, work_id):
         request.session['bill_ws_tp_percent'] = work_data['bill_ws_tp_percent']
     if 'bill_ws_tp_type' in work_data:
         request.session['bill_ws_tp_type'] = work_data['bill_ws_tp_type']
+    # Carry over metadata for bill header
+    if 'bill_ws_metadata' in work_data:
+        request.session['bill_ws_metadata'] = work_data['bill_ws_metadata']
 
     request.session.modified = True
 

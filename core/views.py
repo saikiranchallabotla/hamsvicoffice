@@ -5058,15 +5058,164 @@ def bill(request):
         from core.template_views import get_user_template
         covering_letter_template = get_user_template(request.user, 'covering_letter')
         movement_slip_template = get_user_template(request.user, 'movement_slip')
+
+        # Check if session has pre-loaded data from Saved Works
+        bill_from_workslip = request.session.get('bill_from_workslip', False)
+        bill_from_saved = False
+        bill_preload_items = []
+        bill_preload_source = ''
+        bill_preload_tp_percent = 0.0
+        bill_preload_tp_type = 'Excess'
+        bill_preload_count = 0
+        bill_preload_total = 0.0
+
+        if bill_from_workslip:
+            ws_rows = request.session.get('bill_ws_rows', [])
+            ws_exec_map = request.session.get('bill_ws_exec_map', {}) or {}
+            if ws_rows:
+                bill_from_saved = True
+                bill_preload_source = request.session.get('bill_source_work_name', 'WorkSlip')
+                bill_preload_tp_percent = float(request.session.get('bill_ws_tp_percent', 0) or 0)
+                bill_preload_tp_type = request.session.get('bill_ws_tp_type', 'Excess')
+                for idx, row in enumerate(ws_rows):
+                    key = row.get('key', f'saved_{idx}')
+                    exec_qty = ws_exec_map.get(key, 0)
+                    try:
+                        exec_qty = float(exec_qty) if exec_qty else 0.0
+                    except (ValueError, TypeError):
+                        exec_qty = 0.0
+                    if exec_qty <= 0:
+                        continue
+                    rate = float(row.get('rate', 0) or 0)
+                    amount = exec_qty * rate
+                    bill_preload_total += amount
+                    bill_preload_count += 1
+                    bill_preload_items.append({
+                        'sl': bill_preload_count,
+                        'desc': row.get('display_name') or row.get('item_name', row.get('desc', '')),
+                        'unit': row.get('unit', 'Nos'),
+                        'qty': exec_qty,
+                        'rate': rate,
+                        'amount': round(amount, 2),
+                    })
+
         return render(request, "core/bill.html", {
             'covering_letter_template': covering_letter_template,
             'movement_slip_template': movement_slip_template,
+            'bill_from_saved': bill_from_saved,
+            'bill_preload_items': bill_preload_items,
+            'bill_preload_source': bill_preload_source,
+            'bill_preload_tp_percent': bill_preload_tp_percent,
+            'bill_preload_tp_type': bill_preload_tp_type,
+            'bill_preload_count': bill_preload_count,
+            'bill_preload_total': round(bill_preload_total, 2),
+            'bill_target_number': request.session.get('bill_target_number', 1) if bill_from_saved else 0,
         })
 
     if method == 'POST':
         action = str(request.POST.get('action') or '').strip()
         bill_type = str(request.POST.get('bill_type') or '').strip()
         uploaded = request.FILES.get('bill_file') or request.FILES.get('file')
+
+        # ── SESSION-BASED BILL GENERATION (from Saved Works) ──
+        # When coming from Saved Works, data is pre-loaded in session.
+        # If no file is uploaded AND session data exists, generate from session.
+        if not uploaded and request.session.get('bill_from_workslip'):
+            ws_rows = request.session.get('bill_ws_rows', [])
+            ws_exec_map = request.session.get('bill_ws_exec_map', {}) or {}
+            ws_tp_percent = float(request.session.get('bill_ws_tp_percent', 0) or 0)
+            ws_tp_type = request.session.get('bill_ws_tp_type', 'Excess')
+            ws_metadata = request.session.get('bill_ws_metadata', {}) or {}
+
+            if not ws_rows:
+                return JsonResponse({"error": "No workslip data found in session. Please upload a file."}, status=400)
+
+            # Convert session rows + exec_map into items format for create_first_bill_sheet
+            items = []
+            for idx, row in enumerate(ws_rows):
+                key = row.get('key', f'saved_{idx}')
+                exec_qty = ws_exec_map.get(key, 0)
+                try:
+                    exec_qty = float(exec_qty) if exec_qty else 0.0
+                except (ValueError, TypeError):
+                    exec_qty = 0.0
+                if exec_qty <= 0:
+                    continue
+                rate = float(row.get('rate', 0) or 0)
+                if rate == 0:
+                    continue
+                desc = row.get('display_name') or row.get('item_name', row.get('desc', ''))
+                unit = row.get('unit', 'Nos')
+                is_ae = str(desc).lower().startswith('ae')
+                items.append({
+                    'qty': exec_qty,
+                    'unit': unit,
+                    'desc': desc,
+                    'rate': rate,
+                    'is_ae': is_ae,
+                })
+
+            if not items:
+                return JsonResponse({"error": "No executed items found (all quantities are zero)."}, status=400)
+
+            # Extract MB details and dates from POST
+            mb_measure_no = str(request.POST.get('mb_measure_no') or '').strip()
+            mb_measure_p_from = str(request.POST.get('mb_measure_p_from') or '').strip()
+            mb_measure_p_to = str(request.POST.get('mb_measure_p_to') or '').strip()
+            mb_abs_no = str(request.POST.get('mb_abstract_no') or '').strip()
+            mb_abs_p_from = str(request.POST.get('mb_abstract_p_from') or '').strip()
+            mb_abs_p_to = str(request.POST.get('mb_abstract_p_to') or '').strip()
+            doi = _format_date_to_ddmmyyyy(request.POST.get('doi') or '')
+            doc = _format_date_to_ddmmyyyy(request.POST.get('doc') or '')
+            domr = _format_date_to_ddmmyyyy(request.POST.get('domr') or '')
+            dobr = _format_date_to_ddmmyyyy(request.POST.get('dobr') or '')
+
+            # Determine bill title from action
+            if action == 'workslip_first_final':
+                title_text = 'CC First & Final Bill'
+            else:
+                title_text = 'CC First & Part Bill'
+
+            # Build header_data from session metadata
+            header_data = {
+                'name_of_work': ws_metadata.get('name_of_work', ''),
+                'estimate_amount': ws_metadata.get('estimate_amount', ''),
+                'admin_sanction': ws_metadata.get('admin_sanction', ''),
+                'tech_sanction': ws_metadata.get('tech_sanction', ''),
+                'agreement': ws_metadata.get('agreement', ''),
+                'agency': ws_metadata.get('agency', ''),
+            }
+
+            wb_out = Workbook()
+            create_first_bill_sheet(
+                wb_out,
+                sheet_name='Bill',
+                items=items,
+                header_data=header_data,
+                title_text=title_text,
+                tp_percent=ws_tp_percent,
+                tp_type=ws_tp_type,
+                mb_measure_no=mb_measure_no,
+                mb_measure_p_from=mb_measure_p_from,
+                mb_measure_p_to=mb_measure_p_to,
+                mb_abs_no=mb_abs_no,
+                mb_abs_p_from=mb_abs_p_from,
+                mb_abs_p_to=mb_abs_p_to,
+                doi=doi,
+                doc=doc,
+                domr=domr,
+                dobr=dobr,
+            )
+
+            _apply_print_settings(wb_out)
+            resp = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            resp['Content-Disposition'] = 'attachment; filename="Bill_from_WorkSlip.xlsx"'
+            wb_out.save(resp)
+            print(f"DEBUG: Generated bill from session data ({len(items)} items)")
+            return resp
+
         if not uploaded:
             return JsonResponse({"error": "no uploaded file"}, status=400)
 
