@@ -5144,7 +5144,8 @@ def bill(request):
                 rate = float(row.get('rate', 0) or 0)
                 if rate == 0:
                     continue
-                desc = row.get('display_name') or row.get('item_name', row.get('desc', ''))
+                # Use 'desc' (row+2 of yellow/red header) preferentially
+                desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
                 unit = row.get('unit', 'Nos')
                 is_ae = str(desc).lower().startswith('ae')
                 items.append({

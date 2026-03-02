@@ -1544,7 +1544,7 @@ def saved_work_detail(request, work_id):
             bill_preview_total += amount
             bill_preview_rows.append({
                 'sl': len(bill_preview_rows) + 1,
-                'name': row.get('display_name') or row.get('item_name', ''),
+                'name': row.get('desc') or row.get('display_name') or row.get('item_name', ''),
                 'desc': row.get('desc', ''),
                 'unit': row.get('unit', 'Nos'),
                 'qty': exec_qty,
@@ -1608,7 +1608,7 @@ def saved_work_detail(request, work_id):
             bill_preview_total += amount
             bill_preview_rows.append({
                 'sl': len(bill_preview_rows) + 1,
-                'name': row.get('display_name') or row.get('item_name', ''),
+                'name': row.get('desc') or row.get('display_name') or row.get('item_name', ''),
                 'desc': row.get('desc', ''),
                 'unit': row.get('unit', 'Nos'),
                 'qty': exec_qty,

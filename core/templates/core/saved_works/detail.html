@@ -124,7 +124,7 @@
         flex-wrap: wrap;
     }
 
-    /* ===== Workflow Navigation Buttons (E, W, B) ===== */
+    /* ===== E / W / B Flow Buttons ===== */
     .workflow-nav {
         margin-top: 2rem;
         padding-top: 1.5rem;
@@ -137,93 +137,83 @@
         margin-bottom: 1rem;
     }
 
-    .workflow-btn-row {
+    .ewb-flow {
         display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        margin-bottom: 1rem;
         align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
     }
 
-    .workflow-btn-row .row-label {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        width: 80px;
-        flex-shrink: 0;
+    .ewb-divider {
+        width: 1px;
+        height: 34px;
+        background: #cbd5e1;
+        margin: 0 0.3rem;
     }
 
-    .wf-btn {
+    .ewb-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 56px;
-        height: 44px;
-        padding: 0 16px;
-        border-radius: 8px;
+        min-width: 50px;
+        height: 42px;
+        padding: 0 14px;
+        border-radius: 10px;
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         cursor: pointer;
         border: 2px solid transparent;
-        transition: all 0.2s;
+        transition: all 0.2s ease;
         text-decoration: none;
         position: relative;
+        letter-spacing: 0.5px;
     }
 
-    .wf-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    .ewb-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
     }
 
-    .wf-btn.active-item {
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+    .ewb-btn.viewing {
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
     }
 
-    /* E button - Estimate (blue) */
-    .wf-btn-e {
-        background: #2563eb;
-        color: white;
-        border-color: #2563eb;
-    }
-    .wf-btn-e:hover { background: #1d4ed8; color: white; }
+    /* E  (blue) */
+    .ewb-btn-e { background: #2563eb; color: white; }
+    .ewb-btn-e:hover { background: #1d4ed8; color: white; }
 
-    /* W buttons - WorkSlip (green) */
-    .wf-btn-w {
-        background: #16a34a;
-        color: white;
-        border-color: #16a34a;
-    }
-    .wf-btn-w:hover { background: #15803d; color: white; }
-    .wf-btn-w.updated {
-        background: #166534;
-        border-color: #166534;
-    }
+    /* W  (green) */
+    .ewb-btn-w { background: #16a34a; color: white; }
+    .ewb-btn-w:hover { background: #15803d; color: white; }
+    .ewb-btn-w.done { background: #166534; }
 
-    /* B buttons - Bill (red/orange) */
-    .wf-btn-b {
-        background: #dc2626;
-        color: white;
-        border-color: #dc2626;
-    }
-    .wf-btn-b:hover { background: #b91c1c; color: white; }
-    .wf-btn-b.updated {
-        background: #991b1b;
-        border-color: #991b1b;
+    /* B  (red) */
+    .ewb-btn-b { background: #dc2626; color: white; }
+    .ewb-btn-b:hover { background: #b91c1c; color: white; }
+    .ewb-btn-b.done { background: #991b1b; }
+
+    /* disabled */
+    .ewb-btn.off {
+        opacity: 0.45;
+        cursor: not-allowed;
+        pointer-events: none;
     }
 
-    /* Status badge on buttons */
-    .wf-btn .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        position: absolute;
-        top: 4px;
-        right: 4px;
+    /* tiny check / dot badges */
+    .ewb-btn .badge-check {
+        position: absolute; top: -5px; right: -5px;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #22c55e; color: #fff;
+        font-size: 0.55rem;
+        display: flex; align-items: center; justify-content: center;
+        border: 2px solid #fff;
     }
-    .wf-btn .status-dot.completed { background: #22c55e; }
-    .wf-btn .status-dot.in-progress { background: #f59e0b; }
+    .ewb-btn .badge-wip {
+        position: absolute; top: -5px; right: -5px;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #f59e0b;
+        border: 2px solid #fff;
+    }
 
     /* Prompt Modal Styles */
     .prompt-option {
@@ -327,54 +317,101 @@
     <!-- ========================================= -->
     {% if root_estimate %}
     <div class="workflow-nav">
-        <h6><i class="bi bi-diagram-3 me-2"></i>Workflow Navigation</h6>
+        <h6><i class="bi bi-diagram-3 me-2"></i>Workflow</h6>
 
-        <!-- Row 1: Estimate (E) -->
-        <div class="workflow-btn-row">
-            <span class="row-label">Estimate</span>
-            <button class="wf-btn wf-btn-e {% if work.id == root_estimate.id %}active-item{% endif %}"
-                    onclick="handleEstimateClick({{ root_estimate.id }})"
-                    title="Resume Estimate: {{ root_estimate.name }}">
+        <div class="ewb-flow">
+            <!-- ── E (Estimate) ── -->
+            <button class="ewb-btn ewb-btn-e {% if work.id == root_estimate.id %}viewing{% endif %}"
+                    onclick="handleE({{ root_estimate.id }})"
+                    title="Edit Estimate: {{ root_estimate.name }}">
                 E
-                <span class="status-dot {% if root_estimate.status == 'completed' %}completed{% else %}in-progress{% endif %}"></span>
+                {% if root_estimate.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
             </button>
-        </div>
 
-        <!-- Row 2: WorkSlips (W1, W2, W3...) -->
-        <div class="workflow-btn-row">
-            <span class="row-label">WorkSlips</span>
+            <span class="ewb-divider"></span>
+
+            <!-- ── W (WorkSlip 1 or "Generate W1") ── -->
+            {% if workslips|length > 0 %}
+            <button class="ewb-btn ewb-btn-w {% if work.id == workslips.0.id %}viewing{% endif %} {% if workslips.0.status == 'completed' %}done{% endif %}"
+                    onclick="handleW({{ workslips.0.id }}, 1, '{{ workslips.0.status }}')"
+                    title="WorkSlip 1 ({{ workslips.0.get_status_display }})">
+                W
+                {% if workslips.0.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
+            </button>
+            {% else %}
+            <button class="ewb-btn ewb-btn-w"
+                    onclick="handleWNew()"
+                    title="Generate WorkSlip 1 from Estimate">
+                W
+            </button>
+            {% endif %}
+
+            <!-- ── W2, W3 … (additional workslips) ── -->
             {% for ws in workslips %}
-            <button class="wf-btn wf-btn-w {% if work.id == ws.id %}active-item{% endif %} {% if ws.status == 'completed' %}updated{% endif %}"
-                    onclick="handleWorkslipClick({{ ws.id }}, {{ ws.workslip_number }}, '{{ ws.status }}')"
-                    title="WorkSlip {{ ws.workslip_number }}: {{ ws.name }} ({{ ws.get_status_display }})">
+            {% if ws.workslip_number > 1 %}
+            <button class="ewb-btn ewb-btn-w {% if work.id == ws.id %}viewing{% endif %} {% if ws.status == 'completed' %}done{% endif %}"
+                    onclick="handleWn({{ ws.id }}, {{ ws.workslip_number }}, '{{ ws.status }}')"
+                    title="WorkSlip {{ ws.workslip_number }} ({{ ws.get_status_display }})">
                 W{{ ws.workslip_number }}
-                <span class="status-dot {% if ws.status == 'completed' %}completed{% else %}in-progress{% endif %}"></span>
+                {% if ws.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
             </button>
-            {% endfor %}
-            {% if workslips|length == 0 %}
-            <span class="text-muted" style="font-size: 0.85rem;">No workslips yet. Generate from Estimate.</span>
             {% endif %}
-        </div>
+            {% endfor %}
 
-        <!-- Row 3: Bills (B1, B2, B3...) -->
-        <div class="workflow-btn-row">
-            <span class="row-label">Bills</span>
-            {% for bill in bills %}
-            <button class="wf-btn wf-btn-b {% if work.id == bill.id %}active-item{% endif %} {% if bill.status == 'completed' %}updated{% endif %}"
-                    onclick="handleBillClick({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
-                    title="Bill {{ bill.bill_number }}: {{ bill.name }} ({{ bill.get_status_display }})">
-                B{{ bill.bill_number }}
-                <span class="status-dot {% if bill.status == 'completed' %}completed{% else %}in-progress{% endif %}"></span>
+            <span class="ewb-divider"></span>
+
+            <!-- ── B (Bill 1 or "Generate B1") ── -->
+            {% if bills|length > 0 %}
+            <button class="ewb-btn ewb-btn-b {% if work.id == bills.0.id %}viewing{% endif %} {% if bills.0.status == 'completed' %}done{% endif %}"
+                    onclick="handleB({{ bills.0.id }}, 1, '{{ bills.0.status }}')"
+                    title="Bill 1 ({{ bills.0.get_status_display }})">
+                B
+                {% if bills.0.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
             </button>
-            {% endfor %}
-            {% if bills|length == 0 and workslips|length > 0 %}
-            <button class="wf-btn wf-btn-b" onclick="handleGenerateFirstBill()"
+            {% elif workslips|length > 0 %}
+            <button class="ewb-btn ewb-btn-b"
+                    onclick="handleBNew()"
                     title="Generate Bill 1 from WorkSlip">
-                <i class="bi bi-plus-lg me-1"></i>B1
+                B
             </button>
-            {% elif bills|length == 0 %}
-            <span class="text-muted" style="font-size: 0.85rem;">Bills available after WorkSlip 1 exists.</span>
+            {% else %}
+            <button class="ewb-btn ewb-btn-b off"
+                    title="Generate a WorkSlip first">
+                B
+            </button>
             {% endif %}
+
+            <!-- ── B2, B3 … (additional bills) ── -->
+            {% for bill in bills %}
+            {% if bill.bill_number > 1 %}
+            <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
+                    onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                    title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
+                B{{ bill.bill_number }}
+                {% if bill.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
+            </button>
+            {% endif %}
+            {% endfor %}
         </div>
     </div>
     {% endif %}
@@ -621,44 +658,8 @@
     </script>
     {% endif %}
 
-    <div class="notes-section">
-        <h6 class="mb-3">Work Data Preview</h6>
-        <div class="data-preview">
-            <pre>{{ work.work_data|pprint }}</pre>
-        </div>
-    </div>
-
     <!-- Action Buttons -->
     <div class="action-buttons">
-        {% if work.work_type == 'new_estimate' %}
-        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-lg">
-            <i class="bi bi-play-fill me-1"></i>Resume Estimate
-        </a>
-        {% if can_generate_workslip %}
-        <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success btn-lg">
-            <i class="bi bi-file-earmark-text me-1"></i>Generate WorkSlip
-        </a>
-        {% endif %}
-        {% elif work.work_type == 'workslip' %}
-        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-success btn-lg">
-            <i class="bi bi-play-fill me-1"></i>Resume WorkSlip
-        </a>
-        {% if work.status == 'completed' %}
-        <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info btn-lg">
-            <i class="bi bi-arrow-right-circle me-1"></i>Next WorkSlip
-        </a>
-        {% endif %}
-        {% if can_generate_bill %}
-        <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger btn-lg">
-            <i class="bi bi-receipt me-1"></i>Generate Bill
-        </a>
-        {% endif %}
-        {% else %}
-        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-lg">
-            <i class="bi bi-play-fill me-1"></i>Resume Work
-        </a>
-        {% endif %}
-
         <button class="btn btn-outline-primary btn-lg" onclick="duplicateWork()">
             <i class="bi bi-copy me-1"></i>Duplicate
         </button>
@@ -792,113 +793,83 @@
 
 <script>
     const csrfToken = '{{ csrf_token }}';
-
-    // ========================================
-    // E BUTTON: Resume Estimate
-    // ========================================
-    function handleEstimateClick(estimateId) {
-        // Resume Estimate — redirect to resume with Update Work flow
-        window.location.href = '/saved-works/' + estimateId + '/resume/';
-    }
-
-    // ========================================
-    // W BUTTONS: WorkSlip prompt flow
-    // ========================================
-    function handleWorkslipClick(wsId, wsNumber, wsStatus) {
-        const title = document.getElementById('wsPromptTitle');
-        const body = document.getElementById('wsPromptBody');
-
-        if (wsStatus === 'completed') {
-            // WorkSlip is completed — offer Update or Start Next
-            const nextNum = wsNumber + 1;
-            title.textContent = 'WorkSlip ' + wsNumber + ' Actions';
-            body.innerHTML = `
-                <button class="prompt-option" onclick="doWorkslipAction('update', ${wsId})">
-                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update WorkSlip ${wsNumber}</div>
-                    <div class="option-desc">Open and edit WorkSlip ${wsNumber}</div>
-                </button>
-                <button class="prompt-option" onclick="doWorkslipAction('start_next', ${wsId})">
-                    <div class="option-title"><i class="bi bi-plus-circle-fill me-2"></i>Start WorkSlip ${nextNum}</div>
-                    <div class="option-desc">Generate a new WorkSlip ${nextNum} using existing engine</div>
-                </button>
-            `;
-        } else {
-            // WorkSlip is in progress — just update
-            title.textContent = 'WorkSlip ' + wsNumber;
-            body.innerHTML = `
-                <button class="prompt-option" onclick="doWorkslipAction('update', ${wsId})">
-                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update WorkSlip ${wsNumber}</div>
-                    <div class="option-desc">Continue editing WorkSlip ${wsNumber}</div>
-                </button>
-            `;
-        }
-
-        new bootstrap.Modal(document.getElementById('workslipPromptModal')).show();
-    }
-
-    function doWorkslipAction(action, wsId) {
-        bootstrap.Modal.getInstance(document.getElementById('workslipPromptModal')).hide();
-
-        if (action === 'update') {
-            window.location.href = '/saved-works/' + wsId + '/resume/';
-        } else if (action === 'start_next') {
-            window.location.href = '/saved-works/' + wsId + '/generate-next-workslip/';
-        }
-    }
-
-    // ========================================
-    // B BUTTONS: Bill prompt flow
-    // ========================================
+    const rootEstimateId = {{ root_estimate.id|default:"null" }};
     let pendingBillWorkslipId = null;
 
-    function handleBillClick(billId, billNumber, billStatus) {
-        const title = document.getElementById('billPromptTitle');
-        const body = document.getElementById('billPromptBody');
+    // ========================================
+    // E — Edit / Resume Estimate
+    // ========================================
+    function handleE(estId) {
+        window.location.href = '/saved-works/' + estId + '/resume/';
+    }
 
-        if (billStatus === 'completed') {
-            // Bill is completed — offer Update or Generate Next
-            const nextNum = billNumber + 1;
-            title.textContent = 'Bill ' + billNumber + ' Actions';
-            body.innerHTML = `
-                <button class="prompt-option" onclick="doBillAction('update', ${billId})">
-                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update Bill ${billNumber}</div>
-                    <div class="option-desc">Open and review Bill ${billNumber}</div>
-                </button>
-                <button class="prompt-option" onclick="doBillAction('start_next', ${billId})">
-                    <div class="option-title"><i class="bi bi-plus-circle-fill me-2"></i>Generate Bill ${nextNum}</div>
-                    <div class="option-desc">Generate next bill using progressive billing engine</div>
-                </button>
-            `;
+    // ========================================
+    // W — WorkSlip 1 (main W button)
+    // ========================================
+    function handleW(wsId, wsNum, wsStatus) {
+        if (wsStatus === 'completed') {
+            // W1 completed → Update W1 or Create W2
+            showPrompt('wsPromptModal', 'WorkSlip Actions', [
+                { icon: 'bi-pencil-fill', title: 'Update WorkSlip 1',
+                  desc: 'Resume editing WorkSlip 1',
+                  go: '/saved-works/' + wsId + '/resume/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip 2',
+                  desc: 'Generate a new WorkSlip from this estimate',
+                  go: '/saved-works/' + wsId + '/generate-next-workslip/' }
+            ]);
         } else {
-            // Bill is in progress — just update
-            title.textContent = 'Bill ' + billNumber;
-            body.innerHTML = `
-                <button class="prompt-option" onclick="doBillAction('update', ${billId})">
-                    <div class="option-title"><i class="bi bi-pencil-fill me-2"></i>Update Bill ${billNumber}</div>
-                    <div class="option-desc">Continue editing Bill ${billNumber}</div>
-                </button>
-            `;
+            // W1 in-progress → just resume
+            window.location.href = '/saved-works/' + wsId + '/resume/';
         }
-
-        new bootstrap.Modal(document.getElementById('billPromptModal')).show();
     }
 
-    function doBillAction(action, billId) {
-        bootstrap.Modal.getInstance(document.getElementById('billPromptModal')).hide();
+    // W button when NO workslips exist → generate W1
+    function handleWNew() {
+        if (rootEstimateId) {
+            window.location.href = '/saved-works/' + rootEstimateId + '/generate-workslip/';
+        }
+    }
 
-        if (action === 'update') {
+    // W2, W3, … additional workslip buttons
+    function handleWn(wsId, wsNum, wsStatus) {
+        if (wsStatus === 'completed') {
+            var nextNum = wsNum + 1;
+            showPrompt('wsPromptModal', 'WorkSlip ' + wsNum + ' Actions', [
+                { icon: 'bi-pencil-fill', title: 'Update WorkSlip ' + wsNum,
+                  desc: 'Resume editing WorkSlip ' + wsNum,
+                  go: '/saved-works/' + wsId + '/resume/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip ' + nextNum,
+                  desc: 'Generate WorkSlip ' + nextNum,
+                  go: '/saved-works/' + wsId + '/generate-next-workslip/' }
+            ]);
+        } else {
+            window.location.href = '/saved-works/' + wsId + '/resume/';
+        }
+    }
+
+    // ========================================
+    // B — Bill 1 (main B button)
+    // ========================================
+    function handleB(billId, billNum, billStatus) {
+        if (billStatus === 'completed') {
+            // B1 completed → Edit B1 or Create B2
+            showPrompt('billPromptModal', 'Bill Actions', [
+                { icon: 'bi-pencil-fill', title: 'Edit Bill 1',
+                  desc: 'Open and review Bill 1',
+                  go: '/saved-works/' + billId + '/generate-bill/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create Bill 2',
+                  desc: 'Generate next bill',
+                  go: '/saved-works/' + billId + '/generate-next-bill/' }
+            ]);
+        } else {
+            // B1 in-progress → resume
             window.location.href = '/saved-works/' + billId + '/generate-bill/';
-        } else if (action === 'start_next') {
-            window.location.href = '/saved-works/' + billId + '/generate-next-bill/';
         }
     }
 
-    // ========================================
-    // GENERATE FIRST BILL (B1) from WorkSlip
-    // ========================================
-    function handleGenerateFirstBill() {
+    // B button when NO bills exist → generate B1 (choose type)
+    function handleBNew() {
         {% if workslips|length > 0 %}
-        // Find the first workslip to generate bill from
         pendingBillWorkslipId = {{ workslips.0.id }};
         new bootstrap.Modal(document.getElementById('billTypeModal')).show();
         {% else %}
@@ -906,94 +877,109 @@
         {% endif %}
     }
 
+    // B2, B3, … additional bill buttons
+    function handleBn(billId, billNum, billStatus) {
+        if (billStatus === 'completed') {
+            var nextNum = billNum + 1;
+            showPrompt('billPromptModal', 'Bill ' + billNum + ' Actions', [
+                { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
+                  desc: 'Open and review Bill ' + billNum,
+                  go: '/saved-works/' + billId + '/generate-bill/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + nextNum,
+                  desc: 'Generate next bill',
+                  go: '/saved-works/' + billId + '/generate-next-bill/' }
+            ]);
+        } else {
+            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+        }
+    }
+
+    // ========================================
+    // BILL TYPE SELECTION (First & Part / First & Final)
+    // ========================================
     function selectBillType(billType) {
         bootstrap.Modal.getInstance(document.getElementById('billTypeModal')).hide();
+        if (!pendingBillWorkslipId) { alert('Error: No workslip selected.'); return; }
 
-        if (!pendingBillWorkslipId) {
-            alert('Error: No workslip selected for bill generation.');
-            return;
-        }
-
-        // Store bill type in session via AJAX then redirect to bill generation
         fetch('/saved-works/' + pendingBillWorkslipId + '/action/', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken },
             body: 'action=generate_first_bill&bill_type=' + billType
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             if (data.success && data.redirect_url) {
                 window.location.href = data.redirect_url;
             } else {
                 alert(data.error || 'Failed to generate bill.');
             }
         })
-        .catch(err => {
-            console.error('Error:', err);
-            alert('Network error. Please try again.');
+        .catch(function(err) { console.error(err); alert('Network error.'); });
+    }
+
+    // ========================================
+    // Generic prompt modal helper
+    // ========================================
+    function showPrompt(modalId, title, options) {
+        var modal = document.getElementById(modalId);
+        modal.querySelector('.modal-title').textContent = title;
+        var body = modal.querySelector('.modal-body');
+        body.innerHTML = '';
+        options.forEach(function(opt) {
+            var btn = document.createElement('button');
+            btn.className = 'prompt-option';
+            btn.innerHTML =
+                '<div class="option-title"><i class="bi ' + opt.icon + ' me-2"></i>' + opt.title + '</div>' +
+                '<div class="option-desc">' + opt.desc + '</div>';
+            btn.onclick = function() {
+                bootstrap.Modal.getInstance(modal).hide();
+                window.location.href = opt.go;
+            };
+            body.appendChild(btn);
         });
+        new bootstrap.Modal(modal).show();
     }
 
     // ========================================
     // EDIT / DELETE / DUPLICATE
     // ========================================
     function saveChanges() {
-        const form = document.getElementById('editForm');
-        const formData = new FormData(form);
+        var form = document.getElementById('editForm');
+        var formData = new FormData(form);
 
         fetch('{% url "update_saved_work" work.id %}', {
             method: 'POST',
             body: formData,
-            headers: {
-                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-            }
+            headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.error || 'Failed to save changes');
-            }
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) { location.reload(); }
+            else { alert(data.error || 'Failed to save changes'); }
         });
     }
 
     function duplicateWork() {
         fetch('{% url "duplicate_saved_work" work.id %}', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            }
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = '/saved-works/' + data.work_id + '/';
-            } else {
-                alert(data.error || 'Failed to duplicate work');
-            }
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) { window.location.href = '/saved-works/' + data.work_id + '/'; }
+            else { alert(data.error || 'Failed to duplicate work'); }
         });
     }
 
     function deleteWork() {
         fetch('{% url "delete_saved_work" work.id %}', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            }
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = '{% url "saved_works_list" %}';
-            } else {
-                alert(data.error || 'Failed to delete work');
-            }
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) { window.location.href = '{% url "saved_works_list" %}'; }
+            else { alert(data.error || 'Failed to delete work'); }
         });
     }
 </script>
