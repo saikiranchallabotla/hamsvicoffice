@@ -1085,14 +1085,19 @@ def load_item_rates_from_backend(category, item_names):
                 if desc_cell and str(desc_cell).strip():
                     desc = str(desc_cell).strip()
             
-            # Determine unit based on group
-            grp_name = item_to_group.get(name, "")
-            if grp_name in ("Piping", "Wiring & Cables", "Wiring and cables"):
-                unit = "Mtrs"
-            elif grp_name == "Points":
-                unit = "Pts"
+            # Determine unit from units_map (Column D of Groups sheet) — authoritative source
+            unit = _units_map.get(name, "")
+            if not unit:
+                # Fallback: infer from group name
+                grp_name = item_to_group.get(name, "")
+                if grp_name in ("Piping", "Wiring & Cables", "Wiring and cables"):
+                    unit = "Mtrs"
+                elif grp_name == "Points":
+                    unit = "Pts"
+                else:
+                    unit = "Nos"
             else:
-                unit = "Nos"
+                grp_name = item_to_group.get(name, "")
             
             result[name] = {'rate': rate, 'unit': unit, 'group': grp_name, 'desc': desc}
             logger.info(f"[LOAD_RATES DEBUG] Found rate for '{name}': rate={rate}, unit={unit}, desc={desc[:50] if desc else 'None'}")

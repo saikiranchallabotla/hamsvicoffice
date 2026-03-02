@@ -807,20 +807,20 @@
     // W — WorkSlip 1 (main W button)
     // ========================================
     function handleW(wsId, wsNum, wsStatus) {
+        // Always show prompt when W1 exists: Edit W1 or Create W2
+        var options = [
+            { icon: 'bi-pencil-fill', title: 'Edit WorkSlip 1',
+              desc: 'Resume editing WorkSlip 1',
+              go: '/saved-works/' + wsId + '/resume/' }
+        ];
         if (wsStatus === 'completed') {
-            // W1 completed → Update W1 or Create W2
-            showPrompt('wsPromptModal', 'WorkSlip Actions', [
-                { icon: 'bi-pencil-fill', title: 'Update WorkSlip 1',
-                  desc: 'Resume editing WorkSlip 1',
-                  go: '/saved-works/' + wsId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip 2',
-                  desc: 'Generate a new WorkSlip from this estimate',
-                  go: '/saved-works/' + wsId + '/generate-next-workslip/' }
-            ]);
-        } else {
-            // W1 in-progress → just resume
-            window.location.href = '/saved-works/' + wsId + '/resume/';
+            options.push({
+                icon: 'bi-plus-circle-fill', title: 'Create WorkSlip 2',
+                desc: 'Generate a new WorkSlip from this estimate',
+                go: '/saved-works/' + wsId + '/generate-next-workslip/'
+            });
         }
+        showPrompt('wsPromptModal', 'WorkSlip Actions', options);
     }
 
     // W button when NO workslips exist → generate W1
@@ -832,39 +832,40 @@
 
     // W2, W3, … additional workslip buttons
     function handleWn(wsId, wsNum, wsStatus) {
+        var nextNum = wsNum + 1;
+        var options = [
+            { icon: 'bi-pencil-fill', title: 'Edit WorkSlip ' + wsNum,
+              desc: 'Resume editing WorkSlip ' + wsNum,
+              go: '/saved-works/' + wsId + '/resume/' }
+        ];
         if (wsStatus === 'completed') {
-            var nextNum = wsNum + 1;
-            showPrompt('wsPromptModal', 'WorkSlip ' + wsNum + ' Actions', [
-                { icon: 'bi-pencil-fill', title: 'Update WorkSlip ' + wsNum,
-                  desc: 'Resume editing WorkSlip ' + wsNum,
-                  go: '/saved-works/' + wsId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip ' + nextNum,
-                  desc: 'Generate WorkSlip ' + nextNum,
-                  go: '/saved-works/' + wsId + '/generate-next-workslip/' }
-            ]);
-        } else {
-            window.location.href = '/saved-works/' + wsId + '/resume/';
+            options.push({
+                icon: 'bi-plus-circle-fill', title: 'Create WorkSlip ' + nextNum,
+                desc: 'Generate WorkSlip ' + nextNum,
+                go: '/saved-works/' + wsId + '/generate-next-workslip/'
+            });
         }
+        showPrompt('wsPromptModal', 'WorkSlip ' + wsNum + ' Actions', options);
     }
 
     // ========================================
     // B — Bill 1 (main B button)
     // ========================================
     function handleB(billId, billNum, billStatus) {
+        // Always show prompt when B1 exists: Edit B1 or Create B2
+        var options = [
+            { icon: 'bi-pencil-fill', title: 'Edit Bill 1',
+              desc: 'Open and review Bill 1',
+              go: '/saved-works/' + billId + '/generate-bill/' }
+        ];
         if (billStatus === 'completed') {
-            // B1 completed → Edit B1 or Create B2
-            showPrompt('billPromptModal', 'Bill Actions', [
-                { icon: 'bi-pencil-fill', title: 'Edit Bill 1',
-                  desc: 'Open and review Bill 1',
-                  go: '/saved-works/' + billId + '/generate-bill/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create Bill 2',
-                  desc: 'Generate next bill',
-                  go: '/saved-works/' + billId + '/generate-next-bill/' }
-            ]);
-        } else {
-            // B1 in-progress → resume
-            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+            options.push({
+                icon: 'bi-plus-circle-fill', title: 'Create Bill 2',
+                desc: 'Generate next bill',
+                go: '/saved-works/' + billId + '/generate-next-bill/'
+            });
         }
+        showPrompt('billPromptModal', 'Bill Actions', options);
     }
 
     // B button when NO bills exist → generate B1 (choose type)
@@ -879,19 +880,20 @@
 
     // B2, B3, … additional bill buttons
     function handleBn(billId, billNum, billStatus) {
+        var nextNum = billNum + 1;
+        var options = [
+            { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
+              desc: 'Open and review Bill ' + billNum,
+              go: '/saved-works/' + billId + '/generate-bill/' }
+        ];
         if (billStatus === 'completed') {
-            var nextNum = billNum + 1;
-            showPrompt('billPromptModal', 'Bill ' + billNum + ' Actions', [
-                { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
-                  desc: 'Open and review Bill ' + billNum,
-                  go: '/saved-works/' + billId + '/generate-bill/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + nextNum,
-                  desc: 'Generate next bill',
-                  go: '/saved-works/' + billId + '/generate-next-bill/' }
-            ]);
-        } else {
-            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+            options.push({
+                icon: 'bi-plus-circle-fill', title: 'Create Bill ' + nextNum,
+                desc: 'Generate next bill',
+                go: '/saved-works/' + billId + '/generate-next-bill/'
+            });
         }
+        showPrompt('billPromptModal', 'Bill ' + billNum + ' Actions', options);
     }
 
     // ========================================

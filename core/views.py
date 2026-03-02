@@ -649,6 +649,19 @@ def workslip(request):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp = item_to_group.get(name, "")
         if grp in ("Piping", "Wiring & Cables"):
             return ("Mtrs", "Mtr")
@@ -11523,7 +11536,7 @@ def temp_items(request, category, group):
     available_backends = get_available_backends_for_module('temp_works', base_category)
     
     try:
-        items_list, groups_map, _, ws_src, filepath = load_backend(
+        items_list, groups_map, units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=temp_selected_backend_id,
             module_code='temp_works',  # Use temp_works module's own backends
@@ -11599,6 +11612,19 @@ def temp_items(request, category, group):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp_name = (item_to_group.get(name, "") or "").lower()
         if grp_name in ("piping", "wiring & cables", "wiring and cables"):
             return ("Mtrs", "Mtr")
@@ -11918,7 +11944,7 @@ def temp_download_output(request, category):
 
     # ----- load backend -----
     try:
-        items_list, groups_map, _, ws_src, filepath = load_backend(
+        items_list, groups_map, units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=temp_selected_backend_id,
             module_code='temp_works'  # Use temp_works module's own backends
@@ -11939,6 +11965,19 @@ def temp_download_output(request, category):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp_name = (item_to_group.get(name, "") or "").lower()
         if grp_name in ("piping", "wiring & cables", "wiring and cables"):
             return ("Mtrs", "Mtr")
@@ -12709,6 +12748,15 @@ def estimate(request):
                     'error': f'Failed to process Excel file: {str(load_error)}'
                 })
             
+            # ---- Read units from Groups sheet if available ----
+            upload_units_map = {}
+            try:
+                if "Groups" in wb_upload.sheetnames:
+                    from core.utils_excel import read_groups
+                    _, upload_units_map = read_groups(wb_upload["Groups"])
+            except Exception:
+                pass  # If Groups sheet is missing or malformed, fall back to heuristic
+            
             # ---- Helper: Check if cell is yellow with red text ----
             def cell_is_yellow(cell):
                 fill = cell.fill
@@ -12967,8 +13015,13 @@ def estimate(request):
                 
                 def determine_unit_from_heading(heading_name):
                     """
-                    Intelligently determine unit based on heading name meaning.
+                    Determine unit from Groups sheet units_map first,
+                    then fall back to heading name heuristic.
                     """
+                    # Priority 1: Use unit from Groups sheet (authoritative)
+                    if upload_units_map and heading_name in upload_units_map:
+                        return upload_units_map[heading_name]
+                    
                     heading_lower = heading_name.lower()
                     
                     # Light Point or Fan Point â†’ Pts
@@ -15040,6 +15093,19 @@ def amc_items(request, category, group):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp_name = item_to_group.get(name, "")
         if grp_name in ("Piping", "Wiring & Cables"):
             return ("Mtrs", "Mtr")
