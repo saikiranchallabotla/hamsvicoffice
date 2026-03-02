@@ -541,7 +541,6 @@
                     <tr>
                         <th style="width: 35%;">Name</th>
                         <th>Type</th>
-                        <th>E / W / B</th>
                         <th>Modified</th>
                         <th style="text-align:right;">Actions</th>
                     </tr>
@@ -558,7 +557,6 @@
                             </div>
                         </td>
                         <td class="file-type">Folder</td>
-                        <td></td>
                         <td class="file-date">{{ folder.created_at|date:"M d, Y h:i A" }}</td>
                         <td class="file-actions">
                             <div class="btn-group btn-group-sm">
@@ -591,77 +589,6 @@
                         <td class="file-type">
                             {{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %}{% if work.work_type == 'bill' %}-{{ work.bill_number }}{% endif %}
                             {% if work.status == 'completed' %}<span class="badge bg-success ms-1">Done</span>{% elif work.status == 'in_progress' %}<span class="badge bg-warning ms-1">WIP</span>{% endif %}
-                        </td>
-
-                        <!-- ========== E / W / B Column ========== -->
-                        <td>
-                            {% if work.wf_chain %}
-                            {# Full E/W/B chain - the current work is highlighted, others dimmed #}
-                            <div class="wf-pills">
-                                {# E - Estimate button #}
-                                <a href="{% url 'resume_saved_work' work.wf_chain.estimate.id %}"
-                                   class="wf-pill wf-pill-e {% if work.id == work.wf_chain.estimate.id %}wf-pill-current{% else %}wf-pill-dim{% endif %}"
-                                   title="Estimate: {{ work.wf_chain.estimate.name }}">
-                                    E
-                                    <span class="s-dot {% if work.wf_chain.estimate.status == 'completed' %}done{% else %}wip{% endif %}"></span>
-                                </a>
-
-                                {# W - WorkSlip buttons #}
-                                {% for ws in work.wf_chain.workslips %}
-                                <a href="{% url 'resume_saved_work' ws.id %}"
-                                   class="wf-pill wf-pill-w {% if work.id == ws.id %}wf-pill-current{% else %}wf-pill-dim{% endif %}"
-                                   title="WorkSlip {{ ws.workslip_number }}: {{ ws.name }} ({{ ws.get_status_display }})">
-                                    W{{ ws.workslip_number }}
-                                    <span class="s-dot {% if ws.status == 'completed' %}done{% else %}wip{% endif %}"></span>
-                                </a>
-                                {% endfor %}
-
-                                {# B - Bill buttons #}
-                                {% for bill in work.wf_chain.bills %}
-                                <a href="{% url 'resume_saved_work' bill.id %}"
-                                   class="wf-pill wf-pill-b {% if work.id == bill.id %}wf-pill-current{% else %}wf-pill-dim{% endif %}"
-                                   title="Bill {{ bill.bill_number }}: {{ bill.name }} ({{ bill.get_status_display }})">
-                                    B{{ bill.bill_number }}
-                                    <span class="s-dot {% if bill.status == 'completed' %}done{% else %}wip{% endif %}"></span>
-                                </a>
-                                {% endfor %}
-
-                                {# +W / +B action buttons #}
-                                {% if work.work_type == 'new_estimate' and module_access.can_generate_workslip %}
-                                <span class="wf-sep"></span>
-                                <a href="{% url 'generate_workslip_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate New WorkSlip">+W</a>
-                                {% endif %}
-                                {% if work.work_type == 'workslip' and work.status == 'completed' %}
-                                    {% if module_access.can_generate_workslip %}
-                                    <span class="wf-sep"></span>
-                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate Next WorkSlip">+W{{ work.get_next_workslip_number }}</a>
-                                    {% endif %}
-                                    {% if module_access.can_generate_bill %}
-                                    <a href="{% url 'generate_bill_from_saved' work.id %}" class="wf-pill wf-pill-add" title="Generate Bill">+B</a>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
-
-                            {% elif work.work_type == 'temporary_works' or work.work_type == 'amc' %}
-                            {# Temp works / AMC - no E/W/B chain, just a resume pill #}
-                            <div class="wf-pills">
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-e wf-pill-current" title="Resume {{ work.get_work_type_display }}">
-                                    {% if work.work_type == 'temporary_works' %}TW{% else %}AMC{% endif %}
-                                </a>
-                            </div>
-
-                            {% else %}
-                            {# Standalone workslip/bill with no parent chain #}
-                            <div class="wf-pills">
-                                {% if work.work_type == 'workslip' %}
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-w wf-pill-current" title="Resume WorkSlip {{ work.workslip_number }}">W{{ work.workslip_number }}</a>
-                                {% elif work.work_type == 'bill' %}
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-b wf-pill-current" title="Resume Bill {{ work.bill_number }}">B{{ work.bill_number }}</a>
-                                {% else %}
-                                <a href="{% url 'resume_saved_work' work.id %}" class="wf-pill wf-pill-e wf-pill-current" title="Resume">E</a>
-                                {% endif %}
-                            </div>
-                            {% endif %}
                         </td>
 
                         <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>

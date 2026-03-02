@@ -442,14 +442,23 @@ def save_work(request):
             # Different work type - create a new record, don't overwrite
             # This prevents overwriting estimate data when saving from workslip
             
-            # For workslips, set the workslip_number
+            # For workslips, set the workslip_number and parent
             workslip_number = 1
+            parent = None
             if work_type == 'workslip':
                 workslip_number = request.session.get('ws_target_workslip', 1) or 1
+                # Link workslip to its source estimate
+                source_est_id = request.session.get('ws_source_estimate_id')
+                if source_est_id:
+                    try:
+                        parent = SavedWork.objects.get(id=source_est_id, organization=org, user=user)
+                    except SavedWork.DoesNotExist:
+                        pass
+                if not parent:
+                    parent = existing_work  # fallback: link to the work we came from
 
             # For bills, set bill_number and parent from session
             bill_number = 1
-            parent = None
             if work_type == 'bill':
                 bill_number = request.session.get('bill_target_number', 1) or 1
                 parent_id = request.session.get('bill_parent_work_id')
@@ -498,14 +507,21 @@ def save_work(request):
     else:
         # Create new saved work
 
-        # For workslips, set the workslip_number
+        # For workslips, set the workslip_number and parent
         workslip_number = 1
+        parent = None
         if work_type == 'workslip':
             workslip_number = request.session.get('ws_target_workslip', 1) or 1
+            # Link workslip to its source estimate
+            source_est_id = request.session.get('ws_source_estimate_id')
+            if source_est_id:
+                try:
+                    parent = SavedWork.objects.get(id=source_est_id, organization=org, user=user)
+                except SavedWork.DoesNotExist:
+                    pass
 
         # For bills, set bill_number and parent from session
         bill_number = 1
-        parent = None
         if work_type == 'bill':
             bill_number = request.session.get('bill_target_number', 1) or 1
             parent_id = request.session.get('bill_parent_work_id')
@@ -580,6 +596,7 @@ def collect_work_data(request, work_type):
             'ws_previous_ae_data': request.session.get('ws_previous_ae_data', []),
             'ws_previous_supp_items': request.session.get('ws_previous_supp_items', []),
             'ws_metadata': request.session.get('ws_metadata', {}),
+            'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
         }
     
     elif work_type == 'temporary_works':
@@ -1011,11 +1028,13 @@ def load_item_rates_from_backend(category, item_names):
         # Import load_backend at the top level to avoid repeated import
         from core.utils_excel import load_backend
         
-        wb = load_workbook(filepath, data_only=True)
-        ws = wb["Master Datas"]
+        # Open workbook with data_only=True to get calculated formula values
+        wb_data = load_workbook(filepath, data_only=True)
+        ws_data_only = wb_data["Master Datas"]
         
-        # Detect items and their blocks - capture ws_data for description lookup
-        items_list, groups_map, ws_data, _ = load_backend(category, settings.BASE_DIR)
+        # load_backend opens with data_only=False (has formulas, not values)
+        # ws_data is the Master Datas sheet from that workbook
+        items_list, groups_map, _units_map, ws_data, _ = load_backend(category, settings.BASE_DIR)
         
         logger.info(f"[LOAD_RATES DEBUG] Found {len(items_list)} items in backend")
         
@@ -1037,14 +1056,27 @@ def load_item_rates_from_backend(category, item_names):
             rate = 0
             
             # Find rate from bottom up (last value in column J)
+            # Try data_only workbook first (has calculated values), then formula workbook
             for r in range(end_row, start_row - 1, -1):
-                val = ws.cell(row=r, column=10).value  # column J
+                val = ws_data_only.cell(row=r, column=10).value  # column J (data_only)
                 if val not in (None, ""):
                     try:
                         rate = float(val)
                     except (ValueError, TypeError):
                         rate = 0
                     break
+            
+            # If rate is still 0, try the formula workbook (ws_data)
+            # Some Excel files may only have literal values, not formula results
+            if rate == 0 and ws_data is not None:
+                for r in range(end_row, start_row - 1, -1):
+                    val = ws_data.cell(row=r, column=10).value
+                    if val not in (None, ""):
+                        try:
+                            rate = float(val)
+                        except (ValueError, TypeError):
+                            rate = 0
+                        break
             
             # Get description from row start_row + 2, column D (4)
             desc = name  # default to item name
@@ -1065,7 +1097,7 @@ def load_item_rates_from_backend(category, item_names):
             result[name] = {'rate': rate, 'unit': unit, 'group': grp_name, 'desc': desc}
             logger.info(f"[LOAD_RATES DEBUG] Found rate for '{name}': rate={rate}, unit={unit}, desc={desc[:50] if desc else 'None'}")
         
-        wb.close()
+        wb_data.close()
         
         # Fill in any missing items with defaults
         for name in item_names:
@@ -1471,6 +1503,38 @@ def saved_work_detail(request, work_id):
                 root_estimate = current
                 break
             current = current.parent
+
+        # Fallback for orphan workslips/bills (parent not set):
+        # Try to find the estimate by ws_source_estimate_id stored in work_data
+        if not root_estimate:
+            work_data = saved_work.work_data or {}
+            source_est_id = work_data.get('ws_source_estimate_id') or work_data.get('bill_source_work_id')
+            if source_est_id:
+                try:
+                    candidate = SavedWork.objects.get(id=source_est_id, organization=org, user=user)
+                    if candidate.work_type == 'new_estimate':
+                        root_estimate = candidate
+                        # Fix the parent relationship while we're at it
+                        saved_work.parent = root_estimate
+                        saved_work.save(update_fields=['parent'])
+                    else:
+                        # Maybe the source is a workslip; walk up from there
+                        cur = candidate.parent
+                        while cur:
+                            if cur.work_type == 'new_estimate':
+                                root_estimate = cur
+                                break
+                            cur = cur.parent
+                except SavedWork.DoesNotExist:
+                    pass
+
+        # Last fallback: find estimate with same name in same org
+        if not root_estimate:
+            root_estimate = SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='new_estimate',
+                name=saved_work.name,
+            ).first()
 
     # Build workflow navigation: E, W1-W3, B1-B3 buttons
     workslips = []
