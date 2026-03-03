@@ -699,23 +699,23 @@ class SavedWork(models.Model):
     def can_generate_bill(self):
         """Check if this work can generate a bill (Estimates and Workslips can)"""
         return self.work_type in ['new_estimate', 'workslip']
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-    
-=======
-=======
->>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
+
+    def get_root_estimate(self):
+        """Walk up the parent chain to find the root estimate."""
+        current = self
+        while current.parent:
+            current = current.parent
+        if current.work_type in ('new_estimate', 'temporary_works', 'amc'):
+            return current
+        return None
 
     def get_next_bill_number(self):
         """Get the next bill number based on existing bills in the workflow chain"""
-        # Find all bills in this workflow chain
         root = self.get_root_estimate()
         if root:
             max_bill = root.children.filter(work_type='bill').order_by('-bill_number').first()
             if max_bill:
                 return max_bill.bill_number + 1
-        # Also check self children
         max_bill = self.children.filter(work_type='bill').order_by('-bill_number').first()
         if max_bill:
             return max_bill.bill_number + 1
@@ -725,24 +725,14 @@ class SavedWork(models.Model):
         """Get display label like 'CC First & Part Bill', 'CC Second & Final Bill'"""
         ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
                     6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
-<<<<<<< HEAD
-        n = self.bill_number
-        ordinal = ordinals.get(n, f'{n}th')
-        if self.bill_type.endswith('_part'):
-            return f'CC {ordinal} & Part Bill'
-        elif self.bill_type.endswith('_final'):
-=======
         n = self.bill_number or 1
         ordinal = ordinals.get(n, f'{n}th')
         bill_type = self.bill_type or ''
         if bill_type.endswith('_part'):
             return f'CC {ordinal} & Part Bill'
         elif bill_type.endswith('_final'):
->>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
-            current = current.parent
-        if current.work_type == 'new_estimate':
-            return current
-        return None
+            return f'CC {ordinal} & Final Bill'
+        return f'Bill-{n}'
 
     def get_all_workslips(self):
         """Get all workslips in this workflow chain, ordered by workslip_number"""
@@ -771,11 +761,11 @@ class SavedWork(models.Model):
 
     def _collect_bills(self, node, result):
         """Recursively collect bills from the workflow tree"""
-=======
-    
->>>>>>> parent of 252bdc4 (Merge pull request #9 from saikiranchallabotla/claude/fix-backend-injection-Jh4lI)
-=======
->>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
+        if node.work_type == 'bill':
+            result.append(node)
+        for child in node.children.all():
+            self._collect_bills(child, result)
+
     def get_children_by_type(self, work_type):
         """Get all child works of a specific type"""
         return self.children.filter(work_type=work_type)
@@ -839,6 +829,13 @@ class LetterSettings(models.Model):
     def __str__(self):
         return f"Letter Settings for {self.user.username}"
     
+    def get_from_section(self):
+        """Get formatted from section text"""
+        parts = []
+        name_qual = self.officer_name
+        if self.officer_qualification:
+            name_qual = f"{name_qual}, {self.officer_qualification}"
+        if name_qual:
             parts.append(name_qual)
         if self.officer_designation:
             parts.append(self.officer_designation)

@@ -203,8 +203,40 @@ def saved_works_list(request):
             module_access[work_type] = True
         module_access['can_generate_workslip'] = True
     
+    # Build workslip children map for estimate works (for dynamic W1, W2, W3... buttons)
+    # This maps estimate work_id -> list of workslip SavedWork objects
+    works_list = list(works)
+    workslip_children_map = {}
+    for work in works_list:
+        if work.work_type in ('new_estimate', 'temporary_works', 'amc'):
+            try:
+                all_ws = work.get_all_workslips() if hasattr(work, 'get_all_workslips') else []
+                workslip_children_map[work.id] = all_ws
+                # Annotate the work object with workslip data for template access
+                work.workslip_children = all_ws
+                work.next_ws_number = (max(ws.workslip_number for ws in all_ws) + 1) if all_ws else 1
+                work.last_ws = all_ws[-1] if all_ws else None
+            except Exception:
+                work.workslip_children = []
+                work.next_ws_number = 1
+                work.last_ws = None
+        elif work.work_type == 'workslip':
+            # For workslip items, find sibling workslips from the parent estimate
+            try:
+                root = work.get_root_estimate() if hasattr(work, 'get_root_estimate') else None
+                if root:
+                    all_ws = root.get_all_workslips() if hasattr(root, 'get_all_workslips') else []
+                    work.sibling_workslips = all_ws
+                    work.root_estimate = root
+                else:
+                    work.sibling_workslips = []
+                    work.root_estimate = None
+            except Exception:
+                work.sibling_workslips = []
+                work.root_estimate = None
+    
     context = {
-        'works': works,
+        'works': works_list,
         'folders': folders,
         'all_folders': all_folders,
         'current_folder': current_folder,
@@ -472,6 +504,7 @@ def collect_work_data(request, work_type):
             'ls_special_amount': request.session.get('ls_special_amount', ''),
             'deduct_old_material': request.session.get('deduct_old_material', ''),
             'last_group': request.POST.get('group', ''),
+            'selected_backend_id': request.session.get('selected_backend_id'),
         }
     
     elif work_type == 'workslip':
@@ -493,6 +526,7 @@ def collect_work_data(request, work_type):
             'ws_previous_ae_data': request.session.get('ws_previous_ae_data', []),
             'ws_previous_supp_items': request.session.get('ws_previous_supp_items', []),
             'ws_metadata': request.session.get('ws_metadata', {}),
+            'selected_backend_id': request.session.get('ws_selected_backend_id'),
         }
     
     elif work_type == 'temporary_works':
@@ -644,6 +678,9 @@ def restore_work_data(request, saved_work):
         request.session['ls_special_name'] = work_data.get('ls_special_name', '')
         request.session['ls_special_amount'] = work_data.get('ls_special_amount', '')
         request.session['deduct_old_material'] = work_data.get('deduct_old_material', '')
+        # Restore backend_id so modules use the correct backend
+        if work_data.get('selected_backend_id'):
+            request.session['selected_backend_id'] = work_data['selected_backend_id']
     
     elif work_type == 'workslip':
         ws_estimate_rows = work_data.get('ws_estimate_rows', [])
@@ -668,6 +705,10 @@ def restore_work_data(request, saved_work):
         request.session['ws_previous_ae_data'] = work_data.get('ws_previous_ae_data', [])
         request.session['ws_previous_supp_items'] = work_data.get('ws_previous_supp_items', [])
         request.session['ws_metadata'] = work_data.get('ws_metadata', {})
+        
+        # Restore backend_id so the workslip module uses the correct backend
+        if work_data.get('selected_backend_id'):
+            request.session['ws_selected_backend_id'] = work_data['selected_backend_id']
 
         # Force session save
         request.session.modified = True
@@ -716,7 +757,6 @@ def get_module_url(saved_work):
 # ==============================================================================
 
 @login_required(login_url='login')
-<<<<<<< HEAD
 def saved_work_detail(request, work_id):
     """View details of a saved work."""
     org = get_org_from_request(request)
@@ -725,11 +765,6 @@ def saved_work_detail(request, work_id):
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     all_folders = WorkFolder.objects.filter(organization=org, user=user)
     
-<<<<<<< HEAD
-    context = {
-        'work': saved_work,
-        'folders': all_folders,
-=======
     # Check subscription access for this work
     access_result = check_saved_work_access(user, saved_work)
     
@@ -739,15 +774,12 @@ def saved_work_detail(request, work_id):
         'has_subscription_access': access_result['ok'],
         'subscription_reason': access_result.get('reason', ''),
         'module_code': access_result.get('module_code'),
->>>>>>> parent of cfe3716 (Merge pull request #12 from saikiranchallabotla/claude/fix-saved-work-regression-RP5Zu)
     }
     
     return render(request, 'core/saved_works/detail.html', context)
 
 
 @login_required(login_url='login')
-=======
->>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
 @require_POST
 def update_saved_work(request, work_id):
     """Update saved work metadata (name, folder, notes)."""
@@ -915,9 +947,10 @@ def get_save_work_modal_data(request):
 # WORKFLOW CHAIN: ESTIMATE â†’ WORKSLIP â†’ BILL
 # ==============================================================================
 
-def load_item_rates_from_backend(category, item_names):
+def load_item_rates_from_backend(category, item_names, backend_id=None, user=None, module_code=None):
     """
     Load item rates and descriptions from the backend Excel file for given item names.
+    Uses the user's selected backend (ModuleBackend) if available, falling back to default.
     Returns a dict: {item_name: {'rate': value, 'unit': 'Nos/Mtrs/Pts', 'group': 'group_name', 'desc': 'description'}}
     """
     from django.conf import settings
@@ -926,33 +959,28 @@ def load_item_rates_from_backend(category, item_names):
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"[LOAD_RATES DEBUG] Loading rates for category={category}, items={item_names}")
-    
-    # Determine backend file based on category
-    if category == 'electrical':
-        filename = 'electrical.xlsx'
-    else:
-        filename = 'civil.xlsx'
-    
-    filepath = os.path.join(settings.BASE_DIR, 'core', 'data', filename)
-    
-    logger.info(f"[LOAD_RATES DEBUG] Backend filepath: {filepath}, exists={os.path.exists(filepath)}")
-    
-    if not os.path.exists(filepath):
-        logger.warning(f"[LOAD_RATES DEBUG] Backend file not found!")
-        return {name: {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name} for name in item_names}
+    logger.info(f"[LOAD_RATES DEBUG] Loading rates for category={category}, items={item_names}, backend_id={backend_id}")
     
     try:
-        # Import load_backend at the top level to avoid repeated import
         from core.utils_excel import load_backend
         
+        # Use load_backend which handles backend_id, user preferences, and fallbacks
+        items_list, groups_map, _, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=backend_id,
+            module_code=module_code or 'new_estimate',
+            user=user
+        )
+        
+        logger.info(f"[LOAD_RATES DEBUG] Backend filepath: {filepath}, found {len(items_list)} items")
+        
+        if not filepath or not os.path.exists(filepath):
+            logger.warning(f"[LOAD_RATES DEBUG] Backend file not found at {filepath}!")
+            return {name: {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name} for name in item_names}
+        
+        # Load the values version of the workbook for rate extraction
         wb = load_workbook(filepath, data_only=True)
         ws = wb["Master Datas"]
-        
-        # Detect items and their blocks - capture ws_data for description lookup
-        items_list, groups_map, _, ws_data, _ = load_backend(category, settings.BASE_DIR)
-        
-        logger.info(f"[LOAD_RATES DEBUG] Found {len(items_list)} items in backend")
         
         # Build item to group mapping
         item_to_group = {}
@@ -1017,7 +1045,6 @@ def load_item_rates_from_backend(category, item_names):
 
 
 @login_required(login_url='login')
-          return org
 def generate_workslip_from_saved(request, work_id):
     """
     Generate a workslip from a saved estimate.
@@ -1051,15 +1078,31 @@ def generate_workslip_from_saved(request, work_id):
     qty_map = work_data.get('qty_map', {})
     category = saved_work.category or 'electrical'
     
+    # Get saved backend_id from estimate work_data for correct rate lookup
+    saved_backend_id = work_data.get('selected_backend_id')
+    
     logger.info(f"[GEN_WORKSLIP DEBUG] fetched_items={fetched_items}")
     logger.info(f"[GEN_WORKSLIP DEBUG] qty_map={qty_map}")
-    logger.info(f"[GEN_WORKSLIP DEBUG] category={category}")
+    logger.info(f"[GEN_WORKSLIP DEBUG] category={category}, backend_id={saved_backend_id}")
+    
+    # Determine module_code for backend loading
+    if saved_work.work_type == 'amc':
+        ws_module_code = 'amc'
+    elif saved_work.work_type == 'temporary_works':
+        ws_module_code = 'temp_works'
+    else:
+        ws_module_code = 'new_estimate'
     
     # Check if fetched_items is a list of strings (item names) or dicts
     if fetched_items and isinstance(fetched_items[0], str):
         # It's a list of item names - need to look up rates from backend
         item_names = fetched_items
-        item_info_map = load_item_rates_from_backend(category, item_names)
+        item_info_map = load_item_rates_from_backend(
+            category, item_names,
+            backend_id=saved_backend_id,
+            user=request.user,
+            module_code=ws_module_code
+        )
         
         logger.info(f"[GEN_WORKSLIP DEBUG] item_info_map={item_info_map}")
         
@@ -1150,6 +1193,19 @@ def generate_workslip_from_saved(request, work_id):
         'grand_total': grand_total,
     }
     
+    # Set the backend_id in session so the workslip module uses the correct backend
+    if saved_backend_id:
+        request.session['ws_selected_backend_id'] = saved_backend_id
+    
+    # Set work type/mode/category for workslip module
+    if saved_work.work_type == 'amc':
+        request.session['ws_work_type'] = 'amc'
+    elif saved_work.work_type == 'temporary_works':
+        request.session['ws_work_type'] = 'tempworks'
+    else:
+        request.session['ws_work_type'] = 'new_estimate'
+    request.session['ws_category'] = category
+    
     # Set current_saved_work_id so save modal knows we're continuing from this work
     request.session['current_saved_work_id'] = saved_work.id
     request.session['current_saved_work_name'] = saved_work.name
@@ -1222,7 +1278,16 @@ def generate_next_workslip_from_saved(request, work_id):
     # Build supplemental items from current workslip to add to previous supp items
     new_supp_items = []
     if current_supp_items and ws_estimate_rows:
-        # Get rates for supplemental items from the items block data if available
+        # Load rates from backend for supplemental items
+        category = saved_work.category or 'electrical'
+        saved_backend_id = work_data.get('selected_backend_id')
+        supp_rates = load_item_rates_from_backend(
+            category, current_supp_items,
+            backend_id=saved_backend_id,
+            user=request.user,
+            module_code='new_estimate'
+        )
+        
         for supp_name in current_supp_items:
             supp_key = f"supp:{supp_name}"
             supp_qty = current_exec_map.get(supp_key, 0)
@@ -1231,19 +1296,19 @@ def generate_next_workslip_from_saved(request, work_id):
             except:
                 supp_qty = 0.0
             if supp_qty > 0:
-                # Try to find rate from work_data supp_rates or items_blocks_data
-                supp_rate = 0.0
-                items_blocks = work_data.get('items_blocks_data', {})
-                if supp_name in items_blocks:
-                    block_info = items_blocks[supp_name]
-                    supp_rate = float(block_info.get('rate', 0) or 0)
+                # Get rate from backend lookup
+                supp_info = supp_rates.get(supp_name, {})
+                supp_rate = float(supp_info.get('rate', 0) or 0)
+                supp_unit = str(supp_info.get('unit', 'Nos') or 'Nos')
+                supp_desc = str(supp_info.get('desc', supp_name) or supp_name)
                 
                 new_supp_items.append({
                     "name": supp_name,
                     "qty": supp_qty,
                     "phase": current_workslip_number,
-                    "desc": supp_name,
-                    "unit": "Nos",
+                    "supp_section": current_workslip_number,
+                    "desc": supp_desc,
+                    "unit": supp_unit,
                     "rate": supp_rate,
                     "amount": supp_qty * supp_rate,
                 })
@@ -1288,6 +1353,11 @@ def generate_next_workslip_from_saved(request, work_id):
     }
     request.session['ws_metadata'] = metadata
     
+    # Set the backend_id in session so the workslip module uses the correct backend
+    saved_backend_id_session = work_data.get('selected_backend_id')
+    if saved_backend_id_session:
+        request.session['ws_selected_backend_id'] = saved_backend_id_session
+    
     # Set parent work info for saving
     request.session['ws_parent_work_id'] = saved_work.id
     request.session['current_saved_work_id'] = None  # New workslip, not continuing existing
@@ -1313,9 +1383,7 @@ def generate_bill_from_saved(request, work_id):
     if saved_work.work_type not in ['workslip', 'new_estimate']:
         messages.error(request, 'Only workslips or estimates can be used to generate bills.')
         return redirect('saved_works_list')
-<<<<<<< HEAD
-    
-<<<<<<< HEAD
+
     work_data = saved_work.work_data or {}
     
     # Store source info in session for bill page
@@ -1340,39 +1408,6 @@ def generate_bill_from_saved(request, work_id):
     
     messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
     return redirect('bill')
-
-    # Legacy code below kept for reference - now handled by generate_bill_with_type
-=======
->>>>>>> parent of 252bdc4 (Merge pull request #9 from saikiranchallabotla/claude/fix-backend-injection-Jh4lI)
-    work_data = saved_work.work_data or {}
-    
-    # Store source info in session for bill page
-    request.session['bill_source_work_id'] = saved_work.id
-    request.session['bill_source_work_type'] = saved_work.work_type
-    request.session['bill_source_work_name'] = saved_work.name
-    
-    if saved_work.work_type == 'workslip':
-        # Load workslip data for bill generation
-        request.session['bill_from_workslip'] = True
-        request.session['bill_ws_rows'] = work_data.get('ws_estimate_rows', [])
-        request.session['bill_ws_exec_map'] = work_data.get('ws_exec_map', {})
-        request.session['bill_ws_tp_percent'] = work_data.get('ws_tp_percent', 0)
-        request.session['bill_ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
-    else:
-        # Load estimate data for bill generation
-        request.session['bill_from_workslip'] = False
-        request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
-        request.session['bill_qty_map'] = work_data.get('qty_map', {})
-    
-    request.session.modified = True
-    
-    messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
-    return redirect('bill')
-=======
-
-    # Redirect to bill type selection page
-    return redirect('bill_type_choice', work_id=work_id)
->>>>>>> cfe371643140d1f011ab81c160e2747b2b268857
 
 
 @login_required(login_url='login')

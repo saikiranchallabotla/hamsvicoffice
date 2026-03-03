@@ -485,22 +485,51 @@
                             <!-- Dynamic workflow buttons -->
                             <div class="workflow-btns" id="workflow-{{ work.id }}">
                                 {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
-                                    <!-- Estimate: Show Workslip button + Bill button -->
-                                    <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success btn-sm" title="Workslip">
-                                        <i class="bi bi-file-earmark-text"></i> Workslip
-                                    </a>
+                                    <!-- Estimate: Show dynamic W1, W2, W3... buttons for existing workslips -->
+                                    {% if work.workslip_children %}
+                                        {% for ws in work.workslip_children %}
+                                        <a href="{% url 'resume_saved_work' ws.id %}" 
+                                           class="btn btn-sm {% if ws.status == 'completed' %}btn-success{% else %}btn-outline-success{% endif %}" 
+                                           title="{% if ws.status == 'completed' %}View{% else %}Edit{% endif %} Workslip {{ ws.workslip_number }}">
+                                            <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
+                                        </a>
+                                        {% endfor %}
+                                        <!-- Create next workslip button -->
+                                        {% if work.last_ws.status == 'completed' %}
+                                        <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" 
+                                           class="btn btn-info btn-sm" 
+                                           title="Create Workslip {{ work.next_ws_number }}">
+                                            <i class="bi bi-plus-circle"></i> +W{{ work.next_ws_number }}
+                                        </a>
+                                        {% endif %}
+                                    {% else %}
+                                        <!-- No workslips yet - show Create Workslip 1 button -->
+                                        <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success btn-sm" title="Create Workslip 1">
+                                            <i class="bi bi-file-earmark-text"></i> +W1
+                                        </a>
+                                    {% endif %}
                                     <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger btn-sm" title="Bill">
                                         <i class="bi bi-receipt"></i> Bill
                                     </a>
                                 {% elif work.work_type == 'workslip' %}
-                                    <!-- Workslip: Show Bill button -->
-                                    <span class="badge bg-success-subtle text-success me-1">WS-{{ work.workslip_number }}</span>
+                                    <!-- Workslip: Show sibling buttons W1, W2... and Bill -->
+                                    {% if work.sibling_workslips %}
+                                        {% for ws in work.sibling_workslips %}
+                                        <a href="{% url 'resume_saved_work' ws.id %}" 
+                                           class="btn btn-sm {% if ws.id == work.id %}btn-success{% elif ws.status == 'completed' %}btn-outline-success{% else %}btn-outline-secondary{% endif %}" 
+                                           title="{% if ws.id == work.id %}Current{% elif ws.status == 'completed' %}View{% else %}Edit{% endif %} Workslip {{ ws.workslip_number }}">
+                                            W{{ ws.workslip_number }}
+                                        </a>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success me-1">WS-{{ work.workslip_number }}</span>
+                                    {% endif %}
                                     <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger btn-sm" title="Generate Bill">
                                         <i class="bi bi-receipt"></i> Bill
                                     </a>
                                     {% if work.status == 'completed' %}
-                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info btn-sm" title="Next Workslip">
-                                        <i class="bi bi-plus-circle"></i> WS-{{ work.workslip_number|add:1 }}
+                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info btn-sm" title="Create Workslip {{ work.workslip_number|add:1 }}">
+                                        <i class="bi bi-plus-circle"></i> +W{{ work.workslip_number|add:1 }}
                                     </a>
                                     {% endif %}
                                 {% elif work.work_type == 'bill' %}
