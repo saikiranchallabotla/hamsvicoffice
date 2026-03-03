@@ -1,4 +1,4 @@
-# core/saved_works_views.py
+﻿# core/saved_works_views.py
 """
 Views for the Saved Works feature.
 Allows users to save their work-in-progress and resume later.
@@ -130,10 +130,10 @@ def saved_works_list(request):
     user = request.user
     
     # Get filter parameters
-    work_type = request.GET.get('type', 'all')
+    work_type_filter = request.GET.get('type', 'all')
     folder_id = request.GET.get('folder')
     search_query = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', 'in_progress')
+    status_filter = request.GET.get('status', 'all')
     
     # Get current folder if viewing inside a folder
     current_folder = None
@@ -149,9 +149,38 @@ def saved_works_list(request):
     # Get saved works
     works = SavedWork.objects.filter(organization=org, user=user)
     
+    # Fix orphan workslips/bills: link them to their parent estimate
+    # This handles works created before parent-linking was implemented
+    orphan_children = works.filter(
+        parent__isnull=True,
+        work_type__in=['workslip', 'bill'],
+    )
+    for oc in orphan_children:
+        wd = oc.work_data or {}
+        src_id = wd.get('ws_source_estimate_id') or wd.get('bill_source_work_id')
+        if src_id:
+            try:
+                parent_work = SavedWork.objects.get(id=int(src_id), organization=org, user=user)
+                # Walk up to root estimate
+                root = parent_work
+                while root and root.work_type != 'new_estimate' and root.parent:
+                    root = root.parent
+                if root and root.work_type == 'new_estimate':
+                    oc.parent = root
+                    oc.save(update_fields=['parent'])
+            except SavedWork.DoesNotExist:
+                pass
+
+    # Re-fetch works after fixing orphans
+    works = SavedWork.objects.filter(organization=org, user=user)
+
+    # Hide child works (workslips/bills with a parent) from the list.
+    # They are accessible through the parent estimate's detail page.
+    works = works.filter(parent__isnull=True)
+    
     # Apply filters
-    if work_type != 'all':
-        works = works.filter(work_type=work_type)
+    if work_type_filter != 'all':
+        works = works.filter(work_type=work_type_filter)
     
     if folder_id:
         if folder_id == 'unfiled':
@@ -186,8 +215,9 @@ def saved_works_list(request):
         'temporary_works': 'temp_works',
         'amc': 'amc',
         'workslip': 'workslip',
+        'bill': 'bill',
     }
-    
+
     module_access = {}
     try:
         from subscriptions.services import SubscriptionService
@@ -197,22 +227,72 @@ def saved_works_list(request):
         # Also check workslip access for the generate workslip button
         workslip_result = SubscriptionService.check_access(user, 'workslip')
         module_access['can_generate_workslip'] = workslip_result.get('ok', False)
+        # Check bill access
+        bill_result = SubscriptionService.check_access(user, 'bill')
+        module_access['can_generate_bill'] = bill_result.get('ok', False)
     except Exception:
         # If subscription service fails, allow access (fallback)
         for work_type in work_type_to_module.keys():
             module_access[work_type] = True
         module_access['can_generate_workslip'] = True
-    
-    # Build workslip children map for estimate works (for dynamic W1, W2, W3... buttons)
-    # This maps estimate work_id -> list of workslip SavedWork objects
+        module_access['can_generate_bill'] = True
+
+    # Evaluate queryset to list so we can attach workflow chain data
     works_list = list(works)
-    workslip_children_map = {}
+
+    # Build workflow chain data for ALL works in the current view.
+    # Attach .wf_chain to each work object so the template can render
+    # the full E/W/B navigation for every row.
+    _chain_cache = {}  # Cache chains by root estimate id
+
+    def _build_chain_for_estimate(est):
+        """Build and cache the E/W/B chain for an estimate."""
+        if est is None:
+            return None
+        if est.id in _chain_cache:
+            return _chain_cache[est.id]
+        ws_list = list(
+            SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip', parent=est,
+            ).order_by('workslip_number')
+        )
+        ws_ids = [ws.id for ws in ws_list]
+        bill_list = list(
+            SavedWork.objects.filter(
+                organization=org, user=user, work_type='bill',
+            ).filter(
+                Q(parent=est) | Q(parent_id__in=ws_ids)
+            ).order_by('bill_number')
+        )
+        chain = {
+            'estimate': est,
+            'workslips': ws_list,
+            'bills': bill_list,
+        }
+        _chain_cache[est.id] = chain
+        return chain
+
     for work in works_list:
+        # Build wf_chain for E/W/B navigation
+        if work.work_type == 'new_estimate':
+            work.wf_chain = _build_chain_for_estimate(work)
+        elif work.work_type in ('workslip', 'bill'):
+            root_est = None
+            current = work.parent
+            while current:
+                if current.work_type == 'new_estimate':
+                    root_est = current
+                    break
+                current = current.parent
+            work.wf_chain = _build_chain_for_estimate(root_est)
+        else:
+            work.wf_chain = None
+
+        # Also build workslip children data for dynamic W1, W2, W3... buttons
         if work.work_type in ('new_estimate', 'temporary_works', 'amc'):
             try:
                 all_ws = work.get_all_workslips() if hasattr(work, 'get_all_workslips') else []
-                workslip_children_map[work.id] = all_ws
-                # Annotate the work object with workslip data for template access
                 work.workslip_children = all_ws
                 work.next_ws_number = (max(ws.workslip_number for ws in all_ws) + 1) if all_ws else 1
                 work.last_ws = all_ws[-1] if all_ws else None
@@ -221,7 +301,6 @@ def saved_works_list(request):
                 work.next_ws_number = 1
                 work.last_ws = None
         elif work.work_type == 'workslip':
-            # For workslip items, find sibling workslips from the parent estimate
             try:
                 root = work.get_root_estimate() if hasattr(work, 'get_root_estimate') else None
                 if root:
@@ -241,14 +320,14 @@ def saved_works_list(request):
         'all_folders': all_folders,
         'current_folder': current_folder,
         'breadcrumb_path': breadcrumb_path,
-        'work_type_filter': work_type,
+        'work_type_filter': work_type_filter,
         'status_filter': status_filter,
         'search_query': search_query,
         'work_type_choices': SavedWork.WORK_TYPE_CHOICES,
         'status_choices': SavedWork.STATUS_CHOICES,
         'module_access': module_access,
     }
-    
+
     return render(request, 'core/saved_works/list.html', context)
 
 
@@ -419,15 +498,42 @@ def save_work(request):
             # Different work type - create a new record, don't overwrite
             # This prevents overwriting estimate data when saving from workslip
             
-            # For workslips, set the workslip_number
+            # For workslips, set the workslip_number and parent
             workslip_number = 1
+            parent = None
             if work_type == 'workslip':
                 workslip_number = request.session.get('ws_target_workslip', 1) or 1
-            
+                # Link workslip to its source estimate
+                source_est_id = request.session.get('ws_source_estimate_id')
+                if source_est_id:
+                    try:
+                        parent = SavedWork.objects.get(id=source_est_id, organization=org, user=user)
+                    except SavedWork.DoesNotExist:
+                        pass
+                if not parent:
+                    parent = existing_work  # fallback: link to the work we came from
+
+            # For bills, set bill_number and parent from session
+            bill_number = 1
+            if work_type == 'bill':
+                bill_number = request.session.get('bill_target_number', 1) or 1
+                parent_id = request.session.get('bill_parent_work_id')
+                if parent_id:
+                    try:
+                        parent = SavedWork.objects.get(id=parent_id, organization=org, user=user)
+                    except SavedWork.DoesNotExist:
+                        pass
+
+            # Auto-inherit parent's folder if no folder specified
+            child_folder = folder
+            if not child_folder and parent and parent.folder:
+                child_folder = parent.folder
+
             saved_work = SavedWork.objects.create(
                 organization=org,
                 user=user,
-                folder=folder,
+                folder=child_folder,
+                parent=parent,
                 name=work_name,
                 work_type=work_type,
                 work_data=work_data,
@@ -436,6 +542,7 @@ def save_work(request):
                 progress_percent=progress_percent,
                 last_step=last_step,
                 workslip_number=workslip_number,
+                bill_number=bill_number,
             )
             message = f'Work "{work_name}" saved successfully!'
         else:
@@ -447,25 +554,54 @@ def save_work(request):
             saved_work.work_data = work_data
             saved_work.progress_percent = progress_percent
             saved_work.last_step = last_step
-            
+
             # Update workslip_number if this is a workslip
             if work_type == 'workslip':
                 saved_work.workslip_number = request.session.get('ws_target_workslip', 1) or 1
-            
+
+            # Update bill_number if this is a bill
+            if work_type == 'bill':
+                saved_work.bill_number = request.session.get('bill_target_number', 1) or 1
+
             saved_work.save()
             message = f'Work "{work_name}" updated successfully!'
     else:
         # Create new saved work
-        
-        # For workslips, set the workslip_number
+
+        # For workslips, set the workslip_number and parent
         workslip_number = 1
+        parent = None
         if work_type == 'workslip':
             workslip_number = request.session.get('ws_target_workslip', 1) or 1
-        
+            # Link workslip to its source estimate
+            source_est_id = request.session.get('ws_source_estimate_id')
+            if source_est_id:
+                try:
+                    parent = SavedWork.objects.get(id=source_est_id, organization=org, user=user)
+                except SavedWork.DoesNotExist:
+                    pass
+
+        # For bills, set bill_number and parent from session
+        bill_number = 1
+        if work_type == 'bill':
+            bill_number = request.session.get('bill_target_number', 1) or 1
+            parent_id = request.session.get('bill_parent_work_id')
+            if parent_id:
+                try:
+                    parent = SavedWork.objects.get(id=parent_id, organization=org, user=user)
+                except SavedWork.DoesNotExist:
+                    pass
+
+        # Auto-inherit parent's folder if no folder specified
+        child_folder = folder
+        if not child_folder and parent and parent.folder:
+            child_folder = parent.folder
+
         saved_work = SavedWork.objects.create(
             organization=org,
             user=user,
-            folder=folder,
+            folder=child_folder,
+            parent=parent,
             name=work_name,
             work_type=work_type,
             work_data=work_data,
@@ -474,6 +610,7 @@ def save_work(request):
             progress_percent=progress_percent,
             last_step=last_step,
             workslip_number=workslip_number,
+            bill_number=bill_number,
         )
         message = f'Work "{work_name}" saved successfully!'
     
@@ -527,6 +664,7 @@ def collect_work_data(request, work_type):
             'ws_previous_supp_items': request.session.get('ws_previous_supp_items', []),
             'ws_metadata': request.session.get('ws_metadata', {}),
             'selected_backend_id': request.session.get('ws_selected_backend_id'),
+            'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
         }
     
     elif work_type == 'temporary_works':
@@ -542,7 +680,23 @@ def collect_work_data(request, work_type):
             'amc_qty_map': request.session.get('amc_qty_map', {}),
             'amc_category': request.session.get('amc_category', 'electrical'),
         }
-    
+
+    elif work_type == 'bill':
+        work_data = {
+            'bill_source_work_id': request.session.get('bill_source_work_id'),
+            'bill_source_work_type': request.session.get('bill_source_work_type', ''),
+            'bill_source_work_name': request.session.get('bill_source_work_name', ''),
+            'bill_from_workslip': request.session.get('bill_from_workslip', False),
+            'bill_ws_rows': request.session.get('bill_ws_rows', []),
+            'bill_ws_exec_map': request.session.get('bill_ws_exec_map', {}),
+            'bill_ws_tp_percent': request.session.get('bill_ws_tp_percent', 0),
+            'bill_ws_tp_type': request.session.get('bill_ws_tp_type', 'Excess'),
+            'bill_target_number': request.session.get('bill_target_number', 1),
+            'bill_type': request.session.get('bill_type', ''),
+            'source_workslip_id': request.session.get('bill_source_work_id'),
+            'bill_ws_metadata': request.session.get('bill_ws_metadata', {}),
+        }
+
     return work_data
 
 
@@ -572,6 +726,12 @@ def calculate_progress(work_data, work_type):
             return 0
         return min(80, len(items) * 10)
     
+    elif work_type == 'bill':
+        # Bill progress is determined by existence of bill data
+        if work_data.get('bill_ws_rows'):
+            return 50
+        return 10
+
     elif work_type == 'amc':
         items = work_data.get('amc_fetched_items', [])
         if not items:
@@ -609,7 +769,11 @@ def get_last_step(request, work_type):
         if items:
             return f"Selected {len(items)} AMC items"
         return "Category selection"
-    
+
+    elif work_type == 'bill':
+        bill_num = request.session.get('bill_target_number', 1)
+        return f"Bill-{bill_num} generation"
+
     return "Started"
 
 
@@ -644,16 +808,15 @@ def resume_saved_work(request, work_id):
     # Store current saved work ID in session
     request.session['current_saved_work_id'] = saved_work.id
     request.session['current_saved_work_name'] = saved_work.name
-    request.session['is_resumed_work'] = True  # Flag for save modal to show "Update" button
-
+    
     # Update last accessed
     saved_work.save()  # Updates updated_at timestamp
-
+    
     # Redirect to appropriate module
     redirect_url = get_module_url(saved_work)
-
+    
     messages.success(request, f'Resumed work: "{saved_work.name}"')
-
+    
     return redirect(redirect_url)
 
 
@@ -696,9 +859,6 @@ def restore_work_data(request, saved_work):
         request.session['ws_estimate_grand_total'] = work_data.get('ws_estimate_grand_total', 0.0)
         request.session['ws_work_name'] = work_data.get('ws_work_name', '')
         request.session['ws_deduct_old_material'] = work_data.get('ws_deduct_old_material', 0.0)
-        request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
-        request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
-        request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
         request.session['ws_current_phase'] = work_data.get('ws_current_phase', 1)
         request.session['ws_target_workslip'] = work_data.get('ws_target_workslip', 1)
         request.session['ws_previous_phases'] = work_data.get('ws_previous_phases', [])
@@ -709,7 +869,11 @@ def restore_work_data(request, saved_work):
         # Restore backend_id so the workslip module uses the correct backend
         if work_data.get('selected_backend_id'):
             request.session['ws_selected_backend_id'] = work_data['selected_backend_id']
-
+        request.session['ws_source_estimate_id'] = work_data.get('ws_source_estimate_id')
+        request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
+        request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
+        request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
+        
         # Force session save
         request.session.modified = True
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")
@@ -723,6 +887,21 @@ def restore_work_data(request, saved_work):
         request.session['amc_fetched_items'] = work_data.get('amc_fetched_items', [])
         request.session['amc_qty_map'] = work_data.get('amc_qty_map', {})
         request.session['amc_category'] = work_data.get('amc_category', 'electrical')
+
+    elif work_type == 'bill':
+        # Restore bill session data for the existing bill engine
+        request.session['bill_source_work_id'] = work_data.get('bill_source_work_id')
+        request.session['bill_source_work_type'] = work_data.get('bill_source_work_type', '')
+        request.session['bill_source_work_name'] = work_data.get('bill_source_work_name', '')
+        request.session['bill_from_workslip'] = work_data.get('bill_from_workslip', False)
+        request.session['bill_ws_rows'] = work_data.get('bill_ws_rows', [])
+        request.session['bill_ws_exec_map'] = work_data.get('bill_ws_exec_map', {})
+        request.session['bill_ws_tp_percent'] = work_data.get('bill_ws_tp_percent', 0)
+        request.session['bill_ws_tp_type'] = work_data.get('bill_ws_tp_type', 'Excess')
+        request.session['bill_target_number'] = work_data.get('bill_target_number', 1)
+        request.session['bill_type'] = work_data.get('bill_type', '')
+        request.session['bill_ws_metadata'] = work_data.get('bill_ws_metadata', {})
+        request.session.modified = True
 
 
 def get_module_url(saved_work):
@@ -742,42 +921,22 @@ def get_module_url(saved_work):
     
     elif work_type == 'workslip':
         return reverse('workslip_main') + '?preserve=1'
-
+    
     elif work_type == 'temporary_works':
         return reverse('temp_groups', kwargs={'category': category})
     
     elif work_type == 'amc':
         return reverse('amc_groups', kwargs={'category': category})
-    
+
+    elif work_type == 'bill':
+        return reverse('bill') + '?from_saved=1'
+
     return reverse('dashboard')
 
 
 # ==============================================================================
 # SAVED WORK DETAILS & ACTIONS
 # ==============================================================================
-
-@login_required(login_url='login')
-def saved_work_detail(request, work_id):
-    """View details of a saved work."""
-    org = get_org_from_request(request)
-    user = request.user
-    
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-    all_folders = WorkFolder.objects.filter(organization=org, user=user)
-    
-    # Check subscription access for this work
-    access_result = check_saved_work_access(user, saved_work)
-    
-    context = {
-        'work': saved_work,
-        'folders': all_folders,
-        'has_subscription_access': access_result['ok'],
-        'subscription_reason': access_result.get('reason', ''),
-        'module_code': access_result.get('module_code'),
-    }
-    
-    return render(request, 'core/saved_works/detail.html', context)
-
 
 @login_required(login_url='login')
 @require_POST
@@ -829,33 +988,6 @@ def delete_saved_work(request, work_id):
     return JsonResponse({
         'success': True,
         'message': f'Work "{work_name}" deleted successfully!'
-    })
-
-
-@login_required(login_url='login')
-@require_POST
-def rename_saved_work(request, work_id):
-    """Rename a saved work (Windows Explorer-like inline rename)."""
-    org = get_org_from_request(request)
-    user = request.user
-
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-
-    if request.content_type and 'application/json' in request.content_type:
-        data = json.loads(request.body.decode('utf-8'))
-        new_name = data.get('name', '').strip()
-    else:
-        new_name = request.POST.get('name', '').strip()
-
-    if not new_name:
-        return JsonResponse({'success': False, 'error': 'Name is required.'})
-
-    saved_work.name = new_name
-    saved_work.save()
-
-    return JsonResponse({
-        'success': True,
-        'message': f'Renamed to "{new_name}"!'
     })
 
 
@@ -965,7 +1097,7 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
         from core.utils_excel import load_backend
         
         # Use load_backend which handles backend_id, user preferences, and fallbacks
-        items_list, groups_map, _, ws_data, filepath = load_backend(
+        items_list, groups_map, _units_map, ws_data, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=backend_id,
             module_code=module_code or 'new_estimate',
@@ -978,10 +1110,9 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
             logger.warning(f"[LOAD_RATES DEBUG] Backend file not found at {filepath}!")
             return {name: {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name} for name in item_names}
         
-        # Load the values version of the workbook for rate extraction
-        wb = load_workbook(filepath, data_only=True)
-        ws = wb["Master Datas"]
-        
+        # Open workbook with data_only=True to get calculated formula values
+        wb_data = load_workbook(filepath, data_only=True)
+        ws_data_only = wb_data["Master Datas"]
         # Build item to group mapping
         item_to_group = {}
         for grp_name, item_list_in_grp in groups_map.items():
@@ -1000,14 +1131,27 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
             rate = 0
             
             # Find rate from bottom up (last value in column J)
+            # Try data_only workbook first (has calculated values), then formula workbook
             for r in range(end_row, start_row - 1, -1):
-                val = ws.cell(row=r, column=10).value  # column J
+                val = ws_data_only.cell(row=r, column=10).value  # column J (data_only)
                 if val not in (None, ""):
                     try:
                         rate = float(val)
                     except (ValueError, TypeError):
                         rate = 0
                     break
+            
+            # If rate is still 0, try the formula workbook (ws_data)
+            # Some Excel files may only have literal values, not formula results
+            if rate == 0 and ws_data is not None:
+                for r in range(end_row, start_row - 1, -1):
+                    val = ws_data.cell(row=r, column=10).value
+                    if val not in (None, ""):
+                        try:
+                            rate = float(val)
+                        except (ValueError, TypeError):
+                            rate = 0
+                        break
             
             # Get description from row start_row + 2, column D (4)
             desc = name  # default to item name
@@ -1016,19 +1160,24 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
                 if desc_cell and str(desc_cell).strip():
                     desc = str(desc_cell).strip()
             
-            # Determine unit based on group
-            grp_name = item_to_group.get(name, "")
-            if grp_name in ("Piping", "Wiring & Cables", "Wiring and cables"):
-                unit = "Mtrs"
-            elif grp_name == "Points":
-                unit = "Pts"
+            # Determine unit from units_map (Column D of Groups sheet) — authoritative source
+            unit = _units_map.get(name, "")
+            if not unit:
+                # Fallback: infer from group name
+                grp_name = item_to_group.get(name, "")
+                if grp_name in ("Piping", "Wiring & Cables", "Wiring and cables"):
+                    unit = "Mtrs"
+                elif grp_name == "Points":
+                    unit = "Pts"
+                else:
+                    unit = "Nos"
             else:
-                unit = "Nos"
+                grp_name = item_to_group.get(name, "")
             
             result[name] = {'rate': rate, 'unit': unit, 'group': grp_name, 'desc': desc}
             logger.info(f"[LOAD_RATES DEBUG] Found rate for '{name}': rate={rate}, unit={unit}, desc={desc[:50] if desc else 'None'}")
         
-        wb.close()
+        wb_data.close()
         
         # Fill in any missing items with defaults
         for name in item_names:
@@ -1036,6 +1185,7 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
                 logger.warning(f"[LOAD_RATES DEBUG] Item '{name}' NOT FOUND in backend!")
                 result[name] = {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name}
         
+        return result
         
     except Exception as e:
         logger.error(f"[LOAD_RATES DEBUG] Error loading item rates: {e}")
@@ -1048,26 +1198,20 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
 def generate_workslip_from_saved(request, work_id):
     """
     Generate a workslip from a saved estimate.
-    If estimate already has workslips, redirect to workslip_choice dialog.
-    Otherwise, load estimate data and redirect to workslip page.
+    Loads the estimate data into workslip session and redirects to workslip page.
     """
     import logging
     logger = logging.getLogger(__name__)
-
+    
     org = get_org_from_request(request)
     user = request.user
-
+    
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-
+    
     # Verify this is an estimate, temporary_works, or amc
     if saved_work.work_type not in ['new_estimate', 'temporary_works', 'amc']:
         messages.error(request, 'Only estimates, temporary works, or AMC can be used to generate workslips.')
         return redirect('saved_works_list')
-
-    # Check if there are existing workslips - if so, show choice dialog
-    existing_workslips = saved_work.get_all_workslips() if hasattr(saved_work, 'get_all_workslips') else []
-    if existing_workslips:
-        return redirect('workslip_choice', work_id=work_id)
     
     # Load estimate data into workslip session
     work_data = saved_work.work_data or {}
@@ -1162,7 +1306,7 @@ def generate_workslip_from_saved(request, work_id):
     logger.info(f"[GEN_WORKSLIP DEBUG] Parsed grand_total: {grand_total}")
     
     # Get the work_name from the saved estimate data (entered in estimate preview)
-    # This is different from saved_work.name which is just for organizing saved works
+    # This is the "Name of the Work" for Excel, NOT the project/file name (saved_work.name)
     estimate_work_name = work_data.get('work_name', '') or ''
     
     # Set workslip session data - ensure all values are JSON serializable
@@ -1172,7 +1316,7 @@ def generate_workslip_from_saved(request, work_id):
     request.session['ws_tp_type'] = 'Excess'
     request.session['ws_supp_items'] = []
     request.session['ws_estimate_grand_total'] = grand_total
-    request.session['ws_work_name'] = str(estimate_work_name) if estimate_work_name else str(saved_work.name)
+    request.session['ws_work_name'] = str(estimate_work_name)
     request.session['ws_source_estimate_id'] = int(saved_work.id)
     request.session['ws_current_phase'] = 1
     request.session['ws_target_workslip'] = 1
@@ -1182,7 +1326,7 @@ def generate_workslip_from_saved(request, work_id):
     # For Workslip-1: Set initial metadata from estimate
     # work_name and grand_total come from estimate, TP will be entered via UI
     request.session['ws_metadata'] = {
-        'work_name': str(estimate_work_name) if estimate_work_name else str(saved_work.name),
+        'work_name': str(estimate_work_name),
         'estimate_amount': str(grand_total) if grand_total else '',
         'admin_sanction': '',  # To be entered via UI or left blank
         'tech_sanction': '',   # To be entered via UI or left blank
@@ -1230,13 +1374,9 @@ def generate_next_workslip_from_saved(request, work_id):
     
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
-    # Verify this is a completed workslip
+    # Verify this is a workslip
     if saved_work.work_type != 'workslip':
         messages.error(request, 'Only saved workslips can generate next workslips.')
-        return redirect('saved_works_list')
-    
-    if saved_work.status != 'completed':
-        messages.error(request, 'Workslip must be completed before generating the next workslip.')
         return redirect('saved_works_list')
     
     # Load workslip data
@@ -1327,7 +1467,7 @@ def generate_next_workslip_from_saved(request, work_id):
     request.session['ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
     request.session['ws_supp_items'] = []  # Start fresh supplemental items for new workslip
     request.session['ws_estimate_grand_total'] = work_data.get('ws_estimate_grand_total', 0)
-    request.session['ws_work_name'] = work_data.get('ws_work_name', saved_work.name)
+    request.session['ws_work_name'] = work_data.get('ws_work_name', '')
     request.session['ws_deduct_old_material'] = work_data.get('ws_deduct_old_material', 0)
     request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0)
     request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0)
@@ -1359,6 +1499,12 @@ def generate_next_workslip_from_saved(request, work_id):
         request.session['ws_selected_backend_id'] = saved_backend_id_session
     
     # Set parent work info for saving
+    # Carry forward the source estimate ID so new workslip links to root estimate
+    source_est_id = work_data.get('ws_source_estimate_id')
+    if source_est_id:
+        request.session['ws_source_estimate_id'] = source_est_id
+    elif saved_work.parent_id:
+        request.session['ws_source_estimate_id'] = saved_work.parent_id
     request.session['ws_parent_work_id'] = saved_work.id
     request.session['current_saved_work_id'] = None  # New workslip, not continuing existing
     request.session['current_saved_work_name'] = None
@@ -1372,12 +1518,20 @@ def generate_next_workslip_from_saved(request, work_id):
 def generate_bill_from_saved(request, work_id):
     """
     Generate a bill from a saved workslip or estimate.
-    Now redirects to bill_type_choice to ask user for bill type first.
+    Saved Works acts as navigation layer only - passes data to existing bill engine.
+    Redirects to bill page with appropriate data loaded.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     org = get_org_from_request(request)
     user = request.user
 
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+    try:
+        saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+    except Exception:
+        messages.error(request, 'Saved work not found or you do not have access.')
+        return redirect('saved_works_list')
 
     # Verify this is a workslip or estimate
     if saved_work.work_type not in ['workslip', 'new_estimate']:
@@ -1385,53 +1539,322 @@ def generate_bill_from_saved(request, work_id):
         return redirect('saved_works_list')
 
     work_data = saved_work.work_data or {}
-    
+
+    # Validate: Estimate must have data
+    if saved_work.work_type == 'new_estimate':
+        fetched_items = work_data.get('fetched_items', [])
+        if not fetched_items:
+            messages.error(request, 'Estimate has no items. Cannot generate bill from empty estimate.')
+            return redirect('saved_work_detail', work_id=work_id)
+
+    # Validate: Workslip must have estimate rows
+    if saved_work.work_type == 'workslip':
+        ws_rows = work_data.get('ws_estimate_rows', [])
+        if not ws_rows:
+            messages.error(request, 'WorkSlip has no data. Cannot generate bill from empty workslip.')
+            return redirect('saved_work_detail', work_id=work_id)
+
     # Store source info in session for bill page
     request.session['bill_source_work_id'] = saved_work.id
     request.session['bill_source_work_type'] = saved_work.work_type
     request.session['bill_source_work_name'] = saved_work.name
-    
+
     if saved_work.work_type == 'workslip':
+        # B(N) from W(N): bill_number matches the source workslip_number
+        bill_number = saved_work.workslip_number or 1
+        request.session['bill_target_number'] = bill_number
+        request.session['bill_sequence_number'] = bill_number
+        # Store parent workslip ID so save_work can link the bill to this workslip
+        request.session['bill_parent_work_id'] = saved_work.id
+
         # Load workslip data for bill generation
         request.session['bill_from_workslip'] = True
         request.session['bill_ws_rows'] = work_data.get('ws_estimate_rows', [])
         request.session['bill_ws_exec_map'] = work_data.get('ws_exec_map', {})
         request.session['bill_ws_tp_percent'] = work_data.get('ws_tp_percent', 0)
         request.session['bill_ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
+        # Pass metadata for bill header (name of work, estimate amount, sanctions, agency)
+        ws_metadata = work_data.get('ws_metadata', {})
+        request.session['bill_ws_metadata'] = {
+            'name_of_work': ws_metadata.get('work_name', '') or work_data.get('ws_work_name', ''),
+            'estimate_amount': ws_metadata.get('estimate_amount', '') or str(work_data.get('ws_estimate_grand_total', '')),
+            'admin_sanction': ws_metadata.get('admin_sanction', ''),
+            'tech_sanction': ws_metadata.get('tech_sanction', ''),
+            'agreement': ws_metadata.get('agreement', ''),
+            'agency': ws_metadata.get('agency_name', ''),
+        }
+        # Pass supplemental items if any
+        request.session['bill_ws_supp_items'] = work_data.get('ws_supp_items', [])
+
+        logger.info(f"[GEN_BILL] Generating Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
+        messages.success(request, f'Ready to generate Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} "{saved_work.name}".')
     else:
-        # Load estimate data for bill generation
+        # Bill from estimate (fallback)
+        request.session['bill_target_number'] = 1
+        request.session['bill_sequence_number'] = 1
+        request.session['bill_parent_work_id'] = saved_work.id
+
         request.session['bill_from_workslip'] = False
         request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
         request.session['bill_qty_map'] = work_data.get('qty_map', {})
-    
+
+        logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
+        messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
+
     request.session.modified = True
-    
-    messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
-    return redirect('bill')
+    return redirect(reverse('bill') + '?from_saved=1')
 
 
 @login_required(login_url='login')
 def saved_work_detail(request, work_id):
-    """View detailed information about a saved work including workflow chain."""
+    """
+    View detailed information about a saved work including workflow chain.
+    Provides E, W1-W3, B1-B3 button context for the Saved Works navigation layer.
+    """
     org = get_org_from_request(request)
     user = request.user
-    
+
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-    
-    # Get workflow chain
+
+    # Find the root estimate for this workflow chain
+    root_estimate = None
+    if saved_work.work_type == 'new_estimate':
+        root_estimate = saved_work
+    else:
+        # Walk up parent chain to find root estimate
+        current = saved_work.parent
+        while current:
+            if current.work_type == 'new_estimate':
+                root_estimate = current
+                break
+            current = current.parent
+
+        # Fallback for orphan workslips/bills (parent not set):
+        # Try to find the estimate by ws_source_estimate_id stored in work_data
+        if not root_estimate:
+            work_data = saved_work.work_data or {}
+            source_est_id = work_data.get('ws_source_estimate_id') or work_data.get('bill_source_work_id')
+            if source_est_id:
+                try:
+                    candidate = SavedWork.objects.get(id=source_est_id, organization=org, user=user)
+                    if candidate.work_type == 'new_estimate':
+                        root_estimate = candidate
+                        # Fix the parent relationship while we're at it
+                        saved_work.parent = root_estimate
+                        saved_work.save(update_fields=['parent'])
+                    else:
+                        # Maybe the source is a workslip; walk up from there
+                        cur = candidate.parent
+                        while cur:
+                            if cur.work_type == 'new_estimate':
+                                root_estimate = cur
+                                break
+                            cur = cur.parent
+                except SavedWork.DoesNotExist:
+                    pass
+
+        # Last fallback: find estimate with same name in same org
+        if not root_estimate:
+            root_estimate = SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='new_estimate',
+                name=saved_work.name,
+            ).first()
+
+    # Build workflow navigation: E, W1-W3, B1-B3 buttons
+    workslips = []
+    bills = []
+    if root_estimate:
+        workslips = list(
+            SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip',
+                parent=root_estimate,
+            ).order_by('workslip_number')
+        )
+
+        # Also find orphan workslips (parent not set) that reference this estimate
+        # via ws_source_estimate_id in their work_data — fix their parent and include them
+        existing_ws_ids = {ws.id for ws in workslips}
+        orphan_workslips = SavedWork.objects.filter(
+            organization=org, user=user,
+            work_type='workslip',
+            parent__isnull=True,
+        )
+        for ow in orphan_workslips:
+            wd = ow.work_data or {}
+            src_id = wd.get('ws_source_estimate_id')
+            if src_id and int(src_id) == root_estimate.id and ow.id not in existing_ws_ids:
+                # Fix the parent relationship
+                ow.parent = root_estimate
+                ow.save(update_fields=['parent'])
+                workslips.append(ow)
+                existing_ws_ids.add(ow.id)
+        # Re-sort workslips by workslip_number after adding orphans
+        workslips.sort(key=lambda w: w.workslip_number or 0)
+
+        # Bills: children of root_estimate or children of any of its workslips
+        workslip_ids = [ws.id for ws in workslips]
+        bills = list(
+            SavedWork.objects.filter(
+                Q(parent=root_estimate, work_type='bill') |
+                Q(parent_id__in=workslip_ids, work_type='bill')
+            ).filter(organization=org, user=user).order_by('bill_number')
+        )
+
+        # Also find orphan bills that reference this estimate or its workslips
+        existing_bill_ids = {b.id for b in bills}
+        orphan_bills = SavedWork.objects.filter(
+            organization=org, user=user,
+            work_type='bill',
+            parent__isnull=True,
+        )
+        for ob in orphan_bills:
+            bd = ob.work_data or {}
+            src_id = bd.get('bill_source_work_id')
+            if src_id:
+                src_id = int(src_id)
+                if (src_id == root_estimate.id or src_id in existing_ws_ids) and ob.id not in existing_bill_ids:
+                    ob.parent = root_estimate
+                    ob.save(update_fields=['parent'])
+                    bills.append(ob)
+                    existing_bill_ids.add(ob.id)
+        bills.sort(key=lambda b: b.bill_number or 0)
+
+    # Get workflow chain (parents)
     parent_chain = []
     current = saved_work.parent
     while current:
         parent_chain.insert(0, current)
         current = current.parent
-    
+
     children = saved_work.children.all()
-    
+
     # Check subscription access for this work
     access_result = check_saved_work_access(user, saved_work)
-    
+
+    # Module access checks
+    module_access = {}
+    try:
+        from subscriptions.services import SubscriptionService
+        for wt, mc in WORK_TYPE_TO_MODULE.items():
+            result = SubscriptionService.check_access(user, mc)
+            module_access[wt] = result.get('ok', False)
+    except Exception:
+        for wt in WORK_TYPE_TO_MODULE:
+            module_access[wt] = True
+
+    # ===========================================================
+    # BILL PREVIEW: Build preview rows for workslip/bill types
+    # Shows data as it would appear in the generated Excel bill
+    # ===========================================================
+    bill_preview_rows = []
+    bill_preview_number = 0
+    bill_preview_total = 0.0
+    previous_bill_rows = []  # For Bill 2+ to show deductions
+
+    if saved_work.work_type == 'workslip':
+        work_data = saved_work.work_data or {}
+        ws_rows = work_data.get('ws_estimate_rows', [])
+        ws_exec = work_data.get('ws_exec_map', {}) or {}
+        bill_preview_number = saved_work.workslip_number or 1
+
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            exec_qty = ws_exec.get(key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            rate = float(row.get('rate', 0) or 0)
+            amount = exec_qty * rate
+            bill_preview_total += amount
+            bill_preview_rows.append({
+                'sl': len(bill_preview_rows) + 1,
+                'name': row.get('desc') or row.get('display_name') or row.get('item_name', ''),
+                'desc': row.get('desc', ''),
+                'unit': row.get('unit', 'Nos'),
+                'qty': exec_qty,
+                'rate': rate,
+                'amount': amount,
+                'key': key,
+            })
+
+        # For Bill 2+, find the previous bill's data for deductions
+        if bill_preview_number > 1:
+            prev_bill = SavedWork.objects.filter(
+                organization=org, user=user, work_type='bill',
+                bill_number=bill_preview_number - 1,
+                parent=root_estimate,
+            ).first()
+            if not prev_bill:
+                # Check if the previous bill is a child of a workslip
+                for ws in workslips:
+                    prev_bill = SavedWork.objects.filter(
+                        organization=org, user=user, work_type='bill',
+                        bill_number=bill_preview_number - 1,
+                        parent=ws,
+                    ).first()
+                    if prev_bill:
+                        break
+
+            if prev_bill:
+                prev_data = prev_bill.work_data or {}
+                prev_ws_rows = prev_data.get('ws_estimate_rows', [])
+                prev_exec = prev_data.get('ws_exec_map', prev_data.get('bill_ws_exec_map', {})) or {}
+                for pidx, prow in enumerate(prev_ws_rows):
+                    pkey = prow.get('key', f'saved_{pidx}')
+                    pqty = prev_exec.get(pkey, 0)
+                    try:
+                        pqty = float(pqty) if pqty else 0.0
+                    except (ValueError, TypeError):
+                        pqty = 0.0
+                    previous_bill_rows.append({
+                        'key': pkey,
+                        'name': prow.get('display_name') or prow.get('item_name', ''),
+                        'qty': pqty,
+                    })
+
+    elif saved_work.work_type == 'bill':
+        work_data = saved_work.work_data or {}
+        ws_rows = work_data.get('bill_ws_rows', work_data.get('ws_estimate_rows', []))
+        ws_exec = work_data.get('bill_ws_exec_map', work_data.get('ws_exec_map', {})) or {}
+        bill_preview_number = saved_work.bill_number or 1
+
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            exec_qty = ws_exec.get(key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            rate = float(row.get('rate', 0) or 0)
+            amount = exec_qty * rate
+            bill_preview_total += amount
+            bill_preview_rows.append({
+                'sl': len(bill_preview_rows) + 1,
+                'name': row.get('desc') or row.get('display_name') or row.get('item_name', ''),
+                'desc': row.get('desc', ''),
+                'unit': row.get('unit', 'Nos'),
+                'qty': exec_qty,
+                'rate': rate,
+                'amount': amount,
+                'key': key,
+            })
+
+    # Determine last workslip for the W button prompt
+    last_workslip = workslips[-1] if workslips else None
+
     context = {
         'work': saved_work,
+        'root_estimate': root_estimate,
+        'workslips': workslips,
+        'bills': bills,
+        'last_workslip': last_workslip,
         'parent_chain': parent_chain,
         'children': children,
         'can_generate_workslip': saved_work.can_generate_workslip(),
@@ -1439,9 +1862,171 @@ def saved_work_detail(request, work_id):
         'has_subscription_access': access_result['ok'],
         'subscription_reason': access_result.get('reason', ''),
         'module_code': access_result.get('module_code'),
+        'module_access': module_access,
+        'bill_preview_rows': bill_preview_rows,
+        'bill_preview_number': bill_preview_number,
+        'bill_preview_total': bill_preview_total,
+        'previous_bill_rows': json.dumps(previous_bill_rows),
     }
-    
+
     return render(request, 'core/saved_works/detail.html', context)
+
+
+# ==============================================================================
+# BILL GENERATION FROM SAVED WORKS (B1, B2, B3 FLOW)
+# ==============================================================================
+
+@login_required(login_url='login')
+def generate_next_bill_from_saved(request, work_id):
+    """
+    Generate the next bill from a saved bill.
+    For example, if work_id is Bill-1, this generates Bill-2.
+    Saved Works acts as navigation layer only — passes IDs to existing bill engine.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    org = get_org_from_request(request)
+    user = request.user
+
+    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+
+    # Validate: must be a bill
+    if saved_work.work_type != 'bill':
+        return JsonResponse({
+            'success': False,
+            'error': 'Only saved bills can generate next bills.'
+        }, status=400)
+
+    if saved_work.status != 'completed':
+        return JsonResponse({
+            'success': False,
+            'error': 'Bill must be completed before generating the next bill.'
+        }, status=400)
+
+    current_bill_number = saved_work.bill_number or 1
+    next_bill_number = current_bill_number + 1
+
+    logger.info(
+        f"[NEXT_BILL] Generating Bill-{next_bill_number} from saved Bill-{current_bill_number} (ID: {work_id})"
+    )
+
+    work_data = saved_work.work_data or {}
+
+    # Find the source workslip for this bill chain
+    source_workslip_id = work_data.get('source_workslip_id')
+
+    # Pass minimal info to bill session — let existing bill engine handle calculations
+    request.session['bill_source_work_id'] = saved_work.id
+    request.session['bill_source_work_type'] = 'bill'
+    request.session['bill_source_work_name'] = saved_work.name
+    request.session['bill_from_workslip'] = True
+    request.session['bill_previous_bill_id'] = saved_work.id
+    request.session['bill_previous_bill_number'] = current_bill_number
+    request.session['bill_target_number'] = next_bill_number
+    request.session['bill_sequence_number'] = next_bill_number
+
+    # Carry over bill data for the existing engine to use
+    if 'bill_ws_rows' in work_data:
+        request.session['bill_ws_rows'] = work_data['bill_ws_rows']
+    if 'bill_ws_exec_map' in work_data:
+        request.session['bill_ws_exec_map'] = work_data['bill_ws_exec_map']
+    if 'bill_ws_tp_percent' in work_data:
+        request.session['bill_ws_tp_percent'] = work_data['bill_ws_tp_percent']
+    if 'bill_ws_tp_type' in work_data:
+        request.session['bill_ws_tp_type'] = work_data['bill_ws_tp_type']
+    # Carry over metadata for bill header
+    if 'bill_ws_metadata' in work_data:
+        request.session['bill_ws_metadata'] = work_data['bill_ws_metadata']
+
+    request.session.modified = True
+
+    messages.success(request, f'Ready to generate Bill-{next_bill_number} from "{saved_work.name}".')
+    return redirect(reverse('bill') + '?from_saved=1')
+
+
+@login_required(login_url='login')
+@require_POST
+def saved_work_action(request, work_id):
+    """
+    Handle AJAX actions from the Saved Works detail page.
+    This is the navigation layer that routes to existing module APIs.
+    Actions: update_workslip, start_next_workslip, update_bill, start_next_bill
+    """
+    org = get_org_from_request(request)
+    user = request.user
+
+    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+
+    action = request.POST.get('action', '')
+
+    if action == 'update_estimate':
+        # Resume existing estimate — same as resume_saved_work
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('resume_saved_work', kwargs={'work_id': work_id}),
+            'action': 'update_estimate',
+        })
+
+    elif action == 'update_workslip':
+        # Resume existing workslip
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('resume_saved_work', kwargs={'work_id': work_id}),
+            'action': 'update_workslip',
+        })
+
+    elif action == 'start_next_workslip':
+        # Validate: workslip must be completed
+        if saved_work.work_type != 'workslip':
+            return JsonResponse({
+                'success': False,
+                'error': 'Only completed workslips can generate next workslips.'
+            }, status=400)
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('generate_next_workslip_from_saved', kwargs={'work_id': work_id}),
+            'action': 'start_next_workslip',
+        })
+
+    elif action == 'update_bill':
+        # Resume existing bill (redirect to bill page with data loaded)
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('generate_bill_from_saved', kwargs={'work_id': work_id}),
+            'action': 'update_bill',
+        })
+
+    elif action == 'start_next_bill':
+        # Generate next bill from existing bill
+        if saved_work.work_type != 'bill':
+            return JsonResponse({
+                'success': False,
+                'error': 'Only completed bills can generate next bills.'
+            }, status=400)
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('generate_next_bill_from_saved', kwargs={'work_id': work_id}),
+            'action': 'start_next_bill',
+        })
+
+    elif action == 'generate_first_bill':
+        # Generate Bill-1 from a workslip
+        if saved_work.work_type != 'workslip':
+            return JsonResponse({
+                'success': False,
+                'error': 'Only workslips can generate bills.'
+            }, status=400)
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('generate_bill_from_saved', kwargs={'work_id': work_id}),
+            'action': 'generate_first_bill',
+        })
+
+    return JsonResponse({
+        'success': False,
+        'error': f'Unknown action: {action}'
+    }, status=400)
 
 
 @login_required(login_url='login')
@@ -1482,6 +2067,10 @@ def save_with_parent(request):
     progress_percent = calculate_progress(work_data, work_type)
     last_step = get_last_step(request, work_type)
     
+    # Auto-inherit parent's folder if no folder specified
+    if not folder and parent and parent.folder:
+        folder = parent.folder
+
     # Create saved work with parent reference
     saved_work = SavedWork.objects.create(
         organization=org,
@@ -1504,233 +2093,4 @@ def save_with_parent(request):
         'success': True,
         'work_id': saved_work.id,
         'message': f'Work "{work_name}" saved successfully!'
-    })
-
-
-# ==============================================================================
-# WORKSLIP CHOICE DIALOG: Update existing or Create next workslip
-# ==============================================================================
-
-@login_required(login_url='login')
-def workslip_choice(request, work_id):
-    """
-    When user clicks Workslip on a saved estimate that already has workslips,
-    show a choice dialog: Update existing Workslip N or Create Workslip N+1.
-    """
-    org = get_org_from_request(request)
-    user = request.user
-
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-
-    # Collect all workslips in this workflow
-    all_workslips = saved_work.get_all_workslips() if hasattr(saved_work, 'get_all_workslips') else []
-
-    # Collect all bills in this workflow
-    all_bills = saved_work.get_all_bills() if hasattr(saved_work, 'get_all_bills') else []
-
-    # Determine next workslip number
-    if all_workslips:
-        max_ws_num = max(ws.workslip_number for ws in all_workslips)
-        next_ws_num = max_ws_num + 1
-    else:
-        next_ws_num = 1
-
-    context = {
-        'work': saved_work,
-        'all_workslips': all_workslips,
-        'all_bills': all_bills,
-        'next_ws_num': next_ws_num,
-        'has_workslips': len(all_workslips) > 0,
-    }
-
-    return render(request, 'core/saved_works/workslip_choice.html', context)
-
-
-# ==============================================================================
-# BILL TYPE SELECTION: First & Part / First & Final / Nth & Part / Nth & Final
-# ==============================================================================
-
-@login_required(login_url='login')
-def bill_type_choice(request, work_id):
-    """
-    Show a dialog asking user whether to generate First & Part, First & Final,
-    Second & Part, Second & Final, etc.
-    """
-    org = get_org_from_request(request)
-    user = request.user
-
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-
-    # Get all bills in this workflow chain
-    all_bills = saved_work.get_all_bills() if hasattr(saved_work, 'get_all_bills') else []
-    all_workslips = saved_work.get_all_workslips() if hasattr(saved_work, 'get_all_workslips') else []
-
-    # Determine bill number
-    if all_bills:
-        next_bill_num = max(b.bill_number for b in all_bills) + 1
-    else:
-        next_bill_num = 1
-
-    # Build ordinal labels
-    ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
-                6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
-    ordinal = ordinals.get(next_bill_num, f'{next_bill_num}th')
-
-    context = {
-        'work': saved_work,
-        'all_bills': all_bills,
-        'all_workslips': all_workslips,
-        'next_bill_num': next_bill_num,
-        'ordinal': ordinal,
-        'has_bills': len(all_bills) > 0,
-    }
-
-    return render(request, 'core/saved_works/bill_type_choice.html', context)
-
-
-@login_required(login_url='login')
-@require_POST
-def generate_bill_with_type(request, work_id):
-    """
-    Generate a bill from a saved workslip with specified bill type.
-    Handles quantity calculations:
-    - Total value till date = last workslip executed quantity
-    - Deduct previous measurements = previous bill quantity
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-
-    org = get_org_from_request(request)
-    user = request.user
-
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-
-    bill_type = request.POST.get('bill_type', 'first_part')
-    bill_number = int(request.POST.get('bill_number', 1))
-
-    logger.info(f"[GEN_BILL] Generating Bill-{bill_number} ({bill_type}) from work {work_id}")
-
-    # Verify this is a workslip or estimate
-    if saved_work.work_type not in ['workslip', 'new_estimate']:
-        messages.error(request, 'Only workslips or estimates can be used to generate bills.')
-        return redirect('saved_works_list')
-
-    work_data = saved_work.work_data or {}
-
-    # Store bill metadata in session
-    request.session['bill_source_work_id'] = saved_work.id
-    request.session['bill_source_work_type'] = saved_work.work_type
-    request.session['bill_source_work_name'] = saved_work.name
-    request.session['bill_number'] = bill_number
-    request.session['bill_type'] = bill_type
-
-    # Build ordinal for CC header
-    ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
-                6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
-    ordinal = ordinals.get(bill_number, f'{bill_number}th')
-    if bill_type.endswith('_part'):
-        cc_header = f'CC {ordinal} & Part Bill'
-    else:
-        cc_header = f'CC {ordinal} & Final Bill'
-    request.session['bill_cc_header'] = cc_header
-
-    if saved_work.work_type == 'workslip':
-        # Load workslip data for bill generation
-        request.session['bill_from_workslip'] = True
-        request.session['bill_ws_rows'] = work_data.get('ws_estimate_rows', [])
-        request.session['bill_ws_exec_map'] = work_data.get('ws_exec_map', {})
-        request.session['bill_ws_tp_percent'] = work_data.get('ws_tp_percent', 0)
-        request.session['bill_ws_tp_type'] = work_data.get('ws_tp_type', 'Excess')
-        request.session['bill_ws_supp_items'] = work_data.get('ws_supp_items', [])
-        request.session['bill_ws_metadata'] = work_data.get('ws_metadata', {})
-
-        # For Nth bills (bill_number > 1), calculate previous bill quantities to deduct
-        if bill_number > 1:
-            all_bills = saved_work.get_all_bills()
-            # Find the previous bill (bill_number - 1)
-            prev_bill = None
-            for b in all_bills:
-                if b.bill_number == bill_number - 1:
-                    prev_bill = b
-                    break
-
-            if prev_bill:
-                prev_bill_data = prev_bill.work_data or {}
-                request.session['bill_prev_qty_map'] = prev_bill_data.get('bill_qty_map', {})
-                request.session['bill_prev_amount_map'] = prev_bill_data.get('bill_amount_map', {})
-                logger.info(f"[GEN_BILL] Loaded previous bill-{bill_number-1} quantities for deduction")
-            else:
-                request.session['bill_prev_qty_map'] = {}
-                request.session['bill_prev_amount_map'] = {}
-
-        # For workslip-based bills, load cumulative quantities from the workslip
-        # Total value till date = workslip executed quantity (current workslip)
-        ws_exec_map = work_data.get('ws_exec_map', {})
-        # Also include previous phases cumulative
-        previous_phases = work_data.get('ws_previous_phases', [])
-        cumulative_exec = {}
-        # Sum all previous phases
-        for phase in previous_phases:
-            for key, qty in phase.items():
-                try:
-                    cumulative_exec[key] = cumulative_exec.get(key, 0) + float(qty)
-                except (ValueError, TypeError):
-                    pass
-        # Add current workslip execution
-        for key, qty in ws_exec_map.items():
-            try:
-                cumulative_exec[key] = cumulative_exec.get(key, 0) + float(qty)
-            except (ValueError, TypeError):
-                pass
-        request.session['bill_cumulative_exec'] = cumulative_exec
-    else:
-        # From estimate
-        request.session['bill_from_workslip'] = False
-        request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
-        request.session['bill_qty_map'] = work_data.get('qty_map', {})
-
-    request.session.modified = True
-
-    messages.success(request, f'Ready to generate {cc_header} from "{saved_work.name}".')
-    return redirect('bill')
-
-
-# ==============================================================================
-# WORKFLOW API: Get workflow data for a saved work (used by list page)
-# ==============================================================================
-
-@login_required(login_url='login')
-def get_workflow_data(request, work_id):
-    """
-    API endpoint returning workflow chain data for a saved work.
-    Used by the list page to show workslip/bill buttons dynamically.
-    """
-    org = get_org_from_request(request)
-    user = request.user
-
-    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-
-    all_workslips = saved_work.get_all_workslips()
-    all_bills = saved_work.get_all_bills()
-
-    workslips_data = [{
-        'id': ws.id,
-        'name': ws.name,
-        'workslip_number': ws.workslip_number,
-        'status': ws.status,
-    } for ws in all_workslips]
-
-    bills_data = [{
-        'id': b.id,
-        'name': b.name,
-        'bill_number': b.bill_number,
-        'bill_type': b.bill_type,
-        'label': b.get_bill_type_display_label() if hasattr(b, 'get_bill_type_display_label') else f'Bill-{b.bill_number}',
-    } for b in all_bills]
-
-    return JsonResponse({
-        'workslips': workslips_data,
-        'bills': bills_data,
-        'can_generate_workslip': saved_work.can_generate_workslip(),
-        'can_generate_bill': saved_work.can_generate_bill(),
     })

@@ -633,15 +633,9 @@ class SavedWork(models.Model):
     # Workslip tracking - which workslip number this is (1, 2, 3, etc.)
     workslip_number = models.IntegerField(default=1, help_text="Workslip number for multi-workslip generation")
 
-    # Bill tracking - which bill number this is (1, 2, 3, etc.) and type (part/final)
-    BILL_TYPE_CHOICES = (
-        ("first_part", "First & Part Bill"),
-        ("first_final", "First & Final Bill"),
-        ("nth_part", "Nth & Part Bill"),
-        ("nth_final", "Nth & Final Bill"),
-    )
+    # Bill tracking - which bill number this is (1, 2, 3, etc.)
     bill_number = models.IntegerField(default=1, help_text="Bill number for multi-bill generation")
-    bill_type = models.CharField(max_length=30, choices=BILL_TYPE_CHOICES, blank=True, default='', help_text="Type of bill (part/final)")
+    bill_type = models.CharField(max_length=50, blank=True, default="", help_text="Bill type: first_part or first_final")
 
     # Progress tracking
     progress_percent = models.IntegerField(default=0)  # 0-100
@@ -671,6 +665,13 @@ class SavedWork(models.Model):
             "workslip": "bi-file-earmark-text",
             "bill": "bi-receipt",
             "temporary_works": "bi-tools",
+            "amc": "bi-calendar-check",
+        }
+        return icons.get(self.work_type, "bi-file-earmark")
+    
+    def get_work_type_color(self):
+        """Return color class for work type"""
+        colors = {
             "new_estimate": "primary",
             "workslip": "success",
             "bill": "danger",
@@ -770,6 +771,24 @@ class SavedWork(models.Model):
         """Get all child works of a specific type"""
         return self.children.filter(work_type=work_type)
 
+    def get_related_workslips(self):
+        """Get all workslips related to this estimate (direct children of type workslip)."""
+        if self.work_type == 'new_estimate':
+            return self.children.filter(work_type='workslip').order_by('workslip_number')
+        return SavedWork.objects.none()
+
+    def get_related_bills(self):
+        """Get all bills related to this estimate (children of type bill, from any level)."""
+        if self.work_type == 'new_estimate':
+            # Bills can be children of the estimate or children of workslips
+            from django.db.models import Q
+            workslip_ids = list(self.children.filter(work_type='workslip').values_list('id', flat=True))
+            return SavedWork.objects.filter(
+                Q(parent=self, work_type='bill') |
+                Q(parent_id__in=workslip_ids, work_type='bill')
+            ).order_by('bill_number')
+        return SavedWork.objects.none()
+
     def get_workflow_chain(self):
         """Get the full workflow chain (parent → self → children)"""
         chain = []
@@ -832,10 +851,10 @@ class LetterSettings(models.Model):
     def get_from_section(self):
         """Get formatted from section text"""
         parts = []
-        name_qual = self.officer_name
-        if self.officer_qualification:
-            name_qual = f"{name_qual}, {self.officer_qualification}"
-        if name_qual:
+        if self.officer_name:
+            name_qual = self.officer_name
+            if self.officer_qualification:
+                name_qual += f", {self.officer_qualification}"
             parts.append(name_qual)
         if self.officer_designation:
             parts.append(self.officer_designation)

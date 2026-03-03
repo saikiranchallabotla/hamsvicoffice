@@ -1,4 +1,4 @@
-# core/views.py
+﻿# core/views.py
 
 import json
 import os
@@ -437,7 +437,10 @@ def home(request):
     if not request.user.is_authenticated:
         # Show landing page with login/register options
         return render(request, "core/landing.html")
+    try:
         return render(request, "core/home.html")
+    except Exception:
+        return HttpResponse("Home page temporarily unavailable.")
 
 
 @login_required(login_url='login')
@@ -497,6 +500,7 @@ def workslip(request):
         # Clear all workslip session data for a fresh start
         request.session["ws_estimate_rows"] = []
         request.session["ws_exec_map"] = {}
+        request.session["ws_rate_map"] = {}  # Map of row_key -> custom rate (for user-modified rates)
         request.session["ws_tp_percent"] = 0.0
         request.session["ws_tp_type"] = "Excess"
         request.session["ws_supp_items"] = []
@@ -574,6 +578,7 @@ def workslip(request):
     # ---- session state ----
     ws_estimate_rows = request.session.get("ws_estimate_rows", []) or []
     ws_exec_map = request.session.get("ws_exec_map", {}) or {}
+    ws_rate_map = request.session.get("ws_rate_map", {}) or {}  # Custom rate changes by user
     ws_tp_percent = request.session.get("ws_tp_percent", 0.0)
     ws_tp_type = request.session.get("ws_tp_type", "Excess")
     ws_supp_items = request.session.get("ws_supp_items", []) or []
@@ -628,7 +633,7 @@ def workslip(request):
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
     except Exception:
-        items_list, groups_map, units_map, ws_data, filepath = [], {}, {}, None, ""
+        items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
     current_group = request.GET.get("group") or (groups[0] if groups else "")
@@ -644,6 +649,19 @@ def workslip(request):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp = item_to_group.get(name, "")
         if grp in ("Piping", "Wiring & Cables"):
             return ("Mtrs", "Mtr")
@@ -1049,6 +1067,7 @@ def workslip(request):
         # B) (optional) update preview
         elif action == "update_preview":
             exec_str = request.POST.get("exec_map", "")
+            rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
             tp_type = request.POST.get("tp_type", "Excess")
 
@@ -1065,7 +1084,22 @@ def workslip(request):
                 except Exception:
                     pass
 
+            # Parse rate_map for custom rate changes
+            new_rate_map = {}
+            if rate_str:
+                try:
+                    raw = json.loads(rate_str)
+                    if isinstance(raw, dict):
+                        for k, v in raw.items():
+                            try:
+                                new_rate_map[str(k)] = float(v)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
             ws_exec_map.update(new_exec_map)
+            ws_rate_map.update(new_rate_map)
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else 0.0
             except Exception:
@@ -1073,6 +1107,7 @@ def workslip(request):
             ws_tp_type = tp_type if tp_type in ("Less", "Excess") else "Excess"
 
             request.session["ws_exec_map"] = ws_exec_map
+            request.session["ws_rate_map"] = ws_rate_map
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
 
@@ -1087,12 +1122,14 @@ def workslip(request):
                     new_list.append(nm)
             ws_supp_items = new_list
 
-            # merge exec_map & TP coming from hidden fields
+            # merge exec_map, rate_map & TP coming from hidden fields
             exec_str = request.POST.get("exec_map", "")
+            rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
             tp_type = request.POST.get("tp_type", "Excess")
 
             ws_exec_map_session = request.session.get("ws_exec_map", {}) or {}
+            ws_rate_map_session = request.session.get("ws_rate_map", {}) or {}
             new_exec_map = {}
             if exec_str:
                 try:
@@ -1106,8 +1143,25 @@ def workslip(request):
                 except Exception:
                     pass
 
+            # Parse rate_map for custom rate changes
+            new_rate_map = {}
+            if rate_str:
+                try:
+                    raw = json.loads(rate_str)
+                    if isinstance(raw, dict):
+                        for k, v in raw.items():
+                            try:
+                                new_rate_map[str(k)] = float(v)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
             ws_exec_map = ws_exec_map_session.copy()
             ws_exec_map.update(new_exec_map)
+            
+            ws_rate_map = ws_rate_map_session.copy()
+            ws_rate_map.update(new_rate_map)
 
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else 0.0
@@ -1123,6 +1177,7 @@ def workslip(request):
 
             request.session["ws_supp_items"] = ws_supp_items
             request.session["ws_exec_map"] = filtered_exec_map
+            request.session["ws_rate_map"] = ws_rate_map
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
 
@@ -2077,6 +2132,7 @@ def workslip(request):
         # E) Download Workslip
         elif action == "download_workslip":
             exec_str = request.POST.get("exec_map", "")
+            rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
             tp_type = request.POST.get("tp_type", "Excess")
             deduct_old_material_str = request.POST.get("deduct_old_material", "")
@@ -2106,6 +2162,23 @@ def workslip(request):
             ws_exec_map = ws_exec_map_session.copy()
             ws_exec_map.update(new_exec_map)
 
+            # merge UI rate_map into session map
+            ws_rate_map_session = request.session.get("ws_rate_map", {}) or {}
+            new_rate_map = {}
+            if rate_str:
+                try:
+                    raw = json.loads(rate_str)
+                    if isinstance(raw, dict):
+                        for k, v in raw.items():
+                            try:
+                                new_rate_map[str(k)] = float(v)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+            ws_rate_map = ws_rate_map_session.copy()
+            ws_rate_map.update(new_rate_map)
+
             # Use form values if provided, otherwise fall back to session values (from uploaded workslip)
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else request.session.get("ws_tp_percent", 0.0)
@@ -2120,6 +2193,7 @@ def workslip(request):
                 ws_deduct_old_material = request.session.get("ws_deduct_old_material", 0.0)
 
             request.session["ws_exec_map"] = ws_exec_map
+            request.session["ws_rate_map"] = ws_rate_map
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
             request.session["ws_deduct_old_material"] = ws_deduct_old_material
@@ -2163,6 +2237,16 @@ def workslip(request):
                             return 0.0
                 return 0.0
 
+            # helper to get rate for a row, considering custom rates from ws_rate_map
+            def get_rate_for_row(row_key, original_rate):
+                """Get the rate for a row, using custom rate from ws_rate_map if available."""
+                if row_key in ws_rate_map:
+                    try:
+                        return float(ws_rate_map[row_key])
+                    except Exception:
+                        return original_rate
+                return original_rate
+
             # ---------- build supplemental description+rate from backend ----------
             item_to_info = {it["name"]: it for it in items_list}
             wb_backend_vals = None
@@ -2198,6 +2282,34 @@ def workslip(request):
                         break
                 supp_rate_map[name] = rate_val
 
+            # Load prefix mapping for repair mode (used in both ItemBlocks and WorkSlip sheets)
+            item_to_prefix_ws = {}
+            if ws_work_mode == 'repair' and filepath and os.path.exists(filepath):
+                try:
+                    wb_groups_for_prefix = load_workbook(filepath, data_only=False)
+                    ws_groups_for_prefix = wb_groups_for_prefix["Groups"]
+                    header_row_p = None
+                    col_item_p = None
+                    col_prefix_p = None
+                    for r in range(1, ws_groups_for_prefix.max_row + 1):
+                        for c in range(1, ws_groups_for_prefix.max_column + 1):
+                            val = str(ws_groups_for_prefix.cell(row=r, column=c).value or "").strip().lower()
+                            if val == "item name":
+                                header_row_p = r
+                                col_item_p = c
+                            elif val == "prefix":
+                                col_prefix_p = c
+                        if header_row_p:
+                            break
+                    if header_row_p and col_item_p and col_prefix_p:
+                        for r in range(header_row_p + 1, ws_groups_for_prefix.max_row + 1):
+                            nm = ws_groups_for_prefix.cell(r, col_item_p).value
+                            px = ws_groups_for_prefix.cell(r, col_prefix_p).value
+                            if nm and px not in (None, ""):
+                                item_to_prefix_ws[str(nm).strip()] = str(px).strip()
+                except Exception:
+                    pass
+
             # ---------- create workbook ----------
             wb_out = Workbook()
 
@@ -2212,6 +2324,7 @@ def workslip(request):
                 hdr.font = Font(bold=True, size=11)
                 hdr.alignment = Alignment(horizontal="left", vertical="center")
                 current_row = 3  # start blocks after header + blank row
+                data_serial_blocks = 1
                 if ws_data is not None:
                     for name in ws_supp_items:
                         info = item_to_info.get(name)
@@ -2228,7 +2341,18 @@ def workslip(request):
                             col_start=1,
                             col_end=10,
                         )
-                        current_row += (end_row - start_row + 1) + 1  # 1 blank row between blocks
+                        # Add Data serial number to column A of block header row
+                        ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
+                        data_serial_blocks += 1
+                        # Apply repair prefix to description cell (row+2, col D)
+                        if ws_work_mode == 'repair' and item_to_prefix_ws:
+                            prefix = item_to_prefix_ws.get(name, "")
+                            if prefix:
+                                desc_cell_block = ws_blocks.cell(row=current_row + 2, column=4)
+                                base_val = desc_cell_block.value
+                                base_str = str(base_val).strip() if base_val not in (None, "") else ""
+                                desc_cell_block.value = f"{prefix} {base_str}" if base_str else prefix
+                        current_row += (end_row - start_row + 1)  # No blank row between blocks
             else:
                 # no supplemental items â†’ remove default sheet so only WorkSlip will exist
                 default_sheet = wb_out.active
@@ -2408,7 +2532,8 @@ def workslip(request):
                 )
 
                 unit = row.get("unit") or ""
-                rate = float(row.get("rate", 0) or 0)
+                original_rate = float(row.get("rate", 0) or 0)
+                rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
                 desc_est = row.get("desc") or row.get("item_name") or ""
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
@@ -2557,8 +2682,15 @@ def workslip(request):
                         supp_qty = float(supp.get("qty", 0) or 0)
                         supp_desc = supp.get("desc", supp_name)
                         supp_unit = supp.get("unit", "-") or "-"
-                        supp_rate = float(supp.get("rate", 0) or 0)
+                        
+                        # Apply custom rate if user modified it
+                        prev_supp_key = f"prev_supp:{phase_num}:{supp_name}"
+                        original_supp_rate = float(supp.get("rate", 0) or 0)
+                        supp_rate = get_rate_for_row(prev_supp_key, original_supp_rate)
                         supp_amount = supp.get("amount", supp_qty * supp_rate)
+                        # Recalculate amount if rate was modified
+                        if prev_supp_key in ws_rate_map:
+                            supp_amount = supp_qty * supp_rate
                         
                         ws_ws.cell(out_row, COL_SL, sl_counter)
                         ws_ws.cell(out_row, COL_DESC, supp_name)
@@ -2582,7 +2714,7 @@ def workslip(request):
                             ws_ws.cell(out_row, phase_amt_col).fill = phase_fill
                         
                         # Check if user entered current workslip quantity for this previous supp item
-                        prev_supp_key = f"prev_supp:{phase_num}:{supp_name}"
+                        # prev_supp_key is already defined above when getting rate
                         prev_supp_curr_qty = float(ws_exec_map.get(prev_supp_key, 0) or 0)
                         
                         if prev_supp_curr_qty > 0:
@@ -2629,6 +2761,10 @@ def workslip(request):
                 # actual supplemental rows
                 for name in ws_supp_items:
                     desc_supp = supp_desc_map.get(name, name)
+                    if ws_work_mode == 'repair' and item_to_prefix_ws:
+                        prefix = item_to_prefix_ws.get(name, "")
+                        if prefix:
+                            desc_supp = f"{prefix} {desc_supp}" if desc_supp else prefix
                     unit_pl, _ = units_for(name)
                     rate = float(supp_rate_map.get(name, 0.0) or 0.0)
                     key = f"supp:{name}"
@@ -3060,6 +3196,11 @@ def workslip(request):
                         "amount": item_data["phase_amounts"].get(phase_idx, 0),
                     })
                 
+                # Apply custom rate from ws_rate_map if user modified it
+                prev_supp_rate = item_data["rate"]
+                if supp_key in ws_rate_map:
+                    prev_supp_rate = ws_rate_map[supp_key]
+                
                 prev_supp_row = {
                     "row_type": "prev_supp",
                     "key": supp_key,
@@ -3068,7 +3209,7 @@ def workslip(request):
                     "desc": item_data["name"],
                     "qty_est": "-",
                     "unit": item_data["unit"],
-                    "rate": item_data["rate"],
+                    "rate": prev_supp_rate,
                     "qty_exec": ws_exec_map.get(supp_key, ""),
                     "supp_section": section_num,
                     "previous_phases_exec": prev_phases_exec,  # List of {phase, qty, amount}
@@ -3223,15 +3364,8 @@ def workslip_ajax_toggle_supp(request):
         item_info = None
         if action_taken == "added":
             try:
-                # Load backend for the current workslip category
-                ws_category = request.session.get("ws_category", "electrical") or "electrical"
-                ws_work_type = request.session.get("ws_work_type", "new_estimate") or "new_estimate"
-                if ws_work_type == 'amc':
-                    category = f'amc_{ws_category}'
-                elif ws_work_type == 'tempworks':
-                    category = f'temp_{ws_category}'
-                else:
-                    category = ws_category
+                # Load backend for the default category
+                category = "original"
                 items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
                 
                 # Get rate
@@ -4001,7 +4135,8 @@ def parse_workslip_items(ws):
             elif rate_exec == 0 and qty_exec != 0:
                 rate_exec = amt_exec / qty_exec
 
-        if qty_exec == 0 and rate_exec == 0:
+        # Skip items with zero executed quantity (don't include in bill)
+        if qty_exec == 0:
             continue
 
         unit = str(ws.cell(row=r, column=3).value or "").strip()
@@ -4932,19 +5067,184 @@ def bill(request):
     # (temporary) so the view never returns None while refactoring continues.
     method = getattr(request, 'method', '').upper()
     if method == 'GET':
+        # ---- Clear stale Saved Works session data on direct navigation ----
+        # When the bill page is accessed directly (not via Saved Works redirect),
+        # clear any lingering bill session keys so the module works independently.
+        if not request.GET.get('from_saved'):
+            for key in [
+                'bill_from_workslip', 'bill_ws_rows', 'bill_ws_exec_map',
+                'bill_ws_tp_percent', 'bill_ws_tp_type', 'bill_source_work_name',
+                'bill_ws_metadata', 'bill_target_number', 'bill_source_work_id',
+                'bill_source_work_type', 'bill_parent_work_id',
+                'bill_previous_bill_id', 'bill_previous_bill_number',
+                'bill_sequence_number', 'bill_type',
+            ]:
+                request.session.pop(key, None)
+            request.session.modified = True
+
         # Get user's document templates for display
         from core.template_views import get_user_template
         covering_letter_template = get_user_template(request.user, 'covering_letter')
         movement_slip_template = get_user_template(request.user, 'movement_slip')
+
+        # Check if session has pre-loaded data from Saved Works
+        bill_from_workslip = request.session.get('bill_from_workslip', False)
+        bill_from_saved = False
+        bill_preload_items = []
+        bill_preload_source = ''
+        bill_preload_tp_percent = 0.0
+        bill_preload_tp_type = 'Excess'
+        bill_preload_count = 0
+        bill_preload_total = 0.0
+
+        if bill_from_workslip:
+            ws_rows = request.session.get('bill_ws_rows', [])
+            ws_exec_map = request.session.get('bill_ws_exec_map', {}) or {}
+            if ws_rows:
+                bill_from_saved = True
+                bill_preload_source = request.session.get('bill_source_work_name', 'WorkSlip')
+                bill_preload_tp_percent = float(request.session.get('bill_ws_tp_percent', 0) or 0)
+                bill_preload_tp_type = request.session.get('bill_ws_tp_type', 'Excess')
+                for idx, row in enumerate(ws_rows):
+                    key = row.get('key', f'saved_{idx}')
+                    exec_qty = ws_exec_map.get(key, 0)
+                    try:
+                        exec_qty = float(exec_qty) if exec_qty else 0.0
+                    except (ValueError, TypeError):
+                        exec_qty = 0.0
+                    if exec_qty <= 0:
+                        continue
+                    rate = float(row.get('rate', 0) or 0)
+                    amount = exec_qty * rate
+                    bill_preload_total += amount
+                    bill_preload_count += 1
+                    bill_preload_items.append({
+                        'sl': bill_preload_count,
+                        'desc': row.get('display_name') or row.get('item_name', row.get('desc', '')),
+                        'unit': row.get('unit', 'Nos'),
+                        'qty': exec_qty,
+                        'rate': rate,
+                        'amount': round(amount, 2),
+                    })
+
         return render(request, "core/bill.html", {
             'covering_letter_template': covering_letter_template,
             'movement_slip_template': movement_slip_template,
+            'bill_from_saved': bill_from_saved,
+            'bill_preload_items': bill_preload_items,
+            'bill_preload_source': bill_preload_source,
+            'bill_preload_tp_percent': bill_preload_tp_percent,
+            'bill_preload_tp_type': bill_preload_tp_type,
+            'bill_preload_count': bill_preload_count,
+            'bill_preload_total': round(bill_preload_total, 2),
+            'bill_target_number': request.session.get('bill_target_number', 1) if bill_from_saved else 0,
         })
 
     if method == 'POST':
         action = str(request.POST.get('action') or '').strip()
         bill_type = str(request.POST.get('bill_type') or '').strip()
         uploaded = request.FILES.get('bill_file') or request.FILES.get('file')
+
+        # ── SESSION-BASED BILL GENERATION (from Saved Works) ──
+        # When coming from Saved Works, data is pre-loaded in session.
+        # If no file is uploaded AND session data exists, generate from session.
+        if not uploaded and request.session.get('bill_from_workslip'):
+            ws_rows = request.session.get('bill_ws_rows', [])
+            ws_exec_map = request.session.get('bill_ws_exec_map', {}) or {}
+            ws_tp_percent = float(request.session.get('bill_ws_tp_percent', 0) or 0)
+            ws_tp_type = request.session.get('bill_ws_tp_type', 'Excess')
+            ws_metadata = request.session.get('bill_ws_metadata', {}) or {}
+
+            if not ws_rows:
+                return JsonResponse({"error": "No workslip data found in session. Please upload a file."}, status=400)
+
+            # Convert session rows + exec_map into items format for create_first_bill_sheet
+            items = []
+            for idx, row in enumerate(ws_rows):
+                key = row.get('key', f'saved_{idx}')
+                exec_qty = ws_exec_map.get(key, 0)
+                try:
+                    exec_qty = float(exec_qty) if exec_qty else 0.0
+                except (ValueError, TypeError):
+                    exec_qty = 0.0
+                if exec_qty <= 0:
+                    continue
+                rate = float(row.get('rate', 0) or 0)
+                if rate == 0:
+                    continue
+                # Use 'desc' (row+2 of yellow/red header) preferentially
+                desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+                unit = row.get('unit', 'Nos')
+                is_ae = str(desc).lower().startswith('ae')
+                items.append({
+                    'qty': exec_qty,
+                    'unit': unit,
+                    'desc': desc,
+                    'rate': rate,
+                    'is_ae': is_ae,
+                })
+
+            if not items:
+                return JsonResponse({"error": "No executed items found (all quantities are zero)."}, status=400)
+
+            # Extract MB details and dates from POST
+            mb_measure_no = str(request.POST.get('mb_measure_no') or '').strip()
+            mb_measure_p_from = str(request.POST.get('mb_measure_p_from') or '').strip()
+            mb_measure_p_to = str(request.POST.get('mb_measure_p_to') or '').strip()
+            mb_abs_no = str(request.POST.get('mb_abstract_no') or '').strip()
+            mb_abs_p_from = str(request.POST.get('mb_abstract_p_from') or '').strip()
+            mb_abs_p_to = str(request.POST.get('mb_abstract_p_to') or '').strip()
+            doi = _format_date_to_ddmmyyyy(request.POST.get('doi') or '')
+            doc = _format_date_to_ddmmyyyy(request.POST.get('doc') or '')
+            domr = _format_date_to_ddmmyyyy(request.POST.get('domr') or '')
+            dobr = _format_date_to_ddmmyyyy(request.POST.get('dobr') or '')
+
+            # Determine bill title from action
+            if action == 'workslip_first_final':
+                title_text = 'CC First & Final Bill'
+            else:
+                title_text = 'CC First & Part Bill'
+
+            # Build header_data from session metadata
+            header_data = {
+                'name_of_work': ws_metadata.get('name_of_work', ''),
+                'estimate_amount': ws_metadata.get('estimate_amount', ''),
+                'admin_sanction': ws_metadata.get('admin_sanction', ''),
+                'tech_sanction': ws_metadata.get('tech_sanction', ''),
+                'agreement': ws_metadata.get('agreement', ''),
+                'agency': ws_metadata.get('agency', ''),
+            }
+
+            wb_out = Workbook()
+            create_first_bill_sheet(
+                wb_out,
+                sheet_name='Bill',
+                items=items,
+                header_data=header_data,
+                title_text=title_text,
+                tp_percent=ws_tp_percent,
+                tp_type=ws_tp_type,
+                mb_measure_no=mb_measure_no,
+                mb_measure_p_from=mb_measure_p_from,
+                mb_measure_p_to=mb_measure_p_to,
+                mb_abs_no=mb_abs_no,
+                mb_abs_p_from=mb_abs_p_from,
+                mb_abs_p_to=mb_abs_p_to,
+                doi=doi,
+                doc=doc,
+                domr=domr,
+                dobr=dobr,
+            )
+
+            _apply_print_settings(wb_out)
+            resp = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            resp['Content-Disposition'] = 'attachment; filename="Bill_from_WorkSlip.xlsx"'
+            wb_out.save(resp)
+            print(f"DEBUG: Generated bill from session data ({len(items)} items)")
+            return resp
+
         if not uploaded:
             return JsonResponse({"error": "no uploaded file"}, status=400)
 
@@ -5676,8 +5976,8 @@ def build_estimate_wb(ws_src, blocks):
                 elif rate_exec == 0 and qty_exec != 0:
                     rate_exec = amt_exec / qty_exec
 
-            # Pure heading: has text but no qty & no rate
-            if qty_exec == 0 and rate_exec == 0:
+            # Skip items with zero executed quantity (don't include in bill)
+            if qty_exec == 0:
                 continue
 
             unit = str(ws.cell(row=r, column=3).value or "").strip()  # C
@@ -7558,45 +7858,90 @@ def bill_document(request):
 
     # Helper function to extract total from a single sheet
     def _extract_total_from_sheet(ws, ws_formulas=None):
+        """
+        Extract the total amount from a bill sheet.
+
+        Strategy:
+        1. Scan header rows (1-15) for columns containing "amount" in the header.
+           Use the rightmost such column as the amount column.
+        2. Scan for "Grand Total" or "Total" row (prefer "Grand Total").
+        3. Read the amount value from the identified column in that row.
+        4. Fall back to formula evaluation if cell is empty.
+        """
         total = 0.0
-        max_scan = min(ws.max_row, 200)
-        
+        max_scan = min(ws.max_row or 0, 200)
+        max_col = min(ws.max_column or 0, 20)
+
+        # Step 1: Find the rightmost column with "amount" in header rows 1-15
+        amount_col = None
+        for r in range(1, min(max_scan, 16)):
+            for c in range(1, max_col + 1):
+                hdr = str(ws.cell(row=r, column=c).value or "").strip().lower()
+                if "amount" in hdr:
+                    # Always keep the rightmost match
+                    if amount_col is None or c > amount_col:
+                        amount_col = c
+
+        # Fallback: if no "amount" header found, use columns 8, 9, 10 (legacy)
+        fallback_cols = [8, 9, 10] if amount_col is None else [amount_col]
+
+        def _try_get_amount(row, col):
+            """Try to read a numeric amount from a cell, with formula fallback."""
+            amt_val = ws.cell(row=row, column=col).value
+
+            # Formula fallback if cell is empty/zero
+            if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
+                try:
+                    formula_cell = ws_formulas.cell(row=row, column=col)
+                    formula_val = formula_cell.value
+                    if isinstance(formula_val, str) and formula_val.startswith('='):
+                        match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
+                        if match:
+                            col1, row1, op, col2, row2 = match.groups()
+                            def col_to_num(c_letter):
+                                result = 0
+                                for ch in c_letter:
+                                    result = result * 26 + (ord(ch) - ord('A') + 1)
+                                return result
+                            val1 = ws.cell(row=int(row1), column=col_to_num(col1)).value
+                            val2 = ws.cell(row=int(row2), column=col_to_num(col2)).value
+                            if val1 and val2:
+                                if op == '+':
+                                    amt_val = float(val1) + float(val2)
+                                elif op == '-':
+                                    amt_val = float(val1) - float(val2)
+                except Exception:
+                    pass
+
+            try:
+                num_val = float(amt_val) if amt_val else 0
+                if num_val != 0:
+                    return num_val
+            except (TypeError, ValueError):
+                pass
+            return 0.0
+
+        # Step 2: Scan for "Grand Total" first (preferred), then "Total"
+        grand_total_row = None
+        total_row = None
+
         for r in range(1, max_scan + 1):
-            for check_col in [3, 4, 5]:
+            for check_col in range(1, min(max_col + 1, 8)):
                 cell_val = str(ws.cell(row=r, column=check_col).value or "").strip().lower()
-                
-                if cell_val == "total":
-                    for amt_col in [8, 9, 10]:
-                        amt_val = ws.cell(row=r, column=amt_col).value
-                        
-                        if (amt_val is None or amt_val == 0 or amt_val == '') and ws_formulas:
-                            try:
-                                formula_cell = ws_formulas.cell(row=r, column=amt_col)
-                                formula_val = formula_cell.value
-                                
-                                if isinstance(formula_val, str) and formula_val.startswith('='):
-                                    match = re.match(r'=([A-Z]+)(\d+)([\+\-])([A-Z]+)(\d+)', formula_val)
-                                    if match:
-                                        col1, row1, op, col2, row2 = match.groups()
-                                        def col_to_num(col):
-                                            return ord(col) - ord('A') + 1
-                                        val1 = ws.cell(row=int(row1), column=col_to_num(col1)).value
-                                        val2 = ws.cell(row=int(row2), column=col_to_num(col2)).value
-                                        if val1 and val2:
-                                            if op == '+':
-                                                amt_val = float(val1) + float(val2)
-                                            elif op == '-':
-                                                amt_val = float(val1) - float(val2)
-                            except Exception:
-                                pass
-                        
-                        try:
-                            num_val = float(amt_val) if amt_val else 0
-                            if num_val != 0:
-                                return num_val
-                        except (TypeError, ValueError):
-                            continue
-                    break
+                if "grand total" in cell_val:
+                    grand_total_row = r
+                elif cell_val == "total":
+                    total_row = r
+
+        # Prefer Grand Total over Total
+        target_row = grand_total_row or total_row
+
+        if target_row:
+            for amt_col in fallback_cols:
+                val = _try_get_amount(target_row, amt_col)
+                if val != 0:
+                    return val
+
         return total
 
     # 10) LS FORMS (EXCEL) - Multiple sheets support
@@ -7828,28 +8173,31 @@ def bill_document(request):
         # If multiple bill sheets, create combined document with page breaks
         if has_multiple_bills:
             from docx.opc.constants import RELATIONSHIP_TYPE as RT
-            
+            from copy import deepcopy
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn as _qn
+
             # Start with the template and clear its content
             combined_doc = Document(io.BytesIO(template_bytes))
-            
+
             # Clear the template content first
             for element in list(combined_doc.element.body):
                 combined_doc.element.body.remove(element)
-            
+
             for sheet_idx, bill_ws in enumerate(bill_sheets, start=1):
                 # Extract per-sheet header data
                 sheet_header = _extract_header_data_from_sheet(bill_ws)
                 sheet_name_of_work = sheet_header.get("name_of_work", "") or ""
                 sheet_agreement_ref = sheet_header.get("agreement", "") or ""
                 sheet_agency_name = sheet_header.get("agency", "") or ""
-                
+
                 # Per-sheet MB: use user-entered MB if provided, else try sheet-level MB
                 sheet_mb = mb_details_str
                 if not user_entered_mb:
                     sheet_mb_from_file = (sheet_header.get("mb_details") or "").strip()
                     if sheet_mb_from_file:
                         sheet_mb = sheet_mb_from_file
-                
+
                 # Get formulas sheet if available
                 ws_formulas = None
                 if wb_formulas:
@@ -7857,7 +8205,7 @@ def bill_document(request):
                         ws_formulas = wb_formulas[bill_ws.title]
                     except:
                         pass
-                
+
                 # Calculate total for this sheet
                 sheet_total = _extract_total_from_sheet(bill_ws, ws_formulas)
                 try:
@@ -7865,7 +8213,7 @@ def bill_document(request):
                 except:
                     sheet_total_str = str(sheet_total)
                 sheet_amount_words = _number_to_words_rupees(sheet_total)
-                
+
                 # Build placeholder map for this sheet
                 sheet_placeholder_map = {
                     "{{NAME_OF_WORK}}": sheet_name_of_work,
@@ -7879,26 +8227,90 @@ def bill_document(request):
                     "{{TOTAL_AMOUNT}}": sheet_total_str,
                     "{{AMOUNT_IN_WORDS}}": sheet_amount_words,
                 }
-                
+
                 # Load fresh template for this sheet
                 sheet_doc = Document(io.BytesIO(template_bytes))
-                
+
                 # Replace placeholders in body
                 replace_in_paragraphs(sheet_doc.paragraphs, sheet_placeholder_map, mm_yyyy)
-                
+
                 # Replace in tables
                 for table in sheet_doc.tables:
                     for row in table.rows:
                         for cell in row.cells:
                             replace_in_paragraphs(cell.paragraphs, sheet_placeholder_map, mm_yyyy)
-                
+
                 # Add page break at the END of this document (except for the last one)
                 # This ensures each estimate starts on a new page without blank pages
                 if sheet_idx < len(bill_sheets):
                     sheet_doc.add_page_break()
-                
-                # Append this document's content to combined document
-                for element in sheet_doc.element.body:
+
+                # Deep-copy elements before appending to avoid shared references
+                elements_to_add = [deepcopy(el) for el in sheet_doc.element.body]
+
+                # For sheets after the first, restart any Word auto-numbering
+                # so reference numbers don't continue from the previous letter
+                if sheet_idx > 1:
+                    try:
+                        numbering_part = combined_doc.part.numbering_part._element
+                        # Collect unique numId values used in these elements
+                        used_numIds = set()
+                        numId_elems = []
+                        for el in elements_to_add:
+                            for nid_el in el.iter(_qn('w:numId')):
+                                val = nid_el.get(_qn('w:val'))
+                                if val and val != '0':
+                                    used_numIds.add(int(val))
+                                    numId_elems.append(nid_el)
+
+                        if used_numIds:
+                            # Find max existing numId
+                            max_num_id = 0
+                            for num_elem in numbering_part.findall(_qn('w:num')):
+                                nid = int(num_elem.get(_qn('w:numId'), '0'))
+                                if nid > max_num_id:
+                                    max_num_id = nid
+
+                            # Create new numbering instances that restart at 1
+                            id_map = {}
+                            for old_id in used_numIds:
+                                original_num = None
+                                for num_elem in numbering_part.findall(_qn('w:num')):
+                                    if int(num_elem.get(_qn('w:numId'), '0')) == old_id:
+                                        original_num = num_elem
+                                        break
+                                if original_num is None:
+                                    continue
+
+                                max_num_id += 1
+                                new_num = deepcopy(original_num)
+                                new_num.set(_qn('w:numId'), str(max_num_id))
+
+                                # Remove existing overrides
+                                for ov in list(new_num.findall(_qn('w:lvlOverride'))):
+                                    new_num.remove(ov)
+
+                                # Add restart override for level 0
+                                lvl_override = OxmlElement('w:lvlOverride')
+                                lvl_override.set(_qn('w:ilvl'), '0')
+                                start_ov = OxmlElement('w:startOverride')
+                                start_ov.set(_qn('w:val'), '1')
+                                lvl_override.append(start_ov)
+                                new_num.append(lvl_override)
+
+                                numbering_part.append(new_num)
+                                id_map[old_id] = max_num_id
+
+                            # Update numId references in elements to use new numbering
+                            for nid_el in numId_elems:
+                                old_val = int(nid_el.get(_qn('w:val'), '0'))
+                                if old_val in id_map:
+                                    nid_el.set(_qn('w:val'), str(id_map[old_val]))
+                    except Exception:
+                        pass  # If numbering manipulation fails, proceed anyway
+
+                # Append elements to combined document
+                for element in elements_to_add:
                     combined_doc.element.body.append(element)
             
             buf = io.BytesIO()
@@ -11139,7 +11551,7 @@ def temp_items(request, category, group):
     available_backends = get_available_backends_for_module('temp_works', base_category)
     
     try:
-        items_list, groups_map, _, ws_src, filepath = load_backend(
+        items_list, groups_map, units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=temp_selected_backend_id,
             module_code='temp_works',  # Use temp_works module's own backends
@@ -11173,7 +11585,40 @@ def temp_items(request, category, group):
 
     detected_names = {i["name"] for i in items_list}
     display_items = [name for name in group_items if name in detected_names]
-    items_info = [{"name": name} for name in display_items]
+
+    # Build item subtypes map: items with ":" are subtypes
+    item_subtypes = {}  # parent_name -> [list of full subtype names]
+    parent_items = set()
+
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
 
     # units mapping (same as your code)
     item_to_group = {}
@@ -11182,6 +11627,19 @@ def temp_items(request, category, group):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp_name = (item_to_group.get(name, "") or "").lower()
         if grp_name in ("piping", "wiring & cables", "wiring and cables"):
             return ("Mtrs", "Mtr")
@@ -11501,7 +11959,7 @@ def temp_download_output(request, category):
 
     # ----- load backend -----
     try:
-        items_list, groups_map, _, ws_src, filepath = load_backend(
+        items_list, groups_map, units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=temp_selected_backend_id,
             module_code='temp_works'  # Use temp_works module's own backends
@@ -11522,6 +11980,19 @@ def temp_download_output(request, category):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp_name = (item_to_group.get(name, "") or "").lower()
         if grp_name in ("piping", "wiring & cables", "wiring and cables"):
             return ("Mtrs", "Mtr")
@@ -12292,6 +12763,15 @@ def estimate(request):
                     'error': f'Failed to process Excel file: {str(load_error)}'
                 })
             
+            # ---- Read units from Groups sheet if available ----
+            upload_units_map = {}
+            try:
+                if "Groups" in wb_upload.sheetnames:
+                    from core.utils_excel import read_groups
+                    _, upload_units_map = read_groups(wb_upload["Groups"])
+            except Exception:
+                pass  # If Groups sheet is missing or malformed, fall back to heuristic
+            
             # ---- Helper: Check if cell is yellow with red text ----
             def cell_is_yellow(cell):
                 fill = cell.fill
@@ -12550,8 +13030,13 @@ def estimate(request):
                 
                 def determine_unit_from_heading(heading_name):
                     """
-                    Intelligently determine unit based on heading name meaning.
+                    Determine unit from Groups sheet units_map first,
+                    then fall back to heading name heuristic.
                     """
+                    # Priority 1: Use unit from Groups sheet (authoritative)
+                    if upload_units_map and heading_name in upload_units_map:
+                        return upload_units_map[heading_name]
+                    
                     heading_lower = heading_name.lower()
                     
                     # Light Point or Fan Point â†’ Pts
@@ -14623,6 +15108,19 @@ def amc_items(request, category, group):
             item_to_group.setdefault(nm, grp_name)
 
     def units_for(name):
+        # Priority 1: Use unit from Groups sheet (Column D) via units_map
+        backend_unit = units_map.get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return ("Mtrs", "Mtr")
+            elif bu in ("pts", "pt", "point", "points"):
+                return ("Pts", "Pt")
+            elif bu in ("nos", "no"):
+                return ("Nos", "No")
+            else:
+                return (backend_unit, backend_unit)
+        # Fallback: group-based
         grp_name = item_to_group.get(name, "")
         if grp_name in ("Piping", "Wiring & Cables"):
             return ("Mtrs", "Mtr")
@@ -14631,12 +15129,42 @@ def amc_items(request, category, group):
         else:
             return ("Nos", "No")
 
-    items_info = []
+    # Build item subtypes map: items with ":" are subtypes
+    # Group subtypes by their parent name (part before ":")
+    item_subtypes = {}  # parent_name -> [list of full subtype names]
+    parent_items = set()  # items that have subtypes
+
     for name in display_items:
-        items_info.append({
-            "name": name,
-            "rate": item_rates.get(name),
-        })
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if " : " in name:
+            parent_name = name.split(" : ")[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "rate": None,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "rate": item_rates.get(name),
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
 
     fetched = request.session.get("amc_fetched_items", [])
 

@@ -19,7 +19,7 @@
         padding: 2rem;
         margin-bottom: 1.5rem;
     }
-    
+
     .work-header {
         display: flex;
         align-items: flex-start;
@@ -27,7 +27,7 @@
         padding-bottom: 1.5rem;
         border-bottom: 1px solid #e2e8f0;
     }
-    
+
     .work-icon-large {
         width: 70px;
         height: 70px;
@@ -39,31 +39,32 @@
         margin-right: 1.5rem;
         flex-shrink: 0;
     }
-    
+
     .work-icon-large.primary { background: #dbeafe; color: #2563eb; }
     .work-icon-large.success { background: #dcfce7; color: #16a34a; }
+    .work-icon-large.danger  { background: #fee2e2; color: #dc2626; }
     .work-icon-large.warning { background: #fef3c7; color: #d97706; }
-    .work-icon-large.info { background: #cffafe; color: #0891b2; }
-    
+    .work-icon-large.info    { background: #cffafe; color: #0891b2; }
+
     .work-title-large {
         font-size: 1.75rem;
         font-weight: 700;
         color: #1e293b;
         margin-bottom: 0.5rem;
     }
-    
+
     .info-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1.5rem;
     }
-    
+
     .info-item {
         padding: 1rem;
         background: #f8fafc;
         border-radius: 8px;
     }
-    
+
     .info-label {
         font-size: 0.75rem;
         text-transform: uppercase;
@@ -71,19 +72,19 @@
         margin-bottom: 0.5rem;
         font-weight: 600;
     }
-    
+
     .info-value {
         font-size: 1rem;
         color: #1e293b;
         font-weight: 500;
     }
-    
+
     .progress-section {
         margin-top: 2rem;
         padding-top: 1.5rem;
         border-top: 1px solid #e2e8f0;
     }
-    
+
     .progress-bar-large {
         height: 10px;
         background: #e2e8f0;
@@ -91,19 +92,19 @@
         overflow: hidden;
         margin-bottom: 0.5rem;
     }
-    
+
     .progress-bar-large .fill {
         height: 100%;
         background: linear-gradient(90deg, #6366f1, #8b5cf6);
         transition: width 0.3s;
     }
-    
+
     .notes-section {
         margin-top: 2rem;
         padding-top: 1.5rem;
         border-top: 1px solid #e2e8f0;
     }
-    
+
     .data-preview {
         background: #f1f5f9;
         padding: 1rem;
@@ -113,13 +114,136 @@
         max-height: 300px;
         overflow-y: auto;
     }
-    
+
     .action-buttons {
         display: flex;
         gap: 1rem;
         margin-top: 2rem;
         padding-top: 1.5rem;
         border-top: 1px solid #e2e8f0;
+        flex-wrap: wrap;
+    }
+
+    /* ===== E / W / B Flow Buttons ===== */
+    .workflow-nav {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .workflow-nav h6 {
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 1rem;
+    }
+
+    .ewb-flow {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .ewb-divider {
+        width: 1px;
+        height: 34px;
+        background: #cbd5e1;
+        margin: 0 0.3rem;
+    }
+
+    .ewb-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 50px;
+        height: 42px;
+        padding: 0 14px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        position: relative;
+        letter-spacing: 0.5px;
+    }
+
+    .ewb-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    }
+
+    .ewb-btn.viewing {
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+    }
+
+    /* E  (blue) */
+    .ewb-btn-e { background: #2563eb; color: white; }
+    .ewb-btn-e:hover { background: #1d4ed8; color: white; }
+
+    /* W  (green) */
+    .ewb-btn-w { background: #16a34a; color: white; }
+    .ewb-btn-w:hover { background: #15803d; color: white; }
+    .ewb-btn-w.done { background: #166534; }
+
+    /* B  (red) */
+    .ewb-btn-b { background: #dc2626; color: white; }
+    .ewb-btn-b:hover { background: #b91c1c; color: white; }
+    .ewb-btn-b.done { background: #991b1b; }
+
+    /* disabled */
+    .ewb-btn.off {
+        opacity: 0.45;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    /* tiny check / dot badges */
+    .ewb-btn .badge-check {
+        position: absolute; top: -5px; right: -5px;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #22c55e; color: #fff;
+        font-size: 0.55rem;
+        display: flex; align-items: center; justify-content: center;
+        border: 2px solid #fff;
+    }
+    .ewb-btn .badge-wip {
+        position: absolute; top: -5px; right: -5px;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #f59e0b;
+        border: 2px solid #fff;
+    }
+
+    /* Prompt Modal Styles */
+    .prompt-option {
+        display: block;
+        width: 100%;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s;
+        font-size: 0.95rem;
+    }
+
+    .prompt-option:hover {
+        border-color: #6366f1;
+        background: #eef2ff;
+    }
+
+    .prompt-option .option-title {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 2px;
+    }
+
+    .prompt-option .option-desc {
+        font-size: 0.8rem;
+        color: #64748b;
     }
 </style>
 
@@ -134,6 +258,7 @@
 </nav>
 
 <div class="work-detail-card">
+    <!-- Header -->
     <div class="work-header">
         <div class="work-icon-large {{ work.get_work_type_color }}">
             <i class="{{ work.get_work_type_icon }}"></i>
@@ -153,13 +278,9 @@
                 {% endif %}
             </div>
         </div>
-        <div>
-            <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary">
-                <i class="bi bi-play-fill me-1"></i>Resume Work
-            </a>
-        </div>
     </div>
-    
+
+    <!-- Info Grid -->
     <div class="info-grid">
         <div class="info-item">
             <div class="info-label">Category</div>
@@ -178,7 +299,8 @@
             <div class="info-value">{{ work.last_step|default:"Not started" }}</div>
         </div>
     </div>
-    
+
+    <!-- Progress -->
     <div class="progress-section">
         <h6 class="mb-3">Progress</h6>
         <div class="progress-bar-large">
@@ -189,25 +311,335 @@
             <small class="text-muted">{{ work.progress_percent }}% Complete</small>
         </div>
     </div>
-    
+
+    <!-- ========================================= -->
+    <!-- WORKFLOW NAVIGATION: E, W1-W3, B1-B3      -->
+    <!-- ========================================= -->
+    {% if root_estimate %}
+    <div class="workflow-nav">
+        <h6><i class="bi bi-diagram-3 me-2"></i>Workflow</h6>
+
+        <div class="ewb-flow">
+            <!-- ── E (Estimate) ── -->
+            <button class="ewb-btn ewb-btn-e {% if work.id == root_estimate.id %}viewing{% endif %}"
+                    onclick="handleE({{ root_estimate.id }})"
+                    title="Edit Estimate: {{ root_estimate.name }}">
+                E
+                {% if root_estimate.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
+            </button>
+
+            <span class="ewb-divider"></span>
+
+            <!-- ── W (single button: always shows prompt) ── -->
+            {% if last_workslip %}
+            <button class="ewb-btn ewb-btn-w"
+                    onclick="handleW({{ last_workslip.id }}, {{ last_workslip.workslip_number|default:1 }})"
+                    title="WorkSlip ({{ workslips|length }} created)">
+                W{% if last_workslip.workslip_number > 1 %}{{ last_workslip.workslip_number }}{% endif %}
+                <span class="badge-wip"></span>
+            </button>
+            {% else %}
+            <button class="ewb-btn ewb-btn-w"
+                    onclick="handleWNew()"
+                    title="Generate WorkSlip 1 from Estimate">
+                W
+            </button>
+            {% endif %}
+
+            <span class="ewb-divider"></span>
+
+            <!-- ── B (Bill 1 or "Generate B1") ── -->
+            {% if bills|length > 0 %}
+            <button class="ewb-btn ewb-btn-b {% if work.id == bills.0.id %}viewing{% endif %} {% if bills.0.status == 'completed' %}done{% endif %}"
+                    onclick="handleB({{ bills.0.id }}, 1, '{{ bills.0.status }}')"
+                    title="Bill 1 ({{ bills.0.get_status_display }})">
+                B
+                {% if bills.0.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
+            </button>
+            {% elif workslips|length > 0 %}
+            <button class="ewb-btn ewb-btn-b"
+                    onclick="handleBNew()"
+                    title="Generate Bill 1 from WorkSlip">
+                B
+            </button>
+            {% else %}
+            <button class="ewb-btn ewb-btn-b off"
+                    title="Generate a WorkSlip first">
+                B
+            </button>
+            {% endif %}
+
+            <!-- ── B2, B3 … (additional bills) ── -->
+            {% for bill in bills %}
+            {% if bill.bill_number > 1 %}
+            <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
+                    onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                    title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
+                B{{ bill.bill_number }}
+                {% if bill.status == 'completed' %}
+                <span class="badge-check"><i class="bi bi-check"></i></span>
+                {% else %}
+                <span class="badge-wip"></span>
+                {% endif %}
+            </button>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if work.notes %}
     <div class="notes-section">
         <h6 class="mb-3">Notes</h6>
         <p class="text-muted">{{ work.notes }}</p>
     </div>
     {% endif %}
-    
+
+    <!-- ========================================= -->
+    <!-- BILL PREVIEW TABLE                         -->
+    <!-- ========================================= -->
+    {% if bill_preview_rows %}
     <div class="notes-section">
-        <h6 class="mb-3">Work Data Preview</h6>
-        <div class="data-preview">
-            <pre>{{ work.work_data|pprint }}</pre>
+        <h6 class="mb-3">
+            <i class="bi bi-receipt me-2"></i>
+            Bill {{ bill_preview_number }} Preview
+            <span class="badge bg-info ms-2" style="font-size: 0.7rem;">{{ bill_preview_rows|length }} items</span>
+        </h6>
+
+        <style>
+            .bill-preview-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.8rem;
+            }
+            .bill-preview-table th {
+                background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+                color: white;
+                padding: 0.5rem 0.4rem;
+                font-weight: 600;
+                text-align: center;
+                font-size: 0.72rem;
+                position: sticky;
+                top: 0;
+                z-index: 1;
+            }
+            .bill-preview-table td {
+                padding: 0.4rem 0.35rem;
+                text-align: center;
+                border-bottom: 1px solid #e2e8f0;
+                background: white;
+                font-size: 0.78rem;
+            }
+            .bill-preview-table tbody tr:hover {
+                background: #f5f3ff;
+            }
+            .bill-preview-table .desc-col {
+                text-align: left;
+                max-width: 220px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .bill-preview-table .amt-col {
+                font-weight: 600;
+                color: #16a34a;
+            }
+            .bill-preview-table .rate-col {
+                font-weight: 500;
+                color: #2d3748;
+            }
+            .bill-preview-table .deduct-col {
+                color: #dc2626;
+                font-weight: 500;
+            }
+            .bill-preview-table .qty-editable {
+                width: 80px;
+                padding: 0.25rem 0.4rem;
+                border: 1px solid #c4b5fd;
+                border-radius: 4px;
+                text-align: center;
+                font-weight: 500;
+                font-size: 0.78rem;
+                background: #faf5ff;
+                transition: all 0.2s;
+            }
+            .bill-preview-table .qty-editable:focus {
+                outline: none;
+                border-color: #805ad5;
+                box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.2);
+            }
+            .bill-preview-wrapper {
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+                max-height: 400px;
+                overflow-y: auto;
+            }
+            .bill-preview-total {
+                background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                padding: 0.6rem 1rem;
+                border-radius: 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-top: 0.75rem;
+                border: 1px solid #bbf7d0;
+            }
+            .bill-total-label {
+                font-weight: 600;
+                color: #166534;
+                font-size: 0.85rem;
+            }
+            .bill-total-value {
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #16a34a;
+            }
+        </style>
+
+        <div class="bill-preview-wrapper">
+            <table class="bill-preview-table" id="bill-preview-table">
+                <thead>
+                    <tr>
+                        <th style="width: 45px;">Sl.No</th>
+                        <th>Item Description</th>
+                        <th style="width: 55px;">Unit</th>
+                        {% if bill_preview_number > 1 %}
+                        <th style="width: 100px; background: #7c3aed;">Till Date Qty</th>
+                        {% else %}
+                        <th style="width: 80px;">Quantity</th>
+                        {% endif %}
+                        <th style="width: 80px;">Rate</th>
+                        {% if bill_preview_number > 1 %}
+                        <th style="width: 100px; background: #dc2626;">Deduct Prev Qty</th>
+                        {% endif %}
+                        <th style="width: 110px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in bill_preview_rows %}
+                    <tr data-row-key="{{ row.key }}" data-rate="{{ row.rate }}">
+                        <td>{{ row.sl }}</td>
+                        <td class="desc-col" title="{{ row.desc }}">{{ row.name }}</td>
+                        <td>{{ row.unit }}</td>
+                        {% if bill_preview_number > 1 %}
+                        <td>
+                            <input type="number"
+                                   class="qty-editable bill-qty-input"
+                                   min="0" step="0.01"
+                                   value="{{ row.qty }}"
+                                   data-row-key="{{ row.key }}"
+                                   oninput="recalcBillRow(this)">
+                        </td>
+                        {% else %}
+                        <td>{{ row.qty }}</td>
+                        {% endif %}
+                        <td class="rate-col">₹{{ row.rate|floatformat:2 }}</td>
+                        {% if bill_preview_number > 1 %}
+                        <td class="deduct-col" id="deduct-{{ row.key }}">0.00</td>
+                        {% endif %}
+                        <td class="amt-col" id="amt-{{ row.key }}">₹{{ row.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bill-preview-total">
+            <span class="bill-total-label">
+                <i class="bi bi-currency-rupee me-1"></i>
+                {% if bill_preview_number > 1 %}Net Bill Amount{% else %}Bill {{ bill_preview_number }} Total{% endif %}
+            </span>
+            <span class="bill-total-value">₹<span id="bill-preview-total">{{ bill_preview_total|floatformat:2 }}</span></span>
         </div>
     </div>
-    
+
+    <script>
+    (function() {
+        // Previous bill data for deductions (Bill 2+ only)
+        var previousBillRows = {{ previous_bill_rows|safe }};
+        var prevQtyMap = {};
+        previousBillRows.forEach(function(r) {
+            if (r.qty > 0) prevQtyMap[r.key] = r.qty;
+        });
+
+        var billNumber = {{ bill_preview_number }};
+
+        // Populate deduction columns on load (Bill 2+ only)
+        if (billNumber > 1) {
+            document.querySelectorAll('#bill-preview-table tbody tr').forEach(function(row) {
+                var key = row.getAttribute('data-row-key');
+                var deductCell = document.getElementById('deduct-' + key);
+                if (deductCell && prevQtyMap[key]) {
+                    deductCell.textContent = parseFloat(prevQtyMap[key]).toFixed(2);
+                }
+            });
+            recalcAllBillRows();
+        }
+
+        window.recalcBillRow = function(input) {
+            var row = input.closest('tr');
+            var key = row.getAttribute('data-row-key');
+            var rate = parseFloat(row.getAttribute('data-rate')) || 0;
+            var tillDateQty = parseFloat(input.value) || 0;
+            var deductQty = prevQtyMap[key] || 0;
+            var netQty = tillDateQty - deductQty;
+            if (netQty < 0) netQty = 0;
+            var amount = netQty * rate;
+
+            var deductCell = document.getElementById('deduct-' + key);
+            if (deductCell) deductCell.textContent = parseFloat(deductQty).toFixed(2);
+
+            var amtCell = document.getElementById('amt-' + key);
+            if (amtCell) amtCell.textContent = '₹' + amount.toFixed(2);
+
+            recalcBillTotal();
+        };
+
+        function recalcAllBillRows() {
+            document.querySelectorAll('#bill-preview-table tbody tr').forEach(function(row) {
+                var key = row.getAttribute('data-row-key');
+                var rate = parseFloat(row.getAttribute('data-rate')) || 0;
+                var qtyInput = row.querySelector('.bill-qty-input');
+                var tillDateQty = qtyInput ? (parseFloat(qtyInput.value) || 0) : parseFloat(row.querySelector('td:nth-child(4)').textContent) || 0;
+                var deductQty = prevQtyMap[key] || 0;
+                var netQty = tillDateQty - deductQty;
+                if (netQty < 0) netQty = 0;
+                var amount = netQty * rate;
+
+                var amtCell = document.getElementById('amt-' + key);
+                if (amtCell) amtCell.textContent = '₹' + amount.toFixed(2);
+            });
+            recalcBillTotal();
+        }
+
+        function recalcBillTotal() {
+            var total = 0;
+            document.querySelectorAll('#bill-preview-table tbody tr').forEach(function(row) {
+                var key = row.getAttribute('data-row-key');
+                var amtCell = document.getElementById('amt-' + key);
+                if (amtCell) {
+                    var val = parseFloat(amtCell.textContent.replace('₹', '')) || 0;
+                    total += val;
+                }
+            });
+            var totalSpan = document.getElementById('bill-preview-total');
+            if (totalSpan) totalSpan.textContent = total.toFixed(2);
+        }
+    })();
+    </script>
+    {% endif %}
+
+    <!-- Action Buttons -->
     <div class="action-buttons">
-        <a href="{% url 'resume_saved_work' work.id %}" class="btn btn-primary btn-lg">
-            <i class="bi bi-play-fill me-1"></i>Resume Work
-        </a>
         <button class="btn btn-outline-primary btn-lg" onclick="duplicateWork()">
             <i class="bi bi-copy me-1"></i>Duplicate
         </button>
@@ -217,6 +649,64 @@
         <button class="btn btn-outline-danger btn-lg ms-auto" data-bs-toggle="modal" data-bs-target="#deleteModal">
             <i class="bi bi-trash me-1"></i>Delete
         </button>
+    </div>
+</div>
+
+<!-- ======================================== -->
+<!-- WORKSLIP PROMPT MODAL                     -->
+<!-- ======================================== -->
+<div class="modal fade" id="wsPromptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="wsPromptTitle">WorkSlip Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="wsPromptBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================== -->
+<!-- BILL PROMPT MODAL                         -->
+<!-- ======================================== -->
+<div class="modal fade" id="billPromptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="billPromptTitle">Bill Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="billPromptBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================== -->
+<!-- BILL TYPE PROMPT MODAL (First & Part / First & Final) -->
+<!-- ======================================== -->
+<div class="modal fade" id="billTypeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Select Bill Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <button class="prompt-option" onclick="selectBillType('first_part')">
+                    <div class="option-title"><i class="bi bi-receipt me-2"></i>CC First & Part Bill</div>
+                    <div class="option-desc">Generate a partial bill for work completed so far</div>
+                </button>
+                <button class="prompt-option" onclick="selectBillType('first_final')">
+                    <div class="option-title"><i class="bi bi-receipt-cutoff me-2"></i>CC First & Final Bill</div>
+                    <div class="option-desc">Generate a final bill for completed work</div>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -234,17 +724,6 @@
                     <div class="mb-3">
                         <label class="form-label">Work Name</label>
                         <input type="text" class="form-control" name="name" value="{{ work.name }}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Folder</label>
-                        <select class="form-select" name="folder_id">
-                            <option value="none" {% if not work.folder %}selected{% endif %}>Unfiled (No Folder)</option>
-                            {% for folder in folders %}
-                            <option value="{{ folder.id }}" {% if work.folder and work.folder.id == folder.id %}selected{% endif %}>
-                                {{ folder.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Status</label>
@@ -293,64 +772,209 @@
 </div>
 
 <script>
+    const csrfToken = '{{ csrf_token }}';
+    const rootEstimateId = {{ root_estimate.id|default:"null" }};
+    let pendingBillWorkslipId = null;
+
+    // ========================================
+    // E — Edit / Resume Estimate
+    // ========================================
+    function handleE(estId) {
+        window.location.href = '/saved-works/' + estId + '/resume/';
+    }
+
+    // ========================================
+    // W — WorkSlip button (always shows 2 options)
+    // ========================================
+    function handleW(wsId, wsNum) {
+        try {
+            var nextNum = wsNum + 1;
+            var options = [
+                { icon: 'bi-pencil-fill', title: 'Update WorkSlip ' + wsNum,
+                  desc: 'Edit quantities in WorkSlip ' + wsNum,
+                  go: '/saved-works/' + wsId + '/resume/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create New WorkSlip (W' + nextNum + ')',
+                  desc: 'Lock previous quantities and start WorkSlip ' + nextNum,
+                  go: '/saved-works/' + wsId + '/generate-next-workslip/' }
+            ];
+            showPrompt('wsPromptModal', 'WorkSlip Actions', options);
+        } catch (e) {
+            console.error('handleW error:', e);
+            window.location.href = '/saved-works/' + wsId + '/resume/';
+        }
+    }
+
+    // W button when NO workslips exist → generate W1
+    function handleWNew() {
+        try {
+            if (rootEstimateId) {
+                window.location.href = '/saved-works/' + rootEstimateId + '/generate-workslip/';
+            } else {
+                alert('Error: Could not find root estimate. Please go back and try again.');
+            }
+        } catch (e) {
+            console.error('handleWNew error:', e);
+            alert('Error generating workslip: ' + e.message);
+        }
+    }
+
+    // ========================================
+    // B — Bill 1 (main B button)
+    // ========================================
+    function handleB(billId, billNum, billStatus) {
+        try {
+            if (billStatus !== 'completed') {
+                // Only one option — navigate directly
+                window.location.href = '/saved-works/' + billId + '/generate-bill/';
+                return;
+            }
+            var options = [
+                { icon: 'bi-pencil-fill', title: 'Edit Bill 1',
+                  desc: 'Open and review Bill 1',
+                  go: '/saved-works/' + billId + '/generate-bill/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create Bill 2',
+                  desc: 'Generate next bill',
+                  go: '/saved-works/' + billId + '/generate-next-bill/' }
+            ];
+            showPrompt('billPromptModal', 'Bill Actions', options);
+        } catch (e) {
+            console.error('handleB error:', e);
+            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+        }
+    }
+
+    // B button when NO bills exist → generate B1 (choose type)
+    function handleBNew() {
+        try {
+            {% if workslips|length > 0 %}
+            pendingBillWorkslipId = {{ workslips.0.id }};
+            new bootstrap.Modal(document.getElementById('billTypeModal')).show();
+            {% else %}
+            alert('No workslips exist yet. Generate a WorkSlip first.');
+            {% endif %}
+        } catch (e) {
+            console.error('handleBNew error:', e);
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // B2, B3, … additional bill buttons
+    function handleBn(billId, billNum, billStatus) {
+        try {
+            if (billStatus !== 'completed') {
+                // Only one option — navigate directly
+                window.location.href = '/saved-works/' + billId + '/generate-bill/';
+                return;
+            }
+            var nextNum = billNum + 1;
+            var options = [
+                { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
+                  desc: 'Open and review Bill ' + billNum,
+                  go: '/saved-works/' + billId + '/generate-bill/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + nextNum,
+                  desc: 'Generate next bill',
+                  go: '/saved-works/' + billId + '/generate-next-bill/' }
+            ];
+            showPrompt('billPromptModal', 'Bill ' + billNum + ' Actions', options);
+        } catch (e) {
+            console.error('handleBn error:', e);
+            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+        }
+    }
+
+    // ========================================
+    // BILL TYPE SELECTION (First & Part / First & Final)
+    // ========================================
+    function selectBillType(billType) {
+        try {
+            bootstrap.Modal.getInstance(document.getElementById('billTypeModal')).hide();
+        } catch(e) {}
+        if (!pendingBillWorkslipId) { alert('Error: No workslip selected.'); return; }
+
+        fetch('/saved-works/' + pendingBillWorkslipId + '/action/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken },
+            body: 'action=generate_first_bill&bill_type=' + billType
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success && data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                alert(data.error || 'Failed to generate bill.');
+            }
+        })
+        .catch(function(err) { console.error(err); alert('Network error.'); });
+    }
+
+    // ========================================
+    // Generic prompt modal helper
+    // ========================================
+    function showPrompt(modalId, title, options) {
+        var modal = document.getElementById(modalId);
+        if (!modal) {
+            // Modal not found — fallback: navigate to first option
+            if (options.length > 0) window.location.href = options[0].go;
+            return;
+        }
+        modal.querySelector('.modal-title').textContent = title;
+        var body = modal.querySelector('.modal-body');
+        body.innerHTML = '';
+        options.forEach(function(opt) {
+            var btn = document.createElement('button');
+            btn.className = 'prompt-option';
+            btn.innerHTML =
+                '<div class="option-title"><i class="bi ' + opt.icon + ' me-2"></i>' + opt.title + '</div>' +
+                '<div class="option-desc">' + opt.desc + '</div>';
+            btn.onclick = function() {
+                try { bootstrap.Modal.getInstance(modal).hide(); } catch(e) {}
+                window.location.href = opt.go;
+            };
+            body.appendChild(btn);
+        });
+        new bootstrap.Modal(modal).show();
+    }
+
+    // ========================================
+    // EDIT / DELETE / DUPLICATE
+    // ========================================
     function saveChanges() {
-        const form = document.getElementById('editForm');
-        const formData = new FormData(form);
-        
+        var form = document.getElementById('editForm');
+        var formData = new FormData(form);
+
         fetch('{% url "update_saved_work" work.id %}', {
             method: 'POST',
             body: formData,
-            headers: {
-                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-            }
+            headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.error || 'Failed to save changes');
-            }
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) { location.reload(); }
+            else { alert(data.error || 'Failed to save changes'); }
         });
     }
-    
+
     function duplicateWork() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
         fetch('{% url "duplicate_saved_work" work.id %}', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            }
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = '/saved-works/' + data.work_id + '/';
-            } else {
-                alert(data.error || 'Failed to duplicate work');
-            }
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) { window.location.href = '/saved-works/' + data.work_id + '/'; }
+            else { alert(data.error || 'Failed to duplicate work'); }
         });
     }
-    
+
     function deleteWork() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
         fetch('{% url "delete_saved_work" work.id %}', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            }
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken }
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = '{% url "saved_works_list" %}';
-            } else {
-                alert(data.error || 'Failed to delete work');
-            }
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) { window.location.href = '{% url "saved_works_list" %}'; }
+            else { alert(data.error || 'Failed to delete work'); }
         });
     }
 </script>
