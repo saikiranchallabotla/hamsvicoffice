@@ -1,0 +1,262 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Bill Options - {{ work.name }}{% endblock %}
+
+{% block nav_saved_works %}active{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Bill Options
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .choice-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+    .choice-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .choice-header h2 {
+        font-weight: 700;
+        color: #1e293b;
+    }
+    .choice-header p {
+        color: #64748b;
+        font-size: 1.1rem;
+    }
+    .work-info-banner {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        border: 1px solid #fbbf24;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .work-info-banner i {
+        font-size: 2rem;
+        color: #d97706;
+    }
+    .work-info-banner .info-text h5 {
+        margin: 0;
+        font-weight: 600;
+        color: #92400e;
+    }
+    .work-info-banner .info-text p {
+        margin: 0;
+        color: #b45309;
+        font-size: 0.9rem;
+    }
+
+    /* Bill choice cards */
+    .bill-choice-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    .bill-choice-card {
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 1.75rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-decoration: none;
+        color: inherit;
+        position: relative;
+    }
+    .bill-choice-card:hover {
+        border-color: #d97706;
+        box-shadow: 0 8px 25px rgba(217, 119, 6, 0.15);
+        transform: translateY(-3px);
+        color: inherit;
+    }
+    .bill-choice-card .card-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 1.8rem;
+    }
+    .bill-choice-card .card-icon.bill-new {
+        background: #fef3c7;
+        color: #d97706;
+    }
+    .bill-choice-card .card-icon.bill-exists {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+    .bill-choice-card h4 {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #1e293b;
+    }
+    .bill-choice-card p {
+        color: #64748b;
+        font-size: 0.95rem;
+        margin: 0;
+    }
+    .bill-choice-card .existing-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: #dcfce7;
+        color: #16a34a;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 20px;
+    }
+    .bill-choice-card .ws-info {
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+        color: #94a3b8;
+    }
+    .bill-choice-card .ws-info i {
+        margin-right: 4px;
+    }
+
+    /* Existing bills section */
+    .existing-section {
+        margin-top: 2.5rem;
+    }
+    .existing-section h5 {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 1rem;
+    }
+    .existing-bills-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .existing-bill-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        min-width: 180px;
+        flex: 0 0 auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: all 0.2s;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+    }
+    .existing-bill-card:hover {
+        border-color: #d97706;
+        box-shadow: 0 3px 12px rgba(217, 119, 6, 0.15);
+        transform: translateY(-2px);
+        color: inherit;
+    }
+    .existing-bill-card .bill-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #d97706;
+    }
+    .existing-bill-card .bill-label {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    .existing-bill-card .bill-status {
+        margin-top: 0.5rem;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #64748b;
+        text-decoration: none;
+        font-size: 0.95rem;
+        margin-bottom: 1.5rem;
+        transition: color 0.2s;
+    }
+    .back-link:hover {
+        color: #1e293b;
+    }
+
+    @media (max-width: 768px) {
+        .bill-choice-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="choice-container">
+    <a href="{% url 'saved_works_list' %}" class="back-link">
+        <i class="bi bi-arrow-left"></i> Back to Saved Works
+    </a>
+
+    <div class="choice-header">
+        <h2><i class="bi bi-receipt me-2"></i>Generate Bill</h2>
+        <p>Select which workslip to generate a bill from</p>
+    </div>
+
+    <div class="work-info-banner">
+        <i class="bi bi-file-earmark-bar-graph"></i>
+        <div class="info-text">
+            <h5>{{ work.name }}</h5>
+            <p>{{ work.get_work_type_display }} &middot; {{ work.category|title }}</p>
+        </div>
+    </div>
+
+    <h5 class="mb-3"><i class="bi bi-arrow-right-circle me-2"></i>Choose a Workslip</h5>
+    <div class="bill-choice-cards">
+        {% for ws in all_workslips %}
+        <a href="{% url 'generate_bill_from_saved' ws.id %}" class="bill-choice-card">
+            {% if ws.workslip_number in bills_by_ws %}
+            <span class="existing-badge"><i class="bi bi-check-circle me-1"></i>Bill exists</span>
+            {% endif %}
+            <div class="card-icon {% if ws.workslip_number in bills_by_ws %}bill-exists{% else %}bill-new{% endif %}">
+                <i class="bi bi-receipt"></i>
+            </div>
+            <h4>Bill {{ ws.workslip_number }} from W{{ ws.workslip_number }}</h4>
+            <p>Generate Bill-{{ ws.workslip_number }} using executed quantities from Workslip {{ ws.workslip_number }}</p>
+            <div class="ws-info">
+                <i class="bi bi-file-earmark-text"></i>
+                Workslip {{ ws.workslip_number }}
+                {% if ws.status == 'completed' %}
+                    <span class="badge bg-success ms-1" style="font-size:0.7rem;">Completed</span>
+                {% else %}
+                    <span class="badge bg-warning text-dark ms-1" style="font-size:0.7rem;">{{ ws.get_status_display }}</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if all_bills %}
+    <div class="existing-section">
+        <h5><i class="bi bi-receipt me-2"></i>Existing Bills</h5>
+        <div class="existing-bills-row">
+            {% for bill in all_bills %}
+            <a href="{% url 'resume_saved_work' bill.id %}" class="existing-bill-card">
+                <div class="bill-number">B{{ bill.bill_number }}</div>
+                <div class="bill-label">Bill {{ bill.bill_number }}</div>
+                <div class="bill-status">
+                    {% if bill.status == 'completed' %}
+                    <span class="badge bg-success">Completed</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">{{ bill.get_status_display }}</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

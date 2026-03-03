@@ -655,7 +655,7 @@
                                 </a>
                                 {% endfor %}
                             {% endif %}
-                            <a href="{% url 'generate_bill_from_saved' work.last_ws.id %}" class="hub-btn hub-b-add" title="Generate Bill">
+                            <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
                                 <i class="bi bi-plus"></i> Bill
                             </a>
                             {% endif %}

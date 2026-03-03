@@ -1790,6 +1790,63 @@ def generate_next_workslip_from_saved(request, work_id):
 
 
 @login_required(login_url='login')
+def bill_choice(request, work_id):
+    """
+    Show a choice page asking which workslip to generate a bill from.
+    work_id is the root estimate. Lists all workslips under it so the user
+    can pick "Bill N from Workslip N".
+    If there is only one workslip, redirect straight to generate_bill_from_saved.
+    """
+    org = get_org_from_request(request)
+    user = request.user
+    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+
+    # Only estimates should reach this page
+    if saved_work.work_type != 'new_estimate':
+        messages.error(request, 'Bill choice is only available for estimates.')
+        return redirect('saved_works_list')
+
+    # Gather all workslips under this estimate
+    all_workslips = list(
+        SavedWork.objects.filter(
+            organization=org, user=user,
+            work_type='workslip',
+            parent=saved_work,
+        ).order_by('workslip_number')
+    )
+
+    if not all_workslips:
+        messages.info(request, 'No workslips found. Generate a workslip first.')
+        return redirect('saved_works_list')
+
+    # If only one workslip, skip the choice page
+    if len(all_workslips) == 1:
+        return redirect('generate_bill_from_saved', work_id=all_workslips[0].id)
+
+    # Gather existing bills
+    workslip_ids = [ws.id for ws in all_workslips]
+    all_bills = list(
+        SavedWork.objects.filter(
+            Q(parent=saved_work, work_type='bill') |
+            Q(parent_id__in=workslip_ids, work_type='bill')
+        ).filter(organization=org, user=user).order_by('bill_number')
+    )
+
+    # Map: which workslip already has a bill generated?
+    bills_by_ws = {}
+    for bill in all_bills:
+        bn = bill.bill_number or 0
+        bills_by_ws[bn] = bill
+
+    return render(request, 'core/saved_works/bill_choice.html', {
+        'work': saved_work,
+        'all_workslips': all_workslips,
+        'all_bills': all_bills,
+        'bills_by_ws': bills_by_ws,
+    })
+
+
+@login_required(login_url='login')
 def generate_bill_from_saved(request, work_id):
     """
     Generate a bill from a saved workslip or estimate.
