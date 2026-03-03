@@ -334,7 +334,9 @@ def saved_works_list(request):
             work.item_count = len(wd.get('bill_ws_rows', wd.get('ws_estimate_rows', [])))
         else:
             work.item_count = 0
-        elif work.work_type == 'workslip':
+
+        # Build sibling workslips for workslip cards
+        if work.work_type == 'workslip':
             try:
                 root = work.get_root_estimate() if hasattr(work, 'get_root_estimate') else None
                 if root:
