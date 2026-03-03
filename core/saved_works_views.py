@@ -1576,9 +1576,28 @@ def generate_workslip_from_saved(request, work_id):
         request.session['ws_work_type'] = 'new_estimate'
     request.session['ws_category'] = category
     
-    # Set current_saved_work_id so save modal knows we're continuing from this work
-    request.session['current_saved_work_id'] = saved_work.id
-    request.session['current_saved_work_name'] = saved_work.name
+    # ── Pre-create the SavedWork record for Workslip-1 so
+    #    quickSaveWorkslip() finds it and auto-updates without asking
+    #    for a name. ──
+    new_ws_name = f"{saved_work.name} - W1"
+
+    new_ws = SavedWork.objects.create(
+        organization=org,
+        user=user,
+        folder=saved_work.folder,
+        parent=saved_work,
+        name=new_ws_name,
+        work_type='workslip',
+        work_data={},  # will be filled on first quickSave
+        category=category,
+        notes='',
+        progress_percent=0,
+        last_step='workslip',
+        workslip_number=1,
+    )
+
+    request.session['current_saved_work_id'] = new_ws.id
+    request.session['current_saved_work_name'] = new_ws_name
     request.session.modified = True
     
     messages.success(request, f'Loaded estimate "{saved_work.name}" for workslip generation.')
@@ -1732,8 +1751,38 @@ def generate_next_workslip_from_saved(request, work_id):
     elif saved_work.parent_id:
         request.session['ws_source_estimate_id'] = saved_work.parent_id
     request.session['ws_parent_work_id'] = saved_work.id
-    request.session['current_saved_work_id'] = None  # New workslip, not continuing existing
-    request.session['current_saved_work_name'] = None
+
+    # ── Pre-create the SavedWork record for the new workslip so
+    #    quickSaveWorkslip() finds it and auto-updates without asking
+    #    for a name.  Derive name from parent workslip / root estimate. ─
+    # Walk up to root estimate for the base name
+    base_name = saved_work.name
+    root = saved_work.parent
+    while root:
+        if root.work_type == 'new_estimate':
+            base_name = root.name
+            break
+        root = root.parent
+
+    new_ws_name = f"{base_name} - W{next_workslip_number}"
+
+    new_ws = SavedWork.objects.create(
+        organization=org,
+        user=user,
+        folder=saved_work.folder,
+        parent=saved_work,
+        name=new_ws_name,
+        work_type='workslip',
+        work_data={},  # will be filled on first quickSave
+        category=saved_work.category or 'electrical',
+        notes='',
+        progress_percent=0,
+        last_step='workslip',
+        workslip_number=next_workslip_number,
+    )
+
+    request.session['current_saved_work_id'] = new_ws.id
+    request.session['current_saved_work_name'] = new_ws_name
     request.session.modified = True
     
     messages.success(request, f'Ready to generate Workslip-{next_workslip_number} from "{saved_work.name}".')
@@ -1827,6 +1876,39 @@ def generate_bill_from_saved(request, work_id):
         logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
         messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
 
+    # ── Pre-create the SavedWork record for the bill so save button
+    #    auto-updates without asking for a name. ──
+    # Walk up to root estimate for the base name
+    base_name = saved_work.name
+    root = saved_work.parent
+    while root:
+        if root.work_type == 'new_estimate':
+            base_name = root.name
+            break
+        root = root.parent
+    if saved_work.work_type == 'new_estimate':
+        base_name = saved_work.name
+
+    bill_number = request.session.get('bill_target_number', 1)
+    new_bill_name = f"{base_name} - B{bill_number}"
+
+    new_bill = SavedWork.objects.create(
+        organization=org,
+        user=user,
+        folder=saved_work.folder,
+        parent=saved_work,
+        name=new_bill_name,
+        work_type='bill',
+        work_data={},  # will be filled on first save
+        category=saved_work.category or 'electrical',
+        notes='',
+        progress_percent=0,
+        last_step='bill',
+        bill_number=bill_number,
+    )
+
+    request.session['current_saved_work_id'] = new_bill.id
+    request.session['current_saved_work_name'] = new_bill_name
     request.session.modified = True
     return redirect(reverse('bill') + '?from_saved=1')
 

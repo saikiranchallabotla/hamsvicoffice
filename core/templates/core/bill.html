@@ -1349,4 +1349,80 @@
     });
 </script>
 
+{% if bill_from_saved %}
+<!-- Save Work Button for Bill (auto-save like workslip) -->
+<script>
+function quickSaveBill() {
+    const saveBtn = document.querySelector('.save-work-btn');
+    if (saveBtn) {
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+        saveBtn.disabled = true;
+    }
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                      document.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+
+    // Check if there's already a saved work to update
+    fetch('/saved-works/modal-data/')
+        .then(res => res.json())
+        .then(data => {
+            if (data.current_work && data.current_work.id) {
+                // Auto-save directly without modal
+                const formData = new FormData();
+                formData.append('work_type', 'bill');
+                formData.append('category', 'electrical');
+                formData.append('work_id', data.current_work.id);
+                formData.append('work_name', data.current_work.name);
+                if (data.current_work.folder_id) {
+                    formData.append('folder_id', data.current_work.folder_id);
+                }
+                formData.append('notes', data.current_work.notes || '');
+                formData.append('csrfmiddlewaretoken', csrfToken);
+
+                return fetch('/saved-works/save/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-CSRFToken': csrfToken }
+                }).then(res => res.json());
+            } else {
+                // No current work — show modal
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+                    saveBtn.disabled = false;
+                }
+                const modal = new bootstrap.Modal(document.getElementById('saveWorkModal'));
+                modal.show();
+                return null;
+            }
+        })
+        .then(result => {
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+                saveBtn.disabled = false;
+            }
+            if (result) {
+                if (result.success) {
+                    showToast(result.message || 'Bill saved successfully!', 'success');
+                } else {
+                    showToast(result.error || 'Failed to save bill', 'error');
+                }
+            }
+        })
+        .catch(err => {
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+                saveBtn.disabled = false;
+            }
+            showToast('An error occurred. Please try again.', 'error');
+        });
+}
+</script>
+
+<button class="save-work-btn" onclick="quickSaveBill()" title="Save your bill">
+    <i class="bi bi-save"></i>
+    <span>Save Work</span>
+</button>
+{% include 'core/saved_works/save_modal.html' with work_type='bill' category='electrical' %}
+{% endif %}
+
 {% endblock %}
