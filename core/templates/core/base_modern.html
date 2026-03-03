@@ -916,7 +916,7 @@
         <!-- Header -->
         <header class="top-header">
             <div class="page-title">
-                <a href="{% url 'dashboard' %}" class="back-to-dashboard" title="Back to Dashboard">
+                <a href="javascript:void(0)" class="back-to-dashboard" title="Go Back" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='{% url 'dashboard' %}'; }">
                     <i class="bi bi-arrow-left"></i>
                 </a>
                 <h1>{% block page_title %}Dashboard{% endblock %}</h1>
