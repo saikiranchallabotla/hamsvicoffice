@@ -613,20 +613,19 @@
                                     <!-- Estimate: Show dynamic W1, W2, W3... buttons for existing workslips -->
                                     {% if work.workslip_children %}
                                         {% for ws in work.workslip_children %}
-                                        <a href="{% url 'resume_saved_work' ws.id %}" 
+                                        <a href="javascript:void(0)" 
+                                           onclick="promptWorkslipAction({{ ws.id }}, {{ ws.workslip_number }}, '{{ ws.status }}')"
                                            class="btn btn-sm {% if ws.status == 'completed' %}btn-success{% else %}btn-outline-success{% endif %}" 
                                            title="{% if ws.status == 'completed' %}View{% else %}Edit{% endif %} Workslip {{ ws.workslip_number }}">
                                             <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
                                         </a>
                                         {% endfor %}
-                                        <!-- Create next workslip button -->
-                                        {% if work.last_ws.status == 'completed' %}
+                                        <!-- Create next workslip button (always visible) -->
                                         <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" 
                                            class="btn btn-info btn-sm" 
                                            title="Create Workslip {{ work.next_ws_number }}">
                                             <i class="bi bi-plus-circle"></i> +W{{ work.next_ws_number }}
                                         </a>
-                                        {% endif %}
                                     {% else %}
                                         <!-- No workslips yet - show Create Workslip 1 button -->
                                         <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success btn-sm" title="Create Workslip 1">
@@ -1092,6 +1091,46 @@
             else alert(data.error || 'Failed to move');
         });
     }
+
+    // ========================================
+    // WORKSLIP PROMPT — Edit or Create Next
+    // ========================================
+    function promptWorkslipAction(wsId, wsNum, wsStatus) {
+        var modal = document.getElementById('wsActionModal');
+        if (!modal) {
+            // Fallback: just resume the workslip
+            window.location.href = '/saved-works/' + wsId + '/resume/';
+            return;
+        }
+        var nextNum = wsNum + 1;
+        var body = modal.querySelector('.modal-body');
+        body.innerHTML = 
+            '<a href="/saved-works/' + wsId + '/resume/" class="list-group-item list-group-item-action d-flex align-items-center py-3">' +
+                '<i class="bi bi-pencil-fill text-success me-3 fs-5"></i>' +
+                '<div><strong>Edit WorkSlip ' + wsNum + '</strong><br><small class="text-muted">Review or update quantities</small></div>' +
+            '</a>' +
+            '<a href="/saved-works/' + wsId + '/generate-next-workslip/" class="list-group-item list-group-item-action d-flex align-items-center py-3">' +
+                '<i class="bi bi-plus-circle-fill text-info me-3 fs-5"></i>' +
+                '<div><strong>Create WorkSlip ' + nextNum + '</strong><br><small class="text-muted">Lock previous quantities and start WorkSlip ' + nextNum + '</small></div>' +
+            '</a>';
+        modal.querySelector('.modal-title').textContent = 'WorkSlip ' + wsNum + ' — What would you like to do?';
+        new bootstrap.Modal(modal).show();
+    }
 </script>
+
+<!-- WorkSlip Action Prompt Modal -->
+<div class="modal fade" id="wsActionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body list-group list-group-flush">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
