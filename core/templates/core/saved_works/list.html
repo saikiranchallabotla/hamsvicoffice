@@ -12,20 +12,8 @@
 {% block content %}
 
 <style>
-    /* Windows Explorer Style File Manager */
+    /* Modern Explorer File Manager */
 
-    /* Workflow buttons container — ensure gaps between W1, W2, etc. */
-    .workflow-btns {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        align-items: center;
-    }
-    .workflow-btns .btn {
-        font-size: 0.75rem;
-        padding: 2px 8px;
-        white-space: nowrap;
-    }
     .explorer {
         background: white;
         border-radius: 8px;
@@ -222,194 +210,210 @@
         background: #1d4ed8;
     }
 
-    /* File List View */
+    /* File List — Card Layout */
     .file-list {
         flex: 1;
         overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
     }
 
-    .file-table {
-        width: 100%;
-        border-collapse: collapse;
+    /* ═══════ Work Card ═══════ */
+    .work-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        overflow: hidden;
+        border-left: 4px solid #cbd5e1;
     }
+    .work-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .work-card.wc-estimate  { border-left-color: #2563eb; }
+    .work-card.wc-workslip  { border-left-color: #16a34a; }
+    .work-card.wc-bill      { border-left-color: #dc2626; }
+    .work-card.wc-temp      { border-left-color: #d97706; }
+    .work-card.wc-amc       { border-left-color: #0891b2; }
+    .work-card.folder-card  { border-left-color: #f59e0b; cursor: default; }
 
-    .file-table thead {
-        background: #f5f5f5;
-        position: sticky;
-        top: 0;
-        z-index: 10;
+    .wc-main {
+        display: flex;
+        align-items: center;
+        padding: 14px 18px;
+        gap: 14px;
     }
+    .wc-icon {
+        width: 42px; height: 42px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+    .wc-estimate .wc-icon { background: #eff6ff; color: #2563eb; }
+    .wc-workslip .wc-icon { background: #f0fdf4; color: #16a34a; }
+    .wc-bill .wc-icon      { background: #fef2f2; color: #dc2626; }
+    .wc-temp .wc-icon      { background: #fffbeb; color: #d97706; }
+    .wc-amc .wc-icon       { background: #ecfeff; color: #0891b2; }
 
-    .file-table th {
-        padding: 10px 16px;
-        text-align: left;
+    .wc-info { flex: 1; min-width: 0; }
+    .wc-name {
         font-weight: 600;
-        font-size: 0.8rem;
-        color: #555;
-        border-bottom: 1px solid #e0e0e0;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
+        font-size: 0.95rem;
+        color: #1e293b;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .wc-meta {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-top: 2px;
     }
 
-    .file-table tbody tr {
-        cursor: pointer;
-        transition: background 0.1s;
+    .wc-badges { display: flex; gap: 6px; flex-shrink: 0; }
+    .wc-badge {
+        font-size: 0.68rem; font-weight: 700;
+        padding: 2px 10px; border-radius: 20px;
+        text-transform: uppercase; letter-spacing: 0.5px;
     }
+    .wc-badge.done { background: #dcfce7; color: #15803d; }
+    .wc-badge.wip  { background: #fef9c3; color: #a16207; }
 
-    .file-table tbody tr:hover {
-        background: #f5f8ff;
+    /* Quick-flow pills in collapsed row */
+    .wc-quick-flow {
+        display: flex; align-items: center; gap: 4px; flex-shrink: 0;
     }
-
-    .file-table tbody tr.selected {
-        background: #e3f2fd;
+    .qf-pill {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 28px; height: 22px;
+        padding: 0 7px; border-radius: 5px;
+        font-weight: 700; font-size: 0.68rem;
+        color: white;
     }
+    .qf-e { background: #2563eb; }
+    .qf-w { background: #16a34a; }
+    .qf-b { background: #dc2626; }
+    .qf-done { opacity: 0.5; }
 
-    .file-table td {
-        padding: 10px 16px;
-        border-bottom: 1px solid #f0f0f0;
-        font-size: 0.9rem;
-        color: #333;
-    }
-
-    .file-name {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .file-icon {
-        font-size: 1.3rem;
-    }
-
-    .file-icon.folder { color: #f59e0b; }
-    .file-icon.estimate { color: #2563eb; }
-    .file-icon.workslip { color: #16a34a; }
-    .file-icon.bill { color: #dc2626; }
-    .file-icon.temp { color: #d97706; }
-    .file-icon.amc { color: #0891b2; }
-
-    .file-name-text {
-        font-weight: 500;
-    }
-
-    .file-type {
-        color: #666;
-    }
-
-    .file-date {
-        color: #666;
-        font-size: 0.85rem;
-    }
-
-    .file-actions {
-        text-align: right;
-        white-space: nowrap;
-    }
-
-    .btn-group-sm .btn {
-        padding: 0.25rem 0.5rem;
-    }
-
-    .file-actions .btn {
-        padding: 4px 10px;
-        font-size: 0.8rem;
-    }
-
-    /* ===== E/W/B Workflow Pill Buttons ===== */
-    .wf-pills {
-        display: flex;
-        gap: 5px;
-        flex-wrap: wrap;
-        align-items: center;
-    }
-
-    .wf-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 34px;
-        height: 30px;
-        padding: 0 10px;
+    .wc-expand {
+        width: 28px; height: 28px;
         border-radius: 6px;
-        font-weight: 700;
-        font-size: 0.8rem;
+        display: flex; align-items: center; justify-content: center;
+        color: #94a3b8; font-size: 0.9rem;
+        transition: transform 0.25s, color 0.15s;
+        flex-shrink: 0;
+    }
+    .work-card:hover .wc-expand { color: #475569; }
+    .work-card.expanded .wc-expand { transform: rotate(180deg); color: #2563eb; }
+
+    /* ═══════ Expanded Workflow Hub ═══════ */
+    .wc-hub {
+        display: none;
+        background: #f8fafc;
+        border-top: 1px solid #e5e7eb;
+        padding: 18px 22px;
+        animation: hubSlide 0.25s ease;
+    }
+    .work-card.expanded .wc-hub { display: block; }
+
+    @keyframes hubSlide {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hub-section { margin-bottom: 10px; }
+    .hub-label {
+        font-size: 0.72rem; font-weight: 700;
+        color: #94a3b8; text-transform: uppercase;
+        letter-spacing: 0.6px; margin-bottom: 10px;
+    }
+    .hub-flow {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .hub-arrow {
+        color: #cbd5e1; font-size: 0.9rem;
+    }
+
+    /* Hub Buttons */
+    .hub-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 16px; border-radius: 8px;
+        font-size: 0.82rem; font-weight: 600;
         text-decoration: none;
-        border: 2px solid transparent;
-        cursor: pointer;
         transition: all 0.15s;
-        color: white;
-        position: relative;
+        border: 1.5px solid transparent;
     }
-
-    .wf-pill:hover {
+    .hub-btn:hover {
         transform: translateY(-1px);
-        box-shadow: 0 3px 8px rgba(0,0,0,0.2);
-        color: white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    .hub-btn i { font-size: 0.85rem; }
+
+    .hub-e {
+        background: #2563eb; color: white; border-color: #2563eb;
+    }
+    .hub-e:hover { background: #1d4ed8; color: white; }
+
+    .hub-w {
+        background: #16a34a; color: white; border-color: #16a34a;
+    }
+    .hub-w:hover { background: #15803d; color: white; }
+
+    .hub-b {
+        background: #dc2626; color: white; border-color: #dc2626;
+    }
+    .hub-b:hover { background: #b91c1c; color: white; }
+
+    .hub-done {
+        opacity: 0.6;
+    }
+    .hub-done:hover { opacity: 1; }
+
+    .hub-check {
+        font-size: 0.72rem; margin-left: 2px; color: #bbf7d0;
     }
 
-    /* E - Estimate (Blue) */
-    .wf-pill-e { background: #2563eb; border-color: #2563eb; }
-    .wf-pill-e:hover { background: #1d4ed8; }
-
-    /* W - WorkSlip (Green) */
-    .wf-pill-w { background: #16a34a; border-color: #16a34a; }
-    .wf-pill-w:hover { background: #15803d; }
-
-    /* B - Bill (Red) */
-    .wf-pill-b { background: #dc2626; border-color: #dc2626; }
-    .wf-pill-b:hover { background: #b91c1c; }
-
-    /* Active/current pill highlight */
-    .wf-pill-current {
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4);
-        transform: scale(1.08);
-    }
-    .wf-pill-current:hover {
-        transform: scale(1.08) translateY(-1px);
-    }
-
-    /* Dimmed pill (not the current item) */
-    .wf-pill-dim {
-        opacity: 0.55;
-    }
-    .wf-pill-dim:hover {
-        opacity: 1;
-    }
-
-    /* Add / action pills */
-    .wf-pill-add {
-        background: transparent;
+    .hub-w-add, .hub-b-add {
+        background: white;
         border: 1.5px dashed #94a3b8;
         color: #64748b;
-        font-size: 0.72rem;
-        min-width: 30px;
-        height: 28px;
     }
-    .wf-pill-add:hover {
-        border-color: #475569;
-        color: #475569;
-        background: #f1f5f9;
+    .hub-w-add:hover {
+        border-color: #16a34a; color: #16a34a; background: #f0fdf4;
+    }
+    .hub-b-add:hover {
+        border-color: #dc2626; color: #dc2626; background: #fef2f2;
     }
 
-    .wf-sep {
-        width: 1px;
-        height: 20px;
-        background: #e2e8f0;
-        margin: 0 3px;
+    /* Hub bottom bar */
+    .hub-bottom {
+        display: flex; gap: 16px; padding-top: 12px;
+        border-top: 1px solid #e5e7eb; margin-top: 12px;
     }
+    .hub-link {
+        font-size: 0.8rem; font-weight: 500;
+        color: #64748b; background: none; border: none;
+        cursor: pointer; display: flex; align-items: center; gap: 4px;
+        text-decoration: none; padding: 4px 0;
+    }
+    .hub-link:hover { color: #1e293b; }
+    .hub-link.danger:hover { color: #dc2626; }
 
-    /* Status dots on pills */
-    .wf-pill .s-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        position: absolute;
-        top: 2px;
-        right: 2px;
+    /* Folder card actions */
+    .wc-actions {
+        display: flex; gap: 4px; flex-shrink: 0;
     }
-    .s-dot.done { background: #22c55e; }
-    .s-dot.wip  { background: #fbbf24; }
+    .wc-act {
+        width: 32px; height: 32px; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        background: none; border: none; color: #94a3b8;
+        cursor: pointer; font-size: 0.9rem; text-decoration: none;
+        transition: all 0.15s;
+    }
+    .wc-act:hover { background: #f1f5f9; color: #475569; }
+    .wc-act.danger:hover { background: #fef2f2; color: #dc2626; }
 
     /* Empty State */
     .empty-folder {
@@ -549,166 +553,176 @@
 
         <!-- File List -->
         <div class="file-list">
-            <table class="file-table">
-                <thead>
-                    <tr>
-                        <th style="width: 30%;">Name</th>
-                        <th>Type</th>
-                        <th>Modified</th>
-                        <th>Workflow</th>
-                        <th style="text-align:right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Show folders first -->
-                    {% for folder in folders %}
-                    <tr ondblclick="window.location.href='{% url 'saved_works_list' %}?folder={{ folder.id }}'"
-                        oncontextmenu="showFolderMenu(event, {{ folder.id }}, '{{ folder.name }}')">
-                        <td>
-                            <div class="file-name">
-                                <i class="bi bi-folder-fill file-icon folder" style="color: {{ folder.color }}"></i>
-                                <span class="file-name-text">{{ folder.name }}</span>
-                            </div>
-                        </td>
-                        <td class="file-type">Folder</td>
-                        <td class="file-date">{{ folder.created_at|date:"M d, Y h:i A" }}</td>
-                        <td class="file-actions">
-                            <div class="btn-group btn-group-sm">
-                                <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}" class="btn btn-outline-primary" title="Open">
-                                    <i class="bi bi-folder2-open"></i>
-                                </a>
-                                <button type="button" class="btn btn-outline-secondary" title="Rename" onclick="renameFolder({{ folder.id }}, '{{ folder.name }}')">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteFolder({{ folder.id }}, '{{ folder.name }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
 
-                    <!-- Show works with E/W/B workflow buttons -->
-                    {% for work in works %}
-                    <tr oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name|escapejs }}')">
-                        <td>
-                            <div class="file-name">
-                                <i class="bi {% if work.work_type == 'new_estimate' %}bi-file-earmark-bar-graph file-icon estimate{% elif work.work_type == 'workslip' %}bi-file-earmark-text file-icon workslip{% elif work.work_type == 'bill' %}bi-receipt file-icon bill{% elif work.work_type == 'temporary_works' %}bi-tools file-icon temp{% else %}bi-wrench-adjustable file-icon amc{% endif %}"></i>
-                                <span class="file-name-text">{{ work.name }}</span>
-                                {% if work.parent %}
-                                <small class="text-muted ms-2">(from: {{ work.parent.name }})</small>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="file-type">
+            <!-- Folders -->
+            {% for folder in folders %}
+            <div class="work-card folder-card" ondblclick="window.location.href='{% url 'saved_works_list' %}?folder={{ folder.id }}'"
+                 oncontextmenu="showFolderMenu(event, {{ folder.id }}, '{{ folder.name }}')">
+                <div class="wc-main">
+                    <div class="wc-icon" style="background: {{ folder.color }}20; color: {{ folder.color }};">
+                        <i class="bi bi-folder-fill"></i>
+                    </div>
+                    <div class="wc-info">
+                        <div class="wc-name">{{ folder.name }}</div>
+                        <div class="wc-meta">Folder &middot; {{ folder.created_at|date:"M d, Y" }}</div>
+                    </div>
+                    <div class="wc-actions">
+                        <a href="{% url 'saved_works_list' %}?folder={{ folder.id }}" class="wc-act" title="Open"><i class="bi bi-folder2-open"></i></a>
+                        <button class="wc-act" title="Rename" onclick="event.stopPropagation();renameFolder({{ folder.id }}, '{{ folder.name }}')"><i class="bi bi-pencil"></i></button>
+                        <button class="wc-act danger" title="Delete" onclick="event.stopPropagation();deleteFolder({{ folder.id }}, '{{ folder.name }}')"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Works -->
+            {% for work in works %}
+            <div class="work-card {% if work.work_type == 'new_estimate' %}wc-estimate{% elif work.work_type == 'workslip' %}wc-workslip{% elif work.work_type == 'bill' %}wc-bill{% elif work.work_type == 'temporary_works' %}wc-temp{% else %}wc-amc{% endif %}"
+                 onclick="toggleHub({{ work.id }})"
+                 oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name|escapejs }}')">
+                <div class="wc-main">
+                    <div class="wc-icon">
+                        <i class="bi {% if work.work_type == 'new_estimate' %}bi-file-earmark-bar-graph{% elif work.work_type == 'workslip' %}bi-file-earmark-text{% elif work.work_type == 'bill' %}bi-receipt{% elif work.work_type == 'temporary_works' %}bi-tools{% else %}bi-wrench-adjustable{% endif %}"></i>
+                    </div>
+                    <div class="wc-info">
+                        <div class="wc-name">{{ work.name }}</div>
+                        <div class="wc-meta">
                             {{ work.get_work_type_display }}{% if work.work_type == 'workslip' %}-{{ work.workslip_number }}{% endif %}{% if work.work_type == 'bill' %}-{{ work.bill_number }}{% endif %}
-                            {% if work.status == 'completed' %}<span class="badge bg-success ms-1">Done</span>{% elif work.status == 'in_progress' %}<span class="badge bg-warning ms-1">WIP</span>{% endif %}
-                        </td>
+                            &middot; {{ work.updated_at|date:"M d, Y h:i A" }}
+                            {% if work.item_count %}&middot; {{ work.item_count }} items{% endif %}
+                        </div>
+                    </div>
+                    <div class="wc-badges">
+                        {% if work.status == 'completed' %}<span class="wc-badge done">Done</span>{% elif work.status == 'in_progress' %}<span class="wc-badge wip">WIP</span>{% endif %}
+                    </div>
+                    <div class="wc-quick-flow">
+                        {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
+                        <span class="qf-pill qf-e" title="Estimate">E</span>
+                        {% if work.workslip_children %}
+                            {% for ws in work.workslip_children %}
+                            <span class="qf-pill qf-w {% if ws.status == 'completed' %}qf-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">W{{ ws.workslip_number }}</span>
+                            {% endfor %}
+                        {% endif %}
+                        {% if work.bill_children %}
+                            {% for bill in work.bill_children %}
+                            <span class="qf-pill qf-b {% if bill.status == 'completed' %}qf-done{% endif %}" title="Bill {{ bill.bill_number }}">B{{ bill.bill_number }}</span>
+                            {% endfor %}
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    <div class="wc-expand"><i class="bi bi-chevron-down"></i></div>
+                </div>
 
-                        <td class="file-date">{{ work.updated_at|date:"M d, Y h:i A" }}</td>
-                        <td>
-                            <!-- Dynamic workflow buttons -->
-                            <div class="workflow-btns" id="workflow-{{ work.id }}">
-                                {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
-                                    <!-- Estimate: Show dynamic W1, W2, W3... buttons for existing workslips -->
-                                    {% if work.workslip_children %}
-                                        {% for ws in work.workslip_children %}
-                                        <a href="javascript:void(0)" 
-                                           onclick="promptWorkslipAction({{ ws.id }}, {{ ws.workslip_number }}, '{{ ws.status }}')"
-                                           class="btn btn-sm {% if ws.status == 'completed' %}btn-success{% else %}btn-outline-success{% endif %}" 
-                                           title="{% if ws.status == 'completed' %}View{% else %}Edit{% endif %} Workslip {{ ws.workslip_number }}">
-                                            <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
-                                        </a>
-                                        {% endfor %}
-                                        <!-- Create next workslip button (always visible) -->
-                                        <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" 
-                                           class="btn btn-info btn-sm" 
-                                           title="Create Workslip {{ work.next_ws_number }}">
-                                            <i class="bi bi-plus-circle"></i> +W{{ work.next_ws_number }}
-                                        </a>
-                                    {% else %}
-                                        <!-- No workslips yet - show Create Workslip 1 button -->
-                                        <a href="{% url 'generate_workslip_from_saved' work.id %}" class="btn btn-success btn-sm" title="Create Workslip 1">
-                                            <i class="bi bi-file-earmark-text"></i> +W1
-                                        </a>
-                                    {% endif %}
-                                    <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger btn-sm" title="Bill">
-                                        <i class="bi bi-receipt"></i> Bill
-                                    </a>
-                                {% elif work.work_type == 'workslip' %}
-                                    <!-- Workslip: Show sibling buttons W1, W2... and Bill -->
-                                    {% if work.sibling_workslips %}
-                                        {% for ws in work.sibling_workslips %}
-                                        <a href="{% url 'resume_saved_work' ws.id %}" 
-                                           class="btn btn-sm {% if ws.id == work.id %}btn-success{% elif ws.status == 'completed' %}btn-outline-success{% else %}btn-outline-secondary{% endif %}" 
-                                           title="{% if ws.id == work.id %}Current{% elif ws.status == 'completed' %}View{% else %}Edit{% endif %} Workslip {{ ws.workslip_number }}">
-                                            W{{ ws.workslip_number }}
-                                        </a>
-                                        {% endfor %}
-                                    {% else %}
-                                        <span class="badge bg-success-subtle text-success me-1">WS-{{ work.workslip_number }}</span>
-                                    {% endif %}
-                                    <a href="{% url 'generate_bill_from_saved' work.id %}" class="btn btn-danger btn-sm" title="Generate Bill">
-                                        <i class="bi bi-receipt"></i> Bill
-                                    </a>
-                                    {% if work.status == 'completed' %}
-                                    <a href="{% url 'generate_next_workslip_from_saved' work.id %}" class="btn btn-info btn-sm" title="Create Workslip {{ work.workslip_number|add:1 }}">
-                                        <i class="bi bi-plus-circle"></i> +W{{ work.workslip_number|add:1 }}
-                                    </a>
-                                    {% endif %}
-                                {% elif work.work_type == 'bill' %}
-                                    <span class="badge bg-danger-subtle text-danger">{{ work.get_bill_type_display_label }}</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="file-actions">
-                            <div class="btn-group btn-group-sm">
-                                <a href="{% url 'saved_work_detail' work.id %}" class="btn btn-outline-secondary" title="View Details">
-                                    <i class="bi bi-eye"></i>
+                <!-- ═══ Expanded Workflow Hub ═══ -->
+                <div class="wc-hub" id="hub-{{ work.id }}" onclick="event.stopPropagation()">
+                    {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
+                    <div class="hub-section">
+                        <div class="hub-label">Workflow Chain</div>
+                        <div class="hub-flow">
+                            <!-- E Button -->
+                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-e" title="Edit Estimate">
+                                <i class="bi bi-pencil-fill"></i> Edit Estimate
+                            </a>
+                            <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
+
+                            <!-- W Buttons -->
+                            {% if work.workslip_children %}
+                                {% for ws in work.workslip_children %}
+                                <a href="{% url 'resume_saved_work' ws.id %}" class="hub-btn hub-w {% if ws.status == 'completed' %}hub-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">
+                                    <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
+                                    {% if ws.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
                                 </a>
-                                <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    {% if not folders %}
-                    <tr>
-                        <td colspan="5">
-                            <div class="empty-folder">
-                                <i class="bi bi-folder2-open"></i>
-                                <h5>This folder is empty</h5>
-                                <p>Create a folder or save works to this location.</p>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
+                                {% endfor %}
+                                <!-- +W Next -->
+                                <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" class="hub-btn hub-w-add" title="Create WorkSlip {{ work.next_ws_number }}">
+                                    <i class="bi bi-plus"></i> W{{ work.next_ws_number }}
+                                </a>
+                            {% else %}
+                                <a href="{% url 'generate_workslip_from_saved' work.id %}" class="hub-btn hub-w-add" title="Generate WorkSlip 1">
+                                    <i class="bi bi-plus"></i> W1
+                                </a>
+                            {% endif %}
 
-                    {% if not folders and not works and not current_folder %}
-                    <tr>
-                        <td colspan="5">
-                            <div class="empty-folder">
-                                <i class="bi bi-folder-plus"></i>
-                                <h5>No saved works yet</h5>
-                                <p>Create a folder to organize your works, then start a New Estimate or Workslip.</p>
-                                <div class="mt-3">
-                                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-                                        <i class="bi bi-folder-plus me-1"></i> Create Folder
-                                    </button>
-                                    <a href="{% url 'datas' %}" class="btn btn-outline-primary ms-2">
-                                        <i class="bi bi-plus me-1"></i> New Estimate
+                            {% if work.workslip_children %}
+                            <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
+
+                            <!-- B Buttons -->
+                            {% if work.bill_children %}
+                                {% for bill in work.bill_children %}
+                                <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }}">
+                                    <i class="bi bi-receipt"></i> B{{ bill.bill_number }}
+                                    {% if bill.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
+                                </a>
+                                {% endfor %}
+                            {% endif %}
+                            <a href="{% url 'generate_bill_from_saved' work.last_ws.id %}" class="hub-btn hub-b-add" title="Generate Bill">
+                                <i class="bi bi-plus"></i> Bill
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% elif work.work_type == 'workslip' %}
+                    <div class="hub-section">
+                        <div class="hub-flow">
+                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-w" title="Edit Workslip">
+                                <i class="bi bi-pencil-fill"></i> Edit W{{ work.workslip_number }}
+                            </a>
+                            {% if work.sibling_workslips %}
+                                {% for ws in work.sibling_workslips %}
+                                    {% if ws.id != work.id %}
+                                    <a href="{% url 'resume_saved_work' ws.id %}" class="hub-btn hub-w {% if ws.status == 'completed' %}hub-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">
+                                        W{{ ws.workslip_number }}
                                     </a>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            <a href="{% url 'generate_bill_from_saved' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
+                                <i class="bi bi-plus"></i> Bill
+                            </a>
+                        </div>
+                    </div>
+                    {% elif work.work_type == 'bill' %}
+                    <div class="hub-section">
+                        <div class="hub-flow">
+                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-b" title="Edit Bill">
+                                <i class="bi bi-pencil-fill"></i> Edit Bill {{ work.bill_number }}
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="hub-section">
+                        <div class="hub-flow">
+                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-e" title="Edit">
+                                <i class="bi bi-pencil-fill"></i> Edit
+                            </a>
+                        </div>
+                    </div>
                     {% endif %}
-                </tbody>
-            </table>
+
+                    <div class="hub-bottom">
+                        <a href="{% url 'saved_work_detail' work.id %}" class="hub-link"><i class="bi bi-eye"></i> Details</a>
+                        <button class="hub-link danger" onclick="deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')"><i class="bi bi-trash"></i> Delete</button>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            {% if not folders %}
+            <div class="empty-folder">
+                <i class="bi bi-folder2-open"></i>
+                <h5>{% if current_folder %}This folder is empty{% else %}No saved works yet{% endif %}</h5>
+                <p>{% if current_folder %}Create a folder or save works to this location.{% else %}Create a folder to organize your works, then start a New Estimate or Workslip.{% endif %}</p>
+                <div class="mt-3">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                        <i class="bi bi-folder-plus me-1"></i> Create Folder
+                    </button>
+                    <a href="{% url 'datas' %}" class="btn btn-outline-primary ms-2">
+                        <i class="bi bi-plus me-1"></i> New Estimate
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+
         </div>
 
         <!-- Status Bar -->
@@ -861,6 +875,17 @@
     let selectedFolderName = null;
     let selectedWorkId = null;
     let selectedWorkName = null;
+
+    // Toggle workflow hub on card click
+    function toggleHub(workId) {
+        const card = document.querySelector('#hub-' + workId)?.closest('.work-card');
+        if (!card) return;
+        const wasExpanded = card.classList.contains('expanded');
+        // Collapse all first
+        document.querySelectorAll('.work-card.expanded').forEach(c => c.classList.remove('expanded'));
+        // Toggle this one
+        if (!wasExpanded) card.classList.add('expanded');
+    }
 
     // Hide context menus on click elsewhere
     document.addEventListener('click', () => {
@@ -1091,46 +1116,6 @@
             else alert(data.error || 'Failed to move');
         });
     }
-
-    // ========================================
-    // WORKSLIP PROMPT — Edit or Create Next
-    // ========================================
-    function promptWorkslipAction(wsId, wsNum, wsStatus) {
-        var modal = document.getElementById('wsActionModal');
-        if (!modal) {
-            // Fallback: just resume the workslip
-            window.location.href = '/saved-works/' + wsId + '/resume/';
-            return;
-        }
-        var nextNum = wsNum + 1;
-        var body = modal.querySelector('.modal-body');
-        body.innerHTML = 
-            '<a href="/saved-works/' + wsId + '/resume/" class="list-group-item list-group-item-action d-flex align-items-center py-3">' +
-                '<i class="bi bi-pencil-fill text-success me-3 fs-5"></i>' +
-                '<div><strong>Edit WorkSlip ' + wsNum + '</strong><br><small class="text-muted">Review or update quantities</small></div>' +
-            '</a>' +
-            '<a href="/saved-works/' + wsId + '/generate-next-workslip/" class="list-group-item list-group-item-action d-flex align-items-center py-3">' +
-                '<i class="bi bi-plus-circle-fill text-info me-3 fs-5"></i>' +
-                '<div><strong>Create WorkSlip ' + nextNum + '</strong><br><small class="text-muted">Lock previous quantities and start WorkSlip ' + nextNum + '</small></div>' +
-            '</a>';
-        modal.querySelector('.modal-title').textContent = 'WorkSlip ' + wsNum + ' — What would you like to do?';
-        new bootstrap.Modal(modal).show();
-    }
 </script>
-
-<!-- WorkSlip Action Prompt Modal -->
-<div class="modal fade" id="wsActionModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <h6 class="modal-title fw-bold"></h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body list-group list-group-flush">
-                <!-- Populated by JS -->
-            </div>
-        </div>
-    </div>
-</div>
 
 {% endblock %}

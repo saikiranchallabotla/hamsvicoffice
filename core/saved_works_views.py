@@ -316,10 +316,24 @@ def saved_works_list(request):
                 work.workslip_children = all_ws
                 work.next_ws_number = (max(ws.workslip_number for ws in all_ws) + 1) if all_ws else 1
                 work.last_ws = all_ws[-1] if all_ws else None
+                # Attach bill children from wf_chain
+                work.bill_children = work.wf_chain.get('bills', []) if work.wf_chain else []
             except Exception:
                 work.workslip_children = []
                 work.next_ws_number = 1
                 work.last_ws = None
+                work.bill_children = []
+
+        # Attach item_count for display
+        wd = work.work_data or {}
+        if work.work_type == 'new_estimate':
+            work.item_count = len(wd.get('fetched_items', []))
+        elif work.work_type == 'workslip':
+            work.item_count = len(wd.get('ws_estimate_rows', []))
+        elif work.work_type == 'bill':
+            work.item_count = len(wd.get('bill_ws_rows', wd.get('ws_estimate_rows', [])))
+        else:
+            work.item_count = 0
         elif work.work_type == 'workslip':
             try:
                 root = work.get_root_estimate() if hasattr(work, 'get_root_estimate') else None

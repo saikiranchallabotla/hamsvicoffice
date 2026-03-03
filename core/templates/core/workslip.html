@@ -1932,7 +1932,7 @@ function quickSaveWorkslip() {
     sessionFormData.append('tp_type', tpType);
     sessionFormData.append('csrfmiddlewaretoken', csrfToken);
     
-    fetch('/workslip/', {
+    fetch('/workslip/main/', {
         method: 'POST',
         body: sessionFormData,
         headers: {
