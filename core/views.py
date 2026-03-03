@@ -5107,11 +5107,19 @@ def bill(request):
                 bill_preload_tp_type = request.session.get('bill_ws_tp_type', 'Excess')
                 for idx, row in enumerate(ws_rows):
                     key = row.get('key', f'saved_{idx}')
+                    # Try exec_map first, fall back to qty_est if exec_map is empty
                     exec_qty = ws_exec_map.get(key, 0)
                     try:
                         exec_qty = float(exec_qty) if exec_qty else 0.0
                     except (ValueError, TypeError):
                         exec_qty = 0.0
+                    # Fallback: if no exec_qty and ws_exec_map is empty,
+                    # use qty_est so the bill still shows items
+                    if exec_qty <= 0 and not ws_exec_map:
+                        try:
+                            exec_qty = float(row.get('qty_est', 0) or 0)
+                        except (ValueError, TypeError):
+                            exec_qty = 0.0
                     if exec_qty <= 0:
                         continue
                     rate = float(row.get('rate', 0) or 0)
@@ -5167,6 +5175,12 @@ def bill(request):
                     exec_qty = float(exec_qty) if exec_qty else 0.0
                 except (ValueError, TypeError):
                     exec_qty = 0.0
+                # Fallback: use qty_est when exec_map is empty
+                if exec_qty <= 0 and not ws_exec_map:
+                    try:
+                        exec_qty = float(row.get('qty_est', 0) or 0)
+                    except (ValueError, TypeError):
+                        exec_qty = 0.0
                 if exec_qty <= 0:
                     continue
                 rate = float(row.get('rate', 0) or 0)
