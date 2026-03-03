@@ -9383,6 +9383,9 @@ def save_qty_map(request, category):
             if work_type:
                 request.session["work_type"] = work_type
             
+            # Ensure session is flushed to DB before the response is sent
+            request.session.modified = True
+            
             return JsonResponse({"status": "ok"})
         except Exception as e:
             return JsonResponse({"status": "error", "message": str(e)}, status=400)

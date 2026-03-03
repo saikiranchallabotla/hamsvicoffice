@@ -348,12 +348,14 @@
                     {% endif %}
                 </button>
                 {% endfor %}
-                <!-- +W button: always show create next workslip -->
+                <!-- +W button: create next workslip if last one is completed -->
+                {% if last_workslip.status == 'completed' %}
                 <button class="ewb-btn ewb-btn-w"
                         onclick="window.location.href='/saved-works/{{ last_workslip.id }}/generate-next-workslip/'"
                         title="Create WorkSlip {{ last_workslip.workslip_number|add:1 }}">
                     +W{{ last_workslip.workslip_number|add:1 }}
                 </button>
+                {% endif %}
             {% else %}
             <button class="ewb-btn ewb-btn-w"
                     onclick="handleWNew()"

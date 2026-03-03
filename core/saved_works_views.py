@@ -661,26 +661,66 @@ def save_work(request):
 
 
 def collect_work_data(request, work_type):
-    """Collect all relevant session data for a given work type."""
+    """Collect all relevant session data for a given work type.
+    
+    For new_estimate: prefer direct POST data (qty_map_json, etc.) over session
+    so we don't depend on a prior save_qty_map request having flushed to DB.
+    """
+    import json as _json
     work_data = {}
     
     if work_type == 'new_estimate':
+        # ---- qty_map: prefer direct POST JSON over session ----
+        qty_map = request.session.get('qty_map', {})
+        qty_map_json = request.POST.get('qty_map_json', '')
+        if qty_map_json:
+            try:
+                parsed = _json.loads(qty_map_json)
+                if isinstance(parsed, dict):
+                    qty_map = parsed
+                    # Also update session so subsequent reads are consistent
+                    request.session['qty_map'] = qty_map
+            except (ValueError, TypeError):
+                pass
+
+        # ---- unit_map: prefer direct POST JSON over session ----
+        unit_map = request.session.get('unit_map', {})
+        unit_map_json = request.POST.get('unit_map_json', '')
+        if unit_map_json:
+            try:
+                parsed = _json.loads(unit_map_json)
+                if isinstance(parsed, dict):
+                    unit_map = parsed
+                    request.session['unit_map'] = unit_map
+            except (ValueError, TypeError):
+                pass
+
+        # ---- scalar fields: prefer POST *_value suffix over session ----
+        def _post_or_session(post_key, session_key, default=''):
+            val = request.POST.get(post_key, '')
+            if val:
+                request.session[session_key] = val
+                return val
+            return request.session.get(session_key, default)
+
         work_data = {
             'fetched_items': request.session.get('fetched_items', []),
             'current_project_name': request.session.get('current_project_name'),
-            'work_type': request.session.get('work_type', 'original'),
-            'qty_map': request.session.get('qty_map', {}),
-            'work_name': request.session.get('work_name', ''),
-            'grand_total': request.session.get('grand_total', ''),
-            'excess_tp_percent': request.session.get('excess_tp_percent', ''),
-            'ls_special_name': request.session.get('ls_special_name', ''),
-            'ls_special_amount': request.session.get('ls_special_amount', ''),
-            'deduct_old_material': request.session.get('deduct_old_material', ''),
+            'work_type': _post_or_session('work_type_value', 'work_type', 'original'),
+            'qty_map': qty_map,
+            'unit_map': unit_map,
+            'work_name': _post_or_session('work_name_value', 'work_name', ''),
+            'grand_total': _post_or_session('grand_total_value', 'grand_total', ''),
+            'excess_tp_percent': _post_or_session('excess_tp_percent_value', 'excess_tp_percent', ''),
+            'ls_special_name': _post_or_session('ls_special_name_value', 'ls_special_name', ''),
+            'ls_special_amount': _post_or_session('ls_special_amount_value', 'ls_special_amount', ''),
+            'deduct_old_material': _post_or_session('deduct_old_material_value', 'deduct_old_material', ''),
             'last_group': request.POST.get('group', ''),
             'selected_backend_id': request.session.get('selected_backend_id'),
             'item_rates': request.session.get('item_rates', {}),
             'item_units': request.session.get('item_units', {}),
         }
+        request.session.modified = True
     
     elif work_type == 'workslip':
         work_data = {
@@ -875,6 +915,7 @@ def restore_work_data(request, saved_work):
         request.session['current_project_name'] = work_data.get('current_project_name')
         request.session['work_type'] = work_data.get('work_type', 'original')
         request.session['qty_map'] = work_data.get('qty_map', {})
+        request.session['unit_map'] = work_data.get('unit_map', {})
         request.session['work_name'] = work_data.get('work_name', '')
         request.session['grand_total'] = work_data.get('grand_total', '')
         request.session['excess_tp_percent'] = work_data.get('excess_tp_percent', '')
@@ -889,6 +930,8 @@ def restore_work_data(request, saved_work):
             request.session['item_rates'] = work_data['item_rates']
         if work_data.get('item_units'):
             request.session['item_units'] = work_data['item_units']
+        # Force session save
+        request.session.modified = True
     
     elif work_type == 'workslip':
         ws_estimate_rows = work_data.get('ws_estimate_rows', [])
