@@ -711,14 +711,24 @@ class SavedWork(models.Model):
         return None
 
     def get_next_bill_number(self):
-        """Get the next bill number based on existing bills in the workflow chain"""
+        """Get the next bill number based on ALL existing bills in the workflow chain.
+        Checks bills parented to root estimate AND bills parented to any workslip."""
         root = self.get_root_estimate()
-        if root:
-            max_bill = root.children.filter(work_type='bill').order_by('-bill_number').first()
-            if max_bill:
-                return max_bill.bill_number + 1
-        max_bill = self.children.filter(work_type='bill').order_by('-bill_number').first()
-        if max_bill:
+        if not root:
+            root = self  # fallback: treat self as root
+        
+        # Collect all bill numbers: direct children of root + children of all workslips
+        from django.db.models import Q
+        workslip_ids = list(
+            root.children.filter(work_type='workslip').values_list('id', flat=True)
+        )
+        all_bills = root.children.model.objects.filter(
+            Q(parent=root, work_type='bill') |
+            Q(parent_id__in=workslip_ids, work_type='bill')
+        ).order_by('-bill_number')
+        
+        max_bill = all_bills.first()
+        if max_bill and max_bill.bill_number:
             return max_bill.bill_number + 1
         return 1
 

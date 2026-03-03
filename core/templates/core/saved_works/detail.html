@@ -334,41 +334,57 @@
 
             <span class="ewb-divider"></span>
 
-            <!-- ── W (single button: always shows prompt) ── -->
-            {% if last_workslip %}
-            <button class="ewb-btn ewb-btn-w"
-                    onclick="handleW({{ last_workslip.id }}, {{ last_workslip.workslip_number|default:1 }})"
-                    title="WorkSlip ({{ workslips|length }} created)">
-                W{% if last_workslip.workslip_number > 1 %}{{ last_workslip.workslip_number }}{% endif %}
-                <span class="badge-wip"></span>
-            </button>
+            <!-- ── W1, W2, W3... (full workslip chain) ── -->
+            {% if workslips|length > 0 %}
+                {% for ws in workslips %}
+                <button class="ewb-btn ewb-btn-w {% if work.id == ws.id %}viewing{% endif %} {% if ws.status == 'completed' %}done{% endif %}"
+                        onclick="handleWn({{ ws.id }}, {{ ws.workslip_number|default:1 }}, '{{ ws.status }}')"
+                        title="WorkSlip {{ ws.workslip_number }} ({{ ws.get_status_display }})">
+                    W{{ ws.workslip_number }}
+                    {% if ws.status == 'completed' %}
+                    <span class="badge-check"><i class="bi bi-check"></i></span>
+                    {% else %}
+                    <span class="badge-wip"></span>
+                    {% endif %}
+                </button>
+                {% endfor %}
+                <!-- +W button: create next workslip if last one is completed -->
+                {% if last_workslip.status == 'completed' %}
+                <button class="ewb-btn ewb-btn-w"
+                        onclick="window.location.href='/saved-works/{{ last_workslip.id }}/generate-next-workslip/'"
+                        title="Create WorkSlip {{ last_workslip.workslip_number|add:1 }}">
+                    +W{{ last_workslip.workslip_number|add:1 }}
+                </button>
+                {% endif %}
             {% else %}
             <button class="ewb-btn ewb-btn-w"
                     onclick="handleWNew()"
                     title="Generate WorkSlip 1 from Estimate">
-                W
+                +W1
             </button>
             {% endif %}
 
             <span class="ewb-divider"></span>
 
-            <!-- ── B (Bill 1 or "Generate B1") ── -->
+            <!-- ── B1, B2, B3... (full bill chain) ── -->
             {% if bills|length > 0 %}
-            <button class="ewb-btn ewb-btn-b {% if work.id == bills.0.id %}viewing{% endif %} {% if bills.0.status == 'completed' %}done{% endif %}"
-                    onclick="handleB({{ bills.0.id }}, 1, '{{ bills.0.status }}')"
-                    title="Bill 1 ({{ bills.0.get_status_display }})">
-                B
-                {% if bills.0.status == 'completed' %}
-                <span class="badge-check"><i class="bi bi-check"></i></span>
-                {% else %}
-                <span class="badge-wip"></span>
-                {% endif %}
-            </button>
+                {% for bill in bills %}
+                <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
+                        onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                        title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
+                    B{{ bill.bill_number }}
+                    {% if bill.status == 'completed' %}
+                    <span class="badge-check"><i class="bi bi-check"></i></span>
+                    {% else %}
+                    <span class="badge-wip"></span>
+                    {% endif %}
+                </button>
+                {% endfor %}
             {% elif workslips|length > 0 %}
             <button class="ewb-btn ewb-btn-b"
                     onclick="handleBNew()"
                     title="Generate Bill 1 from WorkSlip">
-                B
+                +B1
             </button>
             {% else %}
             <button class="ewb-btn ewb-btn-b off"
@@ -376,22 +392,6 @@
                 B
             </button>
             {% endif %}
-
-            <!-- ── B2, B3 … (additional bills) ── -->
-            {% for bill in bills %}
-            {% if bill.bill_number > 1 %}
-            <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
-                    onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
-                    title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
-                B{{ bill.bill_number }}
-                {% if bill.status == 'completed' %}
-                <span class="badge-check"><i class="bi bi-check"></i></span>
-                {% else %}
-                <span class="badge-wip"></span>
-                {% endif %}
-            </button>
-            {% endif %}
-            {% endfor %}
         </div>
     </div>
     {% endif %}
@@ -784,22 +784,28 @@
     }
 
     // ========================================
-    // W — WorkSlip button (always shows 2 options)
+    // W — WorkSlip buttons (W1, W2, W3...)
     // ========================================
-    function handleW(wsId, wsNum) {
+    function handleWn(wsId, wsNum, wsStatus) {
         try {
+            if (wsStatus !== 'completed') {
+                // WIP workslip — navigate directly to resume/edit
+                window.location.href = '/saved-works/' + wsId + '/resume/';
+                return;
+            }
+            // Completed workslip — show options: view/edit or create next
             var nextNum = wsNum + 1;
             var options = [
-                { icon: 'bi-pencil-fill', title: 'Update WorkSlip ' + wsNum,
-                  desc: 'Edit quantities in WorkSlip ' + wsNum,
+                { icon: 'bi-pencil-fill', title: 'Edit WorkSlip ' + wsNum,
+                  desc: 'Review or update quantities in WorkSlip ' + wsNum,
                   go: '/saved-works/' + wsId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create New WorkSlip (W' + nextNum + ')',
+                { icon: 'bi-plus-circle-fill', title: 'Create WorkSlip ' + nextNum,
                   desc: 'Lock previous quantities and start WorkSlip ' + nextNum,
                   go: '/saved-works/' + wsId + '/generate-next-workslip/' }
             ];
-            showPrompt('wsPromptModal', 'WorkSlip Actions', options);
+            showPrompt('wsPromptModal', 'WorkSlip ' + wsNum + ' Actions', options);
         } catch (e) {
-            console.error('handleW error:', e);
+            console.error('handleWn error:', e);
             window.location.href = '/saved-works/' + wsId + '/resume/';
         }
     }
@@ -819,35 +825,45 @@
     }
 
     // ========================================
-    // B — Bill 1 (main B button)
+    // B — Bill 1 (main B button) — uses resume for existing bills
     // ========================================
     function handleB(billId, billNum, billStatus) {
         try {
             if (billStatus !== 'completed') {
-                // Only one option — navigate directly
-                window.location.href = '/saved-works/' + billId + '/generate-bill/';
+                // In-progress bill — resume editing
+                window.location.href = '/saved-works/' + billId + '/resume/';
                 return;
             }
             var options = [
-                { icon: 'bi-pencil-fill', title: 'Edit Bill 1',
-                  desc: 'Open and review Bill 1',
-                  go: '/saved-works/' + billId + '/generate-bill/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create Bill 2',
+                { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
+                  desc: 'Open and review Bill ' + billNum,
+                  go: '/saved-works/' + billId + '/resume/' },
+                { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + (billNum + 1),
                   desc: 'Generate next bill',
                   go: '/saved-works/' + billId + '/generate-next-bill/' }
             ];
             showPrompt('billPromptModal', 'Bill Actions', options);
         } catch (e) {
             console.error('handleB error:', e);
-            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+            window.location.href = '/saved-works/' + billId + '/resume/';
         }
     }
 
     // B button when NO bills exist → generate B1 (choose type)
+    // Uses the latest completed workslip, not always the first one
     function handleBNew() {
         try {
             {% if workslips|length > 0 %}
-            pendingBillWorkslipId = {{ workslips.0.id }};
+            // Find the latest completed workslip to generate bill from
+            var latestWsId = null;
+            {% for ws in workslips reversed %}
+            {% if ws.status == 'completed' and not latestWsId %}
+            if (!latestWsId) latestWsId = {{ ws.id }};
+            {% endif %}
+            {% endfor %}
+            // Fallback to latest workslip if none are completed
+            if (!latestWsId) latestWsId = {{ last_workslip.id }};
+            pendingBillWorkslipId = latestWsId;
             new bootstrap.Modal(document.getElementById('billTypeModal')).show();
             {% else %}
             alert('No workslips exist yet. Generate a WorkSlip first.');
@@ -858,19 +874,19 @@
         }
     }
 
-    // B2, B3, … additional bill buttons
+    // B2, B3, … additional bill buttons — uses resume for existing bills
     function handleBn(billId, billNum, billStatus) {
         try {
             if (billStatus !== 'completed') {
-                // Only one option — navigate directly
-                window.location.href = '/saved-works/' + billId + '/generate-bill/';
+                // In-progress bill — resume editing
+                window.location.href = '/saved-works/' + billId + '/resume/';
                 return;
             }
             var nextNum = billNum + 1;
             var options = [
                 { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
                   desc: 'Open and review Bill ' + billNum,
-                  go: '/saved-works/' + billId + '/generate-bill/' },
+                  go: '/saved-works/' + billId + '/resume/' },
                 { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + nextNum,
                   desc: 'Generate next bill',
                   go: '/saved-works/' + billId + '/generate-next-bill/' }
@@ -878,7 +894,7 @@
             showPrompt('billPromptModal', 'Bill ' + billNum + ' Actions', options);
         } catch (e) {
             console.error('handleBn error:', e);
-            window.location.href = '/saved-works/' + billId + '/generate-bill/';
+            window.location.href = '/saved-works/' + billId + '/resume/';
         }
     }
 

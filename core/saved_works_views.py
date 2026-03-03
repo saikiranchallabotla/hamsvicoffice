@@ -157,19 +157,39 @@ def saved_works_list(request):
     )
     for oc in orphan_children:
         wd = oc.work_data or {}
-        src_id = wd.get('ws_source_estimate_id') or wd.get('bill_source_work_id')
-        if src_id:
-            try:
-                parent_work = SavedWork.objects.get(id=int(src_id), organization=org, user=user)
-                # Walk up to root estimate
-                root = parent_work
-                while root and root.work_type != 'new_estimate' and root.parent:
-                    root = root.parent
-                if root and root.work_type == 'new_estimate':
-                    oc.parent = root
+        if oc.work_type == 'workslip':
+            # For workslips, link to the source estimate
+            src_id = wd.get('ws_source_estimate_id')
+            if src_id:
+                try:
+                    parent_work = SavedWork.objects.get(id=int(src_id), organization=org, user=user)
+                    # Walk up to root estimate
+                    root = parent_work
+                    while root and root.work_type not in ('new_estimate', 'temporary_works', 'amc') and root.parent:
+                        root = root.parent
+                    if root and root.work_type in ('new_estimate', 'temporary_works', 'amc'):
+                        oc.parent = root
+                        oc.save(update_fields=['parent'])
+                except SavedWork.DoesNotExist:
+                    pass
+        elif oc.work_type == 'bill':
+            # For bills, try to link to the source workslip first, then estimate
+            bill_parent_id = wd.get('bill_parent_work_id') or wd.get('bill_source_work_id')
+            if bill_parent_id:
+                try:
+                    bill_parent = SavedWork.objects.get(id=int(bill_parent_id), organization=org, user=user)
+                    oc.parent = bill_parent
                     oc.save(update_fields=['parent'])
-            except SavedWork.DoesNotExist:
-                pass
+                except SavedWork.DoesNotExist:
+                    # Fallback: try ws_source_estimate_id
+                    src_id = wd.get('ws_source_estimate_id')
+                    if src_id:
+                        try:
+                            root = SavedWork.objects.get(id=int(src_id), organization=org, user=user)
+                            oc.parent = root
+                            oc.save(update_fields=['parent'])
+                        except SavedWork.DoesNotExist:
+                            pass
 
     # Re-fetch works after fixing orphans
     works = SavedWork.objects.filter(organization=org, user=user)
@@ -697,6 +717,8 @@ def collect_work_data(request, work_type):
             'bill_type': request.session.get('bill_type', ''),
             'source_workslip_id': request.session.get('bill_source_work_id'),
             'bill_ws_metadata': request.session.get('bill_ws_metadata', {}),
+            'bill_parent_work_id': request.session.get('bill_parent_work_id'),
+            'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
         }
 
     return work_data
@@ -1938,8 +1960,22 @@ def generate_next_bill_from_saved(request, work_id):
 
     work_data = saved_work.work_data or {}
 
-    # Find the source workslip for this bill chain
+    # Find the source workslip for this bill chain — walk up parent to find the workslip
     source_workslip_id = work_data.get('source_workslip_id')
+    if not source_workslip_id and saved_work.parent:
+        # If this bill's parent is a workslip, use that
+        if saved_work.parent.work_type == 'workslip':
+            source_workslip_id = saved_work.parent.id
+        elif saved_work.parent.work_type in ('new_estimate', 'temporary_works', 'amc'):
+            # Bill parented to an estimate — try to find the newest completed workslip
+            newest_ws = SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip',
+                parent=saved_work.parent,
+                status='completed',
+            ).order_by('-workslip_number').first()
+            if newest_ws:
+                source_workslip_id = newest_ws.id
 
     # Pass minimal info to bill session — let existing bill engine handle calculations
     request.session['bill_source_work_id'] = saved_work.id
@@ -1950,6 +1986,18 @@ def generate_next_bill_from_saved(request, work_id):
     request.session['bill_previous_bill_number'] = current_bill_number
     request.session['bill_target_number'] = next_bill_number
     request.session['bill_sequence_number'] = next_bill_number
+
+    # CRITICAL: Set bill_parent_work_id so save_work() can link the bill to its parent
+    # Use source workslip if available, otherwise fall back to current bill's parent
+    if source_workslip_id:
+        request.session['bill_parent_work_id'] = int(source_workslip_id)
+    elif saved_work.parent_id:
+        request.session['bill_parent_work_id'] = saved_work.parent_id
+    
+    # Also carry the source estimate ID for orphan recovery
+    ws_source_est = work_data.get('ws_source_estimate_id')
+    if ws_source_est:
+        request.session['ws_source_estimate_id'] = ws_source_est
 
     # Carry over bill data for the existing engine to use
     if 'bill_ws_rows' in work_data:
@@ -2015,10 +2063,10 @@ def saved_work_action(request, work_id):
         })
 
     elif action == 'update_bill':
-        # Resume existing bill (redirect to bill page with data loaded)
+        # Resume existing bill
         return JsonResponse({
             'success': True,
-            'redirect_url': reverse('generate_bill_from_saved', kwargs={'work_id': work_id}),
+            'redirect_url': reverse('resume_saved_work', kwargs={'work_id': work_id}),
             'action': 'update_bill',
         })
 
@@ -2096,6 +2144,14 @@ def save_with_parent(request):
     if not folder and parent and parent.folder:
         folder = parent.folder
 
+    # Determine workslip_number / bill_number from session
+    workslip_number = 1
+    bill_number = 1
+    if work_type == 'workslip':
+        workslip_number = request.session.get('ws_target_workslip', 1) or 1
+    elif work_type == 'bill':
+        bill_number = request.session.get('bill_target_number', 1) or 1
+
     # Create saved work with parent reference
     saved_work = SavedWork.objects.create(
         organization=org,
@@ -2109,6 +2165,8 @@ def save_with_parent(request):
         notes=notes,
         progress_percent=progress_percent,
         last_step=last_step,
+        workslip_number=workslip_number,
+        bill_number=bill_number,
     )
     
     # Store saved work ID in session
