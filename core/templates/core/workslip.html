@@ -1892,7 +1892,7 @@ function collectExecMap() {
     // Collect from base item rows
     document.querySelectorAll('tr[data-row-key]').forEach(row => {
         const key = row.getAttribute('data-row-key');
-        const input = row.querySelector('.exec-qty-input');
+        const input = row.querySelector('.qty-exec-input');
         if (key && input && input.value) {
             execMap[key] = parseFloat(input.value) || 0;
         }
@@ -1900,7 +1900,7 @@ function collectExecMap() {
     // Collect from supplemental rows
     document.querySelectorAll('tr[data-supp-name]').forEach(row => {
         const name = row.getAttribute('data-supp-name');
-        const input = row.querySelector('.exec-qty-input');
+        const input = row.querySelector('.qty-exec-input');
         if (name && input && input.value) {
             execMap['supp:' + name] = parseFloat(input.value) || 0;
         }
