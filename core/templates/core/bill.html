@@ -1317,8 +1317,27 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         {% if bill_from_saved %}
-        // Auto-select the WorkSlip section when data is pre-loaded from Saved Works
+        // Auto-select the correct bill section based on saved works data
+        {% if bill_auto_section %}
+        showBillSection('{{ bill_auto_section }}');
+        {% else %}
         showBillSection('workslip');
+        {% endif %}
+
+        // Auto-set the bill type dropdown and nth number in common inputs
+        {% if bill_auto_action %}
+        var actionSelect = document.getElementById('common_action');
+        if (actionSelect) {
+            actionSelect.value = '{{ bill_auto_action }}';
+        }
+        {% endif %}
+
+        {% if bill_nth_number %}
+        var nthInput = document.getElementById('common_nth_number');
+        if (nthInput) {
+            nthInput.value = {{ bill_nth_number }};
+        }
+        {% endif %}
         {% endif %}
 
         // Handle form submissions with job polling

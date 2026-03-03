@@ -5078,6 +5078,8 @@ def bill(request):
                 'bill_source_work_type', 'bill_parent_work_id',
                 'bill_previous_bill_id', 'bill_previous_bill_number',
                 'bill_sequence_number', 'bill_type',
+                'bill_format_choice', 'bill_auto_section', 'bill_auto_action',
+                'bill_nth_number',
             ]:
                 request.session.pop(key, None)
             request.session.modified = True
@@ -5146,6 +5148,9 @@ def bill(request):
             'bill_preload_count': bill_preload_count,
             'bill_preload_total': round(bill_preload_total, 2),
             'bill_target_number': request.session.get('bill_target_number', 1) if bill_from_saved else 0,
+            'bill_auto_section': request.session.get('bill_auto_section', 'workslip') if bill_from_saved else '',
+            'bill_auto_action': request.session.get('bill_auto_action', '') if bill_from_saved else '',
+            'bill_nth_number': request.session.get('bill_nth_number', 0) if bill_from_saved else 0,
         })
 
     if method == 'POST':

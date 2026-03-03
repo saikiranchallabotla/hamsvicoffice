@@ -1819,9 +1819,7 @@ def bill_choice(request, work_id):
         messages.info(request, 'No workslips found. Generate a workslip first.')
         return redirect('saved_works_list')
 
-    # If only one workslip, skip the choice page
-    if len(all_workslips) == 1:
-        return redirect('generate_bill_from_saved', work_id=all_workslips[0].id)
+    # Always show the bill choice page so user can select Part vs Final
 
     # Gather existing bills
     workslip_ids = [ws.id for ws in all_workslips]
@@ -1852,12 +1850,18 @@ def generate_bill_from_saved(request, work_id):
     Generate a bill from a saved workslip or estimate.
     Saved Works acts as navigation layer only - passes data to existing bill engine.
     Redirects to bill page with appropriate data loaded.
+
+    Query params:
+        bill_type: 'part' or 'final' — determines Part vs Final bill format
     """
     import logging
     logger = logging.getLogger(__name__)
 
     org = get_org_from_request(request)
     user = request.user
+
+    # Read the bill_type from query string (part or final)
+    bill_type_choice = request.GET.get('bill_type', 'part')  # default to part
 
     try:
         saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
@@ -1891,6 +1895,9 @@ def generate_bill_from_saved(request, work_id):
     request.session['bill_source_work_type'] = saved_work.work_type
     request.session['bill_source_work_name'] = saved_work.name
 
+    # Store the bill format choice (part vs final)
+    request.session['bill_format_choice'] = bill_type_choice  # 'part' or 'final'
+
     if saved_work.work_type == 'workslip':
         # B(N) from W(N): bill_number matches the source workslip_number
         bill_number = saved_work.workslip_number or 1
@@ -1918,7 +1925,41 @@ def generate_bill_from_saved(request, work_id):
         # Pass supplemental items if any
         request.session['bill_ws_supp_items'] = work_data.get('ws_supp_items', [])
 
-        logger.info(f"[GEN_BILL] Generating Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
+        # ── Determine which bill section to auto-activate ──
+        if bill_number == 1:
+            # Bill 1 → Section 2 (Bill from WorkSlip): first_part or first_final
+            if bill_type_choice == 'final':
+                request.session['bill_auto_action'] = 'workslip_first_final'
+            else:
+                request.session['bill_auto_action'] = 'workslip_first_part'
+            request.session['bill_auto_section'] = 'workslip'
+        else:
+            # Bill 2+ → Section 3 (Nth from First Bill): needs previous bill data
+            if bill_type_choice == 'final':
+                request.session['bill_auto_action'] = 'firstpart_2nd_final'
+            else:
+                request.session['bill_auto_action'] = 'firstpart_nth_part'
+            request.session['bill_auto_section'] = 'first'
+            request.session['bill_nth_number'] = bill_number
+
+            # For Bill 2+, find the previous bill (Bill N-1) and load its data
+            # so the user doesn't need to upload a file manually.
+            root_estimate = saved_work.parent
+            if root_estimate and root_estimate.work_type == 'new_estimate':
+                prev_bill = SavedWork.objects.filter(
+                    organization=org, user=user,
+                    work_type='bill',
+                    bill_number=bill_number - 1,
+                ).filter(
+                    Q(parent=root_estimate) |
+                    Q(parent__parent=root_estimate, parent__work_type='workslip')
+                ).first()
+                if prev_bill and prev_bill.work_data:
+                    request.session['bill_previous_bill_id'] = prev_bill.id
+                    request.session['bill_previous_bill_number'] = bill_number - 1
+                    logger.info(f"[GEN_BILL] Found previous Bill-{bill_number - 1} (ID: {prev_bill.id}) for deductions")
+
+        logger.info(f"[GEN_BILL] Generating Bill-{bill_number} ({bill_type_choice}) from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
         messages.success(request, f'Ready to generate Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} "{saved_work.name}".')
     else:
         # Bill from estimate (fallback)
@@ -1929,6 +1970,11 @@ def generate_bill_from_saved(request, work_id):
         request.session['bill_from_workslip'] = False
         request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
         request.session['bill_qty_map'] = work_data.get('qty_map', {})
+        request.session['bill_auto_section'] = 'estimate'
+        if bill_type_choice == 'final':
+            request.session['bill_auto_action'] = 'estimate_first_final'
+        else:
+            request.session['bill_auto_action'] = 'estimate_first_part'
 
         logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
         messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
@@ -1947,7 +1993,18 @@ def generate_bill_from_saved(request, work_id):
         base_name = saved_work.name
 
     bill_number = request.session.get('bill_target_number', 1)
+    # Build a descriptive bill name
+    ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
+                6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
+    ordinal = ordinals.get(bill_number, f'{bill_number}th')
+    type_label = 'Part' if bill_type_choice == 'part' else 'Final'
     new_bill_name = f"{base_name} - B{bill_number}"
+
+    # Set bill_type on the model (e.g. 'first_part', 'nth_final')
+    if bill_number == 1:
+        model_bill_type = f"first_{bill_type_choice}"
+    else:
+        model_bill_type = f"nth_{bill_type_choice}"
 
     new_bill = SavedWork.objects.create(
         organization=org,
@@ -1962,6 +2019,7 @@ def generate_bill_from_saved(request, work_id):
         progress_percent=0,
         last_step='bill',
         bill_number=bill_number,
+        bill_type=model_bill_type,
     )
 
     request.session['current_saved_work_id'] = new_bill.id
