@@ -1821,7 +1821,7 @@ def bill_choice(request, work_id):
 
     # If only one workslip, skip the choice page
     if len(all_workslips) == 1:
-        return redirect('generate_bill_from_saved', work_id=all_workslips[0].id)
+        return redirect('bill_generate', work_id=all_workslips[0].id)
 
     # Gather existing bills
     workslip_ids = [ws.id for ws in all_workslips]
@@ -1844,6 +1844,397 @@ def bill_choice(request, work_id):
         'all_bills': all_bills,
         'bills_by_ws': bills_by_ws,
     })
+
+
+# ==============================================================================
+# DEDICATED BILL GENERATION PAGE (from Saved WorkSlip)
+# ==============================================================================
+
+@login_required(login_url='login')
+def bill_generate(request, work_id):
+    """
+    Dedicated bill generation page from a saved workslip.
+    Generates bills, LS forms, covering letters, and movement slips
+    directly from workslip data — no file upload needed.
+
+    work_id is a workslip SavedWork.id.
+    Bill number matches workslip_number (B1 from W1, B2 from W2, etc.).
+    Bill 1 uses first-bill 8-column format.
+    Bill 2+ uses nth-bill 11-column format with previous-bill deductions.
+    """
+    from core.views import (
+        create_first_bill_sheet, _populate_nth_bill_sheet, _apply_print_settings,
+        ordinal_word, _format_date_to_ddmmyyyy, _number_to_words_rupees,
+        _build_mb_details_string, _fill_excel_template, BILL_TEMPLATES_DIR,
+    )
+    from core.template_views import get_user_template
+    from openpyxl import Workbook
+    from django.http import HttpResponse
+    import io
+    import os
+
+    org = get_org_from_request(request)
+    user = request.user
+    workslip = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+
+    if workslip.work_type != 'workslip':
+        messages.error(request, 'Bill generation requires a workslip.')
+        return redirect('saved_works_list')
+
+    work_data = workslip.work_data or {}
+    ws_rows = work_data.get('ws_estimate_rows', [])
+    ws_exec_map = work_data.get('ws_exec_map', {}) or {}
+    tp_percent = float(work_data.get('ws_tp_percent', 0) or 0)
+    tp_type = work_data.get('ws_tp_type', 'Excess')
+
+    bill_number = workslip.workslip_number or 1
+
+    # Build metadata for bill header
+    ws_metadata = work_data.get('ws_metadata', {})
+    header_data = {
+        'name_of_work': ws_metadata.get('work_name', '') or work_data.get('ws_work_name', ''),
+        'estimate_amount': ws_metadata.get('estimate_amount', '') or str(work_data.get('ws_estimate_grand_total', '')),
+        'admin_sanction': ws_metadata.get('admin_sanction', ''),
+        'tech_sanction': ws_metadata.get('tech_sanction', ''),
+        'agreement': ws_metadata.get('agreement', ''),
+        'agency': ws_metadata.get('agency_name', '') or ws_metadata.get('agency', ''),
+    }
+
+    # Build items from workslip exec data
+    items = []
+    total_amount = 0.0
+    for idx, row in enumerate(ws_rows):
+        key = row.get('key', f'saved_{idx}')
+        exec_qty = ws_exec_map.get(key, 0)
+        try:
+            exec_qty = float(exec_qty) if exec_qty else 0.0
+        except (ValueError, TypeError):
+            exec_qty = 0.0
+        if exec_qty <= 0 and not ws_exec_map:
+            try:
+                exec_qty = float(row.get('qty_est', 0) or 0)
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+        if exec_qty <= 0:
+            continue
+        rate = float(row.get('rate', 0) or 0)
+        if rate == 0:
+            continue
+        desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+        unit = row.get('unit', 'Nos')
+        is_ae = str(desc).lower().startswith('ae')
+        amount = exec_qty * rate
+        total_amount += amount
+        items.append({
+            'sl': len(items) + 1,
+            'qty': exec_qty,
+            'unit': unit,
+            'desc': desc,
+            'rate': rate,
+            'is_ae': is_ae,
+            'amount': round(amount, 2),
+            'key': key,
+        })
+
+    # For Bill 2+, gather cumulative previous quantities
+    prev_qty_map = {}
+    if bill_number > 1 and workslip.parent:
+        prev_workslips = list(
+            SavedWork.objects.filter(
+                organization=org, user=user, work_type='workslip',
+                parent=workslip.parent, workslip_number__lt=bill_number,
+            ).order_by('workslip_number')
+        )
+        for pw in prev_workslips:
+            pw_data = pw.work_data or {}
+            pw_rows = pw_data.get('ws_estimate_rows', [])
+            pw_exec = pw_data.get('ws_exec_map', {}) or {}
+            for pidx, prow in enumerate(pw_rows):
+                pkey = prow.get('key', f'saved_{pidx}')
+                pqty = pw_exec.get(pkey, 0)
+                try:
+                    pqty = float(pqty) if pqty else 0.0
+                except (ValueError, TypeError):
+                    pqty = 0.0
+                if pqty > 0:
+                    if pkey not in prev_qty_map:
+                        prev_qty_map[pkey] = {
+                            'qty': 0.0,
+                            'rate': float(prow.get('rate', 0) or 0),
+                        }
+                    prev_qty_map[pkey]['qty'] += pqty
+
+    # User document templates
+    covering_template = get_user_template(user, 'covering_letter')
+    movement_template = get_user_template(user, 'movement_slip')
+
+    # Existing bill record
+    existing_bill = SavedWork.objects.filter(
+        organization=org, user=user, work_type='bill',
+        parent=workslip, bill_number=bill_number,
+    ).first()
+    if not existing_bill and workslip.parent:
+        existing_bill = SavedWork.objects.filter(
+            organization=org, user=user, work_type='bill',
+            parent=workslip.parent, bill_number=bill_number,
+        ).first()
+
+    # ── POST: Generate bill or document ──
+    if request.method == 'POST':
+        action_type = request.POST.get('action_type', '').strip()
+
+        mb_measure_no = str(request.POST.get('mb_measure_no') or '').strip()
+        mb_measure_p_from = str(request.POST.get('mb_measure_p_from') or '').strip()
+        mb_measure_p_to = str(request.POST.get('mb_measure_p_to') or '').strip()
+        mb_abs_no = str(request.POST.get('mb_abstract_no') or '').strip()
+        mb_abs_p_from = str(request.POST.get('mb_abstract_p_from') or '').strip()
+        mb_abs_p_to = str(request.POST.get('mb_abstract_p_to') or '').strip()
+        doi = _format_date_to_ddmmyyyy(request.POST.get('doi') or '')
+        doc_date = _format_date_to_ddmmyyyy(request.POST.get('doc') or '')
+        domr = _format_date_to_ddmmyyyy(request.POST.get('domr') or '')
+        dobr = _format_date_to_ddmmyyyy(request.POST.get('dobr') or '')
+
+        if not items:
+            return JsonResponse({'error': 'No executed items found (all quantities are zero).'}, status=400)
+
+        # ── BILL GENERATION ──
+        if action_type in ('bill_part', 'bill_final'):
+            is_final = action_type == 'bill_final'
+            ord_text = ordinal_word(bill_number)
+
+            if bill_number == 1:
+                title_text = f'CC First & {"Final" if is_final else "Part"} Bill'
+                wb_out = Workbook()
+                create_first_bill_sheet(
+                    wb_out, sheet_name='Bill',
+                    items=items, header_data=header_data, title_text=title_text,
+                    tp_percent=tp_percent, tp_type=tp_type,
+                    mb_measure_no=mb_measure_no, mb_measure_p_from=mb_measure_p_from,
+                    mb_measure_p_to=mb_measure_p_to,
+                    mb_abs_no=mb_abs_no, mb_abs_p_from=mb_abs_p_from,
+                    mb_abs_p_to=mb_abs_p_to,
+                    doi=doi, doc=doc_date, domr=domr, dobr=dobr,
+                )
+            else:
+                title_text = f'CC {ord_text} & {"Final" if is_final else "Part"} Bill'
+                nth_items = []
+                for item in items:
+                    prev = prev_qty_map.get(item['key'], {})
+                    prev_qty = prev.get('qty', 0.0)
+                    prev_amount = prev_qty * item['rate']
+                    nth_items.append({
+                        'desc': item['desc'],
+                        'unit': item['unit'],
+                        'rate': item['rate'],
+                        'prev_qty': prev_qty,
+                        'prev_amount': prev_amount,
+                        'qty_till_date': prev_qty + item['qty'],
+                    })
+
+                wb_out = Workbook()
+                ws_out = wb_out.active
+                ws_out.title = 'Bill'
+                _populate_nth_bill_sheet(
+                    ws_out, items=nth_items, header_data=header_data, title_text=title_text,
+                    tp_percent=tp_percent, tp_type=tp_type,
+                    mb_measure_no=mb_measure_no, mb_measure_p_from=mb_measure_p_from,
+                    mb_measure_p_to=mb_measure_p_to,
+                    mb_abs_no=mb_abs_no, mb_abs_p_from=mb_abs_p_from,
+                    mb_abs_p_to=mb_abs_p_to,
+                    doi=doi, doc=doc_date, domr=domr, dobr=dobr,
+                )
+                # Fill in Quantity Till Date (column C) from cumulative data
+                data_start = 12
+                for i, nit in enumerate(nth_items):
+                    ws_out.cell(row=data_start + i, column=3, value=nit['qty_till_date'])
+
+            _apply_print_settings(wb_out)
+            resp = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            fname = f'Bill_{bill_number}_{"Final" if is_final else "Part"}.xlsx'
+            resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+            wb_out.save(resp)
+
+            # Auto-save the bill record
+            bill_save_data = {
+                'bill_ws_rows': ws_rows,
+                'bill_ws_exec_map': ws_exec_map,
+                'bill_ws_tp_percent': tp_percent,
+                'bill_ws_tp_type': tp_type,
+                'bill_ws_metadata': header_data,
+                'ws_source_estimate_id': workslip.parent_id,
+            }
+            if not existing_bill:
+                base_name = workslip.parent.name if workslip.parent else workslip.name
+                existing_bill = SavedWork.objects.create(
+                    organization=org, user=user,
+                    folder=workslip.folder,
+                    parent=workslip,
+                    name=f'{base_name} - B{bill_number}',
+                    work_type='bill',
+                    work_data=bill_save_data,
+                    category=workslip.category or 'electrical',
+                    last_step='bill',
+                    bill_number=bill_number,
+                    status='completed',
+                )
+            else:
+                existing_bill.work_data = bill_save_data
+                existing_bill.status = 'completed'
+                existing_bill.save(update_fields=['work_data', 'status'])
+
+            return resp
+
+        # ── LS FORM ──
+        if action_type in ('ls_part', 'ls_final'):
+            tp_adj = total_amount * tp_percent / 100
+            grand_total = (total_amount - tp_adj) if tp_type == 'Less' else (total_amount + tp_adj)
+            total_str = f'{grand_total:,.2f}'
+            amount_words = _number_to_words_rupees(grand_total)
+            ord_text = ordinal_word(bill_number)
+
+            if bill_number == 1:
+                cc_header = 'CC First & Part Bill' if action_type == 'ls_part' else 'CC First & Final Bill'
+            else:
+                cc_header = f'CC {ord_text} & {"Part" if action_type == "ls_part" else "Final"} Bill'
+
+            mb_details_str = _build_mb_details_string(
+                mb_measure_no, mb_measure_p_from, mb_measure_p_to,
+                mb_abs_no, mb_abs_p_from, mb_abs_p_to,
+            )
+
+            template_name = 'LS_Form_Part.xlsx' if action_type == 'ls_part' else 'LS_Form_Final.xlsx'
+            template_path = os.path.join(BILL_TEMPLATES_DIR, template_name)
+            if not os.path.exists(template_path):
+                return HttpResponse(f'LS template not found: {template_name}', status=404)
+
+            ctx = {
+                'NAME_OF_WORK': header_data.get('name_of_work', ''),
+                'NAME_OF_AGENCY': header_data.get('agency', ''),
+                'AGENCY_NAME': header_data.get('agency', ''),
+                'REF_OF_AGREEMENT': header_data.get('agreement', ''),
+                'AGREEMENT_REF': header_data.get('agreement', ''),
+                'MB_DETAILS': mb_details_str,
+                'CC_HEADER': cc_header,
+                'AMOUNT': total_str,
+                'TOTAL_AMOUNT': total_str,
+                'AMOUNT_IN_WORDS': amount_words,
+            }
+            wb_out = _fill_excel_template(template_name, ctx)
+            _apply_print_settings(wb_out)
+
+            resp = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            dl_name = f'LS_Form_{"Part" if action_type == "ls_part" else "Final"}_B{bill_number}.xlsx'
+            resp['Content-Disposition'] = f'attachment; filename="{dl_name}"'
+            wb_out.save(resp)
+            return resp
+
+        # ── COVERING LETTER / MOVEMENT SLIP ──
+        if action_type in ('covering', 'movement'):
+            template_type = 'covering_letter' if action_type == 'covering' else 'movement_slip'
+            user_tmpl = get_user_template(user, template_type)
+            if not user_tmpl:
+                return HttpResponse(
+                    'Template not uploaded. Please upload your template from the Bill Generator page first.',
+                    status=400,
+                )
+            template_bytes = user_tmpl.get_file_bytes()
+            if not template_bytes:
+                return HttpResponse('Template file not found. Please re-upload.', status=404)
+
+            tp_adj = total_amount * tp_percent / 100
+            grand_total = (total_amount - tp_adj) if tp_type == 'Less' else (total_amount + tp_adj)
+            total_str = f'{grand_total:,.2f}'
+            amount_words = _number_to_words_rupees(grand_total)
+            ord_text = ordinal_word(bill_number)
+            cc_header = 'CC First & Part Bill' if bill_number == 1 else f'CC {ord_text} & Part Bill'
+
+            mb_details_str = _build_mb_details_string(
+                mb_measure_no, mb_measure_p_from, mb_measure_p_to,
+                mb_abs_no, mb_abs_p_from, mb_abs_p_to,
+            )
+
+            now = timezone.now()
+            mm_yyyy = f'{now.month:02d}.{now.year}'
+
+            placeholder_map = {
+                '{{NAME_OF_WORK}}': header_data.get('name_of_work', ''),
+                '{{AGENCY_NAME}}': header_data.get('agency', ''),
+                '{{NAME_OF_AGENCY}}': header_data.get('agency', ''),
+                '{{AGREEMENT_REF}}': header_data.get('agreement', ''),
+                '{{REF_OF_AGREEMENT}}': header_data.get('agreement', ''),
+                '{{CC_HEADER}}': cc_header,
+                '{{MB_DETAILS}}': mb_details_str,
+                '{{AMOUNT}}': total_str,
+                '{{TOTAL_AMOUNT}}': total_str,
+                '{{AMOUNT_IN_WORDS}}': amount_words,
+            }
+
+            from docx import Document
+            word_doc = Document(io.BytesIO(template_bytes))
+
+            def _replace_runs(paragraphs):
+                for p in paragraphs:
+                    if not p.runs:
+                        continue
+                    for run in p.runs:
+                        if not run.text:
+                            continue
+                        text = run.text
+                        changed = False
+                        for ph, val in placeholder_map.items():
+                            if ph in text:
+                                text = text.replace(ph, val or '')
+                                changed = True
+                        if 'dd.mm.yyyy' in text:
+                            text = text.replace('dd.mm.yyyy', f'dd.{mm_yyyy}')
+                            changed = True
+                        if changed:
+                            run.text = text
+
+            _replace_runs(word_doc.paragraphs)
+            for table in word_doc.tables:
+                for trow in table.rows:
+                    for cell in trow.cells:
+                        _replace_runs(cell.paragraphs)
+
+            buf = io.BytesIO()
+            word_doc.save(buf)
+            buf.seek(0)
+
+            base_name = 'Covering_Letter' if action_type == 'covering' else 'Movement_Slip'
+            dl_name = f'{base_name}_B{bill_number}.docx'
+            resp = HttpResponse(
+                buf.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )
+            resp['Content-Disposition'] = f'attachment; filename="{dl_name}"'
+            return resp
+
+        return HttpResponse(f'Unknown action: {action_type}', status=400)
+
+    # ── GET: Render the dedicated bill generation page ──
+    context = {
+        'workslip': workslip,
+        'work': workslip.parent,
+        'bill_number': bill_number,
+        'bill_ord': ordinal_word(bill_number),
+        'items': items,
+        'item_count': len(items),
+        'total_amount': round(total_amount, 2),
+        'tp_percent': tp_percent,
+        'tp_type': tp_type,
+        'header_data': header_data,
+        'prev_qty_map': json.dumps({k: v for k, v in prev_qty_map.items()}),
+        'has_previous': bool(prev_qty_map),
+        'existing_bill': existing_bill,
+        'covering_letter_template': covering_template,
+        'movement_slip_template': movement_template,
+    }
+    return render(request, 'core/saved_works/bill_generate.html', context)
 
 
 @login_required(login_url='login')
