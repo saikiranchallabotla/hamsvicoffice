@@ -1043,17 +1043,18 @@ def get_save_work_modal_data(request):
 # WORKFLOW CHAIN: ESTIMATE â†’ WORKSLIP â†’ BILL
 # ==============================================================================
 
-def load_item_rates_from_backend(category, item_names):
+def load_item_rates_from_backend(category, item_names, user=None, module_code='new_estimate'):
     """
     Load item rates and descriptions from the backend Excel file for given item names.
     Returns a dict: {item_name: {'rate': value, 'unit': 'Nos/Mtrs/Pts', 'group': 'group_name', 'desc': 'description'}}
+    Uses user's preferred backend if available (via load_backend priority chain).
     """
     from django.conf import settings
     from openpyxl import load_workbook
     import os
     import logging
     logger = logging.getLogger(__name__)
-    
+
     logger.info(f"[LOAD_RATES DEBUG] Loading rates for category={category}, items={item_names}")
     
     # Determine backend file based on category
@@ -1073,16 +1074,19 @@ def load_item_rates_from_backend(category, item_names):
     try:
         # Import load_backend at the top level to avoid repeated import
         from core.utils_excel import load_backend
-        
+
+        # Use user's preferred backend via the priority chain (user preference > module default > static files)
+        items_list, groups_map, _units_map, ws_data, backend_filepath = load_backend(
+            category, settings.BASE_DIR, user=user, module_code=module_code
+        )
+        # Use the resolved filepath from load_backend (may point to a custom backend)
+        resolved_filepath = backend_filepath if backend_filepath and os.path.exists(backend_filepath) else filepath
+
         # Open workbook with data_only=True to get calculated formula values
-        wb_data = load_workbook(filepath, data_only=True)
+        wb_data = load_workbook(resolved_filepath, data_only=True)
         ws_data_only = wb_data["Master Datas"]
-        
-        # load_backend opens with data_only=False (has formulas, not values)
-        # ws_data is the Master Datas sheet from that workbook
-        items_list, groups_map, _units_map, ws_data, _ = load_backend(category, settings.BASE_DIR)
-        
-        logger.info(f"[LOAD_RATES DEBUG] Found {len(items_list)} items in backend")
+
+        logger.info(f"[LOAD_RATES DEBUG] Found {len(items_list)} items in backend, filepath={resolved_filepath}")
         
         # Build item to group mapping
         item_to_group = {}
@@ -1201,7 +1205,7 @@ def generate_workslip_from_saved(request, work_id):
     if fetched_items and isinstance(fetched_items[0], str):
         # It's a list of item names - need to look up rates from backend
         item_names = fetched_items
-        item_info_map = load_item_rates_from_backend(category, item_names)
+        item_info_map = load_item_rates_from_backend(category, item_names, user=user, module_code='new_estimate')
         
         logger.info(f"[GEN_WORKSLIP DEBUG] item_info_map={item_info_map}")
         
@@ -1344,7 +1348,60 @@ def generate_next_workslip_from_saved(request, work_id):
     
     # Get previous supplemental items
     existing_prev_supp_items = work_data.get('ws_previous_supp_items', [])
-    
+
+    # Load backend to fetch correct rates for base items (rate=0) and supplemental items.
+    # items_blocks_data is never persisted in work_data, so we must reload from backend.
+    category = saved_work.category or 'electrical'
+    _get_backend_rate = lambda name: 0.0
+    _get_backend_unit = lambda name: "Nos"
+    try:
+        from django.conf import settings as _settings
+        from openpyxl import load_workbook as _load_wb
+        from core.utils_excel import load_backend as _load_backend
+        import os as _os
+
+        _items_list, _groups_map, _units_map, _ws_data_ref, _filepath = _load_backend(
+            category, _settings.BASE_DIR, user=user, module_code='new_estimate'
+        )
+        _item_to_info = {it["name"]: it for it in _items_list}
+
+        _ws_backend_vals = None
+        if _filepath and _os.path.exists(_filepath):
+            _wb_vals = _load_wb(_filepath, data_only=True)
+            _ws_backend_vals = _wb_vals["Master Datas"]
+
+        def _get_backend_rate(name):
+            if _ws_backend_vals is None:
+                return 0.0
+            info = _item_to_info.get(name)
+            if not info:
+                return 0.0
+            for r in range(info["end_row"], info["start_row"] - 1, -1):
+                v = _ws_backend_vals.cell(row=r, column=10).value
+                if v not in (None, ""):
+                    try:
+                        return float(v)
+                    except Exception:
+                        return 0.0
+            return 0.0
+
+        def _get_backend_unit(name):
+            return _units_map.get(name, "Nos")
+
+        logger.info(f"[NEXT_WORKSLIP] Loaded backend for rate lookup: {len(_items_list)} items")
+    except Exception as _be:
+        logger.warning(f"[NEXT_WORKSLIP] Could not load backend for rate lookup: {_be}")
+
+    # Fix base item rates: re-fetch from backend for any row where rate is 0
+    for row in ws_estimate_rows:
+        if not float(row.get('rate', 0) or 0):
+            item_name = row.get('item_name') or row.get('display_name') or ''
+            if item_name:
+                backend_rate = _get_backend_rate(item_name)
+                if backend_rate > 0:
+                    row['rate'] = backend_rate
+                    logger.info(f"[NEXT_WORKSLIP] Fixed base item rate for '{item_name}': {backend_rate}")
+
     # Build the new phase from current workslip's execution data
     new_phase_map = {}
     for key, qty in current_exec_map.items():
@@ -1353,39 +1410,36 @@ def generate_next_workslip_from_saved(request, work_id):
                 new_phase_map[key] = float(qty)
             except (ValueError, TypeError):
                 pass
-    
+
     # Combine all previous phases plus the current workslip as a new phase
     all_previous_phases = list(existing_previous_phases) + [new_phase_map]
-    
+
     # Build supplemental items from current workslip to add to previous supp items
     new_supp_items = []
     if current_supp_items and ws_estimate_rows:
-        # Get rates for supplemental items from the items block data if available
         for supp_name in current_supp_items:
             supp_key = f"supp:{supp_name}"
             supp_qty = current_exec_map.get(supp_key, 0)
             try:
                 supp_qty = float(supp_qty) if supp_qty else 0.0
-            except:
+            except Exception:
                 supp_qty = 0.0
             if supp_qty > 0:
-                # Try to find rate from work_data supp_rates or items_blocks_data
-                supp_rate = 0.0
-                items_blocks = work_data.get('items_blocks_data', {})
-                if supp_name in items_blocks:
-                    block_info = items_blocks[supp_name]
-                    supp_rate = float(block_info.get('rate', 0) or 0)
-                
+                # Fetch rate from backend (items_blocks_data is never persisted in work_data)
+                supp_rate = _get_backend_rate(supp_name)
+                supp_unit = _get_backend_unit(supp_name)
+                logger.info(f"[NEXT_WORKSLIP] Supplemental '{supp_name}': qty={supp_qty}, rate={supp_rate}, unit={supp_unit}")
+
                 new_supp_items.append({
                     "name": supp_name,
                     "qty": supp_qty,
                     "phase": current_workslip_number,
                     "desc": supp_name,
-                    "unit": "Nos",
+                    "unit": supp_unit,
                     "rate": supp_rate,
                     "amount": supp_qty * supp_rate,
                 })
-    
+
     # Combine previous supplemental items
     all_previous_supp_items = list(existing_prev_supp_items) + new_supp_items
     
