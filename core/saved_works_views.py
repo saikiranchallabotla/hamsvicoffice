@@ -601,6 +601,10 @@ def save_work(request):
 
             saved_work.save()
             message = f'Work "{work_name}" updated successfully!'
+
+            # ── Propagate estimate qty changes to child workslips ──
+            if work_type == 'new_estimate':
+                _propagate_estimate_to_children(saved_work, work_data)
     else:
         # Create new saved work
 
@@ -658,6 +662,122 @@ def save_work(request):
         'work_id': saved_work.id,
         'message': message
     })
+
+
+# ==============================================================================
+# PROPAGATE ESTIMATE CHANGES TO CHILD WORKSLIPS / BILLS
+# ==============================================================================
+
+def _propagate_estimate_to_children(estimate_work, estimate_data):
+    """
+    When an estimate is re-saved, update qty_est in every child workslip's
+    ws_estimate_rows so the workslip always reflects the latest estimate
+    quantities, rates, and items.
+    
+    Also recalculates ws_estimate_grand_total for each child.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    qty_map = estimate_data.get('qty_map', {})
+    item_rates = estimate_data.get('item_rates', {})
+    item_units = estimate_data.get('item_units', {})
+    grand_total = estimate_data.get('grand_total', '')
+    work_name = estimate_data.get('work_name', '')
+
+    # Parse grand_total to float for children
+    try:
+        grand_total_float = float(grand_total) if grand_total else 0.0
+    except (ValueError, TypeError):
+        grand_total_float = 0.0
+
+    # Find all descendant workslips — direct children of this estimate
+    # AND chained workslips (Workslip-2 → parent=Workslip-1, etc.)
+    # We walk the tree breadth-first so every workslip in the chain gets
+    # its ws_estimate_rows updated.
+    queue = list(SavedWork.objects.filter(parent=estimate_work, work_type='workslip'))
+    visited = set()
+
+    updated_count = 0
+    while queue:
+        child = queue.pop(0)
+        if child.id in visited:
+            continue
+        visited.add(child.id)
+
+        child_data = child.work_data or {}
+        ws_rows = child_data.get('ws_estimate_rows', [])
+        if not ws_rows:
+            # Still enqueue grandchildren even if this child has no rows
+            grandchildren = list(SavedWork.objects.filter(parent=child, work_type='workslip'))
+            queue.extend(grandchildren)
+            continue
+
+        changed = False
+        for row in ws_rows:
+            item_name = row.get('item_name', '')
+            if not item_name:
+                continue
+
+            # Update qty_est from estimate's qty_map
+            new_qty = qty_map.get(item_name, 0)
+            try:
+                new_qty = float(new_qty) if new_qty else 0.0
+            except (ValueError, TypeError):
+                new_qty = 0.0
+
+            old_qty = row.get('qty_est', 0)
+            try:
+                old_qty = float(old_qty) if old_qty else 0.0
+            except (ValueError, TypeError):
+                old_qty = 0.0
+
+            if new_qty != old_qty:
+                row['qty_est'] = new_qty
+                changed = True
+
+            # Update rate if available from estimate
+            if item_name in item_rates:
+                new_rate = float(item_rates[item_name] or 0)
+                old_rate = float(row.get('rate', 0) or 0)
+                if new_rate != old_rate:
+                    row['rate'] = new_rate
+                    changed = True
+
+            # Update unit if available from estimate
+            if item_name in item_units:
+                new_unit = str(item_units[item_name])
+                if new_unit != row.get('unit', ''):
+                    row['unit'] = new_unit
+                    changed = True
+
+        if changed:
+            child_data['ws_estimate_rows'] = ws_rows
+            # Update grand total
+            child_data['ws_estimate_grand_total'] = grand_total_float
+            # Update work name if the estimate's work name changed
+            if work_name:
+                child_data['ws_work_name'] = work_name
+            # Update metadata
+            ws_meta = child_data.get('ws_metadata', {})
+            if ws_meta:
+                ws_meta['estimate_amount'] = str(grand_total_float) if grand_total_float else ''
+                if work_name:
+                    ws_meta['work_name'] = work_name
+                ws_meta['grand_total'] = grand_total_float
+                child_data['ws_metadata'] = ws_meta
+
+            child.work_data = child_data
+            child.save()
+            updated_count += 1
+            logger.info(f"[PROPAGATE] Updated child workslip '{child.name}' (ID={child.id}) with new estimate quantities")
+
+        # Enqueue any grandchildren (next workslips in the chain)
+        grandchildren = list(SavedWork.objects.filter(parent=child, work_type='workslip'))
+        queue.extend(grandchildren)
+
+    if updated_count:
+        logger.info(f"[PROPAGATE] Propagated estimate changes to {updated_count} child workslip(s)")
 
 
 def collect_work_data(request, work_type):
