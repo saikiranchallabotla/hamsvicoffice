@@ -642,6 +642,8 @@ def collect_work_data(request, work_type):
             'deduct_old_material': request.session.get('deduct_old_material', ''),
             'last_group': request.POST.get('group', ''),
             'selected_backend_id': request.session.get('selected_backend_id'),
+            'item_rates': request.session.get('item_rates', {}),
+            'item_units': request.session.get('item_units', {}),
         }
     
     elif work_type == 'workslip':
@@ -844,6 +846,11 @@ def restore_work_data(request, saved_work):
         # Restore backend_id so modules use the correct backend
         if work_data.get('selected_backend_id'):
             request.session['selected_backend_id'] = work_data['selected_backend_id']
+        # Restore saved item rates & units so workslip generation uses exact values
+        if work_data.get('item_rates'):
+            request.session['item_rates'] = work_data['item_rates']
+        if work_data.get('item_units'):
+            request.session['item_units'] = work_data['item_units']
     
     elif work_type == 'workslip':
         ws_estimate_rows = work_data.get('ws_estimate_rows', [])
@@ -1237,39 +1244,57 @@ def generate_workslip_from_saved(request, work_id):
     else:
         ws_module_code = 'new_estimate'
     
+    # Saved rates / units from the estimate session (exact values the user saw)
+    saved_item_rates = work_data.get('item_rates', {})
+    saved_item_units = work_data.get('item_units', {})
+    
+    logger.info(f"[GEN_WORKSLIP DEBUG] saved_item_rates keys={list(saved_item_rates.keys())[:10]}")
+    
     # Check if fetched_items is a list of strings (item names) or dicts
     if fetched_items and isinstance(fetched_items[0], str):
-        # It's a list of item names - need to look up rates from backend
         item_names = fetched_items
-        item_info_map = load_item_rates_from_backend(
-            category, item_names,
-            backend_id=saved_backend_id,
-            user=request.user,
-            module_code=ws_module_code
-        )
         
-        logger.info(f"[GEN_WORKSLIP DEBUG] item_info_map={item_info_map}")
+        # Only re-fetch from backend for items that don't have saved rates
+        items_needing_backend = [n for n in item_names if n not in saved_item_rates or saved_item_rates.get(n, 0) == 0]
+        
+        item_info_map = {}
+        if items_needing_backend:
+            logger.info(f"[GEN_WORKSLIP DEBUG] Re-fetching rates from backend for {len(items_needing_backend)} items: {items_needing_backend[:5]}")
+            item_info_map = load_item_rates_from_backend(
+                category, items_needing_backend,
+                backend_id=saved_backend_id,
+                user=request.user,
+                module_code=ws_module_code
+            )
         
         # Convert to workslip format - match the format from estimate upload
         ws_estimate_rows = []
         for idx, item_name in enumerate(item_names):
-            info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
             qty = qty_map.get(item_name, 0)
             try:
                 qty = float(qty) if qty else 0.0
             except (ValueError, TypeError):
                 qty = 0.0
-            rate = float(info.get('rate', 0) or 0)
-            desc = str(info.get('desc', item_name) or item_name)
             
-            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate}, desc={desc[:50] if desc else 'None'}")
+            # Priority: 1) saved rates from estimate, 2) backend re-fetch
+            if item_name in saved_item_rates and saved_item_rates[item_name]:
+                rate = float(saved_item_rates[item_name])
+                unit = str(saved_item_units.get(item_name, 'Nos'))
+                desc = item_name  # Use name as desc; backend lookup below fills desc if needed
+            else:
+                info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
+                rate = float(info.get('rate', 0) or 0)
+                unit = str(info.get('unit', 'Nos'))
+                desc = str(info.get('desc', item_name) or item_name)
+            
+            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate} (source={'saved' if item_name in saved_item_rates and saved_item_rates.get(item_name) else 'backend'})")
             
             ws_estimate_rows.append({
                 'key': f"saved_{idx}",
                 'item_name': str(item_name),
                 'display_name': str(item_name),
-                'desc': desc,  # Use description from backend
-                'unit': str(info.get('unit', 'Nos')),
+                'desc': desc,
+                'unit': unit,
                 'qty_est': qty,
                 'rate': rate,
             })

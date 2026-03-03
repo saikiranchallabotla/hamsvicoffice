@@ -8779,19 +8779,35 @@ def datas_items(request, category, group):
     grand_total = request.session.get("grand_total", "") or ""
 
     estimate_rows = []
+    # Build a serialisable rates map for session persistence so that
+    # workslip generation can reuse the *exact* rates the user sees here.
+    session_item_rates = {}
+    session_item_units = {}
     for idx, name in enumerate(fetched, start=1):
         default_plural, singular = units_for(name)
         # Priority: 1) user-entered unit from UI, 2) backend_units_map default
         custom_unit = unit_map.get(name, "")
         display_unit = custom_unit if custom_unit else default_plural
+        raw_rate = item_rates.get(name)
         estimate_rows.append({
             "sl": idx,
             "name": name,
-            "rate": item_rates.get(name),
+            "rate": raw_rate,
             "unit": display_unit,
             "default_unit": default_plural,
             "qty": qty_map.get(name, ""),
         })
+        # Store numeric rate for session (JSON-safe)
+        try:
+            session_item_rates[name] = float(raw_rate) if raw_rate is not None else 0.0
+        except (ValueError, TypeError):
+            session_item_rates[name] = 0.0
+        session_item_units[name] = display_unit
+
+    # Persist rates & units so saved-works → workslip gets exact values
+    request.session["item_rates"] = session_item_rates
+    request.session["item_units"] = session_item_units
+    request.session.modified = True
 
     work_type = request.session.get("work_type", "original") or "original"
     excess_tp_percent = request.session.get("excess_tp_percent", "") or ""
