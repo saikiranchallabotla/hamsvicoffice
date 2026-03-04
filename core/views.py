@@ -519,6 +519,8 @@ def workslip(request):
         request.session["ws_work_type"] = None  # Clear work type selection
         request.session["ws_work_mode"] = None  # Clear work mode selection
         request.session["ws_category"] = None  # Clear category selection
+        request.session["current_saved_work_id"] = None  # Clear saved work link so new estimate doesn't update an old work
+        request.session["ws_parent_work_id"] = None  # Clear parent work link
     
     # Handle work type, work mode and category from URL parameters (from workslip_home)
     url_work_type = request.GET.get("work_type")
