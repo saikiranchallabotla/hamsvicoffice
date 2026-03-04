@@ -643,10 +643,10 @@
                                 </a>
                             {% endif %}
 
-                            {% if work.workslip_children %}
+                            {% if work.bill_children or work.can_add_more_bills %}
                             <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
 
-                            <!-- B Buttons -->
+                            <!-- B Buttons: existing bills -->
                             {% if work.bill_children %}
                                 {% for bill in work.bill_children %}
                                 <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }} ({{ bill.get_bill_type_display_label }})">
@@ -655,6 +655,7 @@
                                 </a>
                                 {% endfor %}
                             {% endif %}
+                            <!-- +B: add next bill (hidden after a Final bill) -->
                             {% if work.can_add_more_bills %}
                             <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill {{ work.next_bill_number }}">
                                 <i class="bi bi-plus"></i> B{{ work.next_bill_number }}

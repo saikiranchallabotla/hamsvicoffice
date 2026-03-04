@@ -266,17 +266,24 @@ def saved_works_list(request):
     _chain_cache = {}  # Cache chains by root estimate id
 
     def _build_chain_for_estimate(est):
-        """Build and cache the E/W/B chain for an estimate."""
+        """Build and cache the E/W/B chain for an estimate.
+        Uses recursive workslip collection to handle W2+ workslips that have
+        parent=W1 (not parent=estimate) so their bills are also found correctly.
+        """
         if est is None:
             return None
         if est.id in _chain_cache:
             return _chain_cache[est.id]
-        ws_list = list(
-            SavedWork.objects.filter(
+        # Use get_all_workslips() which recurses the full tree,
+        # then collect all workslip ids (not just direct children of estimate)
+        try:
+            all_ws = est.get_all_workslips() if hasattr(est, 'get_all_workslips') else []
+        except Exception:
+            all_ws = list(SavedWork.objects.filter(
                 organization=org, user=user,
                 work_type='workslip', parent=est,
-            ).order_by('workslip_number')
-        )
+            ).order_by('workslip_number'))
+        ws_list = all_ws
         ws_ids = [ws.id for ws in ws_list]
         bill_list = list(
             SavedWork.objects.filter(
@@ -295,13 +302,13 @@ def saved_works_list(request):
 
     for work in works_list:
         # Build wf_chain for E/W/B navigation
-        if work.work_type == 'new_estimate':
+        if work.work_type in ('new_estimate', 'temporary_works', 'amc'):
             work.wf_chain = _build_chain_for_estimate(work)
         elif work.work_type in ('workslip', 'bill'):
             root_est = None
             current = work.parent
             while current:
-                if current.work_type == 'new_estimate':
+                if current.work_type in ('new_estimate', 'temporary_works', 'amc'):
                     root_est = current
                     break
                 current = current.parent
