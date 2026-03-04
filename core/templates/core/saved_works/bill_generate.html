@@ -13,7 +13,7 @@
 
 <style>
     .bg-container {
-        max-width: 1100px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 1rem;
     }
@@ -31,6 +31,7 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
+        flex-wrap: wrap;
     }
     .bg-banner-icon {
         background: #059669;
@@ -79,65 +80,104 @@
         background: #ede9fe; border: 1px solid #c4b5fd; color: #6d28d9;
     }
 
-    /* Preview Table */
-    .bg-preview {
+    /* Editable Items Table */
+    .bg-items-card {
         background: white;
         border-radius: 10px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.06);
         margin-bottom: 1rem;
         overflow: hidden;
     }
-    .bg-preview-header {
-        background: #f8fafc;
+    .bg-items-header {
         padding: 0.6rem 1rem;
-        border-bottom: 1px solid #e2e8f0;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        cursor: pointer;
-        user-select: none;
     }
-    .bg-preview-header h5 {
+    .bg-items-header.first-bill { background: linear-gradient(135deg, #319795, #2c7a7b); }
+    .bg-items-header.nth-bill   { background: linear-gradient(135deg, #805ad5, #6b46c1); }
+    .bg-items-header h5 {
         margin: 0;
-        font-size: 0.82rem;
+        font-size: 0.84rem;
         font-weight: 600;
-        color: #334155;
+        color: white;
     }
-    .bg-preview-body {
-        max-height: 280px;
-        overflow-y: auto;
+    .bg-items-header .hdr-note {
+        font-size: 0.68rem;
+        color: rgba(255,255,255,0.85);
     }
-    .bg-preview-body table {
+    .bg-items-body {
+        overflow-x: auto;
+    }
+    .bg-items-body table {
         width: 100%;
-        font-size: 0.7rem;
         border-collapse: collapse;
+        font-size: 0.72rem;
+        min-width: 600px;
     }
-    .bg-preview-body th {
+    .bg-items-body th {
         background: #f1f5f9;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        padding: 0.35rem 0.5rem;
+        padding: 0.4rem 0.5rem;
         text-align: center;
         border-bottom: 2px solid #e2e8f0;
         font-weight: 600;
         color: #475569;
+        white-space: nowrap;
     }
-    .bg-preview-body td {
-        padding: 0.3rem 0.5rem;
+    .bg-items-body td {
+        padding: 0.3rem 0.4rem;
         border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
     }
-    .bg-preview-body td.text-right {
-        text-align: right;
+    .bg-items-body tr:hover td {
+        background: #f8fafc;
     }
-    .bg-preview-body td.text-center {
-        text-align: center;
-    }
-    .bg-preview-body .total-row {
+    .bg-items-body .total-row td {
         background: #f0fdf4;
         font-weight: 700;
         color: #059669;
+        border-top: 2px solid #d1fae5;
     }
+    .bg-items-body .supp-row td {
+        background: #fef9c3;
+    }
+    .bg-items-body .supp-row:hover td {
+        background: #fef08a;
+    }
+    /* Editable inputs inside table */
+    .qty-input, .rate-input {
+        width: 80px;
+        padding: 0.2rem 0.35rem;
+        font-size: 0.72rem;
+        border: 1px solid #cbd5e0;
+        border-radius: 4px;
+        text-align: right;
+        background: #fff;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .qty-input:focus, .rate-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128,90,213,0.12);
+    }
+    {% if bill_number == 1 %}
+    .qty-input:focus { border-color: #319795; box-shadow: 0 0 0 2px rgba(49,151,149,0.12); }
+    {% endif %}
+    .amount-cell {
+        color: #059669;
+        font-weight: 600;
+        text-align: right;
+    }
+    .prev-cell {
+        color: #6d28d9;
+        text-align: right;
+    }
+    .prev-cell.muted { color: #94a3b8; }
+
+    /* Nth bill prev header sections */
+    .th-prev { background: #ede9fe !important; color: #5b21b6 !important; }
+    .th-curr { background: #d1fae5 !important; color: #065f46 !important; }
+    .th-till { background: #dbeafe !important; color: #1d4ed8 !important; }
 
     /* Common Details Card */
     .bg-common {
@@ -165,9 +205,7 @@
         opacity: 0.9;
         margin-top: 0.15rem;
     }
-    .bg-common-body {
-        padding: 0.75rem;
-    }
+    .bg-common-body { padding: 0.75rem; }
     .bg-field-group {
         border: 1px solid #e2e8f0;
         border-radius: 6px;
@@ -184,11 +222,7 @@
         align-items: center;
         gap: 0.3rem;
     }
-    .bg-field-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
+    .bg-field-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .bg-field-row label {
         font-size: 0.68rem;
         color: #4a5568;
@@ -221,9 +255,7 @@
         margin-bottom: 1rem;
     }
     @media (max-width: 768px) {
-        .bg-actions {
-            grid-template-columns: 1fr;
-        }
+        .bg-actions { grid-template-columns: 1fr; }
     }
     .bg-action-card {
         background: white;
@@ -238,160 +270,84 @@
         gap: 0.5rem;
         color: white;
     }
-    .bg-action-header.bill-header-first {
-        background: #319795;
-    }
-    .bg-action-header.bill-header-nth {
-        background: #805ad5;
-    }
-    .bg-action-header.doc-header {
-        background: #dd6b20;
-    }
+    .bg-action-header.bill-header-first { background: #319795; }
+    .bg-action-header.bill-header-nth   { background: #805ad5; }
+    .bg-action-header.doc-header        { background: #dd6b20; }
     .bg-action-header h5 {
         margin: 0;
         font-size: 0.82rem;
         font-weight: 600;
     }
     .bg-action-header .badge-num {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
+        width: 26px; height: 26px; border-radius: 50%;
         background: rgba(255,255,255,0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 0.8rem;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.8rem;
     }
-    .bg-action-body {
-        padding: 0.75rem;
-    }
-    .bg-action-note {
-        font-size: 0.68rem;
-        color: #718096;
-        margin-bottom: 0.6rem;
-    }
-    .bg-btn-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
+    .bg-action-body { padding: 0.75rem; }
+    .bg-action-note { font-size: 0.68rem; color: #718096; margin-bottom: 0.6rem; }
+    .bg-btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
     /* Buttons */
     .bg-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.5rem 0.85rem;
-        font-size: 0.78rem;
-        font-weight: 600;
-        border-radius: 6px;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s;
-        white-space: nowrap;
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.5rem 0.85rem; font-size: 0.78rem; font-weight: 600;
+        border-radius: 6px; border: none; cursor: pointer;
+        transition: all 0.2s; white-space: nowrap;
     }
-    .bg-btn-primary {
-        color: white;
-    }
+    .bg-btn-primary { color: white; }
     .bg-btn-primary.first { background: #319795; }
-    .bg-btn-primary.nth { background: #805ad5; }
+    .bg-btn-primary.nth   { background: #805ad5; }
     .bg-btn-primary.first:hover { background: #2c7a7b; }
-    .bg-btn-primary.nth:hover { background: #6b46c1; }
-    .bg-btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-    }
-    .bg-btn-secondary {
-        background: #e2e8f0;
-        color: #4a5568;
-    }
-    .bg-btn-secondary:hover {
-        background: #cbd5e0;
-    }
-    .bg-btn-orange {
-        background: #dd6b20;
-        color: white;
-    }
-    .bg-btn-orange:hover {
-        background: #c05621;
-    }
-    .bg-btn-teal {
-        background: #319795;
-        color: white;
-    }
-    .bg-btn-teal:hover {
-        background: #2c7a7b;
-    }
-    .bg-btn:disabled {
-        background: #cbd5e0;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-    .bg-btn-disabled {
-        opacity: 0.5;
-        position: relative;
-    }
+    .bg-btn-primary.nth:hover   { background: #6b46c1; }
+    .bg-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
+    .bg-btn-secondary { background: #e2e8f0; color: #4a5568; }
+    .bg-btn-secondary:hover { background: #cbd5e0; }
+    .bg-btn-orange  { background: #dd6b20; color: white; }
+    .bg-btn-orange:hover { background: #c05621; }
+    .bg-btn-teal    { background: #319795; color: white; }
+    .bg-btn-teal:hover { background: #2c7a7b; }
+    .bg-btn:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; box-shadow: none; }
+    .bg-btn-disabled { opacity: 0.5; position: relative; }
     .bg-btn-disabled::after {
-        content: '\F62A';
-        font-family: 'bootstrap-icons';
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        background: #e53e3e;
-        color: white;
-        font-size: 0.55rem;
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        content: '\F62A'; font-family: 'bootstrap-icons';
+        position: absolute; top: -6px; right: -6px;
+        background: #e53e3e; color: white; font-size: 0.55rem;
+        width: 14px; height: 14px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
     }
 
     /* Back link */
     .bg-back {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: #64748b;
-        text-decoration: none;
-        font-size: 0.9rem;
-        margin-bottom: 1rem;
-        transition: color 0.2s;
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        color: #64748b; text-decoration: none; font-size: 0.9rem;
+        margin-bottom: 1rem; transition: color 0.2s;
     }
-    .bg-back:hover {
-        color: #1e293b;
-    }
+    .bg-back:hover { color: #1e293b; }
 
-    /* Nth format info */
+    /* Nth info notice */
     .bg-nth-info {
-        background: #ede9fe;
-        border: 1px solid #c4b5fd;
-        border-radius: 8px;
-        padding: 0.5rem 0.75rem;
-        margin-bottom: 0.6rem;
-        font-size: 0.68rem;
-        color: #5b21b6;
+        background: #ede9fe; border: 1px solid #c4b5fd;
+        border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.6rem;
+        font-size: 0.68rem; color: #5b21b6;
     }
 
     /* Template status badges */
-    .tmpl-badge-ok {
-        background: #48bb78;
-        color: white;
-        font-size: 0.58rem;
-        padding: 0.1rem 0.4rem;
-        border-radius: 10px;
-        font-weight: 600;
+    .tmpl-badge-ok { background: #48bb78; color: white; font-size: 0.58rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; }
+    .tmpl-badge-no { background: #fc8181; color: white; font-size: 0.58rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; }
+
+    /* Supplemental badge */
+    .supp-badge {
+        background: #fef08a; border: 1px solid #fde047; color: #713f12;
+        font-size: 0.55rem; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: 600;
+        vertical-align: middle; margin-left: 0.25rem;
     }
-    .tmpl-badge-no {
-        background: #fc8181;
-        color: white;
-        font-size: 0.58rem;
-        padding: 0.1rem 0.4rem;
-        border-radius: 10px;
-        font-weight: 600;
+    /* Total summary row */
+    .bg-total-summary {
+        background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+        padding: 0.4rem 0.75rem; display: flex; align-items: center;
+        gap: 1rem; font-size: 0.75rem; color: #065f46; font-weight: 600;
+        margin-bottom: 0.5rem;
     }
 </style>
 
@@ -411,15 +367,13 @@
     <!-- Info Banner -->
     <div class="bg-banner">
         <div class="bg-banner-row">
-            <div class="bg-banner-icon">
-                <i class="bi bi-receipt"></i>
-            </div>
+            <div class="bg-banner-icon"><i class="bi bi-receipt"></i></div>
             <div>
                 <h4>Bill {{ bill_number }} from Workslip {{ workslip.workslip_number }}</h4>
                 <div class="sub">
                     Source: <strong>{{ workslip.name }}</strong> &bull;
-                    {{ item_count }} items &bull;
-                    Total: &#8377;{{ total_amount|floatformat:2 }}
+                    {{ item_count }} item(s) with quantities &bull;
+                    Total: &#8377;<span id="bannerTotal">{{ total_amount|floatformat:2 }}</span>
                     {% if work %} &bull; Estimate: {{ work.name }}{% endif %}
                 </div>
             </div>
@@ -431,59 +385,148 @@
                 {% endif %}
             </span>
             {% if tp_percent %}
-            <span class="bg-tp-badge">
-                T.P: {{ tp_percent }}% {{ tp_type }}
-            </span>
+            <span class="bg-tp-badge">T.P: {{ tp_percent }}% {{ tp_type }}</span>
             {% endif %}
         </div>
         <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #065f46; background: #a7f3d0; border-radius: 6px; padding: 0.35rem 0.6rem;">
-            <i class="bi bi-lightning-fill me-1"></i>
-            <strong>No file upload needed!</strong> Data is auto-loaded from your saved workslip. Fill in MB &amp; date details below and generate.
+            <i class="bi bi-pencil-fill me-1"></i>
+            <strong>Edit quantities &amp; rates</strong> in the table below, fill in MB &amp; date details, then generate the bill.
         </div>
     </div>
 
-    <!-- Data Preview -->
-    <div class="bg-preview">
-        <div class="bg-preview-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-            <h5><i class="bi bi-eye me-1"></i> Preview: {{ item_count }} items loaded</h5>
-            <i class="bi bi-chevron-down" style="font-size: 0.8rem; color: #94a3b8;"></i>
-        </div>
-        <div class="bg-preview-body" style="display: none;">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:30px;">Sl</th>
-                        <th style="text-align:left;">Description</th>
-                        <th style="width:50px;">Unit</th>
-                        <th style="width:70px;">Qty</th>
-                        <th style="width:70px;">Rate</th>
-                        <th style="width:90px;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr>
-                        <td class="text-center">{{ item.sl }}</td>
-                        <td>{{ item.desc|truncatechars:80 }}</td>
-                        <td class="text-center">{{ item.unit }}</td>
-                        <td class="text-right">{{ item.qty }}</td>
-                        <td class="text-right">{{ item.rate }}</td>
-                        <td class="text-right" style="color: #059669; font-weight:600;">{{ item.amount|floatformat:2 }}</td>
-                    </tr>
-                    {% endfor %}
-                    <tr class="total-row">
-                        <td colspan="5" style="text-align:right; padding-right:0.75rem;">Sub Total:</td>
-                        <td class="text-right">&#8377;{{ total_amount|floatformat:2 }}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Common Details Form (shared across all actions) -->
     <form method="post" id="billForm">
         {% csrf_token %}
 
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  EDITABLE ITEMS TABLE                                      -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <div class="bg-items-card">
+            <div class="bg-items-header {% if bill_number == 1 %}first-bill{% else %}nth-bill{% endif %}">
+                <div>
+                    <h5>
+                        <i class="bi bi-table me-1"></i>
+                        {% if bill_number == 1 %}
+                            Bill Items &mdash; Edit Quantities &amp; Rates
+                        {% else %}
+                            Bill Items &mdash; Previous | Current | Quantity Till Date
+                        {% endif %}
+                    </h5>
+                    <div class="hdr-note">
+                        {% if bill_number == 1 %}
+                            Items pre-filled from Workslip {{ workslip.workslip_number }}. Edit qty/rate if needed &mdash; only rows with qty &gt; 0 will appear in the bill.
+                        {% else %}
+                            Previous bill quantities shown for reference. Edit current qty/rate as needed.
+                            {% if has_supplemental %}<span style="background:rgba(255,255,255,0.2);border-radius:4px;padding:0.1rem 0.4rem;margin-left:0.5rem;">Supplemental items highlighted in yellow</span>{% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total summary above table -->
+            <div style="padding: 0.4rem 0.75rem 0; background: #fafafa; border-bottom: 1px solid #e2e8f0;">
+                <div class="bg-total-summary">
+                    <span><i class="bi bi-calculator me-1"></i> Current Bill Total: &#8377;<strong id="liveTotal">{{ total_amount|floatformat:2 }}</strong></span>
+                    {% if bill_number > 1 and has_previous %}
+                    <span style="color:#6d28d9;"><i class="bi bi-clock-history me-1"></i> Previous Total: &#8377;<strong id="prevTotal">0.00</strong></span>
+                    <span style="color:#1d4ed8;"><i class="bi bi-sigma me-1"></i> Qty Till Date Total: &#8377;<strong id="tillTotal">0.00</strong></span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="bg-items-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:30px;">Sl</th>
+                            <th style="text-align:left; min-width:180px;">Description</th>
+                            <th style="width:50px;">Unit</th>
+                            {% if bill_number > 1 %}
+                            <th class="th-prev" style="width:75px;">Prev Qty</th>
+                            <th class="th-prev" style="width:85px;">Prev Amt (&#8377;)</th>
+                            {% endif %}
+                            <th class="{% if bill_number > 1 %}th-curr{% endif %}" style="width:90px;">
+                                {% if bill_number == 1 %}Quantity{% else %}Current Qty{% endif %}
+                            </th>
+                            <th class="{% if bill_number > 1 %}th-curr{% endif %}" style="width:80px;">Rate (&#8377;)</th>
+                            <th class="{% if bill_number > 1 %}th-curr{% endif %}" style="width:90px;">Amount (&#8377;)</th>
+                            {% if bill_number > 1 %}
+                            <th class="th-till" style="width:90px;">Qty Till Date</th>
+                            <th class="th-till" style="width:95px;">Amt Till Date (&#8377;)</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        {% for item in all_items %}
+                        <tr class="item-row {% if item.is_supplemental %}supp-row{% endif %}"
+                            data-key="{{ item.key }}"
+                            data-prev-qty="{{ item.prev_qty }}"
+                            data-prev-rate="{{ item.rate }}">
+                            <td class="text-center" style="color:#64748b;">{{ forloop.counter }}</td>
+                            <td>
+                                {{ item.desc|truncatechars:100 }}
+                                {% if item.is_supplemental %}<span class="supp-badge">SUPP</span>{% endif %}
+                            </td>
+                            <td class="text-center" style="color:#64748b;">{{ item.unit }}</td>
+                            {% if bill_number > 1 %}
+                            <td class="prev-cell {% if item.prev_qty == 0 %}muted{% endif %}">
+                                {% if item.prev_qty > 0 %}{{ item.prev_qty }}{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="prev-cell {% if item.prev_qty == 0 %}muted{% endif %}">
+                                {% if item.prev_qty > 0 %}{{ item.prev_amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                            </td>
+                            {% endif %}
+                            <td>
+                                <input type="number" step="any" min="0"
+                                    name="qty_{{ item.key }}"
+                                    id="qty_{{ item.key }}"
+                                    class="qty-input"
+                                    value="{{ item.qty }}"
+                                    oninput="recalcRow(this)"
+                                    placeholder="0">
+                            </td>
+                            <td>
+                                <input type="number" step="any" min="0"
+                                    name="rate_{{ item.key }}"
+                                    id="rate_{{ item.key }}"
+                                    class="rate-input"
+                                    value="{{ item.rate }}"
+                                    oninput="recalcRow(this)"
+                                    placeholder="0.00">
+                            </td>
+                            <td class="amount-cell" id="amt_{{ item.key }}">
+                                {{ item.amount|floatformat:2 }}
+                            </td>
+                            {% if bill_number > 1 %}
+                            <td style="text-align:right; color:#1d4ed8; font-weight:600;" id="till_qty_{{ item.key }}">0</td>
+                            <td style="text-align:right; color:#1d4ed8; font-weight:600;" id="till_amt_{{ item.key }}">0.00</td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if bill_number == 1 %}6{% else %}10{% endif %}" style="text-align:center; padding:1.5rem; color:#94a3b8;">
+                                <i class="bi bi-inbox" style="font-size:1.5rem; display:block; margin-bottom:0.5rem;"></i>
+                                No items found in workslip data.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="{% if bill_number == 1 %}5{% else %}7{% endif %}" style="text-align:right; padding-right:0.5rem; font-weight:700; color:#065f46;">
+                                Current Bill Sub Total:
+                            </td>
+                            <td class="amount-cell" id="grandTotal" style="font-size:0.8rem;">{{ total_amount|floatformat:2 }}</td>
+                            {% if bill_number > 1 %}
+                            <td></td>
+                            <td class="amount-cell" id="grandTillTotal" style="font-size:0.8rem; color:#1d4ed8;">0.00</td>
+                            {% endif %}
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Common Details Form -->
         <div class="bg-common">
             <div class="bg-common-header">
                 <h5><i class="bi bi-gear-fill"></i> MB / Date Details</h5>
@@ -566,7 +609,7 @@
                     <div class="bg-nth-info">
                         <i class="bi bi-info-circle me-1"></i>
                         <strong>{{ bill_ord }} Bill format:</strong> 11-column layout with "Quantity Till Date",
-                        "Deduct Previous Measurements" (from Bill 1{% if bill_number > 2 %}-{{ bill_number|add:"-1" }}{% endif %}),
+                        "Deduct Previous Measurements" (from Bill 1{% if bill_number > 2 %}&ndash;{{ bill_number|add:"-1" }}{% endif %}),
                         and "Since Last Measurements" columns.
                     </div>
                     {% elif bill_number > 1 %}
@@ -577,17 +620,20 @@
                     {% endif %}
                     <p class="bg-action-note">
                         {% if bill_number == 1 %}
-                        Generate CC First &amp; Part or First &amp; Final Bill (8-column format) from Workslip {{ workslip.workslip_number }}.
+                        Choose <strong>First &amp; Part</strong> if more bills will follow, or <strong>First &amp; Final</strong> if this is the only bill.
+                        After &ldquo;First &amp; Final&rdquo;, no more bills can be created for this estimate.
                         {% else %}
-                        Generate CC {{ bill_ord }} &amp; Part or {{ bill_ord }} &amp; Final Bill from Workslip {{ workslip.workslip_number }}.
+                        Choose <strong>{{ bill_ord }} &amp; Part</strong> if more bills will follow, or <strong>{{ bill_ord }} &amp; Final</strong> to close the billing.
                         {% endif %}
                     </p>
                     <div class="bg-btn-row">
-                        <button type="submit" name="action_type" value="bill_part" class="bg-btn bg-btn-primary {% if bill_number == 1 %}first{% else %}nth{% endif %}">
+                        <button type="submit" name="action_type" value="bill_part"
+                            class="bg-btn bg-btn-primary {% if bill_number == 1 %}first{% else %}nth{% endif %}">
                             <i class="bi bi-file-earmark-plus"></i>
                             {% if bill_number == 1 %}CC First &amp; Part{% else %}CC {{ bill_ord }} &amp; Part{% endif %}
                         </button>
-                        <button type="submit" name="action_type" value="bill_final" class="bg-btn bg-btn-secondary">
+                        <button type="submit" name="action_type" value="bill_final"
+                            class="bg-btn bg-btn-secondary">
                             <i class="bi bi-file-earmark-check"></i>
                             {% if bill_number == 1 %}CC First &amp; Final{% else %}CC {{ bill_ord }} &amp; Final{% endif %}
                         </button>
@@ -596,6 +642,7 @@
                     <div style="margin-top: 0.5rem; font-size: 0.62rem; color: #059669; background: #ecfdf5; border-radius: 4px; padding: 0.25rem 0.5rem;">
                         <i class="bi bi-check-circle me-1"></i>
                         Bill previously generated: <strong>{{ existing_bill.name }}</strong>
+                        ({{ existing_bill.get_bill_type_display_label }})
                     </div>
                     {% endif %}
                 </div>
@@ -604,16 +651,13 @@
             <!-- Documents Card -->
             <div class="bg-action-card">
                 <div class="bg-action-header doc-header">
-                    <div class="badge-num">
-                        <i class="bi bi-file-earmark-text"></i>
-                    </div>
+                    <div class="badge-num"><i class="bi bi-file-earmark-text"></i></div>
                     <h5>Documents for Bill {{ bill_number }}</h5>
                 </div>
                 <div class="bg-action-body">
                     <p class="bg-action-note">
-                        Generate LS Form, Covering Letter & Movement Slip using loaded data and your templates.
+                        Generate LS Form, Covering Letter &amp; Movement Slip using loaded data and your templates.
                     </p>
-
                     <!-- LS Forms -->
                     <div style="margin-bottom: 0.6rem;">
                         <div style="font-size: 0.68rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem;">
@@ -628,7 +672,6 @@
                             </button>
                         </div>
                     </div>
-
                     <!-- Covering Letter -->
                     <div style="margin-bottom: 0.6rem;">
                         <div style="font-size: 0.68rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
@@ -647,7 +690,6 @@
                             </button>
                         </div>
                     </div>
-
                     <!-- Movement Slip -->
                     <div>
                         <div style="font-size: 0.68rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
@@ -674,5 +716,105 @@
     </form>
 
 </div><!-- /bg-container -->
+
+<script>
+(function() {
+    var isNth = {{ bill_number }} > 1;
+
+    function parseNum(v) {
+        var n = parseFloat(v);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function fmt(n) {
+        return n.toFixed(2);
+    }
+
+    window.recalcRow = function(input) {
+        var row = input.closest('tr');
+        var key = row.getAttribute('data-key');
+        var prevQty = parseNum(row.getAttribute('data-prev-qty'));
+
+        var qtyInput  = document.getElementById('qty_'  + key);
+        var rateInput = document.getElementById('rate_' + key);
+        var amtCell   = document.getElementById('amt_'  + key);
+
+        var qty  = parseNum(qtyInput  ? qtyInput.value  : 0);
+        var rate = parseNum(rateInput ? rateInput.value : 0);
+        var amt  = qty * rate;
+
+        if (amtCell) amtCell.textContent = fmt(amt);
+
+        if (isNth) {
+            var tillQtyCell = document.getElementById('till_qty_' + key);
+            var tillAmtCell = document.getElementById('till_amt_' + key);
+            var tillQty = prevQty + qty;
+            var tillAmt = tillQty * rate;
+            if (tillQtyCell) tillQtyCell.textContent = fmt(tillQty);
+            if (tillAmtCell) tillAmtCell.textContent = fmt(tillAmt);
+        }
+
+        recalcTotals();
+    };
+
+    function recalcTotals() {
+        var rows = document.querySelectorAll('#itemsBody .item-row');
+        var total = 0;
+        var prevTotal = 0;
+        var tillTotal = 0;
+
+        rows.forEach(function(row) {
+            var key = row.getAttribute('data-key');
+            var amtCell = document.getElementById('amt_' + key);
+            var amt = amtCell ? parseNum(amtCell.textContent) : 0;
+            total += amt;
+
+            if (isNth) {
+                var prevQty  = parseNum(row.getAttribute('data-prev-qty'));
+                var rateInput = document.getElementById('rate_' + key);
+                var rate = parseNum(rateInput ? rateInput.value : row.getAttribute('data-prev-rate'));
+                prevTotal += prevQty * rate;
+                var tillQtyCell = document.getElementById('till_amt_' + key);
+                if (tillQtyCell) tillTotal += parseNum(tillQtyCell.textContent);
+            }
+        });
+
+        var gtEl = document.getElementById('grandTotal');
+        var ltEl = document.getElementById('liveTotal');
+        var bannerEl = document.getElementById('bannerTotal');
+
+        if (gtEl) gtEl.textContent = fmt(total);
+        if (ltEl) ltEl.textContent = fmt(total);
+        if (bannerEl) bannerEl.textContent = fmt(total);
+
+        if (isNth) {
+            var ptEl = document.getElementById('prevTotal');
+            var ttEl = document.getElementById('tillTotal');
+            var gttEl = document.getElementById('grandTillTotal');
+            if (ptEl) ptEl.textContent = fmt(prevTotal);
+            if (ttEl) ttEl.textContent = fmt(tillTotal);
+            if (gttEl) gttEl.textContent = fmt(tillTotal);
+        }
+    }
+
+    // Recalculate till-date amounts on initial load for nth bills
+    if (isNth) {
+        document.querySelectorAll('#itemsBody .item-row').forEach(function(row) {
+            var key = row.getAttribute('data-key');
+            var prevQty   = parseNum(row.getAttribute('data-prev-qty'));
+            var rateInput = document.getElementById('rate_' + key);
+            var rate      = parseNum(rateInput ? rateInput.value : 0);
+            var qtyInput  = document.getElementById('qty_'  + key);
+            var qty       = parseNum(qtyInput  ? qtyInput.value  : 0);
+
+            var tillQtyCell = document.getElementById('till_qty_' + key);
+            var tillAmtCell = document.getElementById('till_amt_' + key);
+            if (tillQtyCell) tillQtyCell.textContent = fmt(prevQty + qty);
+            if (tillAmtCell) tillAmtCell.textContent = fmt((prevQty + qty) * rate);
+        });
+        recalcTotals();
+    }
+})();
+</script>
 
 {% endblock %}

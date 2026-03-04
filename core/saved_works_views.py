@@ -318,11 +318,23 @@ def saved_works_list(request):
                 work.last_ws = all_ws[-1] if all_ws else None
                 # Attach bill children from wf_chain
                 work.bill_children = work.wf_chain.get('bills', []) if work.wf_chain else []
+                # Determine if more bills can be generated
+                bills = work.bill_children
+                if bills:
+                    last_bill = bills[-1]
+                    last_bill_is_final = bool(last_bill.bill_type and last_bill.bill_type.endswith('_final'))
+                    work.can_add_more_bills = not last_bill_is_final
+                    work.next_bill_number = last_bill.bill_number + 1
+                else:
+                    work.can_add_more_bills = bool(all_ws)
+                    work.next_bill_number = 1
             except Exception:
                 work.workslip_children = []
                 work.next_ws_number = 1
                 work.last_ws = None
                 work.bill_children = []
+                work.can_add_more_bills = False
+                work.next_bill_number = 1
 
         # Attach item_count for display
         wd = work.work_data or {}
@@ -1900,43 +1912,7 @@ def bill_generate(request, work_id):
         'agency': ws_metadata.get('agency_name', '') or ws_metadata.get('agency', ''),
     }
 
-    # Build items from workslip exec data
-    items = []
-    total_amount = 0.0
-    for idx, row in enumerate(ws_rows):
-        key = row.get('key', f'saved_{idx}')
-        exec_qty = ws_exec_map.get(key, 0)
-        try:
-            exec_qty = float(exec_qty) if exec_qty else 0.0
-        except (ValueError, TypeError):
-            exec_qty = 0.0
-        if exec_qty <= 0 and not ws_exec_map:
-            try:
-                exec_qty = float(row.get('qty_est', 0) or 0)
-            except (ValueError, TypeError):
-                exec_qty = 0.0
-        if exec_qty <= 0:
-            continue
-        rate = float(row.get('rate', 0) or 0)
-        if rate == 0:
-            continue
-        desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
-        unit = row.get('unit', 'Nos')
-        is_ae = str(desc).lower().startswith('ae')
-        amount = exec_qty * rate
-        total_amount += amount
-        items.append({
-            'sl': len(items) + 1,
-            'qty': exec_qty,
-            'unit': unit,
-            'desc': desc,
-            'rate': rate,
-            'is_ae': is_ae,
-            'amount': round(amount, 2),
-            'key': key,
-        })
-
-    # For Bill 2+, gather cumulative previous quantities
+    # For Bill 2+, gather cumulative previous quantities FIRST (needed for all_items)
     prev_qty_map = {}
     if bill_number > 1 and workslip.parent:
         prev_workslips = list(
@@ -1961,8 +1937,81 @@ def bill_generate(request, work_id):
                         prev_qty_map[pkey] = {
                             'qty': 0.0,
                             'rate': float(prow.get('rate', 0) or 0),
+                            'desc': prow.get('desc') or prow.get('display_name') or prow.get('item_name', ''),
+                            'unit': prow.get('unit', 'Nos'),
                         }
                     prev_qty_map[pkey]['qty'] += pqty
+
+    # Build ALL items for the editable UI table (current workslip rows)
+    all_items = []
+    current_keys = set()
+    for idx, row in enumerate(ws_rows):
+        key = row.get('key', f'saved_{idx}')
+        current_keys.add(key)
+        exec_qty = ws_exec_map.get(key, 0)
+        try:
+            exec_qty = float(exec_qty) if exec_qty else 0.0
+        except (ValueError, TypeError):
+            exec_qty = 0.0
+        if exec_qty <= 0 and not ws_exec_map:
+            try:
+                exec_qty = float(row.get('qty_est', 0) or 0)
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+        rate = float(row.get('rate', 0) or 0)
+        desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+        unit = row.get('unit', 'Nos')
+        prev_info = prev_qty_map.get(key, {})
+        prev_qty = prev_info.get('qty', 0.0)
+        all_items.append({
+            'idx': idx,
+            'key': key,
+            'desc': desc,
+            'unit': unit,
+            'qty': exec_qty,
+            'rate': rate,
+            'amount': round(exec_qty * rate, 2),
+            'prev_qty': prev_qty,
+            'prev_amount': round(prev_qty * rate, 2),
+            'is_supplemental': False,
+        })
+
+    # Add supplemental items for B2+ (items only in previous workslips, not current)
+    if bill_number > 1:
+        for pkey, pinfo in prev_qty_map.items():
+            if pkey not in current_keys:
+                prev_qty = pinfo.get('qty', 0.0)
+                prev_rate = pinfo.get('rate', 0.0)
+                all_items.append({
+                    'idx': len(all_items),
+                    'key': pkey,
+                    'desc': pinfo.get('desc', pkey),
+                    'unit': pinfo.get('unit', 'Nos'),
+                    'qty': 0.0,
+                    'rate': prev_rate,
+                    'amount': 0.0,
+                    'prev_qty': prev_qty,
+                    'prev_amount': round(prev_qty * prev_rate, 2),
+                    'is_supplemental': True,
+                })
+
+    # Build items list from current workslip data (used only when POST reads from work_data fallback)
+    items = []
+    total_amount = 0.0
+    for it in all_items:
+        if it['qty'] > 0:
+            is_ae = str(it['desc']).lower().startswith('ae')
+            items.append({
+                'sl': len(items) + 1,
+                'qty': it['qty'],
+                'unit': it['unit'],
+                'desc': it['desc'],
+                'rate': it['rate'],
+                'is_ae': is_ae,
+                'amount': it['amount'],
+                'key': it['key'],
+            })
+            total_amount += it['amount']
 
     # User document templates
     covering_template = get_user_template(user, 'covering_letter')
@@ -1994,6 +2043,72 @@ def bill_generate(request, work_id):
         domr = _format_date_to_ddmmyyyy(request.POST.get('domr') or '')
         dobr = _format_date_to_ddmmyyyy(request.POST.get('dobr') or '')
 
+        # Rebuild items from form-submitted qty/rate (user may have edited them)
+        items = []
+        total_amount = 0.0
+        # Process current workslip rows
+        for idx, row in enumerate(ws_rows):
+            key = row.get('key', f'saved_{idx}')
+            submitted_qty = request.POST.get(f'qty_{key}', '').strip()
+            submitted_rate = request.POST.get(f'rate_{key}', '').strip()
+            try:
+                exec_qty = float(submitted_qty) if submitted_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            try:
+                rate = float(submitted_rate) if submitted_rate else float(row.get('rate', 0) or 0)
+            except (ValueError, TypeError):
+                rate = 0.0
+            if exec_qty <= 0:
+                continue
+            if rate == 0:
+                continue
+            desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+            unit = row.get('unit', 'Nos')
+            is_ae = str(desc).lower().startswith('ae')
+            amount = exec_qty * rate
+            total_amount += amount
+            items.append({
+                'sl': len(items) + 1,
+                'qty': exec_qty,
+                'unit': unit,
+                'desc': desc,
+                'rate': rate,
+                'is_ae': is_ae,
+                'amount': round(amount, 2),
+                'key': key,
+            })
+        # For B2+, also process supplemental items (only in prev, not current)
+        if bill_number > 1:
+            for pkey, pinfo in prev_qty_map.items():
+                if pkey not in current_keys:
+                    submitted_qty = request.POST.get(f'qty_{pkey}', '').strip()
+                    submitted_rate = request.POST.get(f'rate_{pkey}', '').strip()
+                    try:
+                        exec_qty = float(submitted_qty) if submitted_qty else 0.0
+                    except (ValueError, TypeError):
+                        exec_qty = 0.0
+                    try:
+                        rate = float(submitted_rate) if submitted_rate else pinfo.get('rate', 0.0)
+                    except (ValueError, TypeError):
+                        rate = pinfo.get('rate', 0.0)
+                    # Supplemental items appear in bill even with 0 current qty
+                    desc = pinfo.get('desc', pkey)
+                    unit = pinfo.get('unit', 'Nos')
+                    is_ae = str(desc).lower().startswith('ae')
+                    amount = exec_qty * rate
+                    total_amount += amount
+                    items.append({
+                        'sl': len(items) + 1,
+                        'qty': exec_qty,
+                        'unit': unit,
+                        'desc': desc,
+                        'rate': rate,
+                        'is_ae': is_ae,
+                        'amount': round(amount, 2),
+                        'key': pkey,
+                    })
+
         if not items:
             return JsonResponse({'error': 'No executed items found (all quantities are zero).'}, status=400)
 
@@ -2001,6 +2116,7 @@ def bill_generate(request, work_id):
         if action_type in ('bill_part', 'bill_final'):
             is_final = action_type == 'bill_final'
             ord_text = ordinal_word(bill_number)
+            bill_type_val = ('first_final' if is_final else 'first_part') if bill_number == 1 else ('nth_final' if is_final else 'nth_part')
 
             if bill_number == 1:
                 title_text = f'CC First & {"Final" if is_final else "Part"} Bill'
@@ -2077,12 +2193,14 @@ def bill_generate(request, work_id):
                     category=workslip.category or 'electrical',
                     last_step='bill',
                     bill_number=bill_number,
+                    bill_type=bill_type_val,
                     status='completed',
                 )
             else:
                 existing_bill.work_data = bill_save_data
                 existing_bill.status = 'completed'
-                existing_bill.save(update_fields=['work_data', 'status'])
+                existing_bill.bill_type = bill_type_val
+                existing_bill.save(update_fields=['work_data', 'status', 'bill_type'])
 
             return resp
 
@@ -2222,14 +2340,16 @@ def bill_generate(request, work_id):
         'work': workslip.parent,
         'bill_number': bill_number,
         'bill_ord': ordinal_word(bill_number),
+        'all_items': all_items,
         'items': items,
-        'item_count': len(items),
-        'total_amount': round(total_amount, 2),
+        'item_count': len([it for it in all_items if it['qty'] > 0]),
+        'total_amount': round(sum(it['amount'] for it in all_items if it['qty'] > 0), 2),
         'tp_percent': tp_percent,
         'tp_type': tp_type,
         'header_data': header_data,
         'prev_qty_map': json.dumps({k: v for k, v in prev_qty_map.items()}),
         'has_previous': bool(prev_qty_map),
+        'has_supplemental': any(it['is_supplemental'] for it in all_items),
         'existing_bill': existing_bill,
         'covering_letter_template': covering_template,
         'movement_slip_template': movement_template,

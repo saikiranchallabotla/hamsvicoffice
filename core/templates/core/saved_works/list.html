@@ -649,15 +649,17 @@
                             <!-- B Buttons -->
                             {% if work.bill_children %}
                                 {% for bill in work.bill_children %}
-                                <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }}">
+                                <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }} ({{ bill.get_bill_type_display_label }})">
                                     <i class="bi bi-receipt"></i> B{{ bill.bill_number }}
                                     {% if bill.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
                                 </a>
                                 {% endfor %}
                             {% endif %}
-                            <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
-                                <i class="bi bi-plus"></i> Bill
+                            {% if work.can_add_more_bills %}
+                            <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill {{ work.next_bill_number }}">
+                                <i class="bi bi-plus"></i> B{{ work.next_bill_number }}
                             </a>
+                            {% endif %}
                             {% endif %}
                         </div>
                     </div>
