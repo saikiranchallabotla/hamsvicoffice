@@ -1880,16 +1880,19 @@ def bill_entry(request, work_id):
         messages.error(request, 'Workslip has no items. Cannot create bill entry.')
         return redirect('saved_work_detail', work_id=work_id)
 
-    # Gather all existing completed bills for this workslip (ordered)
+    # Gather all COMPLETED bills for this workslip (ordered) — used for previous quantities display
+    # and for determining the next bill number. Drafts are excluded so that revisiting bill_entry
+    # after a partial save doesn't inflate the bill number.
     existing_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
             work_type='bill',
             parent=workslip,
+            status='completed',
         ).order_by('bill_number')
     )
 
-    # Determine next bill number
+    # Determine next bill number based only on completed bills
     if existing_bills:
         max_bill_num = max(b.bill_number or 0 for b in existing_bills)
         next_bill_number = max_bill_num + 1
@@ -2267,6 +2270,12 @@ def bill_generate(request, work_id):
             resp['Content-Disposition'] = f'attachment; filename="{fname}"'
             wb_out.save(resp)
 
+            # Determine bill_type based on action and bill number
+            if is_final:
+                saved_bill_type = 'first_final' if bill_number == 1 else 'nth_final'
+            else:
+                saved_bill_type = 'first_part' if bill_number == 1 else 'nth_part'
+
             # Auto-save the bill record — promote draft → completed, or create new
             bill_save_data = {
                 'bill_ws_rows': ws_rows,
@@ -2284,9 +2293,10 @@ def bill_generate(request, work_id):
             if target_bill:
                 target_bill.work_data = bill_save_data
                 target_bill.status = 'completed'
+                target_bill.bill_type = saved_bill_type
                 base_name = workslip.parent.name if workslip.parent else workslip.name
                 target_bill.name = f'{base_name} - B{bill_number}'
-                target_bill.save(update_fields=['work_data', 'status', 'name'])
+                target_bill.save(update_fields=['work_data', 'status', 'bill_type', 'name'])
             else:
                 base_name = workslip.parent.name if workslip.parent else workslip.name
                 SavedWork.objects.create(
@@ -2299,6 +2309,7 @@ def bill_generate(request, work_id):
                     category=workslip.category or 'electrical',
                     last_step='bill',
                     bill_number=bill_number,
+                    bill_type=saved_bill_type,
                     status='completed',
                 )
 
