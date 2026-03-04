@@ -617,6 +617,7 @@ def workslip(request):
 
     # -------- 0) Load backend (groups/items + Master Datas) ----------
     desc_to_item = {}
+    item_name_to_desc = {}  # Maps yellow header name → row+2 description from Master Datas
     try:
         items_list, groups_map, units_map, ws_data, filepath = load_backend(
             category, settings.BASE_DIR,
@@ -632,6 +633,7 @@ def workslip(request):
                 desc_text = str(desc_cell or "").strip()
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
+                    item_name_to_desc[item_name] = desc_text
     except Exception:
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
@@ -981,12 +983,20 @@ def workslip(request):
                     # DEBUG: Log rate source
                     logger.info(f"[WORKSLIP DEBUG] Row {r} rate: formula={rate_formula}, value={rate_value}, final={rate_num}")
 
+                    # item_desc: row+2 content from Master Datas (the proper spec description)
+                    item_desc = (
+                        item_name_to_desc.get(display_name, '')
+                        or item_name_to_desc.get(backend_item_name, '')
+                        or desc_str
+                    )
+
                     parsed_rows.append({
                         "key": f"{ws_est_sheet.title}_row{r}",
                         "excel_row": r,
                         "item_name": backend_item_name,      # backend / mapping name
                         "display_name": display_name,        # yellow header for UI
                         "desc": desc_str,                    # full description from Estimate
+                        "item_desc": item_desc,              # row+2 content from Master Datas for Excel output
                         "qty_est": qty_num,
                         "unit": str(unit or "").strip(),
                         "rate": rate_num,
@@ -2534,7 +2544,7 @@ def workslip(request):
                 unit = row.get("unit") or ""
                 original_rate = float(row.get("rate", 0) or 0)
                 rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
-                desc_est = row.get("desc") or row.get("item_name") or ""
+                desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
