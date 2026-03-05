@@ -68,7 +68,7 @@ def bill_entry(request, work_id):
         messages.error(request, f'{source_work.work_type.title()} has no items.')
         return redirect('saved_work_detail', work_id=work_id)
     
-    # Build bill items from workslip quantities
+    # Build bill items from workslip quantities (including supplemental items)
     bill_items = []
     for idx, row in enumerate(ws_rows):
         key = row.get('key') or row.get('item_name') or f'item_{idx}'
@@ -78,7 +78,7 @@ def bill_entry(request, work_id):
         except (ValueError, TypeError):
             qty_exec = 0.0
         
-        # Include ALL items from workslip, even if qty is 0 (for reference)
+        # Include ALL items from workslip, including supplemental items
         rate = float(row.get('rate', 0) or 0)
         item_name = row.get('display_name') or row.get('item_name') or row.get('desc') or 'Item'
         unit = row.get('unit') or 'Nos'
@@ -89,6 +89,7 @@ def bill_entry(request, work_id):
             'unit': unit,
             'qty_exec': qty_exec,
             'rate': rate,
+            'is_supplemental': 'Supplemental' in (row.get('label', '') or ''),
         })
     
     # Get previous bill (if Bill 2+)
@@ -180,6 +181,46 @@ def bill_entry(request, work_id):
     else:
         bill_type_label = f'{bill_number}th & Part Bill'
     
+    # Load existing bill data if this bill was previously saved
+    existing_bill = None
+    if source_work.work_type == 'workslip':
+        existing_bill = SavedWork.objects.filter(
+            organization=org,
+            user=user,
+            work_type='bill',
+            bill_number=bill_number,
+            parent=source_work
+        ).first()
+    
+    # If bill exists, load saved data
+    mb_no = ''
+    mb_from_page = ''
+    mb_to_page = ''
+    doi = ''
+    doc = ''
+    domr = ''
+    dobr = ''
+    
+    if existing_bill:
+        bill_work_data = existing_bill.work_data or {}
+        mb_no = bill_work_data.get('mb_no', '')
+        mb_from_page = bill_work_data.get('mb_from_page', '')
+        mb_to_page = bill_work_data.get('mb_to_page', '')
+        doi = bill_work_data.get('doi', '')
+        doc = bill_work_data.get('doc', '')
+        domr = bill_work_data.get('domr', '')
+        dobr = bill_work_data.get('dobr', '')
+        
+        # Load saved quantities and deductions
+        bill_exec = bill_work_data.get('bill_ws_exec_map', {})
+        bill_deduct = bill_work_data.get('bill_deduct_map', {})
+        
+        # Update bill_items with saved quantities
+        for item in bill_items:
+            key = item['key']
+            if key in bill_exec:
+                item['qty_exec'] = bill_exec[key]
+
     context = {
         'work_id': work_id,
         'source_work': source_work,
@@ -196,9 +237,16 @@ def bill_entry(request, work_id):
         'workflow_chain': workflow_chain,
         'source_workslip': source_work if source_work.work_type == 'workslip' else None,
         'item_count': len(bill_items),
+        'mb_no': mb_no,
+        'mb_from_page': mb_from_page,
+        'mb_to_page': mb_to_page,
+        'doi': doi,
+        'doc': doc,
+        'domr': domr,
+        'dobr': dobr,
     }
     
-    return render(request, 'core/bill_entry.html', context)
+    return render(request, 'core/bill_entry_new.html', context)
 
 
 @login_required(login_url='login')

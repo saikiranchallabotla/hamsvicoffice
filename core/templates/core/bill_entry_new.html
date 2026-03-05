@@ -1,0 +1,641 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Bill Entry - {{ bill_number }}{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Bill Entry
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .bill-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        background: #f8fafc;
+        min-height: 100vh;
+    }
+
+    /* Header */
+    .bill-header {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        border-left: 5px solid #3b82f6;
+    }
+
+    .bill-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 1rem;
+    }
+
+    .bill-subtitle {
+        color: #64748b;
+        font-size: 1rem;
+    }
+
+    /* Form Section */
+    .form-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-title i {
+        color: #3b82f6;
+        font-size: 1.2rem;
+    }
+
+    /* Form Grid */
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .form-control {
+        padding: 0.75rem 1rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: #f8fafc;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #3b82f6;
+        background: #eff6ff;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    /* Table */
+    .table-wrapper {
+        overflow-x: auto;
+        margin-bottom: 2rem;
+    }
+
+    .quantities-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+    }
+
+    .quantities-table thead {
+        background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+        border-bottom: 2px solid #cbd5e1;
+    }
+
+    .quantities-table th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+
+    .quantities-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        color: #475569;
+    }
+
+    .quantities-table tbody tr:hover {
+        background: #f8fafc;
+    }
+
+    .sl-col { width: 50px; text-align: center; }
+    .item-col { min-width: 250px; }
+    .unit-col { width: 80px; text-align: center; }
+    .rate-col { width: 120px; text-align: right; }
+    .qty-col { width: 140px; text-align: right; }
+    .amount-col { width: 140px; text-align: right; font-weight: 600; }
+
+    .item-name {
+        font-weight: 600;
+        color: #0f172a;
+        line-height: 1.4;
+    }
+
+    .item-supplemental {
+        background: #fef3c7;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        color: #92400e;
+        font-weight: 600;
+        margin-top: 0.25rem;
+        display: inline-block;
+    }
+
+    /* Input Fields in Table */
+    .qty-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        text-align: right;
+        font-weight: 600;
+        font-size: 0.95rem;
+        background: #f8fafc;
+    }
+
+    .qty-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+
+    /* Summary Box */
+    .summary-box {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        padding: 2rem;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-radius: 12px;
+        border: 2px solid #0284c7;
+    }
+
+    .summary-item {
+        text-align: center;
+        padding: 1.5rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .summary-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        margin-bottom: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+
+    .summary-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .summary-value.total {
+        color: #059669;
+    }
+
+    .summary-value.deduct {
+        color: #dc2626;
+    }
+
+    .summary-value.net {
+        color: #0284c7;
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .btn-primary {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59,130,246,0.4);
+    }
+
+    .btn-success {
+        background: #10b981;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #059669;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16,185,129,0.4);
+    }
+
+    .btn-outline {
+        background: white;
+        color: #64748b;
+        border: 1px solid #cbd5e1;
+    }
+
+    .btn-outline:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+    }
+
+    /* Alerts */
+    .info-alert {
+        padding: 1rem;
+        background: #dbeafe;
+        border-left: 4px solid #0284c7;
+        border-radius: 6px;
+        color: #0c4a6e;
+        margin-bottom: 1.5rem;
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .info-alert i {
+        color: #0284c7;
+        flex-shrink: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .bill-container {
+            padding: 1rem;
+        }
+
+        .bill-header {
+            padding: 1.5rem;
+        }
+
+        .form-card {
+            padding: 1.5rem;
+        }
+
+        .form-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .quantities-table {
+            font-size: 0.85rem;
+        }
+
+        .quantities-table th,
+        .quantities-table td {
+            padding: 0.5rem;
+        }
+
+        .bill-title {
+            font-size: 1.5rem;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .qty-col, .amount-col {
+            width: 100px;
+        }
+    }
+</style>
+
+<div class="bill-container">
+    
+    <!-- Header -->
+    <div class="bill-header">
+        <div class="bill-title">
+            <i class="bi bi-receipt" style="color: #f59e0b;"></i>
+            Bill-{{ bill_number }}
+        </div>
+        <div class="bill-subtitle">
+            {% if bill_number == 1 %}
+                First & Part Bill
+            {% elif bill_number == 2 %}
+                Second & {% if prev_bill.bill_type == 'first_final' %}Final{% else %}Part{% endif %} Bill
+            {% else %}
+                {{ bill_number|add:0 }}th & Part Bill
+            {% endif %}
+            {% if work_name %} • {{ work_name }}{% endif %}
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form id="bill-entry-form" method="post" action="{% url 'bill_entry_save' work_id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_bill_data">
+        <input type="hidden" id="bill-exec-map-field" name="bill_exec_map">
+        <input type="hidden" id="bill-deduct-map-field" name="bill_deduct_map">
+        <input type="hidden" id="bill-rate-map-field" name="bill_rate_map">
+
+        <!-- Measurement Book Details -->
+        <div class="form-card">
+            <div class="section-title">
+                <i class="bi bi-journal-text"></i>
+                Measurement Book Details
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">M.B. No.</label>
+                    <input type="text" name="mb_no" class="form-control" placeholder="e.g., MB-001" value="{{ mb_no|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">From Page</label>
+                    <input type="number" name="mb_from_page" class="form-control" placeholder="e.g., 1" min="0" value="{{ mb_from_page|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">To Page</label>
+                    <input type="number" name="mb_to_page" class="form-control" placeholder="e.g., 5" min="0" value="{{ mb_to_page|default:'' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Important Dates -->
+        <div class="form-card">
+            <div class="section-title">
+                <i class="bi bi-calendar-check"></i>
+                Important Dates
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Date of Issue (DOI)</label>
+                    <input type="date" name="doi" class="form-control" value="{{ doi|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Completion (DOC)</label>
+                    <input type="date" name="doc" class="form-control" value="{{ doc|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Measurement Report (DOMR)</label>
+                    <input type="date" name="domr" class="form-control" value="{{ domr|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Bill Raising (DOBR)</label>
+                    <input type="date" name="dobr" class="form-control" value="{{ dobr|default:'' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Quantities & Amounts -->
+        <div class="form-card">
+            <div class="section-title">
+                <i class="bi bi-table"></i>
+                Quantities & Amounts
+            </div>
+
+            {% if bill_number > 1 %}
+            <div class="info-alert">
+                <i class="bi bi-info-circle"></i>
+                <div>
+                    <strong>Review Deductions:</strong> This bill includes deductions from Bill-{{ bill_number|add:-1 }}.
+                    Please verify the quantities before saving.
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="table-wrapper">
+                <table class="quantities-table">
+                    <thead>
+                        <tr>
+                            <th class="sl-col">SL</th>
+                            <th class="item-col">Item Description</th>
+                            <th class="unit-col">Unit</th>
+                            <th class="rate-col">Rate (₹)</th>
+                            {% if bill_number > 1 %}
+                            <th class="qty-col" style="background: #fef3c7;">Deduct from Bill-{{ bill_number|add:-1 }}</th>
+                            {% endif %}
+                            <th class="qty-col" style="background: #dbeafe;">Total Qty Till Date (Bill-{{ bill_number }})</th>
+                            <th class="amount-col">Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quantities-tbody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Summary -->
+            <div class="summary-box">
+                <div class="summary-item">
+                    <div class="summary-label">Items Count</div>
+                    <div class="summary-value" id="summary-count">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Total Bill Amount</div>
+                    <div class="summary-value total" id="summary-total">₹ 0.00</div>
+                </div>
+                {% if bill_number > 1 %}
+                <div class="summary-item">
+                    <div class="summary-label">Total Deductions</div>
+                    <div class="summary-value deduct" id="summary-deduct">₹ 0.00</div>
+                </div>
+                {% endif %}
+                <div class="summary-item">
+                    <div class="summary-label">Net Bill Amount</div>
+                    <div class="summary-value net" id="summary-net">₹ 0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-check-circle"></i> Save Bill
+            </button>
+            <button type="button" class="btn btn-primary" onclick="previewBill()">
+                <i class="bi bi-eye"></i> Preview
+            </button>
+            <button type="button" class="btn btn-outline" onclick="history.back()">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    const billData = {
+        items: {{ bill_items_json|safe }},
+        previousItems: {{ prev_bill_items_json|safe }},
+        billNumber: {{ bill_number }},
+    };
+
+    const rateMap = {};
+    const execMap = {};
+    const deductMap = {};
+
+    function initializeTable() {
+        const tbody = document.getElementById('quantities-tbody');
+        let itemCount = 0;
+
+        billData.items.forEach((item, idx) => {
+            const key = item.key || `item_${idx}`;
+            rateMap[key] = parseFloat(item.rate) || 0;
+
+            const row = document.createElement('tr');
+            row.id = `row_${idx}`;
+            row.dataset.key = key;
+            row.dataset.rate = rateMap[key];
+
+            const prevItem = billData.previousItems.find(p => p.key === key);
+            const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
+
+            let supplementalBadge = item.is_supplemental ? '<div class="item-supplemental">SUPPLEMENTAL</div>' : '';
+            let prevCell = '';
+            
+            if (billData.billNumber > 1) {
+                prevCell = `
+                    <td style="background: #fffbeb;">
+                        <input type="number" class="qty-input deduct-qty" 
+                               data-key="${key}"
+                               value="${prevQty}" 
+                               step="0.01" 
+                               min="0" 
+                               readonly
+                               style="background: #fef3c7;">
+                    </td>
+                `;
+            }
+
+            row.innerHTML = `
+                <td class="sl-col"><strong>${++itemCount}</strong></td>
+                <td class="item-col">
+                    <div class="item-name">${item.item_name || 'Item'}</div>
+                    ${supplementalBadge}
+                </td>
+                <td class="unit-col">${item.unit || 'Nos'}</td>
+                <td class="rate-col">₹ ${(rateMap[key]).toFixed(2)}</td>
+                ${prevCell}
+                <td class="qty-col">
+                    <input type="number" class="qty-input exec-qty" 
+                           data-key="${key}"
+                           value="${item.qty_exec || ''}" 
+                           step="0.01" 
+                           min="0"
+                           placeholder="0.00">
+                </td>
+                <td class="amount-col" id="amount_${idx}">₹ 0.00</td>
+            `;
+
+            tbody.appendChild(row);
+
+            const qtyInput = row.querySelector('.exec-qty');
+            const deductInput = row.querySelector('.deduct-qty');
+
+            qtyInput.addEventListener('change', () => {
+                execMap[key] = parseFloat(qtyInput.value) || 0;
+                updateAmount(idx, execMap[key], rateMap[key]);
+                updateSummary();
+            });
+
+            qtyInput.addEventListener('input', () => {
+                updateAmount(idx, parseFloat(qtyInput.value) || 0, rateMap[key]);
+            });
+
+            if (deductInput) {
+                deductInput.addEventListener('change', () => {
+                    deductMap[key] = parseFloat(deductInput.value) || 0;
+                    updateSummary();
+                });
+            }
+        });
+    }
+
+    function updateAmount(idx, qty, rate) {
+        const amount = qty * rate;
+        document.getElementById(`amount_${idx}`).textContent = `₹ ${amount.toFixed(2)}`;
+    }
+
+    function updateSummary() {
+        let totalAmount = 0, totalDeduct = 0, itemCount = 0;
+
+        document.querySelectorAll('#quantities-tbody tr').forEach((row) => {
+            const qtinput = row.querySelector('.exec-qty');
+            const deductInput = row.querySelector('.deduct-qty');
+            const qty = parseFloat(qtinput.value) || 0;
+            const rate = parseFloat(row.dataset.rate) || 0;
+            const deductQty = deductInput ? parseFloat(deductInput.value) || 0 : 0;
+
+            if (qty > 0) {
+                itemCount++;
+                totalAmount += qty * rate;
+                if (deductQty > 0) totalDeduct += deductQty * rate;
+            }
+        });
+
+        document.getElementById('summary-count').textContent = itemCount;
+        document.getElementById('summary-total').textContent = `₹ ${totalAmount.toFixed(2)}`;
+        if (document.getElementById('summary-deduct')) {
+            document.getElementById('summary-deduct').textContent = `₹ ${totalDeduct.toFixed(2)}`;
+        }
+        document.getElementById('summary-net').textContent = `₹ ${(totalAmount - totalDeduct).toFixed(2)}`;
+    }
+
+    function previewBill() {
+        alert(`Preview: Bill-${billData.billNumber}\nNet Amount: ${document.getElementById('summary-net').textContent}`);
+    }
+
+    document.getElementById('bill-entry-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        document.getElementById('bill-exec-map-field').value = JSON.stringify(execMap);
+        document.getElementById('bill-deduct-map-field').value = JSON.stringify(deductMap);
+        document.getElementById('bill-rate-map-field').value = JSON.stringify(rateMap);
+
+        fetch(this.action, {
+            method: 'POST',
+            body: new FormData(this),
+        })
+        .then(r => r.status === 200 ? window.location.href = '/saved-works/' : alert('Error saving bill'))
+        .catch(err => alert('Error: ' + err));
+    });
+
+    initializeTable();
+</script>
+
+{% endblock %}
