@@ -215,7 +215,7 @@
     <h5 class="mb-3"><i class="bi bi-arrow-right-circle me-2"></i>Choose a Workslip</h5>
     <div class="bill-choice-cards">
         {% for ws in all_workslips %}
-        <a href="{% url 'bill_generate' ws.id %}" class="bill-choice-card">
+        <a href="{% url 'bill_entry' ws.id %}" class="bill-choice-card">
             {% if ws.workslip_number in bills_by_ws %}
             <span class="existing-badge"><i class="bi bi-check-circle me-1"></i>Bill exists</span>
             {% endif %}
