@@ -510,7 +510,7 @@
         <i class="bi bi-info-circle"></i>
         <div>
             <strong>Bill-{{ bill_number }}</strong> includes quantities from Workslip-{{ bill_number }}. 
-            The "Deduct from Previous" columns show what was billed in Bill-{{ bill_number|add:"-1" }} 
+            The "Deduct from Previous" columns show what was billed in Bill-{{ bill_number|add:-1 }} 
             so you can verify deductions before generating the final bill.
         </div>
     </div>
@@ -587,7 +587,7 @@
             {% if bill_number > 1 and prev_bill_items %}
             <div class="deductions-alert">
                 <i class="bi bi-exclamation-triangle me-2"></i>
-                This bill includes deductions from <strong>Bill-{{ bill_number|add:"-1" }}</strong>. 
+                This bill includes deductions from <strong>Bill-{{ bill_number|add:-1 }}</strong>. 
                 Review the "Deduct from Previous" column to ensure accuracy.
             </div>
             {% endif %}
@@ -601,7 +601,7 @@
                             <th class=\"unit-col\">Unit</th>
                             <th class=\"rate-col\">Rate</th>
                             {% if bill_number > 1 %}
-                            <th style=\"background: #fef3c7; text-align: center; font-size: 0.8rem; color: #92400e;\">Deduct from Bill-{{ bill_number|add:\"-1\" }}</th>
+                            <th style=\"background: #fef3c7; text-align: center; font-size: 0.8rem; color: #92400e;\">Deduct from Bill-{{ bill_number|add:-1 }}</th>
                             {% endif %}
                             <th style=\"background: #dbeafe; text-align: center; font-size: 0.8rem; color: #0c4a6e;\">Bill-{{ bill_number }} Qty</th>
                             <th class=\"amount-col\">Amount (₹)</th>
