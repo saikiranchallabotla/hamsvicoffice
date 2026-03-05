@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.db.models import Q
 
 from .models import SavedWork, Organization
-from .saved_works_views import get_org_from_request, check_saved_work_access
+from .saved_works_views import get_org_from_request, check_saved_work_access, load_item_rates_from_backend
 
 
 @login_required(login_url='login')
@@ -91,6 +91,62 @@ def bill_entry(request, work_id):
             'rate': rate,
         })
     
+    # Include supplemental items from the workslip
+    if source_work.work_type == 'workslip':
+        # Previous workslip supplemental items (have rate/unit/desc stored)
+        prev_supp_items = work_data.get('ws_previous_supp_items', [])
+        seen_supp_keys = set()
+        for supp in prev_supp_items:
+            supp_name = supp.get('name', '')
+            section = supp.get('supp_section', supp.get('phase', 1))
+            supp_key = f"prev_supp:{section}:{supp_name}"
+            if supp_key in seen_supp_keys:
+                continue
+            seen_supp_keys.add(supp_key)
+            supp_qty = ws_exec.get(supp_key, 0)
+            try:
+                supp_qty = float(supp_qty) if supp_qty else 0.0
+            except (ValueError, TypeError):
+                supp_qty = 0.0
+            supp_rate = float(supp.get('rate', 0) or 0)
+            supp_unit = supp.get('unit', 'Nos') or 'Nos'
+            bill_items.append({
+                'key': supp_key,
+                'item_name': supp_name,
+                'unit': supp_unit,
+                'qty_exec': supp_qty,
+                'rate': supp_rate,
+            })
+
+        # Current workslip supplemental items (names only - load rates from backend)
+        current_supp_items = work_data.get('ws_supp_items', [])
+        if current_supp_items:
+            category = source_work.category or 'electrical'
+            saved_backend_id = work_data.get('selected_backend_id')
+            supp_rates = load_item_rates_from_backend(
+                category, current_supp_items,
+                backend_id=saved_backend_id,
+                user=request.user,
+                module_code='new_estimate',
+            )
+            for supp_name in current_supp_items:
+                supp_key = f"supp:{supp_name}"
+                supp_qty = ws_exec.get(supp_key, 0)
+                try:
+                    supp_qty = float(supp_qty) if supp_qty else 0.0
+                except (ValueError, TypeError):
+                    supp_qty = 0.0
+                supp_info = supp_rates.get(supp_name, {})
+                supp_rate = float(supp_info.get('rate', 0) or 0)
+                supp_unit = supp_info.get('unit', 'Nos') or 'Nos'
+                bill_items.append({
+                    'key': supp_key,
+                    'item_name': supp_name,
+                    'unit': supp_unit,
+                    'qty_exec': supp_qty,
+                    'rate': supp_rate,
+                })
+
     # Get previous bill (if Bill 2+)
     prev_bill = None
     prev_bill_items = []
@@ -292,10 +348,13 @@ def bill_entry_save(request, work_id):
     
     messages.success(request, f'Bill-{bill_number} created successfully!')
     
+    # Redirect to bill generate page (download page) after saving
+    redirect_url = reverse('bill_generate', kwargs={'work_id': work_id})
+
     return JsonResponse({
         'success': True,
         'work_id': saved_bill.id,
-        'redirect_url': reverse('saved_work_detail', kwargs={'work_id': saved_bill.id}),
+        'redirect_url': redirect_url,
         'message': f'Bill-{bill_number} saved!'
     })
 

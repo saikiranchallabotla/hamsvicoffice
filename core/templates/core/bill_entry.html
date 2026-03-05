@@ -642,6 +642,11 @@
             <button type="button" class="btn-primary" onclick="generateBillPreview()">
                 <i class="bi bi-eye"></i> Preview Bill
             </button>
+            {% if source_workslip %}
+            <a href="{% url 'bill_generate' work_id=source_workslip.id %}" class="btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <i class="bi bi-download"></i> Download Bill
+            </a>
+            {% endif %}
             <button type="button" class="btn-outline" onclick="history.back()">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
@@ -879,7 +884,20 @@
     }
 
     // Initialize on load
-    document.addEventListener('DOMContentLoaded', initializeTable);
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeTable();
+
+        // Calculate initial amounts and summary from pre-populated quantities
+        billData.items.forEach((item, idx) => {
+            const key = item.key || `item_${idx}`;
+            const qty = parseFloat(item.qty_exec) || 0;
+            if (qty > 0) {
+                execMap[key] = qty;
+                updateAmount(idx, qty, rateMap[key]);
+            }
+        });
+        updateSummary();
+    });
 </script>
 
 {% endblock %}
