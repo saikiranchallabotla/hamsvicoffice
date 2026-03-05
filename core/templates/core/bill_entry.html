@@ -596,15 +596,15 @@
                 <table class="quantities-table">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">SL</th>
-                            <th style="width: 200px;">Item Description</th>
-                            <th style="width: 60px;">Unit</th>
-                            <th style="width: 80px;">Rate</th>
+                            <th class=\"sl-col\">SL</th>
+                            <th class=\"item-col\">Item Description</th>
+                            <th class=\"unit-col\">Unit</th>
+                            <th class=\"rate-col\">Rate</th>
                             {% if bill_number > 1 %}
-                            <th style="width: 100px; background: #fef3c7;">Deduct from Bill-{{ bill_number|add:"-1" }}</th>
+                            <th style=\"background: #fef3c7; text-align: center; font-size: 0.8rem; color: #92400e;\">Deduct from Bill-{{ bill_number|add:\"-1\" }}</th>
                             {% endif %}
-                            <th style="width: 100px; background: #dbeafe;">Bill-{{ bill_number }} Qty</th>
-                            <th style="width: 100px; background: #d1fae5;">Amount (₹)</th>
+                            <th style=\"background: #dbeafe; text-align: center; font-size: 0.8rem; color: #0c4a6e;\">Bill-{{ bill_number }} Qty</th>
+                            <th class=\"amount-col\">Amount (₹)</th>
                         </tr>
                     </thead>
                     <tbody id="quantities-tbody">

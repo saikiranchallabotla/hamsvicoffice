@@ -528,15 +528,15 @@
                 <table class="quantities-table">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">SL</th>
-                            <th style="width: 200px;">Item Description</th>
-                            <th style="width: 60px;">Unit</th>
+                            <th class="sl-col">SL</th>
+                            <th class="item-col">Item Description</th>
+                            <th class="unit-col">Unit</th>
                             {% if workslip_number > 1 %}
-                            <th style="width: 80px; background: #fef3c7;">Prev. Qty</th>
+                            <th style="background: #fef3c7; text-align: center; font-size: 0.8rem; color: #92400e; padding: 0.7rem 0.8rem;">Prev. Qty</th>
                             {% endif %}
-                            <th style="width: 80px;">Rate</th>
-                            <th style="width: 100px; background: #dcfce7;">WS-{{ workslip_number }} Qty</th>
-                            <th style="width: 100px; background: #d1fae5;">Amount (₹)</th>
+                            <th class="rate-col">Rate</th>
+                            <th style="background: #dcfce7; text-align: center; font-size: 0.8rem; color: #166534; padding: 0.7rem 0.8rem;">WS-{{ workslip_number }} Qty</th>
+                            <th class="amount-col">Amount (₹)</th>
                         </tr>
                     </thead>
                     <tbody id="quantities-tbody">
