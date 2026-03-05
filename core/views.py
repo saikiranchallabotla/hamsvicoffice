@@ -986,31 +986,34 @@ def workslip(request):
                     logger.info(f"[WORKSLIP DEBUG] Row {r} rate: formula={rate_formula}, value={rate_value}, final={rate_num}")
 
                     # item_desc: full specification description for Excel output.
-                    # Priority: Master Data row+2 lookup → description-only sub-row in estimate → desc_str
-                    item_desc = (
+                    # Collect all candidate descriptions and pick the longest (most detailed) one.
+                    desc_candidates = [desc_str]  # always include estimate description
+
+                    backend_desc = (
                         item_name_to_desc.get(display_name, '')
                         or item_name_to_desc.get(backend_item_name, '')
                     )
-                    if not item_desc:
-                        # Peek at the next 1-2 rows for a description-only row (no rate/qty)
-                        # that carries the full specification text (the "row+2 of item name" pattern)
-                        for peek_offset in (1, 2):
-                            peek_row = r + peek_offset
-                            if peek_row > max_row:
-                                break
-                            peek_desc = ws_est_sheet.cell(row=peek_row, column=col_desc).value
-                            peek_desc_str = str(peek_desc or "").strip()
-                            peek_rate = ws_est_sheet.cell(row=peek_row, column=col_rate).value
-                            peek_qty = ws_est_sheet.cell(row=peek_row, column=col_qty).value
-                            peek_rate_empty = (peek_rate is None or str(peek_rate).strip() == "")
-                            peek_qty_empty = (peek_qty is None or str(peek_qty).strip() == "")
-                            if peek_desc_str and peek_rate_empty and peek_qty_empty:
-                                # This row has description text but no rate/qty — it's a spec description row
-                                if len(peek_desc_str) > len(desc_str):
-                                    item_desc = peek_desc_str
-                                break
-                        if not item_desc:
-                            item_desc = desc_str
+                    if backend_desc:
+                        desc_candidates.append(backend_desc)
+
+                    # Peek at the next 1-2 rows for a description-only row (no rate/qty)
+                    # that carries the full specification text (the "row+2 of item name" pattern)
+                    for peek_offset in (1, 2):
+                        peek_row = r + peek_offset
+                        if peek_row > max_row:
+                            break
+                        peek_desc = ws_est_sheet.cell(row=peek_row, column=col_desc).value
+                        peek_desc_str = str(peek_desc or "").strip()
+                        peek_rate = ws_est_sheet.cell(row=peek_row, column=col_rate).value
+                        peek_qty = ws_est_sheet.cell(row=peek_row, column=col_qty).value
+                        peek_rate_empty = (peek_rate is None or str(peek_rate).strip() == "")
+                        peek_qty_empty = (peek_qty is None or str(peek_qty).strip() == "")
+                        if peek_desc_str and peek_rate_empty and peek_qty_empty:
+                            desc_candidates.append(peek_desc_str)
+                            break
+
+                    # Pick the longest candidate as the most detailed description
+                    item_desc = max(desc_candidates, key=len) if desc_candidates else desc_str
 
                     parsed_rows.append({
                         "key": f"{ws_est_sheet.title}_row{r}",
@@ -5158,9 +5161,12 @@ def bill(request):
                     amount = exec_qty * rate
                     bill_preload_total += amount
                     bill_preload_count += 1
+                    # Pick the longest (most detailed) description
+                    _desc_candidates = [v for v in [row.get('item_desc', ''), row.get('desc', ''), row.get('display_name', ''), row.get('item_name', '')] if v]
+                    _best_desc = max(_desc_candidates, key=len) if _desc_candidates else row.get('item_name', '')
                     bill_preload_items.append({
                         'sl': bill_preload_count,
-                        'desc': row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', ''),
+                        'desc': _best_desc,
                         'unit': row.get('unit', 'Nos'),
                         'qty': exec_qty,
                         'rate': rate,
@@ -5218,8 +5224,9 @@ def bill(request):
                 rate = float(row.get('rate', 0) or 0)
                 if rate == 0:
                     continue
-                # Prefer item_desc (Master Data row+2 full spec), then desc, then display_name
-                desc = row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', '')
+                # Pick the longest (most detailed) description available
+                _desc_opts = [v for v in [row.get('item_desc', ''), row.get('desc', ''), row.get('display_name', ''), row.get('item_name', '')] if v]
+                desc = max(_desc_opts, key=len) if _desc_opts else row.get('item_name', '')
                 unit = row.get('unit', 'Nos')
                 is_ae = str(desc).lower().startswith('ae')
                 items.append({
