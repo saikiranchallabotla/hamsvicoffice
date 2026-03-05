@@ -793,7 +793,7 @@
         alert(`Bill-${billData.billNumber} Preview\n\nTotal: ₹ ${document.getElementById('summary-net').textContent}`);
     }
 
-    // Form submission
+    // Form submission - Use AJAX to prevent adding page to browser history
     document.getElementById('bill-entry-form').addEventListener('submit', function(e) {
         e.preventDefault();
 
@@ -807,9 +807,76 @@
         deductMapField.value = JSON.stringify(deductMap);
         rateMapField.value = JSON.stringify(rateMap);
 
-        // Submit form
-        this.submit();
+        // Disable submit button and show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        // Get CSRF token
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+        // Prepare form data
+        const formData = new FormData(this);
+
+        // Submit via AJAX
+        fetch(this.action, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Accept': 'application/json',
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update browser history without adding entry form page
+                history.replaceState(null, '', data.redirect_url);
+                
+                // Show success message and redirect after short delay
+                showNotification('Bill saved successfully!', 'success');
+                setTimeout(() => {
+                    // Use replace() to prevent entry form being added to browser history
+                    window.location.replace(data.redirect_url);
+                }, 500);
+            } else {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                showNotification(data.error || 'Error saving bill', 'danger');
+            }
+        })
+        .catch(error => {
+            // Re-enable submit button
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            showNotification('Error: ' + error.message, 'danger');
+            console.error('Error:', error);
+        });
     });
+
+    // Notification helper
+    function showNotification(message, type = 'info') {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.style.position = 'fixed';
+        alertDiv.style.top = '20px';
+        alertDiv.style.right = '20px';
+        alertDiv.style.zIndex = '9999';
+        alertDiv.style.maxWidth = '400px';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        document.body.appendChild(alertDiv);
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 3000);
+    }
 
     // Initialize on load
     document.addEventListener('DOMContentLoaded', initializeTable);
