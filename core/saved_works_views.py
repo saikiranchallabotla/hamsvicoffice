@@ -2067,13 +2067,15 @@ def bill_generate(request, work_id):
         status='draft',
     ).order_by('-bill_number').first()
 
+    # Include both 'completed' and legacy 'in_progress' bills so that previous
+    # bill quantities are always available for the "Deduct Previous Measurements"
+    # column in Bill 3, Bill 4, etc.
     completed_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
             work_type='bill',
             parent=workslip,
-            status='completed',
-        ).order_by('bill_number')
+        ).exclude(status='draft').order_by('bill_number')
     )
 
     if draft_bill_record:
@@ -2283,6 +2285,7 @@ def bill_generate(request, work_id):
                 'bill_ws_tp_type': tp_type,
                 'bill_ws_metadata': header_data,
                 'ws_source_estimate_id': workslip.parent_id,
+                'source_workslip_id': workslip.id,  # explicit link for generate_next_bill_from_saved
             }
             # If draft bill exists for this bill_number, promote it to completed
             target_bill = SavedWork.objects.filter(
