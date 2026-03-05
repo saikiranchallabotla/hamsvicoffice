@@ -1,0 +1,691 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Bill {{ bill_number }} - {{ workslip.name }}{% endblock %}
+
+{% block nav_saved_works %}active{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Bill {{ bill_number }} Generator
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .bg-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    /* Info Banner */
+    .bg-banner {
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        border: 2px solid #34d399;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 12px rgba(52,211,153,0.15);
+    }
+    .bg-banner-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .bg-banner-icon {
+        background: #059669;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+    .bg-banner h4 {
+        margin: 0;
+        font-weight: 700;
+        color: #065f46;
+        font-size: 1rem;
+    }
+    .bg-banner .sub {
+        font-size: 0.78rem;
+        color: #047857;
+    }
+    .bg-tp-badge {
+        margin-left: auto;
+        background: #d1fae5;
+        border: 1px solid #6ee7b7;
+        border-radius: 6px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.72rem;
+        color: #065f46;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .bg-bill-type-badge {
+        border-radius: 6px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .bg-bill-type-badge.first {
+        background: #dbeafe; border: 1px solid #93c5fd; color: #1d4ed8;
+    }
+    .bg-bill-type-badge.nth {
+        background: #ede9fe; border: 1px solid #c4b5fd; color: #6d28d9;
+    }
+
+    /* Preview Table */
+    .bg-preview {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+    .bg-preview-header {
+        background: #f8fafc;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+    }
+    .bg-preview-header h5 {
+        margin: 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #334155;
+    }
+    .bg-preview-body {
+        max-height: 280px;
+        overflow-y: auto;
+    }
+    .bg-preview-body table {
+        width: 100%;
+        font-size: 0.7rem;
+        border-collapse: collapse;
+    }
+    .bg-preview-body th {
+        background: #f1f5f9;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding: 0.35rem 0.5rem;
+        text-align: center;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #475569;
+    }
+    .bg-preview-body td {
+        padding: 0.3rem 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .bg-preview-body td.text-right {
+        text-align: right;
+    }
+    .bg-preview-body td.text-center {
+        text-align: center;
+    }
+    .bg-preview-body .total-row {
+        background: #f0fdf4;
+        font-weight: 700;
+        color: #059669;
+    }
+
+    /* Common Details Card */
+    .bg-common {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+    .bg-common-header {
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
+        padding: 0.5rem 0.75rem;
+    }
+    .bg-common-header h5 {
+        margin: 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .bg-common-header .tagline {
+        font-size: 0.65rem;
+        opacity: 0.9;
+        margin-top: 0.15rem;
+    }
+    .bg-common-body {
+        padding: 0.75rem;
+    }
+    .bg-field-group {
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.5rem 0.6rem;
+        margin-bottom: 0.5rem;
+        background: #f7fafc;
+    }
+    .bg-field-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #805ad5;
+        margin-bottom: 0.3rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .bg-field-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .bg-field-row label {
+        font-size: 0.68rem;
+        color: #4a5568;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+    .bg-field-row input,
+    .bg-field-row select {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+        min-width: 70px;
+        background: white;
+        transition: all 0.2s;
+    }
+    .bg-field-row input:focus,
+    .bg-field-row select:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.1);
+    }
+
+    /* Action Cards */
+    .bg-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    @media (max-width: 768px) {
+        .bg-actions {
+            grid-template-columns: 1fr;
+        }
+    }
+    .bg-action-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    .bg-action-header {
+        padding: 0.6rem 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: white;
+    }
+    .bg-action-header.bill-header-first {
+        background: #319795;
+    }
+    .bg-action-header.bill-header-nth {
+        background: #805ad5;
+    }
+    .bg-action-header.doc-header {
+        background: #dd6b20;
+    }
+    .bg-action-header h5 {
+        margin: 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+    .bg-action-header .badge-num {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.8rem;
+    }
+    .bg-action-body {
+        padding: 0.75rem;
+    }
+    .bg-action-note {
+        font-size: 0.68rem;
+        color: #718096;
+        margin-bottom: 0.6rem;
+    }
+    .bg-btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    /* Buttons */
+    .bg-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.5rem 0.85rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+    .bg-btn-primary {
+        color: white;
+    }
+    .bg-btn-primary.first { background: #319795; }
+    .bg-btn-primary.nth { background: #805ad5; }
+    .bg-btn-primary.first:hover { background: #2c7a7b; }
+    .bg-btn-primary.nth:hover { background: #6b46c1; }
+    .bg-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    }
+    .bg-btn-secondary {
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+    .bg-btn-secondary:hover {
+        background: #cbd5e0;
+    }
+    .bg-btn-orange {
+        background: #dd6b20;
+        color: white;
+    }
+    .bg-btn-orange:hover {
+        background: #c05621;
+    }
+    .bg-btn-teal {
+        background: #319795;
+        color: white;
+    }
+    .bg-btn-teal:hover {
+        background: #2c7a7b;
+    }
+    .bg-btn:disabled {
+        background: #cbd5e0;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    .bg-btn-disabled {
+        opacity: 0.5;
+        position: relative;
+    }
+    .bg-btn-disabled::after {
+        content: '\F62A';
+        font-family: 'bootstrap-icons';
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: #e53e3e;
+        color: white;
+        font-size: 0.55rem;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Back link */
+    .bg-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #64748b;
+        text-decoration: none;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+        transition: color 0.2s;
+    }
+    .bg-back:hover {
+        color: #1e293b;
+    }
+
+    /* Nth format info */
+    .bg-nth-info {
+        background: #ede9fe;
+        border: 1px solid #c4b5fd;
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.6rem;
+        font-size: 0.68rem;
+        color: #5b21b6;
+    }
+
+    /* Template status badges */
+    .tmpl-badge-ok {
+        background: #48bb78;
+        color: white;
+        font-size: 0.58rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .tmpl-badge-no {
+        background: #fc8181;
+        color: white;
+        font-size: 0.58rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+</style>
+
+<div class="bg-container">
+
+    <!-- Back Link -->
+    {% if work %}
+    <a href="{% url 'bill_choice' work.id %}" class="bg-back">
+        <i class="bi bi-arrow-left"></i> Back to Bill Options
+    </a>
+    {% else %}
+    <a href="{% url 'saved_works_list' %}" class="bg-back">
+        <i class="bi bi-arrow-left"></i> Back to Saved Works
+    </a>
+    {% endif %}
+
+    <!-- Info Banner -->
+    <div class="bg-banner">
+        <div class="bg-banner-row">
+            <div class="bg-banner-icon">
+                <i class="bi bi-receipt"></i>
+            </div>
+            <div>
+                <h4>Bill {{ bill_number }} — {{ workslip.name }}</h4>
+                <div class="sub">
+                    {{ item_count }} items &bull;
+                    Total: &#8377;{{ total_amount|floatformat:2 }}
+                    {% if work %} &bull; Estimate: {{ work.name }}{% endif %}
+                    {% if has_draft_quantities %}&bull; <span style="background:#bfdbfe; border-radius:4px; padding:0.1rem 0.4rem; color:#1e40af; font-weight:600;"><i class="bi bi-floppy me-1"></i>Quantities from entry form</span>{% endif %}
+                </div>
+            </div>
+            <span class="bg-bill-type-badge {% if bill_number == 1 %}first{% else %}nth{% endif %}">
+                {% if bill_number == 1 %}
+                    <i class="bi bi-1-circle me-1"></i> First Bill
+                {% else %}
+                    <i class="bi bi-arrow-repeat me-1"></i> {{ bill_ord }} Bill
+                {% endif %}
+            </span>
+            {% if tp_percent %}
+            <span class="bg-tp-badge">
+                T.P: {{ tp_percent }}% {{ tp_type }}
+            </span>
+            {% endif %}
+        </div>
+        {% if item_count == 0 %}
+        <div style="margin-top: 0.5rem; font-size: 0.72rem; color: #92400e; background: #fef3c7; border-radius: 6px; padding: 0.4rem 0.7rem; display:flex; align-items:center; gap:0.5rem;">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span><strong>No quantities found.</strong> Use the quantity entry form to enter executed quantities for this bill.</span>
+            <a href="{% url 'bill_entry' work_id=workslip.id %}" style="margin-left:auto; background:#d97706; color:white; padding:0.3rem 0.7rem; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.7rem; white-space:nowrap;">
+                <i class="bi bi-pencil-square me-1"></i> Enter Quantities
+            </a>
+        </div>
+        {% else %}
+        <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #065f46; background: #a7f3d0; border-radius: 6px; padding: 0.35rem 0.6rem; display:flex; align-items:center; gap:0.5rem;">
+            <i class="bi bi-lightning-fill me-1"></i>
+            <strong>Ready to generate!</strong> Fill in MB &amp; date details below and generate.
+            <a href="{% url 'bill_entry' work_id=workslip.id %}" style="margin-left:auto; background:#059669; color:white; padding:0.2rem 0.6rem; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.65rem; white-space:nowrap; opacity:0.85;">
+                <i class="bi bi-pencil-square me-1"></i> Edit Quantities
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Data Preview -->
+    <div class="bg-preview">
+        <div class="bg-preview-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+            <h5><i class="bi bi-eye me-1"></i> Preview: {{ item_count }} items loaded</h5>
+            <i class="bi bi-chevron-down" style="font-size: 0.8rem; color: #94a3b8;"></i>
+        </div>
+        <div class="bg-preview-body" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:30px;">Sl</th>
+                        <th style="text-align:left;">Description</th>
+                        <th style="width:50px;">Unit</th>
+                        <th style="width:70px;">Qty</th>
+                        <th style="width:70px;">Rate</th>
+                        <th style="width:90px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td class="text-center">{{ item.sl }}</td>
+                        <td>{{ item.desc|truncatechars:80 }}</td>
+                        <td class="text-center">{{ item.unit }}</td>
+                        <td class="text-right">{{ item.qty }}</td>
+                        <td class="text-right">{{ item.rate }}</td>
+                        <td class="text-right" style="color: #059669; font-weight:600;">{{ item.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="total-row">
+                        <td colspan="5" style="text-align:right; padding-right:0.75rem;">Sub Total:</td>
+                        <td class="text-right">&#8377;{{ total_amount|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Common Details Form (shared across all actions) -->
+    <form method="post" id="billForm">
+        {% csrf_token %}
+
+        <div class="bg-common">
+            <div class="bg-common-header">
+                <h5><i class="bi bi-gear-fill"></i> MB / Date Details</h5>
+                <div class="tagline">Used for bill generation and all documents.</div>
+            </div>
+            <div class="bg-common-body">
+                <!-- MB Details -->
+                <div class="bg-field-group">
+                    <div class="bg-field-label"><i class="bi bi-book"></i> Measurement Book Details</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div style="background: #f0f9ff; padding: 0.5rem 0.6rem; border-radius: 6px; border: 1px solid #bae6fd;">
+                            <div style="font-size: 0.65rem; color: #0369a1; font-weight: 600; margin-bottom: 0.3rem;">
+                                <i class="bi bi-journal-text me-1"></i>Measurement Book
+                            </div>
+                            <div class="bg-field-row" style="gap: 0.4rem;">
+                                <label style="flex:2;">M.B. No. <input type="text" name="mb_measure_no" style="width:100%;" /></label>
+                                <label style="flex:1;">From Pg. <input type="text" name="mb_measure_p_from" style="width:100%;" /></label>
+                                <label style="flex:1;">To Pg. <input type="text" name="mb_measure_p_to" style="width:100%;" /></label>
+                            </div>
+                        </div>
+                        <div style="background: #fef3c7; padding: 0.5rem 0.6rem; border-radius: 6px; border: 1px solid #fcd34d;">
+                            <div style="font-size: 0.65rem; color: #b45309; font-weight: 600; margin-bottom: 0.3rem;">
+                                <i class="bi bi-journal-bookmark me-1"></i>Abstract Book
+                            </div>
+                            <div class="bg-field-row" style="gap: 0.4rem;">
+                                <label style="flex:2;">Abs. M.B. No. <input type="text" name="mb_abstract_no" style="width:100%;" /></label>
+                                <label style="flex:1;">From Pg. <input type="text" name="mb_abstract_p_from" style="width:100%;" /></label>
+                                <label style="flex:1;">To Pg. <input type="text" name="mb_abstract_p_to" style="width:100%;" /></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dates -->
+                <div class="bg-field-group">
+                    <div class="bg-field-label"><i class="bi bi-calendar3"></i> Important Dates</div>
+                    <div class="bg-field-row" style="gap: 0.6rem;">
+                        <label style="flex:1;">
+                            <span style="display:flex; align-items:center; gap:0.25rem;">
+                                <i class="bi bi-calendar-event" style="color:#059669;"></i> Date of Indication
+                            </span>
+                            <input type="date" name="doi" style="width:100%;" />
+                        </label>
+                        <label style="flex:1;">
+                            <span style="display:flex; align-items:center; gap:0.25rem;">
+                                <i class="bi bi-calendar-check" style="color:#0284c7;"></i> Date of Completion
+                            </span>
+                            <input type="date" name="doc" style="width:100%;" />
+                        </label>
+                        <label style="flex:1;">
+                            <span style="display:flex; align-items:center; gap:0.25rem;">
+                                <i class="bi bi-calendar-week" style="color:#7c3aed;"></i> D.O.M.R.
+                            </span>
+                            <input type="date" name="domr" style="width:100%;" />
+                        </label>
+                        <label style="flex:1;">
+                            <span style="display:flex; align-items:center; gap:0.25rem;">
+                                <i class="bi bi-calendar2-check" style="color:#dc2626;"></i> D.O.B.R.
+                            </span>
+                            <input type="date" name="dobr" style="width:100%;" />
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Cards -->
+        <div class="bg-actions">
+
+            <!-- Bill Generation Card -->
+            <div class="bg-action-card">
+                <div class="bg-action-header {% if bill_number == 1 %}bill-header-first{% else %}bill-header-nth{% endif %}">
+                    <div class="badge-num">
+                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                    </div>
+                    <h5>Generate Bill {{ bill_number }}</h5>
+                </div>
+                <div class="bg-action-body">
+                    {% if bill_number > 1 and has_previous %}
+                    <div class="bg-nth-info">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>{{ bill_ord }} Bill format:</strong> 11-column layout with "Quantity Till Date",
+                        "Deduct Previous Measurements" (from Bill 1{% if bill_number > 2 %}-{{ bill_number|add:"-1" }}{% endif %}),
+                        and "Since Last Measurements" columns.
+                    </div>
+                    {% elif bill_number > 1 %}
+                    <div class="bg-nth-info" style="background: #fef3c7; border-color: #fcd34d; color: #92400e;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <strong>Note:</strong> No previous bill data found. Previous deductions will be zero.
+                    </div>
+                    {% endif %}
+                    <p class="bg-action-note">
+                        {% if bill_number == 1 %}
+                        Generate CC First &amp; Part or First &amp; Final Bill (8-column format) from Workslip {{ workslip.workslip_number }}.
+                        {% else %}
+                        Generate CC {{ bill_ord }} &amp; Part or {{ bill_ord }} &amp; Final Bill from Workslip {{ workslip.workslip_number }}.
+                        {% endif %}
+                    </p>
+                    <div class="bg-btn-row">
+                        <button type="submit" name="action_type" value="bill_part" class="bg-btn bg-btn-primary {% if bill_number == 1 %}first{% else %}nth{% endif %}">
+                            <i class="bi bi-file-earmark-plus"></i>
+                            {% if bill_number == 1 %}CC First &amp; Part{% else %}CC {{ bill_ord }} &amp; Part{% endif %}
+                        </button>
+                        <button type="submit" name="action_type" value="bill_final" class="bg-btn bg-btn-secondary">
+                            <i class="bi bi-file-earmark-check"></i>
+                            {% if bill_number == 1 %}CC First &amp; Final{% else %}CC {{ bill_ord }} &amp; Final{% endif %}
+                        </button>
+                    </div>
+                    {% if existing_bill %}
+                    <div style="margin-top: 0.5rem; font-size: 0.62rem; color: #059669; background: #ecfdf5; border-radius: 4px; padding: 0.25rem 0.5rem;">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Bill previously generated: <strong>{{ existing_bill.name }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Documents Card -->
+            <div class="bg-action-card">
+                <div class="bg-action-header doc-header">
+                    <div class="badge-num">
+                        <i class="bi bi-file-earmark-text"></i>
+                    </div>
+                    <h5>Documents for Bill {{ bill_number }}</h5>
+                </div>
+                <div class="bg-action-body">
+                    <p class="bg-action-note">
+                        Generate LS Form, Covering Letter & Movement Slip using loaded data and your templates.
+                    </p>
+
+                    <!-- LS Forms -->
+                    <div style="margin-bottom: 0.6rem;">
+                        <div style="font-size: 0.68rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem;">
+                            <i class="bi bi-file-earmark-excel me-1" style="color: #16a34a;"></i> L.S. Form
+                        </div>
+                        <div class="bg-btn-row">
+                            <button type="submit" name="action_type" value="ls_part" class="bg-btn bg-btn-teal">
+                                <i class="bi bi-file-earmark-plus"></i> L.S. (Part)
+                            </button>
+                            <button type="submit" name="action_type" value="ls_final" class="bg-btn bg-btn-secondary">
+                                <i class="bi bi-file-earmark-check"></i> L.S. (Final)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Covering Letter -->
+                    <div style="margin-bottom: 0.6rem;">
+                        <div style="font-size: 0.68rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="bi bi-file-earmark-word me-1" style="color: #2563eb;"></i> Covering Letter
+                            {% if covering_letter_template %}
+                            <span class="tmpl-badge-ok"><i class="bi bi-check-circle-fill"></i> Uploaded</span>
+                            {% else %}
+                            <span class="tmpl-badge-no"><i class="bi bi-x-circle-fill"></i> Not Uploaded</span>
+                            {% endif %}
+                        </div>
+                        <div class="bg-btn-row">
+                            <button type="submit" name="action_type" value="covering"
+                                class="bg-btn bg-btn-secondary {% if not covering_letter_template %}bg-btn-disabled{% endif %}"
+                                {% if not covering_letter_template %}onclick="event.preventDefault(); alert('Please upload your Covering Letter template from the Bill Generator page first.');"{% endif %}>
+                                <i class="bi bi-file-earmark-word"></i> Covering Letter
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Movement Slip -->
+                    <div>
+                        <div style="font-size: 0.68rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="bi bi-file-earmark-word me-1" style="color: #d97706;"></i> Movement Slip
+                            {% if movement_slip_template %}
+                            <span class="tmpl-badge-ok"><i class="bi bi-check-circle-fill"></i> Uploaded</span>
+                            {% else %}
+                            <span class="tmpl-badge-no"><i class="bi bi-x-circle-fill"></i> Not Uploaded</span>
+                            {% endif %}
+                        </div>
+                        <div class="bg-btn-row">
+                            <button type="submit" name="action_type" value="movement"
+                                class="bg-btn bg-btn-secondary {% if not movement_slip_template %}bg-btn-disabled{% endif %}"
+                                {% if not movement_slip_template %}onclick="event.preventDefault(); alert('Please upload your Movement Slip template from the Bill Generator page first.');"{% endif %}>
+                                <i class="bi bi-file-earmark-word"></i> Movement Slip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /bg-actions -->
+
+    </form>
+
+</div><!-- /bg-container -->
+
+{% endblock %}

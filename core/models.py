@@ -701,9 +701,81 @@ class SavedWork(models.Model):
         """Check if this work can generate a bill (Estimates and Workslips can)"""
         return self.work_type in ['new_estimate', 'workslip']
 
+    def get_root_estimate(self):
+        """Walk up the parent chain to find the root estimate."""
+        current = self
+        while current.parent:
+            current = current.parent
+        if current.work_type in ('new_estimate', 'temporary_works', 'amc'):
+            return current
+        return None
+
     def get_next_bill_number(self):
-        """Get the next bill number to generate"""
-        return self.bill_number + 1 if self.work_type == 'bill' else 1
+        """Get the next bill number based on ALL existing bills in the workflow chain.
+        Checks bills parented to root estimate AND bills parented to any workslip."""
+        root = self.get_root_estimate()
+        if not root:
+            root = self  # fallback: treat self as root
+        
+        # Collect all bill numbers: direct children of root + children of all workslips
+        from django.db.models import Q
+        workslip_ids = list(
+            root.children.filter(work_type='workslip').values_list('id', flat=True)
+        )
+        all_bills = root.children.model.objects.filter(
+            Q(parent=root, work_type='bill') |
+            Q(parent_id__in=workslip_ids, work_type='bill')
+        ).order_by('-bill_number')
+        
+        max_bill = all_bills.first()
+        if max_bill and max_bill.bill_number:
+            return max_bill.bill_number + 1
+        return 1
+
+    def get_bill_type_display_label(self):
+        """Get display label like 'CC First & Part Bill', 'CC Second & Final Bill'"""
+        ordinals = {1: 'First', 2: 'Second', 3: 'Third', 4: 'Fourth', 5: 'Fifth',
+                    6: 'Sixth', 7: 'Seventh', 8: 'Eighth', 9: 'Ninth', 10: 'Tenth'}
+        n = self.bill_number or 1
+        ordinal = ordinals.get(n, f'{n}th')
+        bill_type = self.bill_type or ''
+        if bill_type.endswith('_part'):
+            return f'CC {ordinal} & Part Bill'
+        elif bill_type.endswith('_final'):
+            return f'CC {ordinal} & Final Bill'
+        return f'Bill-{n}'
+
+    def get_all_workslips(self):
+        """Get all workslips in this workflow chain, ordered by workslip_number"""
+        root = self.get_root_estimate()
+        if not root:
+            return []
+        workslips = []
+        self._collect_workslips(root, workslips)
+        return sorted(workslips, key=lambda w: w.workslip_number)
+
+    def _collect_workslips(self, node, result):
+        """Recursively collect workslips from the workflow tree"""
+        if node.work_type == 'workslip':
+            result.append(node)
+        for child in node.children.all():
+            self._collect_workslips(child, result)
+
+    def get_all_bills(self):
+        """Get all bills in this workflow chain, ordered by bill_number"""
+        root = self.get_root_estimate()
+        if not root:
+            return []
+        bills = []
+        self._collect_bills(root, bills)
+        return sorted(bills, key=lambda w: w.bill_number)
+
+    def _collect_bills(self, node, result):
+        """Recursively collect bills from the workflow tree"""
+        if node.work_type == 'bill':
+            result.append(node)
+        for child in node.children.all():
+            self._collect_bills(child, result)
 
     def get_children_by_type(self, work_type):
         """Get all child works of a specific type"""

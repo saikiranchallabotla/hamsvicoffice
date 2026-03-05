@@ -2591,7 +2591,19 @@ function saveCurrentWork() {
     const workTypeInput = document.querySelector('input[name="work_type"]:checked');
     const workType = workTypeInput ? workTypeInput.value : 'original';
     
-    // Save quantities and units to session first
+    // Include qty data directly in the save-work POST so we don't rely
+    // solely on the session being flushed between two sequential requests.
+    formData.append('qty_map_json', JSON.stringify(qtyMap));
+    formData.append('unit_map_json', JSON.stringify(unitMap));
+    formData.append('grand_total_value', grandTotal);
+    formData.append('work_name_value', workName);
+    formData.append('excess_tp_percent_value', excessTpPercent);
+    formData.append('ls_special_name_value', lsSpecialName);
+    formData.append('ls_special_amount_value', lsSpecialAmount);
+    formData.append('deduct_old_material_value', deductOldMaterial);
+    formData.append('work_type_value', workType);
+
+    // Also save quantities to session (for group navigation, etc.)
     const saveQtyData = new FormData();
     saveQtyData.append('csrfmiddlewaretoken', csrfToken);
     saveQtyData.append('qty_map', JSON.stringify(qtyMap));
@@ -2604,45 +2616,36 @@ function saveCurrentWork() {
     saveQtyData.append('deduct_old_material', deductOldMaterial);
     saveQtyData.append('work_type', workType);
     
-    // First save qty_map to session
-    fetch('/datas/{{ category }}/save_qty_map/', {
+    // Save qty_map to session AND save the work in parallel — the save_work
+    // endpoint now reads qty data from POST directly, so order doesn't matter.
+    const saveQtyPromise = fetch('/datas/{{ category }}/save_qty_map/', {
         method: 'POST',
         body: saveQtyData,
+        headers: { 'X-CSRFToken': csrfToken }
+    }).catch(err => console.warn('Session qty save failed (non-critical):', err));
+
+    // Save the work (qty data is included in formData)
+    fetch('/saved-works/save/', {
+        method: 'POST',
+        body: formData,
         headers: {
             'X-CSRFToken': csrfToken
         }
     })
     .then(response => response.json())
-    .then(qtyData => {
-        // Now save the work
-        fetch('/saved-works/save/', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('saveWorkModal'));
-                modal.hide();
-                // Show toast notification instead of alert
-                showSaveToast(data.message || 'Work saved successfully!');
-            } else {
-                alert('Error: ' + (data.error || 'Failed to save work'));
-            }
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
-        })
-        .catch(error => {
-            alert('Error saving work: ' + error);
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
-        });
+    .then(data => {
+        if (data.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('saveWorkModal'));
+            modal.hide();
+            showSaveToast(data.message || 'Work saved successfully!');
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save work'));
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
     })
     .catch(error => {
-        alert('Error saving quantities: ' + error);
+        alert('Error saving work: ' + error);
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Work';
     });

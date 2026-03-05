@@ -519,6 +519,8 @@ def workslip(request):
         request.session["ws_work_type"] = None  # Clear work type selection
         request.session["ws_work_mode"] = None  # Clear work mode selection
         request.session["ws_category"] = None  # Clear category selection
+        request.session["current_saved_work_id"] = None  # Clear saved work link so new estimate doesn't update an old work
+        request.session["ws_parent_work_id"] = None  # Clear parent work link
     
     # Handle work type, work mode and category from URL parameters (from workslip_home)
     url_work_type = request.GET.get("work_type")
@@ -617,6 +619,7 @@ def workslip(request):
 
     # -------- 0) Load backend (groups/items + Master Datas) ----------
     desc_to_item = {}
+    item_name_to_desc = {}  # Maps yellow header name → row+2 description from Master Datas
     try:
         items_list, groups_map, units_map, ws_data, filepath = load_backend(
             category, settings.BASE_DIR,
@@ -632,6 +635,7 @@ def workslip(request):
                 desc_text = str(desc_cell or "").strip()
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
+                    item_name_to_desc[item_name] = desc_text
     except Exception:
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
@@ -981,12 +985,40 @@ def workslip(request):
                     # DEBUG: Log rate source
                     logger.info(f"[WORKSLIP DEBUG] Row {r} rate: formula={rate_formula}, value={rate_value}, final={rate_num}")
 
+                    # item_desc: full specification description for Excel output.
+                    # Priority: Master Data row+2 lookup → description-only sub-row in estimate → desc_str
+                    item_desc = (
+                        item_name_to_desc.get(display_name, '')
+                        or item_name_to_desc.get(backend_item_name, '')
+                    )
+                    if not item_desc:
+                        # Peek at the next 1-2 rows for a description-only row (no rate/qty)
+                        # that carries the full specification text (the "row+2 of item name" pattern)
+                        for peek_offset in (1, 2):
+                            peek_row = r + peek_offset
+                            if peek_row > max_row:
+                                break
+                            peek_desc = ws_est_sheet.cell(row=peek_row, column=col_desc).value
+                            peek_desc_str = str(peek_desc or "").strip()
+                            peek_rate = ws_est_sheet.cell(row=peek_row, column=col_rate).value
+                            peek_qty = ws_est_sheet.cell(row=peek_row, column=col_qty).value
+                            peek_rate_empty = (peek_rate is None or str(peek_rate).strip() == "")
+                            peek_qty_empty = (peek_qty is None or str(peek_qty).strip() == "")
+                            if peek_desc_str and peek_rate_empty and peek_qty_empty:
+                                # This row has description text but no rate/qty — it's a spec description row
+                                if len(peek_desc_str) > len(desc_str):
+                                    item_desc = peek_desc_str
+                                break
+                        if not item_desc:
+                            item_desc = desc_str
+
                     parsed_rows.append({
                         "key": f"{ws_est_sheet.title}_row{r}",
                         "excel_row": r,
                         "item_name": backend_item_name,      # backend / mapping name
                         "display_name": display_name,        # yellow header for UI
                         "desc": desc_str,                    # full description from Estimate
+                        "item_desc": item_desc,              # row+2 content from Master Datas for Excel output
                         "qty_est": qty_num,
                         "unit": str(unit or "").strip(),
                         "rate": rate_num,
@@ -2534,7 +2566,7 @@ def workslip(request):
                 unit = row.get("unit") or ""
                 original_rate = float(row.get("rate", 0) or 0)
                 rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
-                desc_est = row.get("desc") or row.get("item_name") or ""
+                desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
@@ -5107,11 +5139,19 @@ def bill(request):
                 bill_preload_tp_type = request.session.get('bill_ws_tp_type', 'Excess')
                 for idx, row in enumerate(ws_rows):
                     key = row.get('key', f'saved_{idx}')
+                    # Try exec_map first, fall back to qty_est if exec_map is empty
                     exec_qty = ws_exec_map.get(key, 0)
                     try:
                         exec_qty = float(exec_qty) if exec_qty else 0.0
                     except (ValueError, TypeError):
                         exec_qty = 0.0
+                    # Fallback: if no exec_qty and ws_exec_map is empty,
+                    # use qty_est so the bill still shows items
+                    if exec_qty <= 0 and not ws_exec_map:
+                        try:
+                            exec_qty = float(row.get('qty_est', 0) or 0)
+                        except (ValueError, TypeError):
+                            exec_qty = 0.0
                     if exec_qty <= 0:
                         continue
                     rate = float(row.get('rate', 0) or 0)
@@ -5120,7 +5160,7 @@ def bill(request):
                     bill_preload_count += 1
                     bill_preload_items.append({
                         'sl': bill_preload_count,
-                        'desc': row.get('display_name') or row.get('item_name', row.get('desc', '')),
+                        'desc': row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', ''),
                         'unit': row.get('unit', 'Nos'),
                         'qty': exec_qty,
                         'rate': rate,
@@ -5167,13 +5207,19 @@ def bill(request):
                     exec_qty = float(exec_qty) if exec_qty else 0.0
                 except (ValueError, TypeError):
                     exec_qty = 0.0
+                # Fallback: use qty_est when exec_map is empty
+                if exec_qty <= 0 and not ws_exec_map:
+                    try:
+                        exec_qty = float(row.get('qty_est', 0) or 0)
+                    except (ValueError, TypeError):
+                        exec_qty = 0.0
                 if exec_qty <= 0:
                     continue
                 rate = float(row.get('rate', 0) or 0)
                 if rate == 0:
                     continue
-                # Use 'desc' (row+2 of yellow/red header) preferentially
-                desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+                # Prefer item_desc (Master Data row+2 full spec), then desc, then display_name
+                desc = row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', '')
                 unit = row.get('unit', 'Nos')
                 is_ae = str(desc).lower().startswith('ae')
                 items.append({
@@ -8779,19 +8825,35 @@ def datas_items(request, category, group):
     grand_total = request.session.get("grand_total", "") or ""
 
     estimate_rows = []
+    # Build a serialisable rates map for session persistence so that
+    # workslip generation can reuse the *exact* rates the user sees here.
+    session_item_rates = {}
+    session_item_units = {}
     for idx, name in enumerate(fetched, start=1):
         default_plural, singular = units_for(name)
         # Priority: 1) user-entered unit from UI, 2) backend_units_map default
         custom_unit = unit_map.get(name, "")
         display_unit = custom_unit if custom_unit else default_plural
+        raw_rate = item_rates.get(name)
         estimate_rows.append({
             "sl": idx,
             "name": name,
-            "rate": item_rates.get(name),
+            "rate": raw_rate,
             "unit": display_unit,
             "default_unit": default_plural,
             "qty": qty_map.get(name, ""),
         })
+        # Store numeric rate for session (JSON-safe)
+        try:
+            session_item_rates[name] = float(raw_rate) if raw_rate is not None else 0.0
+        except (ValueError, TypeError):
+            session_item_rates[name] = 0.0
+        session_item_units[name] = display_unit
+
+    # Persist rates & units so saved-works → workslip gets exact values
+    request.session["item_rates"] = session_item_rates
+    request.session["item_units"] = session_item_units
+    request.session.modified = True
 
     work_type = request.session.get("work_type", "original") or "original"
     excess_tp_percent = request.session.get("excess_tp_percent", "") or ""
@@ -9352,6 +9414,9 @@ def save_qty_map(request, category):
             
             if work_type:
                 request.session["work_type"] = work_type
+            
+            # Ensure session is flushed to DB before the response is sent
+            request.session.modified = True
             
             return JsonResponse({"status": "ok"})
         except Exception as e:
