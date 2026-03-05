@@ -1819,9 +1819,9 @@ def bill_choice(request, work_id):
         messages.info(request, 'No workslips found. Generate a workslip first.')
         return redirect('saved_works_list')
 
-    # If only one workslip, skip the choice page
+    # If only one workslip, go straight to bill entry
     if len(all_workslips) == 1:
-        return redirect('bill_generate', work_id=all_workslips[0].id)
+        return redirect('bill_entry', work_id=all_workslips[0].id)
 
     # Gather existing bills
     workslip_ids = [ws.id for ws in all_workslips]
@@ -1880,16 +1880,15 @@ def bill_entry(request, work_id):
         messages.error(request, 'Workslip has no items. Cannot create bill entry.')
         return redirect('saved_work_detail', work_id=work_id)
 
-    # Gather all COMPLETED bills for this workslip (ordered) — used for previous quantities display
-    # and for determining the next bill number. Drafts are excluded so that revisiting bill_entry
-    # after a partial save doesn't inflate the bill number.
+    # Gather all previously generated bills for this workslip — used for previous quantities display
+    # and for determining the next bill number.  We exclude only 'draft' status so that bills
+    # created via the old session-based flow (status='in_progress') are still counted.
     existing_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
             work_type='bill',
             parent=workslip,
-            status='completed',
-        ).order_by('bill_number')
+        ).exclude(status='draft').order_by('bill_number')
     )
 
     # Determine next bill number based only on completed bills
@@ -2068,13 +2067,15 @@ def bill_generate(request, work_id):
         status='draft',
     ).order_by('-bill_number').first()
 
+    # Include both 'completed' and legacy 'in_progress' bills so that previous
+    # bill quantities are always available for the "Deduct Previous Measurements"
+    # column in Bill 3, Bill 4, etc.
     completed_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
             work_type='bill',
             parent=workslip,
-            status='completed',
-        ).order_by('bill_number')
+        ).exclude(status='draft').order_by('bill_number')
     )
 
     if draft_bill_record:
@@ -2284,6 +2285,7 @@ def bill_generate(request, work_id):
                 'bill_ws_tp_type': tp_type,
                 'bill_ws_metadata': header_data,
                 'ws_source_estimate_id': workslip.parent_id,
+                'source_workslip_id': workslip.id,  # explicit link for generate_next_bill_from_saved
             }
             # If draft bill exists for this bill_number, promote it to completed
             target_bill = SavedWork.objects.filter(
@@ -2556,39 +2558,15 @@ def generate_bill_from_saved(request, work_id):
         logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
         messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
 
-    # ── Pre-create the SavedWork record for the bill so save button
-    #    auto-updates without asking for a name. ──
-    # Walk up to root estimate for the base name
-    base_name = saved_work.name
-    root = saved_work.parent
-    while root:
-        if root.work_type == 'new_estimate':
-            base_name = root.name
-            break
-        root = root.parent
-    if saved_work.work_type == 'new_estimate':
-        base_name = saved_work.name
+    # For workslip source: redirect directly to bill_entry so the user enters
+    # quantities for this billing period via the new bill_entry → bill_generate flow.
+    # bill_entry handles draft creation and proper status tracking.
+    if saved_work.work_type == 'workslip':
+        request.session.modified = True
+        return redirect(reverse('bill_entry', kwargs={'work_id': saved_work.id}))
 
+    # For estimate source (legacy fallback): redirect to old bill view with session data.
     bill_number = request.session.get('bill_target_number', 1)
-    new_bill_name = f"{base_name} - B{bill_number}"
-
-    new_bill = SavedWork.objects.create(
-        organization=org,
-        user=user,
-        folder=saved_work.folder,
-        parent=saved_work,
-        name=new_bill_name,
-        work_type='bill',
-        work_data={},  # will be filled on first save
-        category=saved_work.category or 'electrical',
-        notes='',
-        progress_percent=0,
-        last_step='bill',
-        bill_number=bill_number,
-    )
-
-    request.session['current_saved_work_id'] = new_bill.id
-    request.session['current_saved_work_name'] = new_bill_name
     request.session.modified = True
     return redirect(reverse('bill') + '?from_saved=1')
 
@@ -2994,7 +2972,8 @@ def saved_work_action(request, work_id):
         })
 
     elif action == 'generate_first_bill':
-        # Generate Bill-1 from a workslip
+        # Generate Bill-1 from a workslip — go through bill_entry so quantities
+        # are entered per billing period and the record gets status='completed' correctly.
         if saved_work.work_type != 'workslip':
             return JsonResponse({
                 'success': False,
@@ -3002,7 +2981,7 @@ def saved_work_action(request, work_id):
             }, status=400)
         return JsonResponse({
             'success': True,
-            'redirect_url': reverse('generate_bill_from_saved', kwargs={'work_id': work_id}),
+            'redirect_url': reverse('bill_entry', kwargs={'work_id': work_id}),
             'action': 'generate_first_bill',
         })
 
