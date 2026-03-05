@@ -71,7 +71,7 @@ def bill_entry(request, work_id):
     # Build bill items from workslip quantities
     bill_items = []
     for idx, row in enumerate(ws_rows):
-        key = row.get('key', f'item_{idx}')
+        key = row.get('key') or row.get('item_name') or f'item_{idx}'
         qty_exec = ws_exec.get(key, 0)
         try:
             qty_exec = float(qty_exec) if qty_exec else 0.0
@@ -80,10 +80,13 @@ def bill_entry(request, work_id):
         
         # Include ALL items from workslip, even if qty is 0 (for reference)
         rate = float(row.get('rate', 0) or 0)
+        item_name = row.get('display_name') or row.get('item_name') or row.get('desc') or 'Item'
+        unit = row.get('unit') or 'Nos'
+        
         bill_items.append({
             'key': key,
-            'item_name': row.get('display_name') or row.get('item_name') or row.get('desc', ''),
-            'unit': row.get('unit', 'Nos'),
+            'item_name': item_name,
+            'unit': unit,
             'qty_exec': qty_exec,
             'rate': rate,
         })
@@ -379,13 +382,16 @@ def workslip_entry(request, work_id):
     # Build workslip items from estimate
     workslip_items = []
     for idx, item in enumerate(estimate_items):
-        key = item.get('key', f'item_{idx}')
+        key = item.get('key') or item.get('item_name') or f'item_{idx}'
+        item_name = item.get('display_name') or item.get('item_name') or item.get('desc') or 'Item'
+        unit = item.get('unit') or 'Nos'
+        rate = float(item.get('rate', 0) or 0)
+        
         workslip_items.append({
             'key': key,
-            'item_name': item.get('display_name') or item.get('item_name') or item.get('desc', ''),
-            'desc': item.get('desc', ''),
-            'unit': item.get('unit', 'Nos'),
-            'rate': float(item.get('rate', 0) or 0),
+            'item_name': item_name,
+            'unit': unit,
+            'rate': rate,
         })
     
     # Get previous workslip (if Workslip 2+)
