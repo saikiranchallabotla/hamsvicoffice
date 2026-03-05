@@ -78,15 +78,11 @@ def bill_entry(request, work_id):
         except (ValueError, TypeError):
             qty_exec = 0.0
         
-        # Only include items with executed quantities
-        if qty_exec <= 0:
-            continue
-        
+        # Include ALL items from workslip, even if qty is 0 (for reference)
         rate = float(row.get('rate', 0) or 0)
         bill_items.append({
             'key': key,
             'item_name': row.get('display_name') or row.get('item_name') or row.get('desc', ''),
-            'desc': row.get('desc', ''),
             'unit': row.get('unit', 'Nos'),
             'qty_exec': qty_exec,
             'rate': rate,

@@ -262,10 +262,11 @@
     .item-name {
         font-weight: 600;
         color: #1f2937;
-        max-width: 200px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        word-wrap: break-word;
+        line-height: 1.4;
+        max-width: 100%;
+        overflow: visible;
+        white-space: normal;
     }
 
     .unit-display {
@@ -695,24 +696,23 @@
             }
 
             row.innerHTML = `
-                <td><strong>${++itemCount}</strong></td>
-                <td>
-                    <div class="item-name">${item.desc || item.item_name || 'Item'}</div>
-                    <div class="unit-display">${item.unit || 'Nos'}</div>
+                <td class="sl-col"><strong>${++itemCount}</strong></td>
+                <td class="item-col">
+                    <div class="item-name">${item.item_name || item.desc || 'Item'}</div>
                 </td>
-                <td>${item.unit || 'Nos'}</td>
-                <td style="text-align: right; font-weight: 600;">₹ ${(rateMap[key]).toFixed(2)}</td>
+                <td class="unit-col">${item.unit || 'Nos'}</td>
+                <td class="rate-col">₹ ${(rateMap[key]).toFixed(2)}</td>
                 ${prevCell}
-                <td>
+                <td class="qty-col">
                     <input type="number" class="qty-input exec-qty" 
                            id="qty_${idx}" 
                            data-key="${key}"
-                           value="" 
+                           value="${item.qty_exec || ''}" 
                            step="0.01" 
                            min="0"
                            placeholder="0.00">
                 </td>
-                <td class="amount-display" id="amount_${idx}">₹ 0.00</td>
+                <td class="amount-col" id="amount_${idx}">₹ 0.00</td>
             `;
 
             tbody.appendChild(row);
