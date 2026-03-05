@@ -1,0 +1,729 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Workslip Entry{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-file-earmark-text me-2"></i>Workslip Entry - Sequential Data
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .workslip-entry-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    /* ========== WORKFLOW  BREADCRUMB ========== */
+    .workflow-chain {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        border-radius: 8px;
+        border-left: 4px solid #10b981;
+        font-size: 0.85rem;
+        flex-wrap: wrap;
+        overflow-x: auto;
+    }
+
+    .workflow-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.6rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
+
+    .workflow-item.active {
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        border: 1px solid #10b981;
+        font-weight: 600;
+        color: #166534;
+    }
+
+    .workflow-arrow {
+        color: #9ca3af;
+        font-size: 1rem;
+        margin: 0 0.2rem;
+    }
+
+    .workflow-icon {
+        font-size: 0.9rem;
+    }
+
+    /* ========== HEADER CARDS ========== */
+    .workslip-header-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border-top: 3px solid #10b981;
+    }
+
+    .workslip-header-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .workslip-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .workslip-info-item {
+        padding: 0.75rem;
+        background: #f0fdf4;
+        border-radius: 6px;
+        border-left: 3px solid #10b981;
+    }
+
+    .workslip-info-label {
+        font-size: 0.75rem;
+        color: #166534;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .workslip-info-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #1f2937;
+        word-break: break-word;
+    }
+
+    /* ========== WORKSLIP FORM CONTAINER ========== */
+    .workslip-form-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        margin-bottom: 1.5rem;
+    }
+
+    .form-section {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: #f0fdf4;
+        border-radius: 8px;
+        border-left: 3px solid #10b981;
+    }
+
+    .form-section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #166534;
+        margin-bottom: 0.4rem;
+        text-transform: uppercase;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 0.6rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.9rem;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    }
+
+    /* ========== QUANTITIES TABLE ========== */
+    .quantities-wrapper {
+        margin-top: 1.5rem;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .quantities-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .quantities-table thead {
+        background: linear-gradient(135deg, #166534 0%, #15803d 100%);
+        color: white;
+        font-weight: 600;
+    }
+
+    .quantities-table th {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 2px solid #166534;
+    }
+
+    .quantities-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+        vertical-align: middle;
+    }
+
+    .quantities-table tbody tr:hover {
+        background: #f0fdf4;
+    }
+
+    .quantities-table tbody tr.no-qty {
+        opacity: 0.5;
+        background: #fafaf9;
+    }
+
+    .qty-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .qty-input:focus {
+        outline: none;
+        border-color: #10b981;
+        background: #f0fdf4;
+    }
+
+    .amount-display {
+        text-align: right;
+        font-weight: 600;
+        color: #059669;
+    }
+
+    .item-name {
+        font-weight: 600;
+        color: #1f2937;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .unit-display {
+        color: #6b7280;
+        font-size: 0.75rem;
+    }
+
+    /* ========== SUMMARY BOX ========== */
+    .summary-box {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border-radius: 8px;
+        border: 2px solid #10b981;
+    }
+
+    .summary-item {
+        text-align: center;
+        padding: 0.75rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #86efac;
+    }
+
+    .summary-label {
+        font-size: 0.7rem;
+        color: #166534;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #10b981;
+    }
+
+    /* ========== ACTION BUTTONS ========== */
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 2px solid #e5e7eb;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary, .btn-success, .btn-secondary, .btn-outline {
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-outline {
+        background: white;
+        color: #10b981;
+        border: 2px solid #10b981;
+    }
+
+    .btn-outline:hover {
+        background: #f0fdf4;
+    }
+
+    /* ========== INFO BOX ========== */
+    .info-box {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 6px;
+        border-left: 4px solid #10b981;
+        background: #f0fdf4;
+        color: #166534;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .info-box i {
+        font-size: 1.1rem;
+        margin-top: 0.1rem;
+        flex-shrink: 0;
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 1024px) {
+        .workslip-info-grid {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+
+        .quantities-table {
+            font-size: 0.75rem;
+        }
+
+        .quantities-table th,
+        .quantities-table td {
+            padding: 0.5rem 0.25rem;
+        }
+
+        .qty-input {
+            padding: 0.4rem 0.25rem;
+            font-size: 0.75rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .workslip-entry-container {
+            padding: 0.5rem;
+        }
+
+        .quantities-table {
+            font-size: 0.7rem;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .btn-primary, .btn-success, .btn-secondary, .btn-outline {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+
+<div class="workslip-entry-container">
+    
+    <!-- Workflow Breadcrumb -->
+    {% if workflow_chain %}
+    <div class="workflow-chain">
+        {% for item in workflow_chain %}
+            <div class="workflow-item {% if item.id == current_work.id %}active{% endif %}">
+                <i class="bi {{ item.icon }} workflow-icon"></i>
+                <span>{{ item.short_label }}</span>
+            </div>
+            {% if not forloop.last %}<span class="workflow-arrow">→</span>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Workslip Info Card -->
+    <div class="workslip-header-card">
+        <div class="workslip-header-title">
+            <i class="bi bi-file-earmark-text" style="color: #10b981;"></i>
+            Workslip-{{ workslip_number }}
+        </div>
+        <div class="workslip-info-grid">
+            {% if work_name %}
+            <div class="workslip-info-item">
+                <div class="workslip-info-label"><i class="bi bi-file-text"></i> Work Name</div>
+                <div class="workslip-info-value">{{ work_name }}</div>
+            </div>
+            {% endif %}
+            
+            {% if source_estimate %}
+            <div class="workslip-info-item">
+                <div class="workslip-info-label"><i class="bi bi-link-45deg"></i> From Estimate</div>
+                <div class="workslip-info-value">{{ source_estimate.name }}</div>
+            </div>
+            {% endif %}
+
+            {% if prev_workslip %}
+            <div class="workslip-info-item" style="border-left-color: #f59e0b;">
+                <div class="workslip-info-label"><i class="bi bi-arrow-left"></i> Previous Workslip</div>
+                <div class="workslip-info-value">Workslip-{{ prev_workslip.workslip_number }}</div>
+            </div>
+            {% endif %}
+
+            <div class="workslip-info-item">
+                <div class="workslip-info-label"><i class="bi bi-calendar"></i> Created</div>
+                <div class="workslip-info-value">{{ created_date|default:"Today" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Box -->
+    {% if workslip_number > 1 %}
+    <div class="info-box">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            <strong>Workslip-{{ workslip_number }}</strong> extends the work done in Workslip-{{ workslip_number|add:"-1" }}. 
+            Enter the additional quantities and the system will calculate amounts automatically.
+        </div>
+    </div>
+    {% else %}
+    <div class="info-box">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            This is the <strong>first workslip</strong> generated from your estimate. 
+            Enter executed quantities for each item and attach measurement book details.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Main Form -->
+    <form id="workslip-entry-form" method="post" action="{% url 'workslip_entry_save' work_id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_workslip_data">
+        <input type="hidden" id="ws-exec-map-field" name="ws_exec_map">
+        <input type="hidden" id="ws-rate-map-field" name="ws_rate_map">
+        <input type="hidden" id="ws-tp-percent-field" name="ws_tp_percent">
+        <input type="hidden" id="ws-tp-type-field" name="ws_tp_type">
+
+        <div class="workslip-form-container">
+            <!-- TP (Temporary Works) Section -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="bi bi-sliders"></i> Temporary Works (T.P.)
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>T.P. Amount (%)</label>
+                        <input type="number" id="tp-percent-input" name="tp_percent" placeholder="e.g., 15" min="0" max="100" step="0.01" value="{{ tp_percent|default:'0' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>T.P. Type</label>
+                        <select id="tp-type-select" name="tp_type">
+                            <option value="Excess" {% if tp_type == 'Excess' %}selected{% endif %}>Excess</option>
+                            <option value="Deduct" {% if tp_type == 'Deduct' %}selected{% endif %}>Deduct</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Measurement Book Section (Optional) -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="bi bi-journal-text"></i> Measurement Book Details (Optional)
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>M.B. No.</label>
+                        <input type="text" id="mb-no" name="mb_no" placeholder="e.g., MB-001" value="{{ mb_no|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>From Page</label>
+                        <input type="number" id="mb-from-page" name="mb_from_page" placeholder="e.g., 1" min="0" value="{{ mb_from_page|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>To Page</label>
+                        <input type="number" id="mb-to-page" name="mb_to_page" placeholder="e.g., 5" min="0" value="{{ mb_to_page|default:'' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quantities Table -->
+            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: #1f2937; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="bi bi-table"></i> Quantities & Amounts
+            </h3>
+
+            <div class="quantities-wrapper">
+                <table class="quantities-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">SL</th>
+                            <th style="width: 200px;">Item Description</th>
+                            <th style="width: 60px;">Unit</th>
+                            {% if workslip_number > 1 %}
+                            <th style="width: 80px; background: #fef3c7;">Prev. Qty</th>
+                            {% endif %}
+                            <th style="width: 80px;">Rate</th>
+                            <th style="width: 100px; background: #dcfce7;">WS-{{ workslip_number }} Qty</th>
+                            <th style="width: 100px; background: #d1fae5;">Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quantities-tbody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Summary -->
+            <div class="summary-box">
+                <div class="summary-item">
+                    <div class="summary-label">Items Count</div>
+                    <div class="summary-value" id="summary-count">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Total Amount</div>
+                    <div class="summary-value" id="summary-total">₹ 0.00</div>
+                </div>
+                {% if tp_percent > 0 %}
+                <div class="summary-item">
+                    <div class="summary-label">T.P. Amount</div>
+                    <div class="summary-value" id="summary-tp">₹ 0.00</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Grand Total</div>
+                    <div class="summary-value" style="color: #0284c7; font-size: 1.5rem;" id="summary-grand">₹ 0.00</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button type="submit" class="btn-success">
+                <i class="bi bi-check-circle"></i> Save & Continue
+            </button>
+            <button type="button" class="btn-primary" onclick="generateWorkslipPreview()">
+                <i class="bi bi-eye"></i> Preview Workslip
+            </button>
+            <button type="button" class="btn-outline" onclick="history.back()">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Workslip data structure
+    const workslipData = {
+        items: {{ workslip_items_json|safe }},
+        previousItems: {{ prev_workslip_items_json|safe }},
+        workslipNumber: {{ workslip_number }},
+    };
+
+    const rateMap = {};
+    const execMap = {};
+
+    function initializeTable() {
+        const tbody = document.getElementById('quantities-tbody');
+        let itemCount = 0;
+
+        workslipData.items.forEach((item, idx) => {
+            const key = item.key || `item_${idx}`;
+            rateMap[key] = parseFloat(item.rate) || 0;
+
+            const row = document.createElement('tr');
+            row.id = `row_${idx}`;
+            row.className = 'qty-row';
+            row.dataset.key = key;
+            row.dataset.rate = rateMap[key];
+
+            // Find previous workslip quantity for this item
+            const prevItem = workslipData.previousItems.find(p => p.key === key);
+            const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
+
+            let prevCell = '';
+            if (workslipData.workslipNumber > 1) {
+                prevCell = `
+                    <td style="background: #fffbeb; text-align: right; color: #92400e; font-weight: 600;">
+                        ${prevQty.toFixed(2)}
+                    </td>
+                `;
+            }
+
+            row.innerHTML = `
+                <td><strong>${++itemCount}</strong></td>
+                <td>
+                    <div class="item-name">${item.desc || item.item_name || 'Item'}</div>
+                    <div class="unit-display">${item.unit || 'Nos'}</div>
+                </td>
+                <td>${item.unit || 'Nos'}</td>
+                ${prevCell}
+                <td style="text-align: right; font-weight: 600;">₹ ${(rateMap[key]).toFixed(2)}</td>
+                <td>
+                    <input type="number" class="qty-input exec-qty" 
+                           id="qty_${idx}" 
+                           data-key="${key}"
+                           value="" 
+                           step="0.01" 
+                           min="0"
+                           placeholder="0.00">
+                </td>
+                <td class="amount-display" id="amount_${idx}">₹ 0.00</td>
+            `;
+
+            tbody.appendChild(row);
+
+            // Add event listeners
+            const qtyInput = row.querySelector('.exec-qty');
+            qtyInput.addEventListener('change', (e) => {
+                const qty = parseFloat(e.target.value) || 0;
+                execMap[key] = qty;
+                updateAmount(idx, qty, rateMap[key]);
+                updateSummary();
+            });
+
+            qtyInput.addEventListener('input', (e) => {
+                updateAmount(idx, parseFloat(e.target.value) || 0, rateMap[key]);
+            });
+        });
+    }
+
+    function updateAmount(idx, qty, rate) {
+        const amount = qty * rate;
+        const amountCell = document.getElementById(`amount_${idx}`);
+        amountCell.textContent = `₹ ${amount.toFixed(2)}`;
+    }
+
+    function updateSummary() {
+        let totalAmount = 0;
+        let itemCount = 0;
+
+        document.querySelectorAll('.qty-row').forEach((row) => {
+            const key = row.dataset.key;
+            const qtyInput = row.querySelector('.exec-qty');
+            const rate = parseFloat(row.dataset.rate) || 0;
+
+            const qty = parseFloat(qtyInput.value) || 0;
+            if (qty > 0) {
+                itemCount++;
+                totalAmount += qty * rate;
+            }
+        });
+
+        const tpPercent = parseFloat(document.getElementById('tp-percent-input').value) || 0;
+        const tpAmount = (totalAmount * tpPercent) / 100;
+        const grandTotal = totalAmount + tpAmount;
+
+        document.getElementById('summary-count').textContent = itemCount;
+        document.getElementById('summary-total').textContent = `₹ ${totalAmount.toFixed(2)}`;
+        if (document.getElementById('summary-tp')) {
+            document.getElementById('summary-tp').textContent = `₹ ${tpAmount.toFixed(2)}`;
+        }
+        if (document.getElementById('summary-grand')) {
+            document.getElementById('summary-grand').textContent = `₹ ${grandTotal.toFixed(2)}`;
+        }
+    }
+
+    function generateWorkslipPreview() {
+        alert(`Workslip-${workslipData.workslipNumber} Preview\n\nTotal: ₹ ${document.getElementById('summary-total').textContent}`);
+    }
+
+    // Form submission
+    document.getElementById('workslip-entry-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Collect data
+        const execMapField = document.getElementById('ws-exec-map-field');
+        const rateMapField = document.getElementById('ws-rate-map-field');
+        const tpPercentField = document.getElementById('ws-tp-percent-field');
+        const tpTypeField = document.getElementById('ws-tp-type-field');
+
+        // Serialize maps to JSON
+        execMapField.value = JSON.stringify(execMap);
+        rateMapField.value = JSON.stringify(rateMap);
+        tpPercentField.value = document.getElementById('tp-percent-input').value || 0;
+        tpTypeField.value = document.getElementById('tp-type-select').value;
+
+        // Submit form
+        this.submit();
+    });
+
+    // Update summary when TP changes
+    document.getElementById('tp-percent-input').addEventListener('change', updateSummary);
+    document.getElementById('tp-percent-input').addEventListener('input', updateSummary);
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', initializeTable);
+</script>
+
+{% endblock %}

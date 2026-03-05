@@ -1,0 +1,818 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Bill Entry{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Bill Entry - Sequential Data
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .bill-entry-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    /* ========== WORKFLOW BREADCRUMB ========== */
+    .workflow-chain {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        border-radius: 8px;
+        border-left: 4px solid #3b82f6;
+        font-size: 0.85rem;
+        flex-wrap: wrap;
+        overflow-x: auto;
+    }
+
+    .workflow-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.6rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
+
+    .workflow-item.active {
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        border: 1px solid #3b82f6;
+        font-weight: 600;
+        color: #1e40af;
+    }
+
+    .workflow-arrow {
+        color: #9ca3af;
+        font-size: 1rem;
+        margin: 0 0.2rem;
+    }
+
+    .workflow-icon {
+        font-size: 0.9rem;
+    }
+
+    /* ========== HEADER CARDS ========== */
+    .bill-header-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border-top: 3px solid #3b82f6;
+    }
+
+    .bill-header-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .bill-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .bill-info-item {
+        padding: 0.75rem;
+        background: #f9fafb;
+        border-radius: 6px;
+        border-left: 3px solid #10b981;
+    }
+
+    .bill-info-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .bill-info-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #1f2937;
+        word-break: break-word;
+    }
+
+    /* ========== BILL FORM CONTAINER ========== */
+    .bill-form-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        margin-bottom: 1.5rem;
+    }
+
+    .form-section {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        border-left: 3px solid #8b5cf6;
+    }
+
+    .form-section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #375a7f;
+        margin-bottom: 0.4rem;
+        text-transform: uppercase;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 0.6rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.9rem;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* ========== QUANTITIES TABLE ========== */
+    .quantities-wrapper {
+        margin-top: 1.5rem;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .quantities-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .quantities-table thead {
+        background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+        color: white;
+        font-weight: 600;
+    }
+
+    .quantities-table th {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 2px solid #1f2937;
+    }
+
+    .quantities-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+        vertical-align: middle;
+    }
+
+    .quantities-table tbody tr:hover {
+        background: #f3f4f6;
+    }
+
+    .quantities-table tbody tr.no-qty {
+        opacity: 0.5;
+        background: #f9fafb;
+    }
+
+    .qty-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .qty-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+
+    .amount-display {
+        text-align: right;
+        font-weight: 600;
+        color: #059669;
+    }
+
+    .deduct-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #fcd34d;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        background: #fffbeb;
+        text-align: right;
+    }
+
+    .deduct-input:focus {
+        outline: none;
+        border-color: #f59e0b;
+        background: #fef3c7;
+    }
+
+    .deduct-label {
+        font-size: 0.7rem;
+        color: #92400e;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .item-name {
+        font-weight: 600;
+        color: #1f2937;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .unit-display {
+        color: #6b7280;
+        font-size: 0.75rem;
+    }
+
+    /* ========== SUMMARY BOX ========== */
+    .summary-box {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-radius: 8px;
+        border: 2px solid #0284c7;
+    }
+
+    .summary-item {
+        text-align: center;
+        padding: 0.75rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #bae6fd;
+    }
+
+    .summary-label {
+        font-size: 0.7rem;
+        color: #0c4a6e;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0284c7;
+    }
+
+    /* ========== ACTION BUTTONS ========== */
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 2px solid #e5e7eb;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary, .btn-success, .btn-secondary, .btn-outline {
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+
+    .btn-outline {
+        background: white;
+        color: #3b82f6;
+        border: 2px solid #3b82f6;
+    }
+
+    .btn-outline:hover {
+        background: #eff6ff;
+    }
+
+    /* ========== INFO BOX ========== */
+    .info-box {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 6px;
+        border-left: 4px solid #f59e0b;
+        background: #fffbeb;
+        color: #92400e;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .info-box i {
+        font-size: 1.1rem;
+        margin-top: 0.1rem;
+        flex-shrink: 0;
+    }
+
+    /* ========== DEDUCTIONS SECTION ========== */
+    .deductions-alert {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #fef3c7;
+        border: 1px solid #fcd34d;
+        border-radius: 6px;
+        color: #92400e;
+        font-size: 0.85rem;
+        border-left: 4px solid #f59e0b;
+    }
+
+    .deduction-item {
+        padding: 0.75rem;
+        background: white;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+        border-left: 3px solid #f59e0b;
+        display: grid;
+        grid-template-columns: 1fr 120px 120px;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 1024px) {
+        .bill-info-grid {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+
+        .quantities-table {
+            font-size: 0.75rem;
+        }
+
+        .quantities-table th,
+        .quantities-table td {
+            padding: 0.5rem 0.25rem;
+        }
+
+        .qty-input, .deduct-input {
+            padding: 0.4rem 0.25rem;
+            font-size: 0.75rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .bill-entry-container {
+            padding: 0.5rem;
+        }
+
+        .quantities-table {
+            font-size: 0.7rem;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .btn-primary, .btn-success, .btn-secondary, .btn-outline {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+
+<div class="bill-entry-container">
+    
+    <!-- Workflow Breadcrumb -->
+    {% if workflow_chain %}
+    <div class="workflow-chain">
+        {% for item in workflow_chain %}
+            <div class="workflow-item {% if item.id == current_work.id %}active{% endif %}">
+                <i class="bi {{ item.icon }} workflow-icon"></i>
+                <span>{{ item.short_label }}</span>
+            </div>
+            {% if not forloop.last %}<span class="workflow-arrow">→</span>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Bill Info Card -->
+    <div class="bill-header-card">
+        <div class="bill-header-title">
+            <i class="bi bi-receipt" style="color: #f59e0b;"></i>
+            Bill-{{ bill_number }}
+            {% if bill_type %}
+                <span style="font-size: 0.7em; color: #6b7280; font-weight: 400;">{{ bill_type_label }}</span>
+            {% endif %}
+        </div>
+        <div class="bill-info-grid">
+            {% if work_name %}
+            <div class="bill-info-item">
+                <div class="bill-info-label"><i class="bi bi-file-text"></i> Work Name</div>
+                <div class="bill-info-value">{{ work_name }}</div>
+            </div>
+            {% endif %}
+            
+            {% if source_workslip %}
+            <div class="bill-info-item">
+                <div class="bill-info-label"><i class="bi bi-link-45deg"></i> From Workslip</div>
+                <div class="bill-info-value">Workslip-{{ source_workslip.workslip_number }}</div>
+            </div>
+            {% endif %}
+
+            {% if prev_bill %}
+            <div class="bill-info-item" style="border-left-color: #f59e0b;">
+                <div class="bill-info-label"><i class="bi bi-arrow-left"></i> Previous Bill</div>
+                <div class="bill-info-value">Bill-{{ prev_bill.bill_number }}</div>
+            </div>
+            {% endif %}
+
+            <div class="bill-info-item">
+                <div class="bill-info-label"><i class="bi bi-calendar"></i> Created</div>
+                <div class="bill-info-value">{{ created_date|default:"Today" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Box -->
+    {% if bill_number > 1 %}
+    <div class="info-box">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            <strong>Bill-{{ bill_number }}</strong> includes quantities from Workslip-{{ bill_number }}. 
+            The "Deduct from Previous" columns show what was billed in Bill-{{ bill_number|add:"-1" }} 
+            so you can verify deductions before generating the final bill.
+        </div>
+    </div>
+    {% else %}
+    <div class="info-box">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            This is the <strong>first bill</strong> generated from Workslip-1. 
+            Enter quantities executed and the system will calculate amounts automatically.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Main Form -->
+    <form id="bill-entry-form" method="post" action="{% url 'bill_entry_save' work_id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_bill_data">
+        <input type="hidden" id="bill-exec-map-field" name="bill_exec_map">
+        <input type="hidden" id="bill-deduct-map-field" name="bill_deduct_map">
+        <input type="hidden" id="bill-rate-map-field" name="bill_rate_map">
+
+        <div class="bill-form-container">
+            <!-- Measurement Book Section -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="bi bi-journal-text"></i> Measurement Book Details
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>M.B. No.</label>
+                        <input type="text" id="mb-no" name="mb_no" placeholder="e.g., MB-001" value="{{ mb_no|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>From Page</label>
+                        <input type="number" id="mb-from-page" name="mb_from_page" placeholder="e.g., 1" min="0" value="{{ mb_from_page|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>To Page</label>
+                        <input type="number" id="mb-to-page" name="mb_to_page" placeholder="e.g., 5" min="0" value="{{ mb_to_page|default:'' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dates Section -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="bi bi-calendar-check"></i> Important Dates
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date of Issue (DOI)</label>
+                        <input type="date" id="doi" name="doi" value="{{ doi|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Completion (DOC)</label>
+                        <input type="date" id="doc" name="doc" value="{{ doc|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Measurement Report (DOMR)</label>
+                        <input type="date" id="domr" name="domr" value="{{ domr|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Bill Raising (DOBR)</label>
+                        <input type="date" id="dobr" name="dobr" value="{{ dobr|default:'' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quantities Table -->
+            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: #1f2937; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="bi bi-table"></i> Quantities & Amounts
+            </h3>
+
+            {% if bill_number > 1 and prev_bill_items %}
+            <div class="deductions-alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                This bill includes deductions from <strong>Bill-{{ bill_number|add:"-1" }}</strong>. 
+                Review the "Deduct from Previous" column to ensure accuracy.
+            </div>
+            {% endif %}
+
+            <div class="quantities-wrapper">
+                <table class="quantities-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">SL</th>
+                            <th style="width: 200px;">Item Description</th>
+                            <th style="width: 60px;">Unit</th>
+                            <th style="width: 80px;">Rate</th>
+                            {% if bill_number > 1 %}
+                            <th style="width: 100px; background: #fef3c7;">Deduct from Bill-{{ bill_number|add:"-1" }}</th>
+                            {% endif %}
+                            <th style="width: 100px; background: #dbeafe;">Bill-{{ bill_number }} Qty</th>
+                            <th style="width: 100px; background: #d1fae5;">Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quantities-tbody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Summary -->
+            <div class="summary-box">
+                <div class="summary-item">
+                    <div class="summary-label">Items Count</div>
+                    <div class="summary-value" id="summary-count">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Total Bill Amount</div>
+                    <div class="summary-value" style="color: #059669;" id="summary-total">₹ 0.00</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Total Deductions</div>
+                    <div class="summary-value" style="color: #dc2626;" id="summary-deduct">₹ 0.00</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Net Bill Amount</div>
+                    <div class="summary-value" style="color: #0284c7; font-size: 1.5rem;" id="summary-net">₹ 0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button type="submit" class="btn-success">
+                <i class="bi bi-check-circle"></i> Save & Continue
+            </button>
+            <button type="button" class="btn-primary" onclick="generateBillPreview()">
+                <i class="bi bi-eye"></i> Preview Bill
+            </button>
+            <button type="button" class="btn-outline" onclick="history.back()">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Bill data structure
+    const billData = {
+        items: {{ bill_items_json|safe }},
+        previousItems: {{ prev_bill_items_json|safe }},
+        billNumber: {{ bill_number }},
+    };
+
+    const rateMap = {};
+    const execMap = {};
+    const deductMap = {};
+
+    function initializeTable() {
+        const tbody = document.getElementById('quantities-tbody');
+        let itemCount = 0;
+
+        billData.items.forEach((item, idx) => {
+            const key = item.key || `item_${idx}`;
+            rateMap[key] = parseFloat(item.rate) || 0;
+
+            const row = document.createElement('tr');
+            row.id = `row_${idx}`;
+            row.className = 'qty-row';
+            row.dataset.key = key;
+            row.dataset.rate = rateMap[key];
+
+            // Find previous bill quantity for this item
+            const prevItem = billData.previousItems.find(p => p.key === key);
+            const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
+
+            let prevCell = '';
+            if (billData.billNumber > 1) {
+                prevCell = `
+                    <td>
+                        <div class="deduct-label">Bill-${billData.billNumber - 1}</div>
+                        <input type="number" class="deduct-input deduct-qty" 
+                               id="deduct_${idx}" 
+                               data-key="${key}"
+                               value="${prevQty}" 
+                               step="0.01" 
+                               min="0" 
+                               readonly>
+                    </td>
+                `;
+            }
+
+            row.innerHTML = `
+                <td><strong>${++itemCount}</strong></td>
+                <td>
+                    <div class="item-name">${item.desc || item.item_name || 'Item'}</div>
+                    <div class="unit-display">${item.unit || 'Nos'}</div>
+                </td>
+                <td>${item.unit || 'Nos'}</td>
+                <td style="text-align: right; font-weight: 600;">₹ ${(rateMap[key]).toFixed(2)}</td>
+                ${prevCell}
+                <td>
+                    <input type="number" class="qty-input exec-qty" 
+                           id="qty_${idx}" 
+                           data-key="${key}"
+                           value="" 
+                           step="0.01" 
+                           min="0"
+                           placeholder="0.00">
+                </td>
+                <td class="amount-display" id="amount_${idx}">₹ 0.00</td>
+            `;
+
+            tbody.appendChild(row);
+
+            // Add event listeners
+            const qtyInput = row.querySelector('.exec-qty');
+            const deductInput = row.querySelector('.deduct-qty');
+
+            qtyInput.addEventListener('change', (e) => {
+                const qty = parseFloat(e.target.value) || 0;
+                execMap[key] = qty;
+                updateAmount(idx, qty, rateMap[key]);
+                updateSummary();
+                updateDeductMap(key, deductInput);
+            });
+
+            qtyInput.addEventListener('input', (e) => {
+                updateAmount(idx, parseFloat(e.target.value) || 0, rateMap[key]);
+            });
+
+            if (deductInput) {
+                deductInput.addEventListener('change', (e) => {
+                    updateDeductMap(key, deductInput);
+                    updateSummary();
+                });
+            }
+        });
+    }
+
+    function updateAmount(idx, qty, rate) {
+        const amount = qty * rate;
+        const amountCell = document.getElementById(`amount_${idx}`);
+        amountCell.textContent = `₹ ${amount.toFixed(2)}`;
+    }
+
+    function updateDeductMap(key, deductInput) {
+        if (deductInput) {
+            const deductQty = parseFloat(deductInput.value) || 0;
+            deductMap[key] = deductQty;
+        }
+    }
+
+    function updateSummary() {
+        let totalAmount = 0;
+        let totalDeduct = 0;
+        let itemCount = 0;
+
+        document.querySelectorAll('.qty-row').forEach((row) => {
+            const key = row.dataset.key;
+            const qtyInput = row.querySelector('.exec-qty');
+            const deductInput = row.querySelector('.deduct-qty');
+            
+            const qty = parseFloat(qtyInput.value) || 0;
+            const rate = parseFloat(row.dataset.rate) || 0;
+            const deductQty = deductInput ? parseFloat(deductInput.value) || 0 : 0;
+
+            if (qty > 0) {
+                itemCount++;
+                const amount = qty * rate;
+                totalAmount += amount;
+
+                if (deductQty > 0) {
+                    totalDeduct += deductQty * rate;
+                }
+            }
+        });
+
+        const netAmount = totalAmount - totalDeduct;
+
+        document.getElementById('summary-count').textContent = itemCount;
+        document.getElementById('summary-total').textContent = `₹ ${totalAmount.toFixed(2)}`;
+        document.getElementById('summary-deduct').textContent = `₹ ${totalDeduct.toFixed(2)}`;
+        document.getElementById('summary-net').textContent = `₹ ${netAmount.toFixed(2)}`;
+    }
+
+    function generateBillPreview() {
+        // For now, just show an alert. Later, you'll generate a preview PDF/page
+        alert(`Bill-${billData.billNumber} Preview\n\nTotal: ₹ ${document.getElementById('summary-net').textContent}`);
+    }
+
+    // Form submission
+    document.getElementById('bill-entry-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Collect data
+        const execMapField = document.getElementById('bill-exec-map-field');
+        const deductMapField = document.getElementById('bill-deduct-map-field');
+        const rateMapField = document.getElementById('bill-rate-map-field');
+
+        // Serialize maps to JSON
+        execMapField.value = JSON.stringify(execMap);
+        deductMapField.value = JSON.stringify(deductMap);
+        rateMapField.value = JSON.stringify(rateMap);
+
+        // Submit form
+        this.submit();
+    });
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', initializeTable);
+</script>
+
+{% endblock %}
