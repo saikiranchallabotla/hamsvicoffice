@@ -8539,6 +8539,7 @@ def datas(request):
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
+    request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
 
     mode = request.GET.get("work_type")
 
