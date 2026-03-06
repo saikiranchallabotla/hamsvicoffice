@@ -1458,9 +1458,9 @@ def generate_workslip_from_saved(request, work_id):
     if fetched_items and isinstance(fetched_items[0], str):
         item_names = fetched_items
         
-        # Only re-fetch from backend for items that don't have saved rates
+        # Only re-fetch rates from backend for items that don't have saved rates
         items_needing_backend = [n for n in item_names if n not in saved_item_rates or saved_item_rates.get(n, 0) == 0]
-        
+
         item_info_map = {}
         if items_needing_backend:
             logger.info(f"[GEN_WORKSLIP DEBUG] Re-fetching rates from backend for {len(items_needing_backend)} items: {items_needing_backend[:5]}")
@@ -1470,6 +1470,21 @@ def generate_workslip_from_saved(request, work_id):
                 user=request.user,
                 module_code=ws_module_code
             )
+
+        # Always fetch descriptions (row+2 content) from backend for ALL items
+        # so Excel output shows full specifications, not just item names
+        items_needing_desc = [n for n in item_names if n not in item_info_map]
+        if items_needing_desc:
+            desc_info_map = load_item_rates_from_backend(
+                category, items_needing_desc,
+                backend_id=saved_backend_id,
+                user=request.user,
+                module_code=ws_module_code
+            )
+            # Merge descriptions (but don't override rates from item_info_map)
+            for name, info in desc_info_map.items():
+                if name not in item_info_map:
+                    item_info_map[name] = info
         
         # Convert to workslip format - match the format from estimate upload
         ws_estimate_rows = []
@@ -1481,23 +1496,25 @@ def generate_workslip_from_saved(request, work_id):
                 qty = 0.0
             
             # Priority: 1) saved rates from estimate, 2) backend re-fetch
+            info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
+            # Get the full description (row+2 content) from backend
+            backend_desc = str(info.get('desc', item_name) or item_name)
+
             if item_name in saved_item_rates and saved_item_rates[item_name]:
                 rate = float(saved_item_rates[item_name])
                 unit = str(saved_item_units.get(item_name, 'Nos'))
-                desc = item_name  # Use name as desc; backend lookup below fills desc if needed
             else:
-                info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
                 rate = float(info.get('rate', 0) or 0)
                 unit = str(info.get('unit', 'Nos'))
-                desc = str(info.get('desc', item_name) or item_name)
-            
-            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate} (source={'saved' if item_name in saved_item_rates and saved_item_rates.get(item_name) else 'backend'})")
-            
+
+            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate} (source={'saved' if item_name in saved_item_rates and saved_item_rates.get(item_name) else 'backend'}), desc={backend_desc[:50]}")
+
             ws_estimate_rows.append({
                 'key': f"saved_{idx}",
                 'item_name': str(item_name),
                 'display_name': str(item_name),
-                'desc': desc,
+                'desc': backend_desc,
+                'item_desc': backend_desc,  # Full row+2 description for Excel output
                 'unit': unit,
                 'qty_est': qty,
                 'rate': rate,
@@ -1515,11 +1532,13 @@ def generate_workslip_from_saved(request, work_id):
                     qty = 0.0
                 rate = float(item.get('rate', 0)) if item.get('rate') else 0.0
                 
+                item_desc_val = str(item.get('item_desc', '') or item.get('description', '') or item.get('name', ''))
                 ws_estimate_rows.append({
                     'key': f"saved_{idx}",
                     'item_name': str(item.get('name', item.get('description', ''))),
                     'display_name': str(item.get('name', item.get('description', ''))),
                     'desc': str(item.get('description', item.get('name', ''))),
+                    'item_desc': item_desc_val,
                     'unit': str(item.get('unit', 'Nos')),
                     'qty_est': qty,
                     'rate': rate,
