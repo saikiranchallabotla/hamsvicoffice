@@ -605,6 +605,10 @@ def save_work(request):
             # ── Propagate estimate qty changes to child workslips ──
             if work_type == 'new_estimate':
                 _propagate_estimate_to_children(saved_work, work_data)
+
+            # ── Back-propagate metadata from workslip to parent estimate ──
+            if work_type == 'workslip' and saved_work.parent_id:
+                _backpropagate_metadata_to_estimate(saved_work, work_data)
     else:
         # Create new saved work
 
@@ -780,6 +784,49 @@ def _propagate_estimate_to_children(estimate_work, estimate_data):
         logger.info(f"[PROPAGATE] Propagated estimate changes to {updated_count} child workslip(s)")
 
 
+def _backpropagate_metadata_to_estimate(workslip_work, workslip_data):
+    """
+    When a workslip is saved with metadata (admin_sanction, tech_sanction,
+    agreement, agency_name), propagate those values back to the parent
+    estimate's estimate_metadata field so they persist for the entire work.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    ws_meta = workslip_data.get('ws_metadata', {})
+    if not ws_meta:
+        return
+
+    # Walk up to root estimate
+    parent = workslip_work.parent
+    root_estimate = None
+    while parent:
+        if parent.work_type in ('new_estimate', 'temporary_works', 'amc'):
+            root_estimate = parent
+            break
+        parent = parent.parent
+
+    if not root_estimate:
+        return
+
+    est_data = root_estimate.work_data or {}
+    est_meta = est_data.get('estimate_metadata', {})
+
+    changed = False
+    for field in ('admin_sanction', 'tech_sanction', 'agreement', 'agency_name'):
+        new_val = ws_meta.get(field, '')
+        old_val = est_meta.get(field, '')
+        if new_val and new_val != old_val:
+            est_meta[field] = new_val
+            changed = True
+
+    if changed:
+        est_data['estimate_metadata'] = est_meta
+        root_estimate.work_data = est_data
+        root_estimate.save(update_fields=['work_data'])
+        logger.info(f"[BACKPROP] Updated estimate '{root_estimate.name}' (ID={root_estimate.id}) metadata from workslip")
+
+
 def collect_work_data(request, work_type):
     """Collect all relevant session data for a given work type.
     
@@ -839,6 +886,13 @@ def collect_work_data(request, work_type):
             'selected_backend_id': request.session.get('selected_backend_id'),
             'item_rates': request.session.get('item_rates', {}),
             'item_units': request.session.get('item_units', {}),
+            # Estimate-level metadata: header fields unique to each work
+            'estimate_metadata': request.session.get('estimate_metadata', {
+                'admin_sanction': '',
+                'tech_sanction': '',
+                'agreement': '',
+                'agency_name': '',
+            }),
         }
         request.session.modified = True
     
@@ -1050,6 +1104,8 @@ def restore_work_data(request, saved_work):
             request.session['item_rates'] = work_data['item_rates']
         if work_data.get('item_units'):
             request.session['item_units'] = work_data['item_units']
+        # Restore estimate-level metadata (admin sanction, tech sanction, etc.)
+        request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
         # Force session save
         request.session.modified = True
     
@@ -1137,6 +1193,30 @@ def get_module_url(saved_work):
         return reverse('amc_groups', kwargs={'category': category})
 
     elif work_type == 'bill':
+        # Redirect to the bill_generate page which shows actual saved items/quantities.
+        # Find the source workslip to use as the bill_generate context.
+        source_workslip_id = None
+        # Check parent chain: bill -> workslip
+        if saved_work.parent_id:
+            parent = saved_work.parent
+            if parent and parent.work_type == 'workslip':
+                source_workslip_id = parent.id
+            elif parent and parent.work_type == 'new_estimate':
+                # Bill was generated directly from estimate - find the workslip child
+                # that matches the bill number
+                ws = parent.children.filter(
+                    work_type='workslip',
+                    workslip_number=saved_work.bill_number or 1,
+                ).first()
+                if ws:
+                    source_workslip_id = ws.id
+        # Also check work_data for source workslip id
+        if not source_workslip_id:
+            source_workslip_id = work_data.get('bill_parent_work_id') or work_data.get('source_workslip_id') or work_data.get('bill_source_work_id')
+        
+        if source_workslip_id:
+            return reverse('bill_generate', kwargs={'work_id': int(source_workslip_id)})
+        # Fallback to old bill module page if no source workslip found
         return reverse('bill') + '?from_saved=1'
 
     return reverse('dashboard')
@@ -1551,13 +1631,15 @@ def generate_workslip_from_saved(request, work_id):
     
     # For Workslip-1: Set initial metadata from estimate
     # work_name and grand_total come from estimate, TP will be entered via UI
+    # Inherit header fields from estimate_metadata if they were saved earlier
+    est_meta = work_data.get('estimate_metadata', {})
     request.session['ws_metadata'] = {
         'work_name': str(estimate_work_name),
         'estimate_amount': str(grand_total) if grand_total else '',
-        'admin_sanction': '',  # To be entered via UI or left blank
-        'tech_sanction': '',   # To be entered via UI or left blank
-        'agreement': '',       # To be entered via UI or left blank
-        'agency_name': '',     # To be entered via UI or left blank
+        'admin_sanction': est_meta.get('admin_sanction', ''),
+        'tech_sanction': est_meta.get('tech_sanction', ''),
+        'agreement': est_meta.get('agreement', ''),
+        'agency_name': est_meta.get('agency_name', ''),
         'tp_percent': 0.0,
         'tp_type': 'Excess',
         'grand_total': grand_total,
