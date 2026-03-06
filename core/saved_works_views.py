@@ -1137,9 +1137,9 @@ def get_module_url(saved_work):
         return reverse('amc_groups', kwargs={'category': category})
 
     elif work_type == 'bill':
-        # Redirect to the bill_entry page for the parent workslip
+        # Redirect to the workslip-based bill entry page (proper Bill 2+ UI)
         if saved_work.parent and saved_work.parent.work_type == 'workslip':
-            return reverse('bill_entry', kwargs={'work_id': saved_work.parent.id})
+            return reverse('sw_bill_entry', kwargs={'work_id': saved_work.parent.id})
         return reverse('saved_works_list')
 
     return reverse('dashboard')
@@ -1843,7 +1843,7 @@ def bill_choice(request, work_id):
 
     # If only one workslip, go straight to bill entry
     if len(all_workslips) == 1:
-        return redirect('bill_entry', work_id=all_workslips[0].id)
+        return redirect('sw_bill_entry', work_id=all_workslips[0].id)
 
     # Gather existing bills
     workslip_ids = [ws.id for ws in all_workslips]
@@ -2077,7 +2077,7 @@ def bill_entry(request, work_id):
             )
 
         messages.success(request, f'Bill {next_bill_number} quantities saved.')
-        return redirect('bill_entry', work_id=work_id)
+        return redirect('sw_bill_entry', work_id=work_id)
 
     # Build list of bill numbers for table header
     bill_numbers = [b.bill_number for b in existing_bills]
@@ -2756,7 +2756,7 @@ def generate_bill_from_saved(request, work_id):
     # bill_entry handles draft creation and proper status tracking.
     if saved_work.work_type == 'workslip':
         request.session.modified = True
-        return redirect(reverse('bill_entry', kwargs={'work_id': saved_work.id}))
+        return redirect(reverse('sw_bill_entry', kwargs={'work_id': saved_work.id}))
 
     # For estimate source (legacy fallback): redirect to old bill view with session data.
     bill_number = request.session.get('bill_target_number', 1)
@@ -3092,7 +3092,7 @@ def generate_next_bill_from_saved(request, work_id):
     # Redirect to bill_entry for the source workslip so user can enter new quantities
     if source_workslip_id:
         messages.success(request, f'Enter quantities for Bill-{next_bill_number}.')
-        return redirect('bill_entry', work_id=int(source_workslip_id))
+        return redirect('sw_bill_entry', work_id=int(source_workslip_id))
 
     # Fallback if no workslip found
     messages.error(request, 'Could not find source workslip for this bill chain.')
@@ -3174,7 +3174,7 @@ def saved_work_action(request, work_id):
             }, status=400)
         return JsonResponse({
             'success': True,
-            'redirect_url': reverse('bill_entry', kwargs={'work_id': work_id}),
+            'redirect_url': reverse('sw_bill_entry', kwargs={'work_id': work_id}),
             'action': 'generate_first_bill',
         })
 

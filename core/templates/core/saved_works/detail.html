@@ -370,7 +370,7 @@
             {% if bills|length > 0 %}
                 {% for bill in bills %}
                 <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
-                        onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                        onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}', {{ bill.parent_id }})"
                         title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
                     B{{ bill.bill_number }}
                     {% if bill.status == 'completed' %}
@@ -826,12 +826,15 @@
     }
 
     // ========================================
-    // B — Bill 1 (main B button) — uses resume for existing bills
+    // B — Bill 1 (main B button) — navigate to workslip-based bill entry
     // ========================================
-    function handleB(billId, billNum, billStatus) {
+    function handleB(billId, billNum, billStatus, parentWorkslipId) {
         try {
-            // New: Always go to bill entry UI for editing
-            window.location.href = '/bill/entry/' + billId + '/';
+            if (parentWorkslipId) {
+                window.location.href = '/saved-works/' + parentWorkslipId + '/bill-entry/';
+            } else {
+                window.location.href = '/bill/entry/' + billId + '/';
+            }
         } catch (e) {
             console.error('handleB error:', e);
             alert('Error: ' + e.message);
@@ -839,12 +842,12 @@
     }
 
     // B button when NO bills exist → generate B1 (choose type)
-    // Uses the latest completed workslip, not always the first one
+    // Uses the first workslip for bill entry
     function handleBNew() {
         try {
             {% if workslips|length > 0 %}
-            // New: Direct to bill entry UI instead of file upload
-            window.location.href = '/bill/entry/' + {{ workslips.0.id }} + '/';
+            // Route to workslip-based bill entry for proper Bill 1 UI
+            window.location.href = '/saved-works/' + {{ workslips.0.id }} + '/bill-entry/';
             {% else %}
             alert('No workslips exist yet. Generate a WorkSlip first.');
             {% endif %}
@@ -854,11 +857,17 @@
         }
     }
 
-    // B2, B3, … additional bill buttons — uses resume for existing bills
-    function handleBn(billId, billNum, billStatus) {
+    // B2, B3, … additional bill buttons — navigate to bill entry for the parent workslip
+    function handleBn(billId, billNum, billStatus, parentWorkslipId) {
         try {
-            // New: Always go to bill entry UI for editing or creating next
-            window.location.href = '/bill/entry/' + billId + '/';
+            // Route to workslip-based bill entry which has the proper Bill 2+ UI
+            // parentWorkslipId is the workslip that owns this bill
+            if (parentWorkslipId) {
+                window.location.href = '/saved-works/' + parentWorkslipId + '/bill-entry/';
+            } else {
+                // Fallback: use bill entry views route
+                window.location.href = '/bill/entry/' + billId + '/';
+            }
         } catch (e) {
             console.error('handleBn error:', e);
             alert('Error: ' + e.message);

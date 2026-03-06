@@ -288,8 +288,12 @@ def bill_entry(request, work_id):
     else:
         qty_column_label = f'Total quantity till date (Bill {bill_number})'
 
+    # When viewing an existing bill, use the workslip's ID for form actions
+    # (bill_entry_save and bill_generate both expect a workslip ID)
+    effective_work_id = source_work.id if source_work.work_type in ['workslip', 'new_estimate'] else work_id
+
     context = {
-        'work_id': work_id,
+        'work_id': effective_work_id,
         'source_work': source_work,
         'bill_number': bill_number,
         'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
