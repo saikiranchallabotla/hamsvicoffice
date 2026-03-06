@@ -1906,23 +1906,31 @@ def bill_entry(request, work_id):
         messages.error(request, 'Workslip has no items. Cannot create bill entry.')
         return redirect('saved_work_detail', work_id=work_id)
 
-    # Gather all previously generated bills for this workslip (excluding drafts)
+    # Bill number matches workslip number (B1 from W1, B2 from W2, etc.)
+    next_bill_number = workslip.workslip_number or 1
+
+    # Gather all previously generated bills across ALL sibling workslips
+    # (B1 is under W1, B2 under W2, etc. - we need to look across all)
+    root_estimate = workslip.parent
+    sibling_ws_ids = []
+    if root_estimate:
+        sibling_ws_ids = list(
+            SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip',
+                parent=root_estimate,
+            ).values_list('id', flat=True)
+        )
+
     existing_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
             work_type='bill',
-            parent=workslip,
+            parent_id__in=sibling_ws_ids,
         ).exclude(status='draft').order_by('bill_number')
     )
 
-    # Determine next bill number
-    if existing_bills:
-        max_bill_num = max(b.bill_number or 0 for b in existing_bills)
-        next_bill_number = max_bill_num + 1
-    else:
-        next_bill_number = 1
-
-    # Check if there's already a draft for next bill
+    # Check if there's already a draft for next bill under this workslip
     draft_bill = SavedWork.objects.filter(
         organization=org, user=user,
         work_type='bill',
@@ -1935,7 +1943,8 @@ def bill_entry(request, work_id):
     if draft_bill:
         draft_exec_map = (draft_bill.work_data or {}).get('bill_ws_exec_map', {})
 
-    # For Bill 2+: compute cumulative previous deductions from completed bills
+    # For Bill 2+: compute cumulative previous deductions from ALL previous bills
+    # across sibling workslips (B2 deducts B1 which is under W1, not W2)
     prev_deduct_map = {}
     if next_bill_number > 1:
         for pb in existing_bills:
@@ -2139,14 +2148,24 @@ def bill_generate(request, work_id):
         status='draft',
     ).order_by('-bill_number').first()
 
-    # Include both 'completed' and legacy 'in_progress' bills so that previous
-    # bill quantities are always available for the "Deduct Previous Measurements"
-    # column in Bill 3, Bill 4, etc.
+    # Include bills from ALL sibling workslips under the same estimate
+    # so that B2 (under W2) can find B1 (under W1) for deductions.
+    root_estimate = workslip.parent
+    sibling_ws_ids = []
+    if root_estimate:
+        sibling_ws_ids = list(
+            SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip',
+                parent=root_estimate,
+            ).values_list('id', flat=True)
+        )
+
     completed_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
             work_type='bill',
-            parent=workslip,
+            parent_id__in=sibling_ws_ids,
         ).exclude(status='draft').order_by('bill_number')
     )
 
@@ -2307,7 +2326,7 @@ def bill_generate(request, work_id):
                 'key': supp_key,
             })
 
-    # For Bill 2+, gather cumulative previous quantities from completed bills under this workslip
+    # For Bill 2+, gather cumulative previous quantities from completed bills across all sibling workslips
     prev_qty_map = {}
     if bill_number > 1:
         prev_bills_for_deduct = [b for b in completed_bills if (b.bill_number or 0) < bill_number]

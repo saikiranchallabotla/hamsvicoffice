@@ -180,16 +180,34 @@ def bill_entry(request, work_id):
     prev_bill_items = []
     
     if bill_number > 1:
-        # Find the previous bill for this source
+        # Find the previous bill (B(N-1)) across ALL sibling workslips under the same estimate.
+        # B2 is created from W2, but B1 lives under W1. We need to search all workslips.
         if source_work.work_type == 'workslip':
-            # Bill N links to Workslip N
-            prev_bill = SavedWork.objects.filter(
-                organization=org,
-                user=user,
-                work_type='bill',
-                bill_number=bill_number - 1,
-                parent=source_work
-            ).first()
+            root_estimate = source_work.parent
+            if root_estimate:
+                # Get all workslip IDs under this estimate
+                sibling_ws_ids = list(
+                    SavedWork.objects.filter(
+                        organization=org, user=user,
+                        work_type='workslip',
+                        parent=root_estimate,
+                    ).values_list('id', flat=True)
+                )
+                # Search for prev bill across all sibling workslips
+                prev_bill = SavedWork.objects.filter(
+                    organization=org,
+                    user=user,
+                    work_type='bill',
+                    bill_number=bill_number - 1,
+                    parent_id__in=sibling_ws_ids,
+                ).first()
+            else:
+                prev_bill = SavedWork.objects.filter(
+                    organization=org, user=user,
+                    work_type='bill',
+                    bill_number=bill_number - 1,
+                    parent=source_work,
+                ).first()
         else:
             # From estimate
             prev_bill = SavedWork.objects.filter(

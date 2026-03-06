@@ -504,9 +504,9 @@
                 <i class="bi bi-check-circle"></i> Save & Continue
             </button>
             {% if source_workslip %}
-            <a href="{% url 'bill_generate' work_id=source_workslip.id %}" class="be-btn be-btn-download">
+            <button type="button" class="be-btn be-btn-download" onclick="showBillTypeModal()">
                 <i class="bi bi-download"></i> Download Bill
-            </a>
+            </button>
             {% endif %}
             <button type="button" class="be-btn be-btn-back" onclick="history.back()">
                 <i class="bi bi-arrow-left"></i> Back
@@ -514,6 +514,61 @@
         </div>
     </form>
 </div>
+
+{% if source_workslip %}
+<!-- Bill Type Selection Modal -->
+<div id="billTypeModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:16px; padding:2rem; max-width:480px; width:90%; box-shadow:0 25px 50px rgba(0,0,0,0.25);">
+        <h4 style="margin:0 0 0.5rem; font-weight:800; color:#1e293b; font-size:1.1rem;">
+            <i class="bi bi-file-earmark-check me-2" style="color:#4338ca;"></i>Select Bill Type
+        </h4>
+        <p style="margin:0 0 1.5rem; color:#64748b; font-size:0.85rem;">
+            Choose whether this is a <strong>Part Bill</strong> (more bills to follow) or a <strong>Final Bill</strong> (last bill for this work).
+        </p>
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+            <button type="button" onclick="downloadBill('bill_part')" style="display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; border-radius:12px; border:2px solid #e2e8f0; background:white; cursor:pointer; text-align:left; transition:all 0.2s;">
+                <div style="width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; background:#dbeafe; color:#2563eb; flex-shrink:0;">
+                    <i class="bi bi-file-earmark-plus"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#1e293b; font-size:0.9rem;">
+                        {% if bill_number == 1 %}CC First &amp; Part Bill{% else %}CC Bill {{ bill_number }} &amp; Part Bill{% endif %}
+                    </div>
+                    <div style="font-size:0.72rem; color:#64748b; margin-top:0.15rem;">More bills will follow for this work</div>
+                </div>
+            </button>
+            <button type="button" onclick="downloadBill('bill_final')" style="display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; border-radius:12px; border:2px solid #e2e8f0; background:white; cursor:pointer; text-align:left; transition:all 0.2s;">
+                <div style="width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; background:#dcfce7; color:#16a34a; flex-shrink:0;">
+                    <i class="bi bi-file-earmark-check"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#1e293b; font-size:0.9rem;">
+                        {% if bill_number == 1 %}CC First &amp; Final Bill{% else %}CC Bill {{ bill_number }} &amp; Final Bill{% endif %}
+                    </div>
+                    <div style="font-size:0.72rem; color:#64748b; margin-top:0.15rem;">This is the last/final bill for this work</div>
+                </div>
+            </button>
+        </div>
+        <button onclick="hideBillTypeModal()" style="display:block; margin-top:1rem; text-align:center; color:#94a3b8; font-size:0.8rem; cursor:pointer; background:none; border:none; width:100%; padding:0.5rem; border-radius:6px;">Cancel</button>
+    </div>
+</div>
+
+<!-- Hidden form for bill download (POST to bill_generate) -->
+<form method="post" id="downloadForm" action="{% url 'bill_generate' work_id=source_workslip.id %}" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action_type" id="downloadActionType" value="" />
+    <input type="hidden" name="mb_measure_no" value="" />
+    <input type="hidden" name="mb_measure_p_from" value="" />
+    <input type="hidden" name="mb_measure_p_to" value="" />
+    <input type="hidden" name="mb_abstract_no" value="" />
+    <input type="hidden" name="mb_abstract_p_from" value="" />
+    <input type="hidden" name="mb_abstract_p_to" value="" />
+    <input type="hidden" name="doi" value="" />
+    <input type="hidden" name="doc" value="" />
+    <input type="hidden" name="domr" value="" />
+    <input type="hidden" name="dobr" value="" />
+</form>
+{% endif %}
 
 <script>
     // Bill data structure
@@ -715,6 +770,80 @@
         document.body.appendChild(alertDiv);
         setTimeout(() => { alertDiv.remove(); }, 3000);
     }
+
+    // === Bill Type Modal ===
+    function showBillTypeModal() {
+        const modal = document.getElementById('billTypeModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    function hideBillTypeModal() {
+        const modal = document.getElementById('billTypeModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    function downloadBill(actionType) {
+        // First save the bill data, then trigger download
+        document.querySelectorAll('.exec-qty').forEach(input => {
+            const key = input.dataset.key;
+            const val = parseFloat(input.value) || 0;
+            if (val > 0) execMap[key] = val;
+        });
+
+        document.getElementById('bill-exec-map-field').value = JSON.stringify(execMap);
+        document.getElementById('bill-deduct-map-field').value = JSON.stringify(deductMap);
+        document.getElementById('bill-rate-map-field').value = JSON.stringify(rateMap);
+
+        const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        const formData = new FormData(document.getElementById('bill-entry-form'));
+
+        // Save first, then download
+        fetch(document.getElementById('bill-entry-form').action, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Accept': 'application/json' },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Now trigger the download via the hidden form
+            document.getElementById('downloadActionType').value = actionType;
+            // Copy dates from entry form to download form
+            const downloadForm = document.getElementById('downloadForm');
+            const doi = document.getElementById('doi');
+            const doc = document.getElementById('doc');
+            const domr = document.getElementById('domr');
+            const dobr = document.getElementById('dobr');
+            if (doi) downloadForm.querySelector('[name="doi"]').value = doi.value;
+            if (doc) downloadForm.querySelector('[name="doc"]').value = doc.value;
+            if (domr) downloadForm.querySelector('[name="domr"]').value = domr.value;
+            if (dobr) downloadForm.querySelector('[name="dobr"]').value = dobr.value;
+            downloadForm.submit();
+        })
+        .catch(() => {
+            // Even if save fails, try download
+            document.getElementById('downloadActionType').value = actionType;
+            document.getElementById('downloadForm').submit();
+        });
+
+        hideBillTypeModal();
+    }
+
+    // Close modal on overlay click
+    const billModal = document.getElementById('billTypeModal');
+    if (billModal) {
+        billModal.addEventListener('click', function(e) {
+            if (e.target === this) hideBillTypeModal();
+        });
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') hideBillTypeModal();
+    });
 
     // Initialize on load
     document.addEventListener('DOMContentLoaded', function() {
