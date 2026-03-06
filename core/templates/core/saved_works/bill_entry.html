@@ -1,273 +1,592 @@
 {% extends "core/base_modern.html" %}
 {% load static %}
 
-{% block title %}Bill {{ next_bill_number }} Entry - {{ workslip.name }}{% endblock %}
+{% block title %}Bill {{ next_bill_number }} - {{ workslip.name }}{% endblock %}
 {% block nav_saved_works %}active{% endblock %}
 
 {% block page_title %}
-<i class="bi bi-pencil-square me-2"></i>Bill {{ next_bill_number }} Quantity Entry
+<i class="bi bi-receipt me-2"></i>Bill {{ next_bill_number }}
 {% endblock %}
 
 {% block content %}
 <style>
-    .be-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    .bill-container { max-width: 1300px; margin: 0 auto; padding: 1rem; }
 
-    .be-banner {
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 2px solid #60a5fa;
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1rem;
+    /* Back link */
+    .bill-back {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        color: #64748b; text-decoration: none; font-size: 0.85rem;
+        margin-bottom: 1rem; transition: color 0.2s;
     }
-    .be-banner h4 { margin: 0; font-weight: 700; color: #1e40af; font-size: 1rem; }
-    .be-banner .sub { font-size: 0.78rem; color: #1d4ed8; margin-top: 0.2rem; }
+    .bill-back:hover { color: #1e293b; }
 
-    .be-card {
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.07);
-        overflow: hidden;
-        margin-bottom: 1rem;
+    /* Header Banner */
+    .bill-banner {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border: 2px solid #38bdf8;
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 15px rgba(56,189,248,0.12);
     }
-    .be-card-header {
-        padding: 0.6rem 0.9rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: white;
-        font-weight: 600;
-        font-size: 0.85rem;
+    .bill-banner-row {
+        display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
     }
-    .be-card-header.blue  { background: #2563eb; }
-    .be-card-header.green { background: #059669; }
-    .be-card-body { padding: 0; }
+    .bill-banner-icon {
+        width: 48px; height: 48px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem; flex-shrink: 0;
+    }
+    .bill-banner-icon.b1 { background: #0ea5e9; color: white; }
+    .bill-banner-icon.bn { background: #8b5cf6; color: white; }
+    .bill-banner h3 { margin: 0; font-weight: 800; color: #0c4a6e; font-size: 1.15rem; }
+    .bill-banner .sub { font-size: 0.78rem; color: #0369a1; margin-top: 0.15rem; }
+    .bill-badge {
+        margin-left: auto; padding: 0.3rem 0.8rem; border-radius: 20px;
+        font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+    }
+    .bill-badge.b1 { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+    .bill-badge.bn { background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; }
 
-    /* Quantity Table */
-    .be-table-wrap { overflow-x: auto; }
-    .be-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.72rem;
+    /* Info tip */
+    .bill-tip {
+        margin-top: 0.75rem; font-size: 0.73rem; border-radius: 8px;
+        padding: 0.4rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;
     }
-    .be-table th {
-        background: #f1f5f9;
-        padding: 0.4rem 0.5rem;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        font-weight: 600;
-        color: #475569;
-        white-space: nowrap;
-    }
-    .be-table th.desc-col { text-align: left; min-width: 280px; }
-    .be-table th.prev-col { background: #fef3c7; color: #92400e; }
-    .be-table th.curr-col { background: #dcfce7; color: #166534; }
+    .bill-tip.b1 { background: #dbeafe; color: #1e40af; }
+    .bill-tip.bn { background: #ede9fe; color: #5b21b6; }
 
-    .be-table td {
-        padding: 0.35rem 0.5rem;
-        border: 1px solid #f1f5f9;
+    /* Card wrapper */
+    .bill-card {
+        background: white; border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        overflow: hidden; margin-bottom: 1.25rem;
+    }
+    .bill-card-header {
+        padding: 0.65rem 1rem; display: flex; align-items: center; gap: 0.5rem;
+        color: white; font-weight: 700; font-size: 0.85rem;
+    }
+    .bill-card-header.blue { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+    .bill-card-header.purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+    .bill-card-header.green { background: linear-gradient(135deg, #10b981, #059669); }
+
+    /* Table */
+    .bill-table-wrap { overflow-x: auto; }
+    .bill-table {
+        width: 100%; border-collapse: collapse; font-size: 0.75rem;
+    }
+    .bill-table th {
+        background: #f8fafc; padding: 0.55rem 0.6rem; text-align: center;
+        border: 1px solid #e2e8f0; font-weight: 700; color: #475569;
+        white-space: nowrap; font-size: 0.72rem;
+    }
+    .bill-table th.desc-col { text-align: left; min-width: 260px; }
+    .bill-table th.qty-col { background: #dbeafe; color: #1e40af; }
+    .bill-table th.deduct-col { background: #fef3c7; color: #92400e; }
+    .bill-table th.total-col { background: #dcfce7; color: #166534; }
+    .bill-table th.value-col { background: #f0f9ff; color: #0369a1; }
+    .bill-table th.amount-col { background: #ecfdf5; color: #065f46; }
+
+    .bill-table td {
+        padding: 0.45rem 0.6rem; border: 1px solid #f1f5f9;
         vertical-align: middle;
     }
-    .be-table td.desc-td { text-align: left; color: #1e293b; }
-    .be-table td.num-td  { text-align: center; color: #475569; }
-    .be-table td.prev-td { text-align: center; background: #fffbeb; color: #78350f; }
-    .be-table td.curr-td { background: #f0fdf4; }
+    .bill-table td.desc-td { text-align: left; color: #1e293b; line-height: 1.4; }
+    .bill-table td.num-td { text-align: center; color: #475569; }
+    .bill-table td.qty-td { text-align: center; background: #eff6ff; color: #1e40af; font-weight: 700; }
+    .bill-table td.deduct-td { text-align: center; background: #fffbeb; color: #92400e; font-weight: 600; }
+    .bill-table td.total-td { background: #f0fdf4; text-align: center; }
+    .bill-table td.value-td { text-align: right; color: #0369a1; font-weight: 600; }
+    .bill-table td.amount-td { text-align: right; color: #059669; font-weight: 700; }
 
-    .be-table tr:hover td { background-color: #f8fafc; }
-    .be-table tr:hover td.prev-td { background: #fef9c3; }
-    .be-table tr:hover td.curr-td { background: #dcfce7; }
+    .bill-table tr:hover td { background-color: #f8fafc; }
+    .bill-table tr:hover td.qty-td { background: #dbeafe; }
+    .bill-table tr:hover td.deduct-td { background: #fef9c3; }
+    .bill-table tr:hover td.total-td { background: #dcfce7; }
 
+    .bill-table .total-row td {
+        background: linear-gradient(135deg, #f0fdf4, #ecfdf5) !important;
+        font-weight: 800; font-size: 0.8rem; color: #065f46;
+        border-top: 2px solid #10b981;
+    }
+
+    /* Quantity input for Bill 2+ */
     .qty-input {
-        width: 90px;
-        padding: 0.3rem 0.4rem;
-        font-size: 0.75rem;
-        border: 1.5px solid #86efac;
-        border-radius: 4px;
-        text-align: center;
-        background: white;
+        width: 100px; padding: 0.35rem 0.5rem; font-size: 0.78rem;
+        border: 2px solid #86efac; border-radius: 6px; text-align: center;
+        background: white; font-weight: 600;
         transition: border-color 0.2s, box-shadow 0.2s;
     }
     .qty-input:focus {
-        outline: none;
-        border-color: #22c55e;
-        box-shadow: 0 0 0 2px rgba(34,197,94,0.15);
+        outline: none; border-color: #22c55e;
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
     }
-    .qty-input.has-value { border-color: #16a34a; background: #f0fdf4; font-weight: 600; }
+    .qty-input.has-value { border-color: #16a34a; background: #f0fdf4; }
 
-    /* Back link */
-    .be-back {
+    /* Summary bar */
+    .bill-summary {
+        display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+        border: 2px solid #34d399; border-radius: 10px;
+        margin-bottom: 1.25rem;
+    }
+    .bill-summary-item {
+        text-align: center;
+    }
+    .bill-summary-label {
+        font-size: 0.65rem; color: #065f46; text-transform: uppercase;
+        font-weight: 700; letter-spacing: 0.5px;
+    }
+    .bill-summary-value {
+        font-size: 1.3rem; font-weight: 800; color: #059669;
+    }
+    .bill-summary-value.grand {
+        font-size: 1.5rem; color: #047857;
+    }
+
+    /* Action buttons area */
+    .bill-actions {
+        display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+    .bill-btn {
         display: inline-flex; align-items: center; gap: 0.5rem;
-        color: #64748b; text-decoration: none; font-size: 0.9rem;
-        margin-bottom: 1rem; transition: color 0.2s;
+        padding: 0.65rem 1.4rem; font-size: 0.85rem; font-weight: 700;
+        border-radius: 8px; border: none; cursor: pointer;
+        transition: all 0.2s; white-space: nowrap;
     }
-    .be-back:hover { color: #1e293b; }
+    .bill-btn:hover { transform: translateY(-1px); }
+    .bill-btn-save {
+        background: linear-gradient(135deg, #3b82f6, #2563eb); color: white;
+    }
+    .bill-btn-save:hover { box-shadow: 0 4px 15px rgba(37,99,235,0.35); }
+    .bill-btn-download {
+        background: linear-gradient(135deg, #10b981, #059669); color: white;
+    }
+    .bill-btn-download:hover { box-shadow: 0 4px 15px rgba(5,150,105,0.35); }
+    .bill-btn-outline {
+        background: white; color: #64748b; border: 2px solid #e2e8f0;
+    }
+    .bill-btn-outline:hover { border-color: #94a3b8; background: #f8fafc; }
 
-    /* Save button */
-    .be-save-btn {
-        display: inline-flex; align-items: center; gap: 0.5rem;
-        padding: 0.6rem 1.4rem; font-size: 0.85rem; font-weight: 600;
-        border-radius: 6px; border: none; cursor: pointer;
-        background: #2563eb; color: white;
-        transition: all 0.2s;
+    /* Bill type selection modal */
+    .bill-modal-overlay {
+        display: none; position: fixed; inset: 0; z-index: 9999;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+        align-items: center; justify-content: center;
     }
-    .be-save-btn:hover { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(37,99,235,0.3); }
+    .bill-modal-overlay.show { display: flex; }
+    .bill-modal {
+        background: white; border-radius: 16px; padding: 2rem;
+        max-width: 480px; width: 90%; box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+        animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+        from { transform: translateY(30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    .bill-modal h4 {
+        margin: 0 0 0.5rem; font-weight: 800; color: #1e293b; font-size: 1.1rem;
+    }
+    .bill-modal p {
+        margin: 0 0 1.5rem; color: #64748b; font-size: 0.85rem;
+    }
+    .bill-type-options {
+        display: flex; flex-direction: column; gap: 0.75rem;
+    }
+    .bill-type-btn {
+        display: flex; align-items: center; gap: 1rem;
+        padding: 1rem 1.25rem; border-radius: 12px; border: 2px solid #e2e8f0;
+        background: white; cursor: pointer; transition: all 0.2s;
+        text-align: left;
+    }
+    .bill-type-btn:hover {
+        border-color: #3b82f6; background: #f0f9ff;
+        transform: translateY(-2px); box-shadow: 0 4px 15px rgba(59,130,246,0.15);
+    }
+    .bill-type-btn .icon-wrap {
+        width: 44px; height: 44px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.2rem; flex-shrink: 0;
+    }
+    .bill-type-btn .icon-wrap.part { background: #dbeafe; color: #2563eb; }
+    .bill-type-btn .icon-wrap.final { background: #dcfce7; color: #16a34a; }
+    .bill-type-btn .type-label {
+        font-weight: 700; color: #1e293b; font-size: 0.9rem;
+    }
+    .bill-type-btn .type-desc {
+        font-size: 0.72rem; color: #64748b; margin-top: 0.15rem;
+    }
+    .bill-modal-cancel {
+        display: block; margin-top: 1rem; text-align: center;
+        color: #94a3b8; font-size: 0.8rem; cursor: pointer;
+        background: none; border: none; width: 100%;
+        padding: 0.5rem; border-radius: 6px;
+    }
+    .bill-modal-cancel:hover { color: #64748b; background: #f1f5f9; }
 
-    .be-generate-btn {
-        display: inline-flex; align-items: center; gap: 0.5rem;
-        padding: 0.6rem 1.4rem; font-size: 0.85rem; font-weight: 600;
-        border-radius: 6px; border: none; cursor: pointer;
-        background: #059669; color: white; text-decoration: none;
-        transition: all 0.2s;
-    }
-    .be-generate-btn:hover { background: #047857; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(5,150,105,0.3); }
-
-    .be-prev-badge {
-        display: inline-block;
-        background: #fef3c7; border: 1px solid #fcd34d;
-        border-radius: 4px; padding: 0.1rem 0.4rem;
-        font-size: 0.65rem; color: #92400e; font-weight: 600;
-        margin-left: 0.25rem;
-    }
-    .be-draft-badge {
+    /* Draft badge */
+    .draft-badge {
         background: #dbeafe; border: 1px solid #93c5fd;
-        border-radius: 4px; padding: 0.15rem 0.5rem;
-        font-size: 0.72rem; color: #1e40af; font-weight: 600;
+        border-radius: 6px; padding: 0.15rem 0.5rem;
+        font-size: 0.68rem; color: #1e40af; font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+        .bill-container { padding: 0.5rem; }
+        .bill-table { font-size: 0.68rem; }
+        .bill-actions { flex-direction: column; }
+        .bill-btn { width: 100%; justify-content: center; }
     }
 </style>
 
-<div class="be-container">
+<div class="bill-container">
 
     <!-- Back -->
-    <a href="{% url 'saved_works_list' %}" class="be-back">
+    <a href="{% url 'saved_works_list' %}" class="bill-back">
         <i class="bi bi-arrow-left"></i> Back to Saved Works
     </a>
 
     <!-- Banner -->
-    <div class="be-banner">
-        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-            <div style="background:#2563eb; color:white; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0;">
-                <i class="bi bi-pencil-square"></i>
+    <div class="bill-banner">
+        <div class="bill-banner-row">
+            <div class="bill-banner-icon {% if is_bill_1 %}b1{% else %}bn{% endif %}">
+                <i class="bi bi-receipt"></i>
             </div>
             <div>
-                <h4>Enter Quantities for Bill {{ next_bill_number }} ({{ bill_ord }})</h4>
+                <h3>Bill {{ next_bill_number }} {% if is_bill_1 %}{% else %}&mdash; {{ bill_ord }}{% endif %}</h3>
                 <div class="sub">
-                    Workslip: <strong>{{ workslip.name }}</strong>
+                    Workslip W{{ workslip.workslip_number }}: <strong>{{ workslip.name }}</strong>
                     &bull; {{ items|length }} items
                     {% if work %}&bull; Estimate: {{ work.name }}{% endif %}
-                    {% if draft_bill %}&bull; <span class="be-draft-badge"><i class="bi bi-floppy me-1"></i>Draft saved</span>{% endif %}
+                    {% if draft_bill %}&bull; <span class="draft-badge"><i class="bi bi-floppy me-1"></i>Draft saved</span>{% endif %}
                 </div>
             </div>
-            {% if existing_bills %}
-            <div style="margin-left:auto; font-size:0.72rem; color:#1d4ed8;">
-                <i class="bi bi-journal-check me-1"></i>
-                {{ existing_bills|length }} bill(s) already generated
-            </div>
-            {% endif %}
+            <span class="bill-badge {% if is_bill_1 %}b1{% else %}bn{% endif %}">
+                {% if is_bill_1 %}
+                    <i class="bi bi-1-circle me-1"></i> First Bill
+                {% else %}
+                    <i class="bi bi-arrow-repeat me-1"></i> {{ bill_ord }} Bill
+                {% endif %}
+            </span>
         </div>
-        <div style="margin-top:0.6rem; font-size:0.72rem; color:#1e40af; background:#bfdbfe; border-radius:6px; padding:0.35rem 0.7rem;">
-            <i class="bi bi-info-circle-fill me-1"></i>
-            Enter <strong>Total Measurements till date</strong> (cumulative quantity up to this bill).
-            Previous bill quantities are shown for reference.
-            Save quantities, then click <strong>Generate Bill</strong>.
+        {% if is_bill_1 %}
+        <div class="bill-tip b1">
+            <i class="bi bi-info-circle-fill"></i>
+            Quantities are <strong>auto-fetched from Workslip W{{ workslip.workslip_number }}</strong>.
+            Review the items below, then <strong>Save &amp; Download</strong> the bill.
         </div>
+        {% else %}
+        <div class="bill-tip bn">
+            <i class="bi bi-info-circle-fill"></i>
+            Previous measurements (from Bill {{ next_bill_number|add:"-1" }}) are shown for deduction.
+            Enter <strong>Total Measurements Till Date</strong> for each item, then Save &amp; Download.
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Quantity Entry Form -->
+    <!-- Main Form -->
     <form method="post" id="billEntryForm">
         {% csrf_token %}
 
-        <div class="be-card">
-            <div class="be-card-header blue">
+        {% if is_bill_1 %}
+        {# ========================= BILL 1 UI ========================= #}
+        <div class="bill-card">
+            <div class="bill-card-header blue">
                 <i class="bi bi-table"></i>
-                Bill {{ next_bill_number }} — Quantity Entry
-                {% if bill_numbers %}
-                &nbsp;|&nbsp;
-                <span style="font-size:0.7rem; opacity:0.85;">
-                    Previous bills: B{{ bill_numbers|join:", B" }}
-                </span>
-                {% endif %}
+                Bill {{ next_bill_number }} &mdash; Items &amp; Quantities from W{{ workslip.workslip_number }}
             </div>
-            <div class="be-card-body">
-                <div class="be-table-wrap">
-                    <table class="be-table">
-                        <thead>
-                            <tr>
-                                <th style="width:30px;">Sl</th>
-                                <th class="desc-col">Description</th>
-                                <th style="width:55px;">Unit</th>
-                                <th style="width:80px;">Rate</th>
-                                <th style="width:80px;">Est. Qty</th>
-                                {% for bn in bill_numbers %}
-                                <th class="prev-col">Total till date<br>(Bill {{ bn }})</th>
-                                {% endfor %}
-                                <th class="curr-col" style="width:130px;">
-                                    Total Measurements<br>till date (Bill {{ next_bill_number }})
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in items %}
-                            <tr>
-                                <td class="num-td">{{ forloop.counter }}</td>
-                                <td class="desc-td">{{ item.desc }}</td>
-                                <td class="num-td">{{ item.unit }}</td>
-                                <td class="num-td">{{ item.rate }}</td>
-                                <td class="num-td">{{ item.qty_est }}</td>
-                                {% for pq in item.prev_qtys %}
-                                <td class="prev-td">
-                                    {% if pq.qty %}{{ pq.qty }}{% else %}—{% endif %}
-                                </td>
-                                {% endfor %}
-                                <td class="curr-td" style="text-align:center;">
-                                    <input
-                                        type="number"
-                                        name="qty_{{ item.key }}"
-                                        class="qty-input {% if item.draft_qty != '' %}has-value{% endif %}"
-                                        value="{{ item.draft_qty }}"
-                                        min="0"
-                                        step="any"
-                                        placeholder="0"
-                                        data-key="{{ item.key }}"
-                                        oninput="this.classList.toggle('has-value', this.value !== '')"
-                                    />
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="bill-table-wrap">
+                <table class="bill-table" id="bill1Table">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;">Sl. No.</th>
+                            <th class="desc-col">Items</th>
+                            <th style="width:60px;">Unit</th>
+                            <th style="width:90px;">Rates</th>
+                            <th class="qty-col" style="width:120px;">
+                                Bill-1 Qty<br>
+                                <span style="font-weight:400; font-size:0.62rem;">(fetched from W{{ workslip.workslip_number }})</span>
+                            </th>
+                            <th class="amount-col" style="width:120px;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td class="num-td">{{ forloop.counter }}</td>
+                            <td class="desc-td">{{ item.desc }}</td>
+                            <td class="num-td">{{ item.unit }}</td>
+                            <td class="num-td" style="font-weight:600;">{{ item.rate|floatformat:2 }}</td>
+                            <td class="qty-td">
+                                {{ item.ws_qty|floatformat:2 }}
+                                <input type="hidden" name="qty_{{ item.key }}" value="{{ item.ws_qty }}" />
+                            </td>
+                            <td class="amount-td">{{ item.amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="total-row">
+                            <td colspan="5" style="text-align:right; padding-right:1rem;">Total</td>
+                            <td class="amount-td" style="font-size:0.85rem;" id="bill1Total">{{ total_amount|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
-        <!-- Action Row -->
-        <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; margin-top:0.5rem;">
-            <button type="submit" class="be-save-btn">
-                <i class="bi bi-floppy"></i> Save Quantities
-            </button>
-            <div style="font-size:0.72rem; color:#64748b;">
-                <i class="bi bi-lightbulb me-1" style="color:#f59e0b;"></i>
-                Save quantities, then use the buttons below to generate bill &amp; documents.
+        {% else %}
+        {# ========================= BILL 2+ UI ========================= #}
+        <div class="bill-card">
+            <div class="bill-card-header purple">
+                <i class="bi bi-table"></i>
+                Bill {{ next_bill_number }} &mdash; {{ bill_ord }} Bill Entry
+                {% if bill_numbers %}
+                &nbsp;|&nbsp;
+                <span style="font-size:0.68rem; opacity:0.9;">
+                    Deducting from: B{{ bill_numbers|join:", B" }}
+                </span>
+                {% endif %}
             </div>
+            <div class="bill-table-wrap">
+                <table class="bill-table" id="bill2Table">
+                    <thead>
+                        <tr>
+                            <th style="width:35px;">Sl. No.</th>
+                            <th class="desc-col">Items
+                                <br><span style="font-weight:400; font-size:0.6rem;">(fetched from W{{ workslip.workslip_number }}{% if workslip.workslip_number > 1 %} if generated{% endif %})</span>
+                            </th>
+                            <th style="width:75px;">Rates</th>
+                            <th class="deduct-col" style="width:140px;">
+                                Deduct Previous<br>Measurement
+                                <br><span style="font-weight:400; font-size:0.6rem;">(Bill {{ next_bill_number|add:"-1" }} Qty)</span>
+                            </th>
+                            <th class="total-col" style="width:150px;">
+                                Total Measurements<br>Till Date
+                                <br><span style="font-weight:400; font-size:0.6rem;">(Entered manually)</span>
+                            </th>
+                            <th class="value-col" style="width:130px;">
+                                Total Value<br>Till Date
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr data-rate="{{ item.rate }}" data-key="{{ item.key }}">
+                            <td class="num-td">{{ forloop.counter }}</td>
+                            <td class="desc-td">{{ item.desc }}</td>
+                            <td class="num-td" style="font-weight:600;">{{ item.rate|floatformat:2 }}</td>
+                            <td class="deduct-td">
+                                {% if item.prev_deduct %}{{ item.prev_deduct|floatformat:2 }}{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="total-td" style="text-align:center;">
+                                <input
+                                    type="number"
+                                    name="qty_{{ item.key }}"
+                                    class="qty-input bill2-qty {% if item.draft_qty != '' %}has-value{% endif %}"
+                                    value="{% if item.draft_qty != '' %}{{ item.draft_qty|floatformat:2 }}{% endif %}"
+                                    min="0" step="any" placeholder="0"
+                                    data-rate="{{ item.rate }}"
+                                    data-key="{{ item.key }}"
+                                />
+                            </td>
+                            <td class="value-td bill2-value">
+                                {% if item.total_value %}{{ item.total_value|floatformat:2 }}{% else %}0.00{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="total-row">
+                            <td colspan="5" style="text-align:right; padding-right:1rem;">Total Amount</td>
+                            <td class="value-td" style="font-size:0.85rem;" id="bill2Total">{{ total_amount|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Summary -->
+        <div class="bill-summary">
+            <div class="bill-summary-item">
+                <div class="bill-summary-label">Items</div>
+                <div class="bill-summary-value" id="summaryCount">{{ items|length }}</div>
+            </div>
+            <div class="bill-summary-item">
+                <div class="bill-summary-label">Sub Total</div>
+                <div class="bill-summary-value" id="summarySubTotal">{{ total_amount|floatformat:2 }}</div>
+            </div>
+            {% if tp_percent %}
+            <div class="bill-summary-item">
+                <div class="bill-summary-label">T.P. {{ tp_percent }}% {{ tp_type }}</div>
+                <div class="bill-summary-value" id="summaryTP" style="font-size:1rem; color:#d97706;">0.00</div>
+            </div>
+            <div class="bill-summary-item">
+                <div class="bill-summary-label">Grand Total</div>
+                <div class="bill-summary-value grand" id="summaryGrand">0.00</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Action Row -->
+        <div class="bill-actions">
+            <button type="submit" class="bill-btn bill-btn-save">
+                <i class="bi bi-floppy"></i> Save Bill {{ next_bill_number }}
+            </button>
+            {% if draft_bill or is_bill_1 %}
+            <button type="button" class="bill-btn bill-btn-download" onclick="showBillTypeModal()">
+                <i class="bi bi-download"></i> Download Bill {{ next_bill_number }}
+            </button>
+            {% endif %}
+            <a href="{% url 'bill_generate' work_id=workslip.id %}" class="bill-btn bill-btn-outline">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Bill Generator (Advanced)
+            </a>
         </div>
 
     </form>
 
-    {% if draft_bill %}
-    <!-- Bill Generation Section (only shown after quantities are saved) -->
-    <div style="margin-top: 1.5rem;">
-        <a href="{% url 'bill_generate' work_id=workslip.id %}" class="be-generate-btn" style="font-size: 0.95rem; padding: 0.7rem 1.6rem;">
-            <i class="bi bi-file-earmark-spreadsheet"></i> Generate Bill {{ next_bill_number }} &amp; Documents
-        </a>
-    </div>
-    {% endif %}
-
 </div>
 
+<!-- Bill Type Selection Modal -->
+<div class="bill-modal-overlay" id="billTypeModal">
+    <div class="bill-modal">
+        <h4><i class="bi bi-file-earmark-check me-2" style="color:#2563eb;"></i>Select Bill Type</h4>
+        <p>Choose whether this is a <strong>Part Bill</strong> (more bills to follow) or a <strong>Final Bill</strong> (last bill for this work).</p>
+        <div class="bill-type-options">
+            <button type="button" class="bill-type-btn" onclick="downloadBill('bill_part')">
+                <div class="icon-wrap part"><i class="bi bi-file-earmark-plus"></i></div>
+                <div>
+                    <div class="type-label">
+                        {% if is_bill_1 %}CC First &amp; Part Bill{% else %}CC {{ bill_ord }} &amp; Part Bill{% endif %}
+                    </div>
+                    <div class="type-desc">More bills will follow for this work</div>
+                </div>
+            </button>
+            <button type="button" class="bill-type-btn" onclick="downloadBill('bill_final')">
+                <div class="icon-wrap final"><i class="bi bi-file-earmark-check"></i></div>
+                <div>
+                    <div class="type-label">
+                        {% if is_bill_1 %}CC First &amp; Final Bill{% else %}CC {{ bill_ord }} &amp; Final Bill{% endif %}
+                    </div>
+                    <div class="type-desc">This is the last/final bill for this work</div>
+                </div>
+            </button>
+        </div>
+        <button class="bill-modal-cancel" onclick="hideBillTypeModal()">Cancel</button>
+    </div>
+</div>
+
+<!-- Hidden form for download (submits to bill_generate) -->
+<form method="post" id="downloadForm" action="{% url 'bill_generate' work_id=workslip.id %}" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action_type" id="downloadActionType" value="" />
+    <input type="hidden" name="mb_measure_no" value="" />
+    <input type="hidden" name="mb_measure_p_from" value="" />
+    <input type="hidden" name="mb_measure_p_to" value="" />
+    <input type="hidden" name="mb_abstract_no" value="" />
+    <input type="hidden" name="mb_abstract_p_from" value="" />
+    <input type="hidden" name="mb_abstract_p_to" value="" />
+    <input type="hidden" name="doi" value="" />
+    <input type="hidden" name="doc" value="" />
+    <input type="hidden" name="domr" value="" />
+    <input type="hidden" name="dobr" value="" />
+</form>
+
 <script>
-// Highlight filled inputs on page load
-document.querySelectorAll('.qty-input').forEach(function(inp) {
-    if (inp.value && inp.value !== '') {
-        inp.classList.add('has-value');
-    }
+// === Bill Type Modal ===
+function showBillTypeModal() {
+    {% if not is_bill_1 and not draft_bill %}
+    // For Bill 2+, first save quantities via the main form before download
+    alert('Please save quantities first, then download.');
+    return;
+    {% endif %}
+
+    // For Bill 1: auto-save first (submit main form, then redirect to download)
+    {% if is_bill_1 and not draft_bill %}
+    // Save the form data first
+    const form = document.getElementById('billEntryForm');
+    const formData = new FormData(form);
+    fetch(form.action || window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
+    }).then(() => {
+        document.getElementById('billTypeModal').classList.add('show');
+    }).catch(() => {
+        document.getElementById('billTypeModal').classList.add('show');
+    });
+    return;
+    {% endif %}
+
+    document.getElementById('billTypeModal').classList.add('show');
+}
+
+function hideBillTypeModal() {
+    document.getElementById('billTypeModal').classList.remove('show');
+}
+
+function downloadBill(actionType) {
+    document.getElementById('downloadActionType').value = actionType;
+    document.getElementById('downloadForm').submit();
+}
+
+// Close modal on overlay click
+document.getElementById('billTypeModal').addEventListener('click', function(e) {
+    if (e.target === this) hideBillTypeModal();
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') hideBillTypeModal();
+});
+
+// === Bill 2+ live calculations ===
+{% if not is_bill_1 %}
+document.querySelectorAll('.bill2-qty').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+        const rate = parseFloat(this.dataset.rate) || 0;
+        const qty = parseFloat(this.value) || 0;
+        const value = qty * rate;
+
+        // Update value cell
+        const row = this.closest('tr');
+        row.querySelector('.bill2-value').textContent = value.toFixed(2);
+
+        // Toggle has-value class
+        this.classList.toggle('has-value', this.value !== '');
+
+        // Recalculate total
+        updateBill2Total();
+    });
+});
+
+function updateBill2Total() {
+    let total = 0;
+    document.querySelectorAll('.bill2-value').forEach(function(cell) {
+        total += parseFloat(cell.textContent) || 0;
+    });
+    document.getElementById('bill2Total').textContent = total.toFixed(2);
+    updateSummary(total);
+}
+{% endif %}
+
+// === Summary calculations ===
+function updateSummary(subTotal) {
+    const st = subTotal || {{ total_amount }};
+    document.getElementById('summarySubTotal').textContent = st.toFixed(2);
+
+    {% if tp_percent %}
+    const tpPercent = {{ tp_percent }};
+    const tpType = '{{ tp_type }}';
+    const tpAmount = st * tpPercent / 100;
+    const grand = tpType === 'Less' ? (st - tpAmount) : (st + tpAmount);
+    document.getElementById('summaryTP').textContent = tpAmount.toFixed(2);
+    document.getElementById('summaryGrand').textContent = grand.toFixed(2);
+    {% endif %}
+}
+
+// Initialize summary on load
+document.addEventListener('DOMContentLoaded', function() {
+    updateSummary({{ total_amount }});
 });
 </script>
 

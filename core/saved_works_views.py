@@ -1875,14 +1875,17 @@ def bill_choice(request, work_id):
 @login_required(login_url='login')
 def bill_entry(request, work_id):
     """
-    Quantity entry UI for bill generation.
+    Bill entry & generation UI.
     work_id is a workslip SavedWork.id.
 
-    Shows a table of all items with:
-    - Previous bills' quantities per column (read-only, for reference)
-    - Input field for the current bill's quantities
-    Saves quantities as a 'bill' SavedWork draft.
-    After saving, user proceeds to bill_generate to download the Excel.
+    Bill 1 (from W1): Auto-fetches quantities from workslip exec_map.
+        Shows: Sl.No | Items | Rates | Bill-1 Qty (from W1) | Amount
+        User can Save & Download (Part or Final).
+
+    Bill 2+ (from W2+): Shows deduction from previous bill and allows
+        manual entry of total measurements till date.
+        Shows: Sl.No | Items | Rates | Deduct Previous (B(N-1) Qty) |
+               Total Measurements Till Date (input) | Total Value Till Date
     """
     org = get_org_from_request(request)
     user = request.user
@@ -1897,14 +1900,13 @@ def bill_entry(request, work_id):
     tp_percent = float(work_data.get('ws_tp_percent', 0) or 0)
     tp_type = work_data.get('ws_tp_type', 'Excess')
     ws_metadata = work_data.get('ws_metadata', {})
+    ws_exec_map = work_data.get('ws_exec_map', {}) or {}
 
     if not ws_rows:
         messages.error(request, 'Workslip has no items. Cannot create bill entry.')
         return redirect('saved_work_detail', work_id=work_id)
 
-    # Gather all previously generated bills for this workslip — used for previous quantities display
-    # and for determining the next bill number.  We exclude only 'draft' status so that bills
-    # created via the old session-based flow (status='in_progress') are still counted.
+    # Gather all previously generated bills for this workslip (excluding drafts)
     existing_bills = list(
         SavedWork.objects.filter(
             organization=org, user=user,
@@ -1913,7 +1915,7 @@ def bill_entry(request, work_id):
         ).exclude(status='draft').order_by('bill_number')
     )
 
-    # Determine next bill number based only on completed bills
+    # Determine next bill number
     if existing_bills:
         max_bill_num = max(b.bill_number or 0 for b in existing_bills)
         next_bill_number = max_bill_num + 1
@@ -1933,8 +1935,27 @@ def bill_entry(request, work_id):
     if draft_bill:
         draft_exec_map = (draft_bill.work_data or {}).get('bill_ws_exec_map', {})
 
-    # Build per-item data: previous bills' quantities + current draft quantities
+    # For Bill 2+: compute cumulative previous deductions from completed bills
+    prev_deduct_map = {}
+    if next_bill_number > 1:
+        for pb in existing_bills:
+            if (pb.bill_number or 0) < next_bill_number:
+                pb_data = pb.work_data or {}
+                pb_exec = pb_data.get('bill_ws_exec_map', {}) or {}
+                pb_rows = pb_data.get('bill_ws_rows', ws_rows)
+                for pidx, prow in enumerate(pb_rows):
+                    pkey = prow.get('key', f'saved_{pidx}')
+                    pqty = 0.0
+                    try:
+                        pqty = float(pb_exec.get(pkey, 0) or 0)
+                    except (ValueError, TypeError):
+                        pass
+                    if pqty > 0:
+                        prev_deduct_map[pkey] = prev_deduct_map.get(pkey, 0.0) + pqty
+
+    # Build per-item data
     items = []
+    total_amount = 0.0
     for idx, row in enumerate(ws_rows):
         key = row.get('key', f'saved_{idx}')
         desc = row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', '')
@@ -1942,34 +1963,49 @@ def bill_entry(request, work_id):
         rate = float(row.get('rate', 0) or 0)
         qty_est = float(row.get('qty_est', 0) or 0)
 
-        # Previous bills' quantities per bill
-        prev_qtys = []
-        for bill in existing_bills:
-            b_data = bill.work_data or {}
-            b_exec = b_data.get('bill_ws_exec_map', {})
-            q = b_exec.get(key, 0)
+        if next_bill_number == 1:
+            # Bill 1: Auto-fetch quantity from workslip exec_map
+            ws_qty = 0.0
             try:
-                q = float(q) if q else 0.0
+                ws_qty = float(ws_exec_map.get(key, 0) or 0)
             except (ValueError, TypeError):
-                q = 0.0
-            prev_qtys.append({'bill_number': bill.bill_number, 'qty': q})
+                ws_qty = 0.0
+            amount = ws_qty * rate
+            total_amount += amount
+            items.append({
+                'key': key,
+                'desc': desc,
+                'unit': unit,
+                'rate': rate,
+                'qty_est': qty_est,
+                'ws_qty': ws_qty,
+                'amount': round(amount, 2),
+            })
+        else:
+            # Bill 2+: Deduct previous + manual total till date entry
+            prev_deduct = prev_deduct_map.get(key, 0.0)
+            # Draft quantity = total till date (pre-filled from draft if exists)
+            draft_qty = draft_exec_map.get(key, '')
+            try:
+                draft_qty = float(draft_qty) if draft_qty != '' else ''
+            except (ValueError, TypeError):
+                draft_qty = ''
 
-        # Current draft quantity (pre-filled)
-        draft_qty = draft_exec_map.get(key, '')
-        try:
-            draft_qty = float(draft_qty) if draft_qty != '' else ''
-        except (ValueError, TypeError):
-            draft_qty = ''
+            # Calculate total value till date from draft
+            total_till_date_qty = float(draft_qty) if draft_qty != '' else 0.0
+            total_value = total_till_date_qty * rate
+            total_amount += total_value
 
-        items.append({
-            'key': key,
-            'desc': desc,
-            'unit': unit,
-            'rate': rate,
-            'qty_est': qty_est,
-            'prev_qtys': prev_qtys,
-            'draft_qty': draft_qty,
-        })
+            items.append({
+                'key': key,
+                'desc': desc,
+                'unit': unit,
+                'rate': rate,
+                'qty_est': qty_est,
+                'prev_deduct': prev_deduct,
+                'draft_qty': draft_qty,
+                'total_value': round(total_value, 2),
+            })
 
     if request.method == 'POST':
         # Save entered quantities
@@ -1982,6 +2018,18 @@ def bill_entry(request, work_id):
                     new_exec_map[key] = float(val)
                 except (ValueError, TypeError):
                     pass
+
+        # For Bill 1, auto-populate from workslip if no manual entries
+        if next_bill_number == 1 and not new_exec_map:
+            new_exec_map = {}
+            for idx, row in enumerate(ws_rows):
+                key = row.get('key', f'saved_{idx}')
+                try:
+                    q = float(ws_exec_map.get(key, 0) or 0)
+                except (ValueError, TypeError):
+                    q = 0.0
+                if q > 0:
+                    new_exec_map[key] = q
 
         bill_save_data = {
             'bill_ws_rows': ws_rows,
@@ -2019,7 +2067,7 @@ def bill_entry(request, work_id):
                 status='draft',
             )
 
-        messages.success(request, f'Bill {next_bill_number} quantities saved. Click "Generate Bill" to download.')
+        messages.success(request, f'Bill {next_bill_number} quantities saved.')
         return redirect('bill_entry', work_id=work_id)
 
     # Build list of bill numbers for table header
@@ -2037,6 +2085,8 @@ def bill_entry(request, work_id):
         'draft_bill': draft_bill,
         'tp_percent': tp_percent,
         'tp_type': tp_type,
+        'total_amount': round(total_amount, 2),
+        'is_bill_1': next_bill_number == 1,
     }
     return render(request, 'core/saved_works/bill_entry.html', context)
 
