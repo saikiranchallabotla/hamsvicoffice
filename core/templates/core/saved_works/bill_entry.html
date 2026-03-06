@@ -137,15 +137,9 @@
 <div class="be-container">
 
     <!-- Back -->
-    {% if work %}
-    <a href="{% url 'bill_choice' work.id %}" class="be-back">
-        <i class="bi bi-arrow-left"></i> Back to Bill Options
-    </a>
-    {% else %}
     <a href="{% url 'saved_works_list' %}" class="be-back">
         <i class="bi bi-arrow-left"></i> Back to Saved Works
     </a>
-    {% endif %}
 
     <!-- Banner -->
     <div class="be-banner">
@@ -171,7 +165,7 @@
         </div>
         <div style="margin-top:0.6rem; font-size:0.72rem; color:#1e40af; background:#bfdbfe; border-radius:6px; padding:0.35rem 0.7rem;">
             <i class="bi bi-info-circle-fill me-1"></i>
-            Enter quantities executed <strong>in this billing period only</strong> (not cumulative).
+            Enter <strong>Total Measurements till date</strong> (cumulative quantity up to this bill).
             Previous bill quantities are shown for reference.
             Save quantities, then click <strong>Generate Bill</strong>.
         </div>
@@ -203,11 +197,10 @@
                                 <th style="width:80px;">Rate</th>
                                 <th style="width:80px;">Est. Qty</th>
                                 {% for bn in bill_numbers %}
-                                <th class="prev-col">B{{ bn }} Qty</th>
+                                <th class="prev-col">Total till date<br>(Bill {{ bn }})</th>
                                 {% endfor %}
-                                <th class="curr-col" style="width:110px;">
-                                    B{{ next_bill_number }} Qty
-                                    <div style="font-size:0.6rem; font-weight:400;">(this bill)</div>
+                                <th class="curr-col" style="width:130px;">
+                                    Total Measurements<br>till date (Bill {{ next_bill_number }})
                                 </th>
                             </tr>
                         </thead>
@@ -250,18 +243,22 @@
             <button type="submit" class="be-save-btn">
                 <i class="bi bi-floppy"></i> Save Quantities
             </button>
-            {% if draft_bill %}
-            <a href="{% url 'bill_generate' work_id=workslip.id %}" class="be-generate-btn">
-                <i class="bi bi-file-earmark-spreadsheet"></i> Go to Generate Bill
-            </a>
-            {% endif %}
             <div style="font-size:0.72rem; color:#64748b;">
                 <i class="bi bi-lightbulb me-1" style="color:#f59e0b;"></i>
-                Save quantities first, then generate the bill Excel.
+                Save quantities, then use the buttons below to generate bill &amp; documents.
             </div>
         </div>
 
     </form>
+
+    {% if draft_bill %}
+    <!-- Bill Generation Section (only shown after quantities are saved) -->
+    <div style="margin-top: 1.5rem;">
+        <a href="{% url 'bill_generate' work_id=workslip.id %}" class="be-generate-btn" style="font-size: 0.95rem; padding: 0.7rem 1.6rem;">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Generate Bill {{ next_bill_number }} &amp; Documents
+        </a>
+    </div>
+    {% endif %}
 
 </div>
 

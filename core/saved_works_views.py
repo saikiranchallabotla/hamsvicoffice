@@ -1137,7 +1137,10 @@ def get_module_url(saved_work):
         return reverse('amc_groups', kwargs={'category': category})
 
     elif work_type == 'bill':
-        return reverse('bill') + '?from_saved=1'
+        # Redirect to the bill_entry page for the parent workslip
+        if saved_work.parent and saved_work.parent.work_type == 'workslip':
+            return reverse('bill_entry', kwargs={'work_id': saved_work.parent.id})
+        return reverse('saved_works_list')
 
     return reverse('dashboard')
 
@@ -1997,8 +2000,8 @@ def bill_entry(request, work_id):
                 status='draft',
             )
 
-        messages.success(request, f'Bill {next_bill_number} quantities saved. Now generate the bill.')
-        return redirect('bill_generate', work_id=work_id)
+        messages.success(request, f'Bill {next_bill_number} quantities saved. Click "Generate Bill" to download.')
+        return redirect('bill_entry', work_id=work_id)
 
     # Build list of bill numbers for table header
     bill_numbers = [b.bill_number for b in existing_bills]
@@ -2337,13 +2340,15 @@ def bill_generate(request, work_id):
                     prev = prev_qty_map.get(item['key'], {})
                     prev_qty = prev.get('qty', 0.0)
                     prev_amount = prev_qty * item['rate']
+                    # item['qty'] is already "Total Measurements till date" (cumulative)
+                    # so qty_till_date = item['qty'] directly, not prev + current
                     nth_items.append({
                         'desc': item['desc'],
                         'unit': item['unit'],
                         'rate': item['rate'],
                         'prev_qty': prev_qty,
                         'prev_amount': prev_amount,
-                        'qty_till_date': prev_qty + item['qty'],
+                        'qty_till_date': item['qty'],
                     })
 
                 wb_out = Workbook()
