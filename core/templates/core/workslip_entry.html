@@ -531,11 +531,13 @@
                             <th class="sl-col">SL</th>
                             <th class="item-col">Item Description</th>
                             <th class="unit-col">Unit</th>
-                            {% if workslip_number > 1 %}
-                            <th style="background: #fef3c7; text-align: center; font-size: 0.8rem; color: #92400e; padding: 0.7rem 0.8rem;">Prev. Qty</th>
+                            {% if workslip_number == 1 %}
+                            <th style="background: #dbeafe; text-align: center; font-size: 0.8rem; color: #1e40af; padding: 0.7rem 0.8rem;">Estimate Qty</th>
+                            {% else %}
+                            <th style="background: #fef3c7; text-align: center; font-size: 0.8rem; color: #92400e; padding: 0.7rem 0.8rem;">W{{ workslip_number|add:-1 }} Qty</th>
                             {% endif %}
+                            <th style="background: #dcfce7; text-align: center; font-size: 0.8rem; color: #166534; padding: 0.7rem 0.8rem;">Executed Qty<br><small>(W{{ workslip_number }})</small></th>
                             <th class="rate-col">Rate</th>
-                            <th style="background: #dcfce7; text-align: center; font-size: 0.8rem; color: #166534; padding: 0.7rem 0.8rem;">WS-{{ workslip_number }} Qty</th>
                             <th class="amount-col">Amount (₹)</th>
                         </tr>
                     </thead>
@@ -608,15 +610,23 @@
             row.dataset.key = key;
             row.dataset.rate = rateMap[key];
 
-            // Find previous workslip quantity for this item
-            const prevItem = workslipData.previousItems.find(p => p.key === key);
-            const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
-
-            let prevCell = '';
-            if (workslipData.workslipNumber > 1) {
-                prevCell = `
+            // For W1: Show Estimate Qty; For W2+: Show previous workslip qty
+            let refQtyCell = '';
+            if (workslipData.workslipNumber === 1) {
+                // W1: Show Estimate Quantity
+                const estQty = parseFloat(item.est_qty) || 0;
+                refQtyCell = `
+                    <td style="background: #eff6ff; text-align: right; color: #1e40af; font-weight: 600;">
+                        ${estQty > 0 ? estQty.toFixed(2) : '-'}
+                    </td>
+                `;
+            } else {
+                // W2+: Show previous workslip executed qty
+                const prevItem = workslipData.previousItems.find(p => p.key === key);
+                const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
+                refQtyCell = `
                     <td style="background: #fffbeb; text-align: right; color: #92400e; font-weight: 600;">
-                        ${prevQty.toFixed(2)}
+                        ${prevQty > 0 ? prevQty.toFixed(2) : '-'}
                     </td>
                 `;
             }
@@ -627,8 +637,7 @@
                     <div class="item-name">${item.item_name || item.desc || 'Item'}</div>
                 </td>
                 <td>${item.unit || 'Nos'}</td>
-                ${prevCell}
-                <td style="text-align: right; font-weight: 600;">₹ ${(rateMap[key]).toFixed(2)}</td>
+                ${refQtyCell}
                 <td>
                     <input type="number" class="qty-input exec-qty" 
                            id="qty_${idx}" 
@@ -638,6 +647,7 @@
                            min="0"
                            placeholder="0.00">
                 </td>
+                <td style="text-align: right; font-weight: 600;">₹ ${(rateMap[key]).toFixed(2)}</td>
                 <td class="amount-display" id="amount_${idx}">₹ 0.00</td>
             `;
 

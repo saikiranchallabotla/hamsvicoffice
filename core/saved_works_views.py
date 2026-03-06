@@ -1455,14 +1455,12 @@ def generate_workslip_from_saved(request, work_id):
     if fetched_items and isinstance(fetched_items[0], str):
         item_names = fetched_items
         
-        # Only re-fetch from backend for items that don't have saved rates
-        items_needing_backend = [n for n in item_names if n not in saved_item_rates or saved_item_rates.get(n, 0) == 0]
-        
+        # Fetch descriptions from backend for ALL items (desc always comes from backend row+2)
         item_info_map = {}
-        if items_needing_backend:
-            logger.info(f"[GEN_WORKSLIP DEBUG] Re-fetching rates from backend for {len(items_needing_backend)} items: {items_needing_backend[:5]}")
+        if item_names:
+            logger.info(f"[GEN_WORKSLIP DEBUG] Fetching descriptions from backend for {len(item_names)} items")
             item_info_map = load_item_rates_from_backend(
-                category, items_needing_backend,
+                category, item_names,
                 backend_id=saved_backend_id,
                 user=request.user,
                 module_code=ws_module_code
@@ -1477,46 +1475,54 @@ def generate_workslip_from_saved(request, work_id):
             except (ValueError, TypeError):
                 qty = 0.0
             
-            # Priority: 1) saved rates from estimate, 2) backend re-fetch
+            # Get backend info (always has description from row+2)
+            info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
+            backend_desc = str(info.get('desc', item_name) or item_name)
+            
+            # Priority for rate: 1) saved rates from estimate, 2) backend re-fetch
             if item_name in saved_item_rates and saved_item_rates[item_name]:
                 rate = float(saved_item_rates[item_name])
-                unit = str(saved_item_units.get(item_name, 'Nos'))
-                desc = item_name  # Use name as desc; backend lookup below fills desc if needed
+                unit = str(saved_item_units.get(item_name, info.get('unit', 'Nos')))
             else:
-                info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
                 rate = float(info.get('rate', 0) or 0)
                 unit = str(info.get('unit', 'Nos'))
-                desc = str(info.get('desc', item_name) or item_name)
             
-            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate} (source={'saved' if item_name in saved_item_rates and saved_item_rates.get(item_name) else 'backend'})")
+            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate}, desc={backend_desc[:50] if backend_desc else 'N/A'}")
             
             ws_estimate_rows.append({
                 'key': f"saved_{idx}",
-                'item_name': str(item_name),
-                'display_name': str(item_name),
-                'desc': desc,
+                'item_name': str(item_name),       # Item header name for UI
+                'display_name': str(item_name),    # Item header name for UI
+                'item_desc': backend_desc,         # Backend row+2 description for downloads
+                'desc': backend_desc,              # Backend row+2 description for downloads
                 'unit': unit,
                 'qty_est': qty,
                 'rate': rate,
             })
     else:
-        # It's already a list of dicts with full item info
+        # It's already a list of dicts with full item info (from estimate upload)
         ws_estimate_rows = []
         for idx, item in enumerate(fetched_items):
             if isinstance(item, dict):
-                item_id = item.get('id') or item.get('name') or str(idx)
-                qty = qty_map.get(str(item_id), item.get('qty', 0))
+                item_id = item.get('id') or item.get('item_name') or item.get('name') or str(idx)
+                qty = qty_map.get(str(item_id), item.get('qty', item.get('qty_est', 0)))
                 try:
                     qty = float(qty) if qty else 0.0
                 except (ValueError, TypeError):
                     qty = 0.0
                 rate = float(item.get('rate', 0)) if item.get('rate') else 0.0
                 
+                # UI display: use display_name (yellow header)
+                ui_name = str(item.get('display_name') or item.get('item_name') or item.get('name', ''))
+                # Download description: use item_desc (row+2 content) preferentially
+                download_desc = str(item.get('item_desc') or item.get('desc') or item.get('description') or ui_name)
+                
                 ws_estimate_rows.append({
                     'key': f"saved_{idx}",
-                    'item_name': str(item.get('name', item.get('description', ''))),
-                    'display_name': str(item.get('name', item.get('description', ''))),
-                    'desc': str(item.get('description', item.get('name', ''))),
+                    'item_name': ui_name,            # Item header name for UI
+                    'display_name': ui_name,         # Item header name for UI
+                    'item_desc': download_desc,      # Backend row+2 description for downloads
+                    'desc': download_desc,           # Backend row+2 description for downloads
                     'unit': str(item.get('unit', 'Nos')),
                     'qty_est': qty,
                     'rate': rate,
@@ -2137,18 +2143,28 @@ def bill_generate(request, work_id):
         if rate == 0:
             continue
 
-        # Use the longest (most detailed) description available
+        # For downloads: Prioritize backend description (row+2 content) over item_name
+        # For UI display: Use item_name (yellow header)
         item_name = row.get('item_name', '')
-        desc_candidates = []
-        for field in ('item_desc', 'desc', 'display_name', 'item_name'):
-            val = row.get(field, '')
-            if val:
-                desc_candidates.append(val)
+        
+        # 1) First try backend description (authoritative source - row+2 of item block)
         backend_info = backend_descs.get(item_name, {})
         backend_desc = backend_info.get('desc', '')
-        if backend_desc:
-            desc_candidates.append(backend_desc)
-        desc = max(desc_candidates, key=len) if desc_candidates else item_name
+        
+        # 2) Then try stored item_desc
+        stored_item_desc = row.get('item_desc', '')
+        
+        # 3) Then try stored desc
+        stored_desc = row.get('desc', '')
+        
+        # Priority order: backend_desc > item_desc > desc > item_name
+        # Use first non-empty value that's different from item_name
+        desc = item_name  # fallback
+        for candidate in [backend_desc, stored_item_desc, stored_desc]:
+            if candidate and candidate.strip() and candidate != item_name:
+                desc = candidate.strip()
+                break
+        
         unit = row.get('unit', 'Nos')
         is_ae = str(desc).lower().startswith('ae')
         amount = exec_qty * rate

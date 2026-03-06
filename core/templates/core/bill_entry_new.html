@@ -471,7 +471,7 @@
                 <i class="bi bi-info-circle"></i>
                 <div>
                     <strong>Bill 1:</strong> Items and quantities are fetched from Workslip-1. 
-                    You can edit quantities if needed, then Save or Download the bill.
+                    Previous Measurement = 0 for first bill. Edit "Total Till Date" if needed, then Save or Download.
                 </div>
             </div>
             {% else %}
@@ -493,18 +493,12 @@
                             <th class="item-col">Items</th>
                             <th class="unit-col">Unit</th>
                             <th class="rate-col">Rate (₹)</th>
-                            {% if bill_number == 1 %}
-                                <th class="qty-col" style="background: #dbeafe; color: #1e40af;">
-                                    Bill-1 Qty<br><small>(from W1)</small>
-                                </th>
-                            {% else %}
-                                <th class="deduct-col" style="color: #92400e;">
-                                    Deduct Previous<br><small>(B{{ bill_number|add:-1 }} Qty)</small>
-                                </th>
-                                <th class="tilldate-col" style="color: #1e40af;">
-                                    Total Till Date<br><small>(Enter manually)</small>
-                                </th>
-                            {% endif %}
+                            <th class="deduct-col" style="color: #92400e;">
+                                Deduct Previous<br><small>{% if bill_number == 1 %}(= 0){% else %}(B{{ bill_number|add:-1 }} Qty){% endif %}</small>
+                            </th>
+                            <th class="tilldate-col" style="color: #1e40af;">
+                                Total Till Date<br><small>{% if bill_number == 1 %}(W1 Qty){% else %}(Enter manually){% endif %}</small>
+                            </th>
                             <th class="amount-col">Amount (₹)</th>
                         </tr>
                     </thead>
@@ -513,7 +507,7 @@
                     </tbody>
                     <tfoot>
                         <tr style="background: #f1f5f9; font-weight: 700;">
-                            <td colspan="{% if bill_number == 1 %}4{% else %}5{% endif %}" style="text-align: right; padding: 1rem;">
+                            <td colspan="5" style="text-align: right; padding: 1rem;">
                                 <strong>Total</strong>
                             </td>
                             <td class="amount-col" style="padding: 1rem; font-size: 1.1rem; color: #059669;">
@@ -530,14 +524,12 @@
                     <div class="summary-label">Items with Qty</div>
                     <div class="summary-value" id="summary-count">0</div>
                 </div>
-                {% if bill_number > 1 %}
                 <div class="summary-item">
                     <div class="summary-label">Deduct (Previous)</div>
                     <div class="summary-value deduct" id="summary-deduct">₹ 0.00</div>
                 </div>
-                {% endif %}
                 <div class="summary-item">
-                    <div class="summary-label">{% if bill_number > 1 %}Net{% endif %} Bill Amount</div>
+                    <div class="summary-label">Net Bill Amount</div>
                     <div class="summary-value net" id="summary-net">₹ 0.00</div>
                 </div>
             </div>
@@ -632,7 +624,9 @@
             let supplementalBadge = item.is_supplemental ? '<span class="item-supplemental">SUPP</span>' : '';
 
             if (billData.billNumber === 1) {
-                // BILL 1 UI: Single quantity column (fetched from W1, editable)
+                // BILL 1 UI: Previous = 0 (readonly) + Total Till Date (W1 qty, editable)
+                deductMap[key] = 0;  // Previous = 0 for first bill
+                
                 row.innerHTML = `
                     <td class="sl-col"><strong>${++itemCount}</strong></td>
                     <td class="item-col">
@@ -641,6 +635,13 @@
                     </td>
                     <td class="unit-col">${item.unit || 'Nos'}</td>
                     <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
+                    <td class="deduct-col">
+                        <input type="number" class="qty-input readonly deduct-qty" 
+                               data-key="${key}"
+                               value="0" 
+                               readonly
+                               tabindex="-1">
+                    </td>
                     <td class="tilldate-col">
                         <input type="number" class="qty-input tilldate exec-qty" 
                                data-key="${key}"
@@ -717,13 +718,9 @@
         const deductQty = deductMap[key] || 0;
         const rate = rateMap[key] || 0;
 
-        // For Bill 2+: Net Qty = Till Date - Deduct Previous
-        // For Bill 1: Net Qty = Till Date (no deduction)
-        let netQty = tillDateQty;
-        if (billData.billNumber > 1) {
-            netQty = tillDateQty - deductQty;
-            if (netQty < 0) netQty = 0;
-        }
+        // Net Qty = Till Date - Deduct Previous (for all bills)
+        let netQty = tillDateQty - deductQty;
+        if (netQty < 0) netQty = 0;
 
         const amount = netQty * rate;
         const amountCell = document.getElementById(`amount_${idx}`);
@@ -746,12 +743,10 @@
             if (tillDateQty > 0) {
                 itemCount++;
 
-                let netQty = tillDateQty;
-                if (billData.billNumber > 1) {
-                    netQty = tillDateQty - deductQty;
-                    if (netQty < 0) netQty = 0;
-                    totalDeduct += deductQty * rate;
-                }
+                // Net Qty = Till Date - Deduct Previous (same formula for all bills)
+                let netQty = tillDateQty - deductQty;
+                if (netQty < 0) netQty = 0;
+                totalDeduct += deductQty * rate;
                 totalAmount += netQty * rate;
             }
         });
@@ -759,10 +754,7 @@
         document.getElementById('summary-count').textContent = itemCount;
         document.getElementById('summary-net').textContent = `₹${totalAmount.toFixed(2)}`;
         document.getElementById('footer-total').textContent = totalAmount.toFixed(2);
-
-        if (document.getElementById('summary-deduct')) {
-            document.getElementById('summary-deduct').textContent = `₹${totalDeduct.toFixed(2)}`;
-        }
+        document.getElementById('summary-deduct').textContent = `₹${totalDeduct.toFixed(2)}`;
     }
 
     // Download Modal Functions

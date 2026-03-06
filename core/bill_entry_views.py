@@ -478,6 +478,7 @@ def workslip_entry(request, work_id):
     
     # Get items from estimate
     estimate_items = work_data.get('fetched_items', [])
+    qty_map = work_data.get('qty_map', {})  # Estimate quantities
     
     if not estimate_items:
         messages.error(request, 'Estimate has no items.')
@@ -497,7 +498,7 @@ def workslip_entry(request, work_id):
     else:
         workslip_number = 1
     
-    # Build workslip items from estimate
+    # Build workslip items from estimate (include estimate qty)
     workslip_items = []
     for idx, item in enumerate(estimate_items):
         key = item.get('key') or item.get('item_name') or f'item_{idx}'
@@ -505,11 +506,19 @@ def workslip_entry(request, work_id):
         unit = item.get('unit') or 'Nos'
         rate = float(item.get('rate', 0) or 0)
         
+        # Get estimate quantity from qty_map (using various key formats)
+        est_qty = qty_map.get(key, qty_map.get(item_name, item.get('qty', item.get('qty_est', 0))))
+        try:
+            est_qty = float(est_qty) if est_qty else 0.0
+        except (ValueError, TypeError):
+            est_qty = 0.0
+        
         workslip_items.append({
             'key': key,
             'item_name': item_name,
             'unit': unit,
             'rate': rate,
+            'est_qty': est_qty,  # Estimate quantity for display
         })
     
     # Get previous workslip (if Workslip 2+)
