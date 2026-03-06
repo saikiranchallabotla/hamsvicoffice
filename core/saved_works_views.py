@@ -1193,8 +1193,9 @@ def get_module_url(saved_work):
         return reverse('amc_groups', kwargs={'category': category})
 
     elif work_type == 'bill':
-        # Redirect to the bill_generate page which shows actual saved items/quantities.
-        # Find the source workslip to use as the bill_generate context.
+        # Redirect to the bill_entry page which has all the functionality:
+        # MB details, dates, items with quantities, save, and download.
+        # Find the source workslip to use as the bill_entry context.
         source_workslip_id = None
         # Check parent chain: bill -> workslip
         if saved_work.parent_id:
@@ -1215,7 +1216,7 @@ def get_module_url(saved_work):
             source_workslip_id = work_data.get('bill_parent_work_id') or work_data.get('source_workslip_id') or work_data.get('bill_source_work_id')
         
         if source_workslip_id:
-            return reverse('bill_generate', kwargs={'work_id': int(source_workslip_id)})
+            return reverse('bill_entry', kwargs={'work_id': int(source_workslip_id)})
         # Fallback to old bill module page if no source workslip found
         return reverse('bill') + '?from_saved=1'
 
