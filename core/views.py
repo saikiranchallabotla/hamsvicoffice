@@ -2555,6 +2555,18 @@ def workslip(request):
             ws_previous_ae_data = request.session.get("ws_previous_ae_data", [])
             ws_previous_supp_items = request.session.get("ws_previous_supp_items", [])
             
+            # Build description map from backend for base estimate items
+            # so Excel output uses full row+2 descriptions, not just item names
+            backend_desc_map = {}
+            if ws_data is not None:
+                for row in ws_estimate_rows:
+                    iname = row.get("item_name", "")
+                    if iname and iname in item_to_info:
+                        info = item_to_info[iname]
+                        desc_cell = ws_data.cell(row=info["start_row"] + 2, column=4).value
+                        if desc_cell and str(desc_cell).strip():
+                            backend_desc_map[iname] = str(desc_cell).strip()
+
             # ---- Base Estimate items with row-splitting ----
             for row in ws_estimate_rows:
                 row_key = row["key"]
@@ -2569,7 +2581,14 @@ def workslip(request):
                 unit = row.get("unit") or ""
                 original_rate = float(row.get("rate", 0) or 0)
                 rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
-                desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
+                # Use backend row+2 description if available, then item_desc, then desc, then item_name
+                desc_est = (
+                    backend_desc_map.get(row.get("item_name", ""), "")
+                    or row.get("item_desc")
+                    or row.get("desc")
+                    or row.get("item_name")
+                    or ""
+                )
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
