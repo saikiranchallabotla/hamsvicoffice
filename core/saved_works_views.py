@@ -1986,18 +1986,21 @@ def bill_entry(request, work_id):
     else:
         next_bill_number = 1
 
-    # Check if there's already a draft for next bill
+    # Check if there's already a draft or saved (in_progress) bill for next bill
     draft_bill = SavedWork.objects.filter(
         organization=org, user=user,
         work_type='bill',
         parent=workslip,
         bill_number=next_bill_number,
-        status='draft',
+        status__in=['draft', 'in_progress'],
     ).first()
 
     draft_exec_map = {}
     if draft_bill:
-        draft_exec_map = (draft_bill.work_data or {}).get('bill_ws_exec_map', {})
+        draft_data = draft_bill.work_data or {}
+        draft_exec_map = draft_data.get('bill_ws_exec_map', {}) or {}
+        if not draft_exec_map:
+            draft_exec_map = draft_data.get('ws_exec_map', {}) or {}
 
     # Build per-item data: previous bills' quantities + current draft quantities
     items = []
@@ -2147,29 +2150,35 @@ def bill_generate(request, work_id):
     tp_percent = float(work_data.get('ws_tp_percent', 0) or 0)
     tp_type = work_data.get('ws_tp_type', 'Excess')
 
-    # Check for a draft bill (entered via bill_entry page) — use its quantities if present
+    # Check for a saved bill (entered via bill_entry page as 'draft', or saved
+    # via save_work() as 'in_progress') — use its quantities if present.
     draft_bill_record = SavedWork.objects.filter(
         organization=org, user=user,
         work_type='bill',
         parent=workslip,
-        status='draft',
+        status__in=['draft', 'in_progress'],
     ).order_by('-bill_number').first()
 
-    # Include both 'completed' and legacy 'in_progress' bills so that previous
-    # bill quantities are always available for the "Deduct Previous Measurements"
-    # column in Bill 3, Bill 4, etc.
-    completed_bills = list(
-        SavedWork.objects.filter(
-            organization=org, user=user,
-            work_type='bill',
-            parent=workslip,
-        ).exclude(status='draft').order_by('bill_number')
-    )
+    # Completed/finalized bills: used for "Deduct Previous Measurements" in Bill 3, 4, etc.
+    # Include 'completed' and any 'in_progress' bills that are NOT the current draft.
+    completed_bills_qs = SavedWork.objects.filter(
+        organization=org, user=user,
+        work_type='bill',
+        parent=workslip,
+    ).exclude(status='draft')
+    if draft_bill_record:
+        completed_bills_qs = completed_bills_qs.exclude(id=draft_bill_record.id)
+    completed_bills = list(completed_bills_qs.order_by('bill_number'))
 
     if draft_bill_record:
-        # Use quantities from the bill entry UI
+        # Use quantities from the saved/draft bill
         bill_number = draft_bill_record.bill_number
-        ws_exec_map = (draft_bill_record.work_data or {}).get('bill_ws_exec_map', {}) or {}
+        # bill_entry saves under 'bill_ws_exec_map'; save_work() also uses that key
+        draft_data = draft_bill_record.work_data or {}
+        ws_exec_map = draft_data.get('bill_ws_exec_map', {}) or {}
+        # If bill_ws_exec_map is empty, also check the session-based keys from save_work()
+        if not ws_exec_map:
+            ws_exec_map = draft_data.get('ws_exec_map', {}) or {}
     else:
         # Fallback: use workslip's own exec_map (Bill 1 default)
         max_completed = max((b.bill_number or 0 for b in completed_bills), default=0)
