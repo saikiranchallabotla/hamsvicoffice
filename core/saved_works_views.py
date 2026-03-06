@@ -2100,6 +2100,23 @@ def bill_generate(request, work_id):
     }
 
     # Build items from workslip exec data
+    # First, load full descriptions from backend for all item names
+    # (stored item_desc may be just the short name if backend lookup failed during workslip creation)
+    all_item_names = [row.get('item_name', '') for row in ws_rows if row.get('item_name')]
+    backend_descs = {}
+    if all_item_names:
+        category = workslip.category or 'electrical'
+        saved_backend_id = work_data.get('selected_backend_id')
+        try:
+            backend_descs = load_item_rates_from_backend(
+                category, all_item_names,
+                backend_id=saved_backend_id,
+                user=request.user,
+                module_code='new_estimate',
+            )
+        except Exception:
+            backend_descs = {}
+
     items = []
     total_amount = 0.0
     for idx, row in enumerate(ws_rows):
@@ -2119,7 +2136,19 @@ def bill_generate(request, work_id):
         rate = float(row.get('rate', 0) or 0)
         if rate == 0:
             continue
-        desc = row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', '')
+
+        # Use the longest (most detailed) description available
+        item_name = row.get('item_name', '')
+        desc_candidates = []
+        for field in ('item_desc', 'desc', 'display_name', 'item_name'):
+            val = row.get(field, '')
+            if val:
+                desc_candidates.append(val)
+        backend_info = backend_descs.get(item_name, {})
+        backend_desc = backend_info.get('desc', '')
+        if backend_desc:
+            desc_candidates.append(backend_desc)
+        desc = max(desc_candidates, key=len) if desc_candidates else item_name
         unit = row.get('unit', 'Nos')
         is_ae = str(desc).lower().startswith('ae')
         amount = exec_qty * rate
@@ -2134,6 +2163,77 @@ def bill_generate(request, work_id):
             'amount': round(amount, 2),
             'key': key,
         })
+
+    # Include supplemental items from the workslip
+    # Previous workslip supplemental items (have rate/unit stored)
+    prev_supp_items = work_data.get('ws_previous_supp_items', [])
+    seen_supp_keys = set()
+    for supp in prev_supp_items:
+        supp_name = supp.get('name', '')
+        section = supp.get('supp_section', supp.get('phase', 1))
+        supp_key = f"prev_supp:{section}:{supp_name}"
+        if supp_key in seen_supp_keys:
+            continue
+        seen_supp_keys.add(supp_key)
+        exec_qty = ws_exec_map.get(supp_key, 0)
+        try:
+            exec_qty = float(exec_qty) if exec_qty else 0.0
+        except (ValueError, TypeError):
+            exec_qty = 0.0
+        if exec_qty <= 0:
+            continue
+        rate = float(supp.get('rate', 0) or 0)
+        if rate == 0:
+            continue
+        amount = exec_qty * rate
+        total_amount += amount
+        items.append({
+            'sl': len(items) + 1,
+            'qty': exec_qty,
+            'unit': supp.get('unit', 'Nos') or 'Nos',
+            'desc': supp_name,
+            'rate': rate,
+            'is_ae': False,
+            'amount': round(amount, 2),
+            'key': supp_key,
+        })
+
+    # Current workslip supplemental items (load rates from backend)
+    current_supp_names = work_data.get('ws_supp_items', [])
+    if current_supp_names:
+        category = workslip.category or 'electrical'
+        saved_backend_id = work_data.get('selected_backend_id')
+        supp_rates = load_item_rates_from_backend(
+            category, current_supp_names,
+            backend_id=saved_backend_id,
+            user=request.user,
+            module_code='new_estimate',
+        )
+        for supp_name in current_supp_names:
+            supp_key = f"supp:{supp_name}"
+            exec_qty = ws_exec_map.get(supp_key, 0)
+            try:
+                exec_qty = float(exec_qty) if exec_qty else 0.0
+            except (ValueError, TypeError):
+                exec_qty = 0.0
+            if exec_qty <= 0:
+                continue
+            supp_info = supp_rates.get(supp_name, {})
+            rate = float(supp_info.get('rate', 0) or 0)
+            if rate == 0:
+                continue
+            amount = exec_qty * rate
+            total_amount += amount
+            items.append({
+                'sl': len(items) + 1,
+                'qty': exec_qty,
+                'unit': supp_info.get('unit', 'Nos') or 'Nos',
+                'desc': supp_name,
+                'rate': rate,
+                'is_ae': False,
+                'amount': round(amount, 2),
+                'key': supp_key,
+            })
 
     # For Bill 2+, gather cumulative previous quantities from completed bills under this workslip
     prev_qty_map = {}

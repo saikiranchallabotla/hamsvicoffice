@@ -1,19 +1,19 @@
 {% extends "core/base_modern.html" %}
 {% load static %}
 
-{% block title %}Bill Entry - {{ bill_number }}{% endblock %}
+{% block title %}Bill Entry - Bill {{ bill_number }}{% endblock %}
 
 {% block page_title %}
-<i class="bi bi-receipt me-2"></i>Bill Entry
+<i class="bi bi-receipt me-2"></i>Bill {{ bill_number }} Entry
 {% endblock %}
 
 {% block content %}
 
 <style>
     .bill-container {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
-        padding: 2rem 1rem;
+        padding: 1.5rem 1rem;
         background: #f8fafc;
         min-height: 100vh;
     }
@@ -21,23 +21,55 @@
     /* Header */
     .bill-header {
         background: white;
-        padding: 2rem;
+        padding: 1.5rem 2rem;
         border-radius: 12px;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        border-left: 5px solid #3b82f6;
+        border-left: 5px solid #dc2626;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .bill-header-left {
+        flex: 1;
     }
 
     .bill-title {
-        font-size: 2rem;
+        font-size: 1.75rem;
         font-weight: 700;
         color: #0f172a;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .bill-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
     }
 
     .bill-subtitle {
         color: #64748b;
-        font-size: 1rem;
+        font-size: 0.95rem;
+    }
+
+    .source-info {
+        font-size: 0.85rem;
+        color: #059669;
+        margin-top: 0.5rem;
+    }
+
+    .source-info i {
+        color: #10b981;
     }
 
     /* Form Section */
@@ -141,11 +173,13 @@
     }
 
     .sl-col { width: 50px; text-align: center; }
-    .item-col { min-width: 250px; }
-    .unit-col { width: 80px; text-align: center; }
-    .rate-col { width: 120px; text-align: right; }
-    .qty-col { width: 140px; text-align: right; }
-    .amount-col { width: 140px; text-align: right; font-weight: 600; }
+    .item-col { min-width: 220px; }
+    .unit-col { width: 70px; text-align: center; }
+    .rate-col { width: 100px; text-align: right; }
+    .qty-col { width: 130px; text-align: center; }
+    .deduct-col { width: 130px; text-align: center; background: #fef3c7; }
+    .tilldate-col { width: 140px; text-align: center; background: #dbeafe; }
+    .amount-col { width: 130px; text-align: right; font-weight: 600; }
 
     .item-name {
         font-weight: 600;
@@ -155,9 +189,9 @@
 
     .item-supplemental {
         background: #fef3c7;
-        padding: 0.25rem 0.5rem;
+        padding: 0.2rem 0.5rem;
         border-radius: 4px;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         color: #92400e;
         font-weight: 600;
         margin-top: 0.25rem;
@@ -172,7 +206,7 @@
         border-radius: 4px;
         text-align: right;
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         background: #f8fafc;
     }
 
@@ -182,51 +216,54 @@
         background: #eff6ff;
     }
 
+    .qty-input.readonly {
+        background: #fef3c7;
+        color: #92400e;
+        cursor: not-allowed;
+    }
+
+    .qty-input.tilldate {
+        background: #eff6ff;
+        border-color: #3b82f6;
+    }
+
     /* Summary Box */
     .summary-box {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        padding: 2rem;
-        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
         border-radius: 12px;
-        border: 2px solid #0284c7;
+        border: 2px solid #dc2626;
     }
 
     .summary-item {
         text-align: center;
-        padding: 1.5rem;
+        padding: 1rem;
         background: white;
         border-radius: 8px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
 
     .summary-label {
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         font-weight: 600;
         color: #64748b;
         text-transform: uppercase;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
         letter-spacing: 0.5px;
     }
 
     .summary-value {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         font-weight: 700;
         color: #0f172a;
     }
 
-    .summary-value.total {
-        color: #059669;
-    }
-
-    .summary-value.deduct {
-        color: #dc2626;
-    }
-
-    .summary-value.net {
-        color: #0284c7;
-    }
+    .summary-value.total { color: #059669; }
+    .summary-value.deduct { color: #dc2626; }
+    .summary-value.net { color: #0284c7; }
 
     /* Action Buttons */
     .action-buttons {
@@ -239,50 +276,29 @@
     .btn {
         padding: 0.75rem 1.5rem;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         display: flex;
         align-items: center;
         gap: 0.5rem;
         font-size: 0.95rem;
     }
 
-    .btn-primary {
-        background: #3b82f6;
-        color: white;
-    }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
 
-    .btn-primary:hover {
-        background: #2563eb;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(59,130,246,0.4);
-    }
+    .btn-success { background: #10b981; color: white; }
+    .btn-success:hover { background: #059669; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
 
-    .btn-success {
-        background: #10b981;
-        color: white;
-    }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-danger:hover { background: #b91c1c; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(220,38,38,0.4); }
 
-    .btn-success:hover {
-        background: #059669;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(16,185,129,0.4);
-    }
+    .btn-outline { background: white; color: #64748b; border: 1px solid #cbd5e1; }
+    .btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
 
-    .btn-outline {
-        background: white;
-        color: #64748b;
-        border: 1px solid #cbd5e1;
-    }
-
-    .btn-outline:hover {
-        background: #f8fafc;
-        border-color: #94a3b8;
-    }
-
-    /* Alerts */
+    /* Info Alert */
     .info-alert {
         padding: 1rem;
         background: #dbeafe;
@@ -293,56 +309,91 @@
         display: flex;
         gap: 0.75rem;
     }
+    .info-alert i { color: #0284c7; flex-shrink: 0; }
 
-    .info-alert i {
-        color: #0284c7;
-        flex-shrink: 0;
+    /* Download Modal */
+    .download-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
     }
+    .download-modal-overlay.active { display: flex; }
+
+    .download-modal {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 450px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    .download-modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
+    .download-option {
+        display: block;
+        width: 100%;
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s;
+    }
+    .download-option:hover {
+        border-color: #dc2626;
+        background: #fef2f2;
+        transform: translateX(4px);
+    }
+    .download-option-title {
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .download-option-desc {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+
+    .download-cancel {
+        margin-top: 1rem;
+        width: 100%;
+        padding: 0.75rem;
+        background: #f1f5f9;
+        border: none;
+        border-radius: 8px;
+        color: #64748b;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .download-cancel:hover { background: #e2e8f0; }
 
     /* Responsive */
     @media (max-width: 768px) {
-        .bill-container {
-            padding: 1rem;
-        }
-
-        .bill-header {
-            padding: 1.5rem;
-        }
-
-        .form-card {
-            padding: 1.5rem;
-        }
-
-        .form-grid {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
-
-        .quantities-table {
-            font-size: 0.85rem;
-        }
-
-        .quantities-table th,
-        .quantities-table td {
-            padding: 0.5rem;
-        }
-
-        .bill-title {
-            font-size: 1.5rem;
-        }
-
-        .action-buttons {
-            flex-direction: column;
-        }
-
-        .btn {
-            width: 100%;
-            justify-content: center;
-        }
-
-        .qty-col, .amount-col {
-            width: 100px;
-        }
+        .bill-container { padding: 1rem; }
+        .bill-header { padding: 1.25rem; flex-direction: column; align-items: flex-start; }
+        .form-card { padding: 1.25rem; }
+        .form-grid { grid-template-columns: 1fr; gap: 1rem; }
+        .quantities-table { font-size: 0.8rem; }
+        .quantities-table th, .quantities-table td { padding: 0.5rem; }
+        .bill-title { font-size: 1.25rem; }
+        .action-buttons { flex-direction: column; }
+        .btn { width: 100%; justify-content: center; }
     }
 </style>
 
@@ -350,19 +401,27 @@
     
     <!-- Header -->
     <div class="bill-header">
-        <div class="bill-title">
-            <i class="bi bi-receipt" style="color: #f59e0b;"></i>
-            Bill-{{ bill_number }}
-        </div>
-        <div class="bill-subtitle">
-            {% if bill_number == 1 %}
-                First & Part Bill
-            {% elif bill_number == 2 %}
-                Second & {% if prev_bill.bill_type == 'first_final' %}Final{% else %}Part{% endif %} Bill
-            {% else %}
-                {{ bill_number|add:0 }}th & Part Bill
-            {% endif %}
-            {% if work_name %} • {{ work_name }}{% endif %}
+        <div class="bill-header-left">
+            <div class="bill-title">
+                <i class="bi bi-receipt" style="color: #dc2626;"></i>
+                Bill {{ bill_number }}
+                <span class="bill-badge">B{{ bill_number }}</span>
+            </div>
+            <div class="bill-subtitle">
+                {% if bill_number == 1 %}
+                    First Bill from Workslip-1
+                {% else %}
+                    Bill {{ bill_number }} (linked to B{{ bill_number|add:-1 }} & W{{ bill_number }})
+                {% endif %}
+            </div>
+            <div class="source-info">
+                <i class="bi bi-link-45deg"></i>
+                {% if source_workslip %}
+                    Source: {{ source_workslip.name }}
+                {% else %}
+                    Work: {{ work_name }}
+                {% endif %}
+            </div>
         </div>
     </div>
 
@@ -396,45 +455,32 @@
             </div>
         </div>
 
-        <!-- Important Dates -->
-        <div class="form-card">
-            <div class="section-title">
-                <i class="bi bi-calendar-check"></i>
-                Important Dates
-            </div>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label class="form-label">Date of Issue (DOI)</label>
-                    <input type="date" name="doi" class="form-control" value="{{ doi|default:'' }}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Date of Completion (DOC)</label>
-                    <input type="date" name="doc" class="form-control" value="{{ doc|default:'' }}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Date of Measurement Report (DOMR)</label>
-                    <input type="date" name="domr" class="form-control" value="{{ domr|default:'' }}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Date of Bill Raising (DOBR)</label>
-                    <input type="date" name="dobr" class="form-control" value="{{ dobr|default:'' }}">
-                </div>
-            </div>
-        </div>
-
         <!-- Quantities & Amounts -->
         <div class="form-card">
             <div class="section-title">
                 <i class="bi bi-table"></i>
-                Quantities & Amounts
+                {% if bill_number == 1 %}
+                    Bill 1 - Quantities & Amounts (from W1)
+                {% else %}
+                    Bill {{ bill_number }} - Quantities & Amounts
+                {% endif %}
             </div>
 
-            {% if bill_number > 1 %}
+            {% if bill_number == 1 %}
             <div class="info-alert">
                 <i class="bi bi-info-circle"></i>
                 <div>
-                    <strong>Review Deductions:</strong> This bill includes deductions from Bill-{{ bill_number|add:-1 }}.
-                    Please verify the quantities before saving.
+                    <strong>Bill 1:</strong> Items and quantities are fetched from Workslip-1. 
+                    You can edit quantities if needed, then Save or Download the bill.
+                </div>
+            </div>
+            {% else %}
+            <div class="info-alert">
+                <i class="bi bi-info-circle"></i>
+                <div>
+                    <strong>Bill {{ bill_number }}:</strong> Items fetched from W{{ bill_number }}{% if bill_number > 1 %} (if generated){% endif %}. 
+                    "Deduct Previous" shows Bill-{{ bill_number|add:-1 }} quantities. 
+                    Enter "Total Till Date" measurements manually.
                 </div>
             </div>
             {% endif %}
@@ -443,41 +489,55 @@
                 <table class="quantities-table">
                     <thead>
                         <tr>
-                            <th class="sl-col">SL</th>
-                            <th class="item-col">Item Description</th>
+                            <th class="sl-col">Sl.No</th>
+                            <th class="item-col">Items</th>
                             <th class="unit-col">Unit</th>
                             <th class="rate-col">Rate (₹)</th>
-                            {% if bill_number > 1 %}
-                            <th class="qty-col" style="background: #fef3c7;">Deduct from Bill-{{ bill_number|add:-1 }}</th>
+                            {% if bill_number == 1 %}
+                                <th class="qty-col" style="background: #dbeafe; color: #1e40af;">
+                                    Bill-1 Qty<br><small>(from W1)</small>
+                                </th>
+                            {% else %}
+                                <th class="deduct-col" style="color: #92400e;">
+                                    Deduct Previous<br><small>(B{{ bill_number|add:-1 }} Qty)</small>
+                                </th>
+                                <th class="tilldate-col" style="color: #1e40af;">
+                                    Total Till Date<br><small>(Enter manually)</small>
+                                </th>
                             {% endif %}
-                            <th class="qty-col" style="background: #dbeafe;">Total Qty Till Date (Bill-{{ bill_number }})</th>
                             <th class="amount-col">Amount (₹)</th>
                         </tr>
                     </thead>
                     <tbody id="quantities-tbody">
                         <!-- Populated by JavaScript -->
                     </tbody>
+                    <tfoot>
+                        <tr style="background: #f1f5f9; font-weight: 700;">
+                            <td colspan="{% if bill_number == 1 %}4{% else %}5{% endif %}" style="text-align: right; padding: 1rem;">
+                                <strong>Total</strong>
+                            </td>
+                            <td class="amount-col" style="padding: 1rem; font-size: 1.1rem; color: #059669;">
+                                ₹ <span id="footer-total">0.00</span>
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
 
             <!-- Summary -->
             <div class="summary-box">
                 <div class="summary-item">
-                    <div class="summary-label">Items Count</div>
+                    <div class="summary-label">Items with Qty</div>
                     <div class="summary-value" id="summary-count">0</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Total Bill Amount</div>
-                    <div class="summary-value total" id="summary-total">₹ 0.00</div>
                 </div>
                 {% if bill_number > 1 %}
                 <div class="summary-item">
-                    <div class="summary-label">Total Deductions</div>
+                    <div class="summary-label">Deduct (Previous)</div>
                     <div class="summary-value deduct" id="summary-deduct">₹ 0.00</div>
                 </div>
                 {% endif %}
                 <div class="summary-item">
-                    <div class="summary-label">Net Bill Amount</div>
+                    <div class="summary-label">{% if bill_number > 1 %}Net{% endif %} Bill Amount</div>
                     <div class="summary-value net" id="summary-net">₹ 0.00</div>
                 </div>
             </div>
@@ -486,10 +546,10 @@
         <!-- Action Buttons -->
         <div class="action-buttons">
             <button type="submit" class="btn btn-success">
-                <i class="bi bi-check-circle"></i> Save Bill
+                <i class="bi bi-save"></i> Save Bill
             </button>
-            <button type="button" class="btn btn-primary" onclick="previewBill()">
-                <i class="bi bi-eye"></i> Preview
+            <button type="button" class="btn btn-danger" onclick="showDownloadModal()">
+                <i class="bi bi-download"></i> Download Bill
             </button>
             <button type="button" class="btn btn-outline" onclick="history.back()">
                 <i class="bi bi-arrow-left"></i> Back
@@ -498,16 +558,56 @@
     </form>
 </div>
 
+<!-- Download Bill Type Modal -->
+<div class="download-modal-overlay" id="downloadModal">
+    <div class="download-modal">
+        <div class="download-modal-title">
+            <i class="bi bi-download me-2"></i>Select Bill Type
+        </div>
+        
+        <button class="download-option" onclick="downloadBill('first_part')">
+            <div class="download-option-title">
+                <i class="bi bi-file-earmark-text"></i>
+                {% if bill_number == 1 %}First & Part Bill{% else %}{{ bill_number|add:0 }}th & Part Bill{% endif %}
+            </div>
+            <div class="download-option-desc">
+                Generate a partial bill for work completed so far. More bills can follow.
+            </div>
+        </button>
+        
+        <button class="download-option" onclick="downloadBill('first_final')">
+            <div class="download-option-title">
+                <i class="bi bi-file-earmark-check"></i>
+                {% if bill_number == 1 %}First & Final Bill{% else %}{{ bill_number|add:0 }}th & Final Bill{% endif %}
+            </div>
+            <div class="download-option-desc">
+                Generate a final bill. This marks the work as completed.
+            </div>
+        </button>
+        
+        <button class="download-cancel" onclick="hideDownloadModal()">
+            Cancel
+        </button>
+    </div>
+</div>
+
 <script>
     const billData = {
         items: {{ bill_items_json|safe }},
         previousItems: {{ prev_bill_items_json|safe }},
         billNumber: {{ bill_number }},
+        workId: {{ work_id }},
     };
 
     const rateMap = {};
-    const execMap = {};
-    const deductMap = {};
+    const execMap = {};    // Till Date quantities
+    const deductMap = {};  // Previous bill quantities (for deduction)
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeTable();
+        updateSummary();
+    });
 
     function initializeTable() {
         const tbody = document.getElementById('quantities-tbody');
@@ -522,120 +622,255 @@
             row.dataset.key = key;
             row.dataset.rate = rateMap[key];
 
+            // Find previous bill quantity for this item (for Bill 2+)
             const prevItem = billData.previousItems.find(p => p.key === key);
             const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
 
-            let supplementalBadge = item.is_supplemental ? '<div class="item-supplemental">SUPPLEMENTAL</div>' : '';
-            let prevCell = '';
-            
-            if (billData.billNumber > 1) {
-                prevCell = `
-                    <td style="background: #fffbeb;">
-                        <input type="number" class="qty-input deduct-qty" 
-                               data-key="${key}"
-                               value="${prevQty}" 
-                               step="0.01" 
-                               min="0" 
-                               readonly
-                               style="background: #fef3c7;">
+            // Pre-fill quantity from workslip for Bill 1
+            const wsQty = parseFloat(item.qty_exec) || 0;
+
+            let supplementalBadge = item.is_supplemental ? '<span class="item-supplemental">SUPP</span>' : '';
+
+            if (billData.billNumber === 1) {
+                // BILL 1 UI: Single quantity column (fetched from W1, editable)
+                row.innerHTML = `
+                    <td class="sl-col"><strong>${++itemCount}</strong></td>
+                    <td class="item-col">
+                        <div class="item-name">${item.item_name || 'Item'}</div>
+                        ${supplementalBadge}
                     </td>
+                    <td class="unit-col">${item.unit || 'Nos'}</td>
+                    <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
+                    <td class="tilldate-col">
+                        <input type="number" class="qty-input tilldate exec-qty" 
+                               data-key="${key}"
+                               value="${wsQty > 0 ? wsQty : ''}" 
+                               step="0.01" 
+                               min="0"
+                               placeholder="0.00">
+                    </td>
+                    <td class="amount-col" id="amount_${idx}">₹0.00</td>
+                `;
+
+                // Initialize execMap with workslip quantity
+                if (wsQty > 0) {
+                    execMap[key] = wsQty;
+                }
+            } else {
+                // BILL 2+ UI: Deduct Previous (readonly) + Total Till Date (editable)
+                deductMap[key] = prevQty;
+
+                row.innerHTML = `
+                    <td class="sl-col"><strong>${++itemCount}</strong></td>
+                    <td class="item-col">
+                        <div class="item-name">${item.item_name || 'Item'}</div>
+                        ${supplementalBadge}
+                    </td>
+                    <td class="unit-col">${item.unit || 'Nos'}</td>
+                    <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
+                    <td class="deduct-col">
+                        <input type="number" class="qty-input readonly deduct-qty" 
+                               data-key="${key}"
+                               value="${prevQty > 0 ? prevQty.toFixed(2) : ''}" 
+                               readonly
+                               tabindex="-1">
+                    </td>
+                    <td class="tilldate-col">
+                        <input type="number" class="qty-input tilldate exec-qty" 
+                               data-key="${key}"
+                               value="" 
+                               step="0.01" 
+                               min="0"
+                               placeholder="0.00">
+                    </td>
+                    <td class="amount-col" id="amount_${idx}">₹0.00</td>
                 `;
             }
 
-            row.innerHTML = `
-                <td class="sl-col"><strong>${++itemCount}</strong></td>
-                <td class="item-col">
-                    <div class="item-name">${item.item_name || 'Item'}</div>
-                    ${supplementalBadge}
-                </td>
-                <td class="unit-col">${item.unit || 'Nos'}</td>
-                <td class="rate-col">₹ ${(rateMap[key]).toFixed(2)}</td>
-                ${prevCell}
-                <td class="qty-col">
-                    <input type="number" class="qty-input exec-qty" 
-                           data-key="${key}"
-                           value="${item.qty_exec || ''}" 
-                           step="0.01" 
-                           min="0"
-                           placeholder="0.00">
-                </td>
-                <td class="amount-col" id="amount_${idx}">₹ 0.00</td>
-            `;
-
             tbody.appendChild(row);
 
+            // Add event listeners for quantity input
             const qtyInput = row.querySelector('.exec-qty');
-            const deductInput = row.querySelector('.deduct-qty');
-
-            qtyInput.addEventListener('change', () => {
-                execMap[key] = parseFloat(qtyInput.value) || 0;
-                updateAmount(idx, execMap[key], rateMap[key]);
+            qtyInput.addEventListener('input', () => {
+                const qty = parseFloat(qtyInput.value) || 0;
+                execMap[key] = qty;
+                updateRowAmount(idx, key);
                 updateSummary();
             });
-
-            qtyInput.addEventListener('input', () => {
-                updateAmount(idx, parseFloat(qtyInput.value) || 0, rateMap[key]);
+            qtyInput.addEventListener('change', () => {
+                updateRowAmount(idx, key);
+                updateSummary();
             });
-
-            if (deductInput) {
-                deductInput.addEventListener('change', () => {
-                    deductMap[key] = parseFloat(deductInput.value) || 0;
-                    updateSummary();
-                });
-            }
         });
+
+        // Trigger initial calculation for Bill 1 pre-filled values
+        if (billData.billNumber === 1) {
+            billData.items.forEach((item, idx) => {
+                const key = item.key || `item_${idx}`;
+                updateRowAmount(idx, key);
+            });
+        }
     }
 
-    function updateAmount(idx, qty, rate) {
-        const amount = qty * rate;
-        document.getElementById(`amount_${idx}`).textContent = `₹ ${amount.toFixed(2)}`;
+    function updateRowAmount(idx, key) {
+        const tillDateQty = execMap[key] || 0;
+        const deductQty = deductMap[key] || 0;
+        const rate = rateMap[key] || 0;
+
+        // For Bill 2+: Net Qty = Till Date - Deduct Previous
+        // For Bill 1: Net Qty = Till Date (no deduction)
+        let netQty = tillDateQty;
+        if (billData.billNumber > 1) {
+            netQty = tillDateQty - deductQty;
+            if (netQty < 0) netQty = 0;
+        }
+
+        const amount = netQty * rate;
+        const amountCell = document.getElementById(`amount_${idx}`);
+        if (amountCell) {
+            amountCell.textContent = `₹${amount.toFixed(2)}`;
+        }
     }
 
     function updateSummary() {
-        let totalAmount = 0, totalDeduct = 0, itemCount = 0;
+        let totalAmount = 0;
+        let totalDeduct = 0;
+        let itemCount = 0;
 
-        document.querySelectorAll('#quantities-tbody tr').forEach((row) => {
-            const qtinput = row.querySelector('.exec-qty');
-            const deductInput = row.querySelector('.deduct-qty');
-            const qty = parseFloat(qtinput.value) || 0;
-            const rate = parseFloat(row.dataset.rate) || 0;
-            const deductQty = deductInput ? parseFloat(deductInput.value) || 0 : 0;
+        billData.items.forEach((item, idx) => {
+            const key = item.key || `item_${idx}`;
+            const tillDateQty = execMap[key] || 0;
+            const deductQty = deductMap[key] || 0;
+            const rate = rateMap[key] || 0;
 
-            if (qty > 0) {
+            if (tillDateQty > 0) {
                 itemCount++;
-                totalAmount += qty * rate;
-                if (deductQty > 0) totalDeduct += deductQty * rate;
+
+                let netQty = tillDateQty;
+                if (billData.billNumber > 1) {
+                    netQty = tillDateQty - deductQty;
+                    if (netQty < 0) netQty = 0;
+                    totalDeduct += deductQty * rate;
+                }
+                totalAmount += netQty * rate;
             }
         });
 
         document.getElementById('summary-count').textContent = itemCount;
-        document.getElementById('summary-total').textContent = `₹ ${totalAmount.toFixed(2)}`;
+        document.getElementById('summary-net').textContent = `₹${totalAmount.toFixed(2)}`;
+        document.getElementById('footer-total').textContent = totalAmount.toFixed(2);
+
         if (document.getElementById('summary-deduct')) {
-            document.getElementById('summary-deduct').textContent = `₹ ${totalDeduct.toFixed(2)}`;
+            document.getElementById('summary-deduct').textContent = `₹${totalDeduct.toFixed(2)}`;
         }
-        document.getElementById('summary-net').textContent = `₹ ${(totalAmount - totalDeduct).toFixed(2)}`;
     }
 
-    function previewBill() {
-        alert(`Preview: Bill-${billData.billNumber}\nNet Amount: ${document.getElementById('summary-net').textContent}`);
+    // Download Modal Functions
+    function showDownloadModal() {
+        document.getElementById('downloadModal').classList.add('active');
     }
 
+    function hideDownloadModal() {
+        document.getElementById('downloadModal').classList.remove('active');
+    }
+
+    function downloadBill(billType) {
+        hideDownloadModal();
+        
+        // Save current data first, then redirect to download
+        const formData = new FormData(document.getElementById('bill-entry-form'));
+        formData.set('bill_exec_map', JSON.stringify(execMap));
+        formData.set('bill_deduct_map', JSON.stringify(deductMap));
+        formData.set('bill_rate_map', JSON.stringify(rateMap));
+        formData.set('bill_type', billType);
+        formData.set('action', 'save_and_download');
+
+        fetch('{% url "bill_entry_save" work_id %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Redirect to bill download/generate page
+                window.location.href = '/saved-works/' + billData.workId + '/bill-generate/?bill_type=' + billType;
+            } else {
+                alert(data.error || 'Error saving bill before download');
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert('Error: ' + err.message);
+        });
+    }
+
+    // Form submission - Save Bill
     document.getElementById('bill-entry-form').addEventListener('submit', function(e) {
         e.preventDefault();
+
+        // Validate at least one quantity is entered
+        const hasQty = Object.values(execMap).some(q => q > 0);
+        if (!hasQty) {
+            alert('Please enter at least one quantity');
+            return;
+        }
 
         document.getElementById('bill-exec-map-field').value = JSON.stringify(execMap);
         document.getElementById('bill-deduct-map-field').value = JSON.stringify(deductMap);
         document.getElementById('bill-rate-map-field').value = JSON.stringify(rateMap);
 
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
         fetch(this.action, {
             method: 'POST',
             body: new FormData(this),
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
         })
-        .then(r => r.status === 200 ? window.location.href = '/saved-works/' : alert('Error saving bill'))
-        .catch(err => alert('Error: ' + err));
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Bill saved successfully!', 'success');
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || '/saved-works/';
+                }, 500);
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-save"></i> Save Bill';
+                alert(data.error || 'Error saving bill');
+            }
+        })
+        .catch(err => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-save"></i> Save Bill';
+            console.error('Error:', err);
+            alert('Error: ' + err.message);
+        });
     });
 
-    initializeTable();
+    // Close modal on outside click
+    document.getElementById('downloadModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDownloadModal();
+        }
+    });
+
+    // Notification helper
+    function showNotification(message, type = 'info') {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;';
+        alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), 3000);
+    }
 </script>
 
 {% endblock %}
