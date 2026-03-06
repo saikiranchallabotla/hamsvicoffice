@@ -259,10 +259,13 @@ def bill_entry(request, work_id):
             parent=source_work
         ).first()
     
-    # If bill exists, load saved data
-    mb_no = ''
-    mb_from_page = ''
-    mb_to_page = ''
+    # If bill exists, load saved data - use new field names
+    mb_measure_no = ''
+    mb_measure_p_from = ''
+    mb_measure_p_to = ''
+    mb_abstract_no = ''
+    mb_abstract_p_from = ''
+    mb_abstract_p_to = ''
     doi = ''
     doc = ''
     domr = ''
@@ -270,9 +273,13 @@ def bill_entry(request, work_id):
     
     if existing_bill:
         bill_work_data = existing_bill.work_data or {}
-        mb_no = bill_work_data.get('mb_no', '')
-        mb_from_page = bill_work_data.get('mb_from_page', '')
-        mb_to_page = bill_work_data.get('mb_to_page', '')
+        # New field names
+        mb_measure_no = bill_work_data.get('mb_measure_no', bill_work_data.get('mb_no', ''))
+        mb_measure_p_from = bill_work_data.get('mb_measure_p_from', bill_work_data.get('mb_from_page', ''))
+        mb_measure_p_to = bill_work_data.get('mb_measure_p_to', bill_work_data.get('mb_to_page', ''))
+        mb_abstract_no = bill_work_data.get('mb_abstract_no', '')
+        mb_abstract_p_from = bill_work_data.get('mb_abstract_p_from', '')
+        mb_abstract_p_to = bill_work_data.get('mb_abstract_p_to', '')
         doi = bill_work_data.get('doi', '')
         doc = bill_work_data.get('doc', '')
         domr = bill_work_data.get('domr', '')
@@ -304,9 +311,14 @@ def bill_entry(request, work_id):
         'workflow_chain': workflow_chain,
         'source_workslip': source_work if source_work.work_type == 'workslip' else None,
         'item_count': len(bill_items),
-        'mb_no': mb_no,
-        'mb_from_page': mb_from_page,
-        'mb_to_page': mb_to_page,
+        # Measurement book details - new field names
+        'mb_measure_no': mb_measure_no,
+        'mb_measure_p_from': mb_measure_p_from,
+        'mb_measure_p_to': mb_measure_p_to,
+        'mb_abstract_no': mb_abstract_no,
+        'mb_abstract_p_from': mb_abstract_p_from,
+        'mb_abstract_p_to': mb_abstract_p_to,
+        # Dates
         'doi': doi,
         'doc': doc,
         'domr': domr,
@@ -320,14 +332,16 @@ def bill_entry(request, work_id):
 @require_POST
 def bill_entry_save(request, work_id):
     """
-    Save bill data (quantities and deductions) and create SavedWork for bill.
+    Save bill data (quantities and deductions) and create/update SavedWork for bill.
+    Uses update_or_create to avoid duplicate bill records.
     
     POST data:
         - action: 'save_bill_data'
         - bill_exec_map: JSON map of {item_key: quantity}
         - bill_deduct_map: JSON map of {item_key: deduct_quantity}
         - bill_rate_map: JSON map of {item_key: rate}
-        - mb_no, mb_from_page, mb_to_page: Measurement book details
+        - mb_measure_no, mb_measure_p_from, mb_measure_p_to: Measurement book details
+        - mb_abstract_no, mb_abstract_p_from, mb_abstract_p_to: Abstract details
         - doi, doc, domr, dobr: Dates
     """
     org = get_org_from_request(request)
@@ -373,9 +387,14 @@ def bill_entry_save(request, work_id):
         'bill_exec_map': bill_exec_map,
         'bill_deduct_map': bill_deduct_map,
         'bill_rate_map': bill_rate_map,
-        'mb_no': request.POST.get('mb_no', ''),
-        'mb_from_page': request.POST.get('mb_from_page', ''),
-        'mb_to_page': request.POST.get('mb_to_page', ''),
+        # Measurement book details
+        'mb_measure_no': request.POST.get('mb_measure_no', ''),
+        'mb_measure_p_from': request.POST.get('mb_measure_p_from', ''),
+        'mb_measure_p_to': request.POST.get('mb_measure_p_to', ''),
+        'mb_abstract_no': request.POST.get('mb_abstract_no', ''),
+        'mb_abstract_p_from': request.POST.get('mb_abstract_p_from', ''),
+        'mb_abstract_p_to': request.POST.get('mb_abstract_p_to', ''),
+        # Dates
         'doi': request.POST.get('doi', ''),
         'doc': request.POST.get('doc', ''),
         'domr': request.POST.get('domr', ''),
@@ -389,32 +408,32 @@ def bill_entry_save(request, work_id):
         'source_workslip_id': source_work.id if source_work.work_type == 'workslip' else None,
     }
     
-    # Create SavedWork for bill
+    # Use update_or_create to avoid duplicate bill records
     bill_name = f"Bill-{bill_number} from {source_work.name}"
     
-    saved_bill = SavedWork.objects.create(
+    saved_bill, created = SavedWork.objects.update_or_create(
         organization=org,
         user=user,
         parent=source_work,
-        name=bill_name,
         work_type='bill',
-        work_data=bill_data,
-        category=source_work.category,
         bill_number=bill_number,
-        bill_type='first_part' if bill_number == 1 else 'nth_part',
-        status='in_progress',
+        defaults={
+            'name': bill_name,
+            'work_data': bill_data,
+            'category': source_work.category,
+            'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
+            'status': 'draft',  # Mark as draft until downloaded
+        }
     )
     
-    messages.success(request, f'Bill-{bill_number} created successfully!')
-    
-    # Redirect to bill generate page (download page) after saving
-    redirect_url = reverse('bill_generate', kwargs={'work_id': work_id})
+    action_msg = 'created' if created else 'updated'
+    messages.success(request, f'Bill-{bill_number} {action_msg} successfully!')
 
     return JsonResponse({
         'success': True,
         'work_id': saved_bill.id,
-        'redirect_url': redirect_url,
-        'message': f'Bill-{bill_number} saved!'
+        'created': created,
+        'message': f'Bill-{bill_number} {action_msg}!'
     })
 
 

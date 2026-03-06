@@ -370,7 +370,7 @@
             {% if bills|length > 0 %}
                 {% for bill in bills %}
                 <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
-                        onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                        onclick="handleBn({{ bill.parent_id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
                         title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
                     B{{ bill.bill_number }}
                     {% if bill.status == 'completed' %}
@@ -380,6 +380,18 @@
                     {% endif %}
                 </button>
                 {% endfor %}
+                <!-- Show +BN button if there's a workslip that doesn't have a bill yet -->
+                {% with next_bill_num=bills|length|add:1 %}
+                    {% for ws in workslips %}
+                        {% if ws.workslip_number == next_bill_num %}
+                        <button class="ewb-btn ewb-btn-b"
+                                onclick="handleBCreate({{ ws.id }})"
+                                title="Generate Bill {{ next_bill_num }} from WorkSlip {{ ws.workslip_number }}">
+                            +B{{ next_bill_num }}
+                        </button>
+                        {% endif %}
+                    {% endfor %}
+                {% endwith %}
             {% elif workslips|length > 0 %}
             <button class="ewb-btn ewb-btn-b"
                     onclick="handleBNew()"
@@ -861,6 +873,17 @@
             window.location.href = '/bill/entry/' + billId + '/';
         } catch (e) {
             console.error('handleBn error:', e);
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Create new bill from workslip (for +B2, +B3, etc.)
+    function handleBCreate(workslipId) {
+        try {
+            // Go to bill entry UI with the workslip ID
+            window.location.href = '/bill/entry/' + workslipId + '/';
+        } catch (e) {
+            console.error('handleBCreate error:', e);
             alert('Error: ' + e.message);
         }
     }

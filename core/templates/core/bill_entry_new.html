@@ -439,18 +439,58 @@
                 <i class="bi bi-journal-text"></i>
                 Measurement Book Details
             </div>
-            <div class="form-grid">
+            <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
                 <div class="form-group">
-                    <label class="form-label">M.B. No.</label>
-                    <input type="text" name="mb_no" class="form-control" placeholder="e.g., MB-001" value="{{ mb_no|default:'' }}">
+                    <label class="form-label">M.B. No. (Measurements)</label>
+                    <input type="text" name="mb_measure_no" id="mb_measure_no" class="form-control" placeholder="e.g., MB-001" value="{{ mb_measure_no|default:'' }}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">From Page</label>
-                    <input type="number" name="mb_from_page" class="form-control" placeholder="e.g., 1" min="0" value="{{ mb_from_page|default:'' }}">
+                    <input type="number" name="mb_measure_p_from" id="mb_measure_p_from" class="form-control" placeholder="e.g., 1" min="0" value="{{ mb_measure_p_from|default:'' }}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">To Page</label>
-                    <input type="number" name="mb_to_page" class="form-control" placeholder="e.g., 5" min="0" value="{{ mb_to_page|default:'' }}">
+                    <input type="number" name="mb_measure_p_to" id="mb_measure_p_to" class="form-control" placeholder="e.g., 5" min="0" value="{{ mb_measure_p_to|default:'' }}">
+                </div>
+            </div>
+            <div class="form-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">M.B. No. (Abstract)</label>
+                    <input type="text" name="mb_abstract_no" id="mb_abstract_no" class="form-control" placeholder="e.g., MB-001" value="{{ mb_abstract_no|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Abstract From Page</label>
+                    <input type="number" name="mb_abstract_p_from" id="mb_abstract_p_from" class="form-control" placeholder="e.g., 6" min="0" value="{{ mb_abstract_p_from|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Abstract To Page</label>
+                    <input type="number" name="mb_abstract_p_to" id="mb_abstract_p_to" class="form-control" placeholder="e.g., 10" min="0" value="{{ mb_abstract_p_to|default:'' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Important Dates -->
+        <div class="form-card">
+            <div class="section-title">
+                <i class="bi bi-calendar-event"></i>
+                Important Dates
+            </div>
+            <div class="form-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="form-group">
+                    <label class="form-label">Date of Inspection (DOI)</label>
+                    <input type="date" name="doi" id="doi" class="form-control" value="{{ doi|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of Completion (DOC)</label>
+                    <input type="date" name="doc" id="doc" class="form-control" value="{{ doc|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of MR (DOMR)</label>
+                    <input type="date" name="domr" id="domr" class="form-control" value="{{ domr|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date of BR (DOBR)</label>
+                    <input type="date" name="dobr" id="dobr" class="form-control" value="{{ dobr|default:'' }}">
                 </div>
             </div>
         </div>
@@ -507,7 +547,7 @@
                     </tbody>
                     <tfoot>
                         <tr style="background: #f1f5f9; font-weight: 700;">
-                            <td colspan="5" style="text-align: right; padding: 1rem;">
+                            <td colspan="6" style="text-align: right; padding: 1rem;">
                                 <strong>Total</strong>
                             </td>
                             <td class="amount-col" style="padding: 1rem; font-size: 1.1rem; color: #059669;">
@@ -543,6 +583,12 @@
             <button type="button" class="btn btn-danger" onclick="showDownloadModal()">
                 <i class="bi bi-download"></i> Download Bill
             </button>
+            <button type="button" class="btn btn-primary" onclick="showLSModal()">
+                <i class="bi bi-file-text"></i> Download L.S Form
+            </button>
+            <button type="button" class="btn btn-outline" style="background: #fef3c7; border-color: #f59e0b; color: #92400e;" onclick="showCoveringLetterModal()">
+                <i class="bi bi-envelope"></i> Download Covering Letter
+            </button>
             <button type="button" class="btn btn-outline" onclick="history.back()">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
@@ -557,7 +603,7 @@
             <i class="bi bi-download me-2"></i>Select Bill Type
         </div>
         
-        <button class="download-option" onclick="downloadBill('first_part')">
+        <button class="download-option" onclick="downloadBill('bill_part')">
             <div class="download-option-title">
                 <i class="bi bi-file-earmark-text"></i>
                 {% if bill_number == 1 %}First & Part Bill{% else %}{{ bill_number|add:0 }}th & Part Bill{% endif %}
@@ -567,7 +613,7 @@
             </div>
         </button>
         
-        <button class="download-option" onclick="downloadBill('first_final')">
+        <button class="download-option" onclick="downloadBill('bill_final')">
             <div class="download-option-title">
                 <i class="bi bi-file-earmark-check"></i>
                 {% if bill_number == 1 %}First & Final Bill{% else %}{{ bill_number|add:0 }}th & Final Bill{% endif %}
@@ -582,6 +628,76 @@
         </button>
     </div>
 </div>
+
+<!-- LS Form Modal -->
+<div class="download-modal-overlay" id="lsModal">
+    <div class="download-modal">
+        <div class="download-modal-title">
+            <i class="bi bi-file-text me-2"></i>Select L.S Form Type
+        </div>
+        
+        <button class="download-option" onclick="downloadDocument('ls_part')">
+            <div class="download-option-title">
+                <i class="bi bi-file-earmark-text"></i>
+                L.S Form (Part)
+            </div>
+            <div class="download-option-desc">L.S statement for partial bill.</div>
+        </button>
+        
+        <button class="download-option" onclick="downloadDocument('ls_final')">
+            <div class="download-option-title">
+                <i class="bi bi-file-earmark-check"></i>
+                L.S Form (Final)
+            </div>
+            <div class="download-option-desc">L.S statement for final bill.</div>
+        </button>
+        
+        <button class="download-cancel" onclick="hideLSModal()">Cancel</button>
+    </div>
+</div>
+
+<!-- Covering Letter Modal -->
+<div class="download-modal-overlay" id="coveringLetterModal">
+    <div class="download-modal">
+        <div class="download-modal-title">
+            <i class="bi bi-envelope me-2"></i>Select Covering Letter Type
+        </div>
+        
+        <button class="download-option" onclick="downloadDocument('covering_part')">
+            <div class="download-option-title">
+                <i class="bi bi-envelope-open"></i>
+                Covering Letter (Part)
+            </div>
+            <div class="download-option-desc">Covering letter for partial bill.</div>
+        </button>
+        
+        <button class="download-option" onclick="downloadDocument('covering_final')">
+            <div class="download-option-title">
+                <i class="bi bi-envelope-check"></i>
+                Covering Letter (Final)
+            </div>
+            <div class="download-option-desc">Covering letter for final bill.</div>
+        </button>
+        
+        <button class="download-cancel" onclick="hideCoveringLetterModal()">Cancel</button>
+    </div>
+</div>
+
+<!-- Hidden form for direct download (no redirect) -->
+<form id="download-form" method="POST" action="{% url 'bill_generate' work_id %}" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action_type" id="dl-action-type">
+    <input type="hidden" name="mb_measure_no" id="dl-mb-measure-no">
+    <input type="hidden" name="mb_measure_p_from" id="dl-mb-measure-p-from">
+    <input type="hidden" name="mb_measure_p_to" id="dl-mb-measure-p-to">
+    <input type="hidden" name="mb_abstract_no" id="dl-mb-abstract-no">
+    <input type="hidden" name="mb_abstract_p_from" id="dl-mb-abstract-p-from">
+    <input type="hidden" name="mb_abstract_p_to" id="dl-mb-abstract-p-to">
+    <input type="hidden" name="doi" id="dl-doi">
+    <input type="hidden" name="doc" id="dl-doc">
+    <input type="hidden" name="domr" id="dl-domr">
+    <input type="hidden" name="dobr" id="dl-dobr">
+</form>
 
 <script>
     const billData = {
@@ -758,39 +874,102 @@
     }
 
     // Download Modal Functions
-    function showDownloadModal() {
-        document.getElementById('downloadModal').classList.add('active');
-    }
+    function showDownloadModal() { document.getElementById('downloadModal').classList.add('active'); }
+    function hideDownloadModal() { document.getElementById('downloadModal').classList.remove('active'); }
+    function showLSModal() { document.getElementById('lsModal').classList.add('active'); }
+    function hideLSModal() { document.getElementById('lsModal').classList.remove('active'); }
+    function showCoveringLetterModal() { document.getElementById('coveringLetterModal').classList.add('active'); }
+    function hideCoveringLetterModal() { document.getElementById('coveringLetterModal').classList.remove('active'); }
 
-    function hideDownloadModal() {
-        document.getElementById('downloadModal').classList.remove('active');
+    // Copy form values to download form and submit (directly downloads Excel)
+    function prepareDownloadForm(actionType) {
+        // Copy MB and date fields to hidden download form
+        document.getElementById('dl-action-type').value = actionType;
+        document.getElementById('dl-mb-measure-no').value = document.getElementById('mb_measure_no').value || '';
+        document.getElementById('dl-mb-measure-p-from').value = document.getElementById('mb_measure_p_from').value || '';
+        document.getElementById('dl-mb-measure-p-to').value = document.getElementById('mb_measure_p_to').value || '';
+        document.getElementById('dl-mb-abstract-no').value = document.getElementById('mb_abstract_no').value || '';
+        document.getElementById('dl-mb-abstract-p-from').value = document.getElementById('mb_abstract_p_from').value || '';
+        document.getElementById('dl-mb-abstract-p-to').value = document.getElementById('mb_abstract_p_to').value || '';
+        document.getElementById('dl-doi').value = document.getElementById('doi').value || '';
+        document.getElementById('dl-doc').value = document.getElementById('doc').value || '';
+        document.getElementById('dl-domr').value = document.getElementById('domr').value || '';
+        document.getElementById('dl-dobr').value = document.getElementById('dobr').value || '';
     }
 
     function downloadBill(billType) {
         hideDownloadModal();
         
-        // Save current data first, then redirect to download
+        // Validate at least one quantity
+        const hasQty = Object.values(execMap).some(q => q > 0);
+        if (!hasQty) {
+            alert('Please enter at least one quantity before downloading.');
+            return;
+        }
+
+        // First save the bill data via AJAX
         const formData = new FormData(document.getElementById('bill-entry-form'));
         formData.set('bill_exec_map', JSON.stringify(execMap));
         formData.set('bill_deduct_map', JSON.stringify(deductMap));
         formData.set('bill_rate_map', JSON.stringify(rateMap));
-        formData.set('bill_type', billType);
-        formData.set('action', 'save_and_download');
+        formData.set('action', 'save_bill_data');
+
+        // Show loading
+        showNotification('Saving and generating bill...', 'info');
 
         fetch('{% url "bill_entry_save" work_id %}', {
             method: 'POST',
             body: formData,
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                // Redirect to bill download/generate page
-                window.location.href = '/saved-works/' + billData.workId + '/bill-generate/?bill_type=' + billType;
+            if (data.success || data.work_id) {
+                // Now submit the download form directly (browser will receive the Excel file)
+                prepareDownloadForm(billType);
+                document.getElementById('download-form').submit();
             } else {
-                alert(data.error || 'Error saving bill before download');
+                alert(data.error || 'Error saving bill data');
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert('Error: ' + err.message);
+        });
+    }
+
+    function downloadDocument(actionType) {
+        hideLSModal();
+        hideCoveringLetterModal();
+        
+        // Validate at least one quantity
+        const hasQty = Object.values(execMap).some(q => q > 0);
+        if (!hasQty) {
+            alert('Please enter at least one quantity before downloading.');
+            return;
+        }
+
+        // First save the bill data
+        const formData = new FormData(document.getElementById('bill-entry-form'));
+        formData.set('bill_exec_map', JSON.stringify(execMap));
+        formData.set('bill_deduct_map', JSON.stringify(deductMap));
+        formData.set('bill_rate_map', JSON.stringify(rateMap));
+        formData.set('action', 'save_bill_data');
+
+        showNotification('Saving and generating document...', 'info');
+
+        fetch('{% url "bill_entry_save" work_id %}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success || data.work_id) {
+                prepareDownloadForm(actionType);
+                document.getElementById('download-form').submit();
+            } else {
+                alert(data.error || 'Error saving bill data');
             }
         })
         .catch(err => {
@@ -821,17 +1000,15 @@
         fetch(this.action, {
             method: 'POST',
             body: new FormData(this),
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showNotification('Bill saved successfully!', 'success');
-                setTimeout(() => {
-                    window.location.href = data.redirect_url || '/saved-works/';
-                }, 500);
+                // Stay on the same page - don't redirect
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-save"></i> Save Bill';
             } else {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="bi bi-save"></i> Save Bill';
@@ -846,11 +1023,13 @@
         });
     });
 
-    // Close modal on outside click
-    document.getElementById('downloadModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            hideDownloadModal();
-        }
+    // Close modals on outside click
+    ['downloadModal', 'lsModal', 'coveringLetterModal'].forEach(id => {
+        document.getElementById(id).addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+            }
+        });
     });
 
     // Notification helper
