@@ -398,15 +398,9 @@
 <div class="bg-container">
 
     <!-- Back Link -->
-    {% if work %}
-    <a href="{% url 'bill_choice' work.id %}" class="bg-back">
-        <i class="bi bi-arrow-left"></i> Back to Bill Options
+    <a href="{% url 'bill_entry' work_id=workslip.id %}" class="bg-back">
+        <i class="bi bi-arrow-left"></i> Back to Bill Entry
     </a>
-    {% else %}
-    <a href="{% url 'saved_works_list' %}" class="bg-back">
-        <i class="bi bi-arrow-left"></i> Back to Saved Works
-    </a>
-    {% endif %}
 
     <!-- Info Banner -->
     <div class="bg-banner">
@@ -578,7 +572,7 @@
                     {% if bill_number > 1 and has_previous %}
                     <div class="bg-nth-info">
                         <i class="bi bi-info-circle me-1"></i>
-                        <strong>{{ bill_ord }} Bill format:</strong> 11-column layout with "Quantity Till Date",
+                        <strong>{{ bill_ord }} Bill format:</strong> 11-column layout with "Total Measurements Till Date",
                         "Deduct Previous Measurements" (from Bill 1{% if bill_number > 2 %}-{{ bill_number|add:"-1" }}{% endif %}),
                         and "Since Last Measurements" columns.
                     </div>
