@@ -22,35 +22,54 @@ from .saved_works_views import get_org_from_request, check_saved_work_access, lo
 @login_required(login_url='login')
 def bill_entry(request, work_id):
     """
-    Display bill entry form for creating a bill from a workslip or estimate.
-    Allows sequential quantity entry without file uploads.
-    
+    Display bill entry form for creating a bill from a workslip or estimate,
+    or viewing/editing an existing bill's quantities.
+
     Args:
-        work_id: ID of the parent work (Estimate or Workslip)
-    
+        work_id: ID of the parent work (Estimate, Workslip, or existing Bill)
+
     Flow:
-        1. User selects a workslip/estimate
+        1. User selects a workslip/estimate OR clicks on existing bill button
         2. System loads the items and previous bill data (if Bill 2+)
         3. User enters quantities and deductions
         4. User saves bill (goes to bill_entry_save)
     """
     org = get_org_from_request(request)
     user = request.user
-    
-    # Get the parent work (source workslip or estimate)
+
+    # Get the parent work (source workslip, estimate, or existing bill)
     try:
         source_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     except:
         messages.error(request, 'Workslip or Estimate not found.')
         return redirect('saved_works_list')
-    
+
+    # If the user clicked on an existing bill, show its saved quantities
+    viewing_existing_bill = False
+    existing_bill_data = None
+    if source_work.work_type == 'bill':
+        viewing_existing_bill = True
+        existing_bill_data = source_work
+        # Navigate up to the parent workslip/estimate
+        if source_work.parent and source_work.parent.work_type in ['workslip', 'new_estimate']:
+            source_work = source_work.parent
+        else:
+            messages.error(request, 'Bill has no parent workslip. Cannot display.')
+            return redirect('saved_works_list')
+
     # Validate source work type
     if source_work.work_type not in ['workslip', 'new_estimate']:
         messages.error(request, 'Only workslips and estimates can generate bills.')
         return redirect('saved_work_detail', work_id=work_id)
     
     work_data = source_work.work_data or {}
-    
+
+    # If viewing an existing bill, override bill_number and load its saved quantities
+    saved_bill_exec_map = {}
+    if viewing_existing_bill and existing_bill_data:
+        ebd = existing_bill_data.work_data or {}
+        saved_bill_exec_map = ebd.get('bill_ws_exec_map', ebd.get('bill_exec_map', {}))
+
     # Get items from source work
     if source_work.work_type == 'workslip':
         ws_rows = work_data.get('ws_estimate_rows', [])
@@ -63,26 +82,35 @@ def bill_entry(request, work_id):
         ws_exec = work_data.get('qty_map', {})
         bill_number = 1
         item_type = 'estimate'
+
+    # Override bill number when viewing an existing bill
+    if viewing_existing_bill and existing_bill_data:
+        bill_number = existing_bill_data.bill_number or bill_number
     
     if not ws_rows:
         messages.error(request, f'{source_work.work_type.title()} has no items.')
         return redirect('saved_work_detail', work_id=work_id)
     
-    # Build bill items from workslip quantities
+    # Build bill items from workslip quantities (or saved bill quantities)
     bill_items = []
     for idx, row in enumerate(ws_rows):
         key = row.get('key') or row.get('item_name') or f'item_{idx}'
-        qty_exec = ws_exec.get(key, 0)
+
+        # Use saved bill quantities if viewing an existing bill, else use workslip exec
+        if viewing_existing_bill and saved_bill_exec_map:
+            qty_exec = saved_bill_exec_map.get(key, 0)
+        else:
+            qty_exec = ws_exec.get(key, 0)
         try:
             qty_exec = float(qty_exec) if qty_exec else 0.0
         except (ValueError, TypeError):
             qty_exec = 0.0
-        
+
         # Include ALL items from workslip, even if qty is 0 (for reference)
         rate = float(row.get('rate', 0) or 0)
         item_name = row.get('display_name') or row.get('item_name') or row.get('desc') or 'Item'
         unit = row.get('unit') or 'Nos'
-        
+
         bill_items.append({
             'key': key,
             'item_name': item_name,
@@ -236,6 +264,12 @@ def bill_entry(request, work_id):
     else:
         bill_type_label = f'{bill_number}th & Part Bill'
     
+    # Quantity column header label
+    if bill_number == 1:
+        qty_column_label = 'Bill-1 Qty'
+    else:
+        qty_column_label = f'Total quantity till date (Bill {bill_number})'
+
     context = {
         'work_id': work_id,
         'source_work': source_work,
@@ -252,8 +286,11 @@ def bill_entry(request, work_id):
         'workflow_chain': workflow_chain,
         'source_workslip': source_work if source_work.work_type == 'workslip' else None,
         'item_count': len(bill_items),
+        'viewing_existing_bill': viewing_existing_bill,
+        'existing_bill_data': existing_bill_data,
+        'qty_column_label': qty_column_label,
     }
-    
+
     return render(request, 'core/bill_entry.html', context)
 
 
