@@ -422,7 +422,7 @@ def bill_entry_save(request, work_id):
             'work_data': bill_data,
             'category': source_work.category,
             'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
-            'status': 'draft',  # Mark as draft until downloaded
+            'status': 'in_progress',  # Mark as in_progress (draft) until downloaded
         }
     )
     

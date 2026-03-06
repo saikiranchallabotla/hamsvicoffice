@@ -2203,11 +2203,13 @@ def bill_generate(request, work_id):
             continue
         amount = exec_qty * rate
         total_amount += amount
+        # Use description from row+2 (stored in 'desc'), fallback to item name
+        supp_desc = supp.get('desc', supp_name) or supp_name
         items.append({
             'sl': len(items) + 1,
             'qty': exec_qty,
             'unit': supp.get('unit', 'Nos') or 'Nos',
-            'desc': supp_name,
+            'desc': supp_desc,
             'rate': rate,
             'is_ae': False,
             'amount': round(amount, 2),
@@ -2240,11 +2242,13 @@ def bill_generate(request, work_id):
                 continue
             amount = exec_qty * rate
             total_amount += amount
+            # Use description from backend row+2, fallback to item name
+            supp_desc = supp_info.get('desc', supp_name) or supp_name
             items.append({
                 'sl': len(items) + 1,
                 'qty': exec_qty,
                 'unit': supp_info.get('unit', 'Nos') or 'Nos',
-                'desc': supp_name,
+                'desc': supp_desc,
                 'rate': rate,
                 'is_ae': False,
                 'amount': round(amount, 2),

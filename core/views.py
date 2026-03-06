@@ -2715,7 +2715,8 @@ def workslip(request):
                     for supp in phase_supps:
                         supp_name = supp.get("name", "")
                         supp_qty = float(supp.get("qty", 0) or 0)
-                        supp_desc = supp.get("desc", supp_name)
+                        # Use description from row+2 (stored in 'desc'), fallback to item name
+                        supp_desc = supp.get("desc", supp_name) or supp_name
                         supp_unit = supp.get("unit", "-") or "-"
                         
                         # Apply custom rate if user modified it
@@ -2728,7 +2729,8 @@ def workslip(request):
                             supp_amount = supp_qty * supp_rate
                         
                         ws_ws.cell(out_row, COL_SL, sl_counter)
-                        ws_ws.cell(out_row, COL_DESC, supp_name)
+                        # Use supp_desc (row+2 description) instead of supp_name
+                        ws_ws.cell(out_row, COL_DESC, supp_desc)
                         ws_ws.cell(out_row, COL_UNIT, supp_unit)
                         ws_ws.cell(out_row, COL_EST_QTY, None)
                         ws_ws.cell(out_row, COL_EST_RATE, supp_rate if supp_rate > 0 else None)
