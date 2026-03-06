@@ -519,6 +519,8 @@ def workslip(request):
         request.session["ws_work_type"] = None  # Clear work type selection
         request.session["ws_work_mode"] = None  # Clear work mode selection
         request.session["ws_category"] = None  # Clear category selection
+        request.session["current_saved_work_id"] = None  # Clear saved work link so new estimate doesn't update an old work
+        request.session["ws_parent_work_id"] = None  # Clear parent work link
     
     # Handle work type, work mode and category from URL parameters (from workslip_home)
     url_work_type = request.GET.get("work_type")
@@ -617,6 +619,7 @@ def workslip(request):
 
     # -------- 0) Load backend (groups/items + Master Datas) ----------
     desc_to_item = {}
+    item_name_to_desc = {}  # Maps yellow header name → row+2 description from Master Datas
     try:
         items_list, groups_map, units_map, ws_data, filepath = load_backend(
             category, settings.BASE_DIR,
@@ -632,6 +635,7 @@ def workslip(request):
                 desc_text = str(desc_cell or "").strip()
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
+                    item_name_to_desc[item_name] = desc_text
     except Exception:
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
@@ -981,12 +985,43 @@ def workslip(request):
                     # DEBUG: Log rate source
                     logger.info(f"[WORKSLIP DEBUG] Row {r} rate: formula={rate_formula}, value={rate_value}, final={rate_num}")
 
+                    # item_desc: full specification description for Excel output.
+                    # Collect all candidate descriptions and pick the longest (most detailed) one.
+                    desc_candidates = [desc_str]  # always include estimate description
+
+                    backend_desc = (
+                        item_name_to_desc.get(display_name, '')
+                        or item_name_to_desc.get(backend_item_name, '')
+                    )
+                    if backend_desc:
+                        desc_candidates.append(backend_desc)
+
+                    # Peek at the next 1-2 rows for a description-only row (no rate/qty)
+                    # that carries the full specification text (the "row+2 of item name" pattern)
+                    for peek_offset in (1, 2):
+                        peek_row = r + peek_offset
+                        if peek_row > max_row:
+                            break
+                        peek_desc = ws_est_sheet.cell(row=peek_row, column=col_desc).value
+                        peek_desc_str = str(peek_desc or "").strip()
+                        peek_rate = ws_est_sheet.cell(row=peek_row, column=col_rate).value
+                        peek_qty = ws_est_sheet.cell(row=peek_row, column=col_qty).value
+                        peek_rate_empty = (peek_rate is None or str(peek_rate).strip() == "")
+                        peek_qty_empty = (peek_qty is None or str(peek_qty).strip() == "")
+                        if peek_desc_str and peek_rate_empty and peek_qty_empty:
+                            desc_candidates.append(peek_desc_str)
+                            break
+
+                    # Pick the longest candidate as the most detailed description
+                    item_desc = max(desc_candidates, key=len) if desc_candidates else desc_str
+
                     parsed_rows.append({
                         "key": f"{ws_est_sheet.title}_row{r}",
                         "excel_row": r,
                         "item_name": backend_item_name,      # backend / mapping name
                         "display_name": display_name,        # yellow header for UI
                         "desc": desc_str,                    # full description from Estimate
+                        "item_desc": item_desc,              # row+2 content from Master Datas for Excel output
                         "qty_est": qty_num,
                         "unit": str(unit or "").strip(),
                         "rate": rate_num,
@@ -2534,7 +2569,7 @@ def workslip(request):
                 unit = row.get("unit") or ""
                 original_rate = float(row.get("rate", 0) or 0)
                 rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
-                desc_est = row.get("desc") or row.get("item_name") or ""
+                desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
@@ -2680,7 +2715,8 @@ def workslip(request):
                     for supp in phase_supps:
                         supp_name = supp.get("name", "")
                         supp_qty = float(supp.get("qty", 0) or 0)
-                        supp_desc = supp.get("desc", supp_name)
+                        # Use description from row+2 (stored in 'desc'), fallback to item name
+                        supp_desc = supp.get("desc", supp_name) or supp_name
                         supp_unit = supp.get("unit", "-") or "-"
                         
                         # Apply custom rate if user modified it
@@ -2693,7 +2729,8 @@ def workslip(request):
                             supp_amount = supp_qty * supp_rate
                         
                         ws_ws.cell(out_row, COL_SL, sl_counter)
-                        ws_ws.cell(out_row, COL_DESC, supp_name)
+                        # Use supp_desc (row+2 description) instead of supp_name
+                        ws_ws.cell(out_row, COL_DESC, supp_desc)
                         ws_ws.cell(out_row, COL_UNIT, supp_unit)
                         ws_ws.cell(out_row, COL_EST_QTY, None)
                         ws_ws.cell(out_row, COL_EST_RATE, supp_rate if supp_rate > 0 else None)
@@ -5126,9 +5163,12 @@ def bill(request):
                     amount = exec_qty * rate
                     bill_preload_total += amount
                     bill_preload_count += 1
+                    # Pick the longest (most detailed) description
+                    _desc_candidates = [v for v in [row.get('item_desc', ''), row.get('desc', ''), row.get('display_name', ''), row.get('item_name', '')] if v]
+                    _best_desc = max(_desc_candidates, key=len) if _desc_candidates else row.get('item_name', '')
                     bill_preload_items.append({
                         'sl': bill_preload_count,
-                        'desc': row.get('display_name') or row.get('item_name', row.get('desc', '')),
+                        'desc': _best_desc,
                         'unit': row.get('unit', 'Nos'),
                         'qty': exec_qty,
                         'rate': rate,
@@ -5186,8 +5226,9 @@ def bill(request):
                 rate = float(row.get('rate', 0) or 0)
                 if rate == 0:
                     continue
-                # Use 'desc' (row+2 of yellow/red header) preferentially
-                desc = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+                # Pick the longest (most detailed) description available
+                _desc_opts = [v for v in [row.get('item_desc', ''), row.get('desc', ''), row.get('display_name', ''), row.get('item_name', '')] if v]
+                desc = max(_desc_opts, key=len) if _desc_opts else row.get('item_name', '')
                 unit = row.get('unit', 'Nos')
                 is_ae = str(desc).lower().startswith('ae')
                 items.append({
@@ -8507,6 +8548,7 @@ def datas(request):
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
+    request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
 
     mode = request.GET.get("work_type")
 

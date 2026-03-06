@@ -466,12 +466,12 @@
         <div class="bg-banner-row">
             <div class="bg-banner-icon"><i class="bi bi-receipt"></i></div>
             <div>
-                <h4>Bill {{ bill_number }} from Workslip {{ workslip.workslip_number }}</h4>
+                <h4>Bill {{ bill_number }} — {{ workslip.name }}</h4>
                 <div class="sub">
-                    Source: <strong>{{ workslip.name }}</strong> &bull;
                     {{ item_count }} items &bull;
                     Total: &#8377;{{ total_amount|floatformat:2 }}
                     {% if work %} &bull; Estimate: {{ work.name }}{% endif %}
+                    {% if has_draft_quantities %}&bull; <span style="background:#bfdbfe; border-radius:4px; padding:0.1rem 0.4rem; color:#1e40af; font-weight:600;"><i class="bi bi-floppy me-1"></i>Quantities from entry form</span>{% endif %}
                 </div>
             </div>
             <div class="bg-badge">
@@ -487,10 +487,23 @@
                 {% endif %}
             </div>
         </div>
-        <div class="bg-auto-note">
-            <i class="bi bi-lightning-fill me-1"></i>
-            <strong>No file upload needed!</strong> Data auto-loaded from saved workslip. Fill MB &amp; date details and generate.
+        {% if item_count == 0 %}
+        <div class="bg-auto-note" style="background: #fef3c7; color: #92400e; display:flex; align-items:center; gap:0.5rem;">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span><strong>No quantities found.</strong> Use the quantity entry form to enter executed quantities for this bill.</span>
+            <a href="{% url 'bill_entry' work_id=workslip.id %}" style="margin-left:auto; background:#d97706; color:white; padding:0.3rem 0.7rem; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.7rem; white-space:nowrap;">
+                <i class="bi bi-pencil-square me-1"></i> Enter Quantities
+            </a>
         </div>
+        {% else %}
+        <div class="bg-auto-note" style="display:flex; align-items:center; gap:0.5rem;">
+            <i class="bi bi-lightning-fill me-1"></i>
+            <strong>Ready to generate!</strong> Fill in MB &amp; date details below and generate.
+            <a href="{% url 'bill_entry' work_id=workslip.id %}" style="margin-left:auto; background:#059669; color:white; padding:0.2rem 0.6rem; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.65rem; white-space:nowrap; opacity:0.85;">
+                <i class="bi bi-pencil-square me-1"></i> Edit Quantities
+            </a>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Work Header Information -->

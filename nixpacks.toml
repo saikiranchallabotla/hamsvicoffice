@@ -8,10 +8,18 @@ AWS_SECRET_ACCESS_KEY = ""
 [phases.setup]
 aptPkgs = ["poppler-utils"]
 
+[phases.build]
+cmds = [
+    "pip install -r requirements.txt"
+]
+
 [phases.release]
 cmds = [
     "python manage.py collectstatic --noinput"
 ]
+
+[start]
+cmd = "python init_app.py && gunicorn estimate_site.wsgi --bind 0.0.0.0:$PORT"
 
 # Note: Migrations, admin creation, and module seeding are now done at runtime
 # in init_app.py to handle external database connections that may not be

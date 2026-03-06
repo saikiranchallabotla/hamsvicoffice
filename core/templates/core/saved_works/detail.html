@@ -370,7 +370,7 @@
             {% if bills|length > 0 %}
                 {% for bill in bills %}
                 <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
-                        onclick="handleBn({{ bill.id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
+                        onclick="handleBn({{ bill.parent_id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
                         title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
                     B{{ bill.bill_number }}
                     {% if bill.status == 'completed' %}
@@ -380,6 +380,18 @@
                     {% endif %}
                 </button>
                 {% endfor %}
+                <!-- Show +BN button if there's a workslip that doesn't have a bill yet -->
+                {% with next_bill_num=bills|length|add:1 %}
+                    {% for ws in workslips %}
+                        {% if ws.workslip_number == next_bill_num %}
+                        <button class="ewb-btn ewb-btn-b"
+                                onclick="handleBCreate({{ ws.id }})"
+                                title="Generate Bill {{ next_bill_num }} from WorkSlip {{ ws.workslip_number }}">
+                            +B{{ next_bill_num }}
+                        </button>
+                        {% endif %}
+                    {% endfor %}
+                {% endwith %}
             {% elif workslips|length > 0 %}
             <button class="ewb-btn ewb-btn-b"
                     onclick="handleBNew()"
@@ -814,7 +826,8 @@
     function handleWNew() {
         try {
             if (rootEstimateId) {
-                window.location.href = '/saved-works/' + rootEstimateId + '/generate-workslip/';
+                // New: Direct to workslip entry UI instead of file upload
+                window.location.href = '/workslip/entry/' + rootEstimateId + '/';
             } else {
                 alert('Error: Could not find root estimate. Please go back and try again.');
             }
@@ -829,23 +842,11 @@
     // ========================================
     function handleB(billId, billNum, billStatus) {
         try {
-            if (billStatus !== 'completed') {
-                // In-progress bill — resume editing
-                window.location.href = '/saved-works/' + billId + '/resume/';
-                return;
-            }
-            var options = [
-                { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
-                  desc: 'Open and review Bill ' + billNum,
-                  go: '/saved-works/' + billId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + (billNum + 1),
-                  desc: 'Generate next bill',
-                  go: '/saved-works/' + billId + '/generate-next-bill/' }
-            ];
-            showPrompt('billPromptModal', 'Bill Actions', options);
+            // New: Always go to bill entry UI for editing
+            window.location.href = '/bill/entry/' + billId + '/';
         } catch (e) {
             console.error('handleB error:', e);
-            window.location.href = '/saved-works/' + billId + '/resume/';
+            alert('Error: ' + e.message);
         }
     }
 
@@ -854,17 +855,8 @@
     function handleBNew() {
         try {
             {% if workslips|length > 0 %}
-            // Find the latest completed workslip to generate bill from
-            var latestWsId = null;
-            {% for ws in workslips reversed %}
-            {% if ws.status == 'completed' and not latestWsId %}
-            if (!latestWsId) latestWsId = {{ ws.id }};
-            {% endif %}
-            {% endfor %}
-            // Fallback to latest workslip if none are completed
-            if (!latestWsId) latestWsId = {{ last_workslip.id }};
-            pendingBillWorkslipId = latestWsId;
-            new bootstrap.Modal(document.getElementById('billTypeModal')).show();
+            // New: Direct to bill entry UI instead of file upload
+            window.location.href = '/bill/entry/' + {{ workslips.0.id }} + '/';
             {% else %}
             alert('No workslips exist yet. Generate a WorkSlip first.');
             {% endif %}
@@ -877,24 +869,22 @@
     // B2, B3, … additional bill buttons — uses resume for existing bills
     function handleBn(billId, billNum, billStatus) {
         try {
-            if (billStatus !== 'completed') {
-                // In-progress bill — resume editing
-                window.location.href = '/saved-works/' + billId + '/resume/';
-                return;
-            }
-            var nextNum = billNum + 1;
-            var options = [
-                { icon: 'bi-pencil-fill', title: 'Edit Bill ' + billNum,
-                  desc: 'Open and review Bill ' + billNum,
-                  go: '/saved-works/' + billId + '/resume/' },
-                { icon: 'bi-plus-circle-fill', title: 'Create Bill ' + nextNum,
-                  desc: 'Generate next bill',
-                  go: '/saved-works/' + billId + '/generate-next-bill/' }
-            ];
-            showPrompt('billPromptModal', 'Bill ' + billNum + ' Actions', options);
+            // New: Always go to bill entry UI for editing or creating next
+            window.location.href = '/bill/entry/' + billId + '/';
         } catch (e) {
             console.error('handleBn error:', e);
-            window.location.href = '/saved-works/' + billId + '/resume/';
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Create new bill from workslip (for +B2, +B3, etc.)
+    function handleBCreate(workslipId) {
+        try {
+            // Go to bill entry UI with the workslip ID
+            window.location.href = '/bill/entry/' + workslipId + '/';
+        } catch (e) {
+            console.error('handleBCreate error:', e);
+            alert('Error: ' + e.message);
         }
     }
 

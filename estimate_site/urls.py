@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 from django.http import JsonResponse
-from core import views, auth_views, api_views, dashboard_views, template_views, saved_works_views
+from core import views, auth_views, api_views, dashboard_views, template_views, saved_works_views, bill_entry_views
 
 # Health check endpoint for load balancers and container orchestration
 def health_check(request):
@@ -88,6 +88,7 @@ urlpatterns = [
     path('saved-works/<int:work_id>/bill-choice/', saved_works_views.bill_choice, name='bill_choice'),
     path('saved-works/<int:work_id>/bill-generate/', saved_works_views.bill_generate, name='bill_generate'),
     path('saved-works/<int:work_id>/generate-next-bill/', saved_works_views.generate_next_bill_from_saved, name='generate_next_bill_from_saved'),
+    path('saved-works/<int:work_id>/bill-entry/', saved_works_views.bill_entry, name='bill_entry'),
     path('saved-works/<int:work_id>/action/', saved_works_views.saved_work_action, name='saved_work_action'),
     path('saved-works/folder/create/', saved_works_views.create_folder, name='create_folder'),
     path('saved-works/folder/<int:folder_id>/rename/', saved_works_views.rename_folder, name='rename_folder'),
@@ -103,7 +104,22 @@ urlpatterns = [
     path('workslip/', views.workslip_home, name='workslip'),  # Landing page for work type selection
     path('workslip/main/', views.workslip, name='workslip_main'),  # Main workslip 3-panel interface
     path('workslip/ajax-toggle-supp/', views.workslip_ajax_toggle_supp, name='workslip_ajax_toggle_supp'),
+    
+    # -------------------------
+    # Workslip Entry (Sequential UI without file uploads)
+    # -------------------------
+    path('workslip/entry/<int:work_id>/', bill_entry_views.workslip_entry, name='workslip_entry'),
+    path('workslip/entry/<int:work_id>/save/', bill_entry_views.workslip_entry_save, name='workslip_entry_save'),
+    path('workslip/start/<int:work_id>/', bill_entry_views.start_workslip_creation, name='start_workslip_creation'),
+    
     path('bill/', views.bill, name='bill'),
+    
+    # -------------------------
+    # Bill Entry (Sequential UI without file uploads)
+    # -------------------------
+    path('bill/entry/<int:work_id>/', bill_entry_views.bill_entry, name='bill_entry'),
+    path('bill/entry/<int:work_id>/save/', bill_entry_views.bill_entry_save, name='bill_entry_save'),
+    path('bill/start/<int:work_id>/', bill_entry_views.start_bill_creation, name='start_bill_creation'),
 
     # -------------------------
     # Subscription / Projects
