@@ -191,12 +191,18 @@
     .item-col { min-width: 180px; }
     .unit-col { width: 50px; text-align: center; }
     .rate-col { width: 80px; text-align: right; }
-    .ae-col { width: 80px; text-align: center; background: #f0fdf4; }
+    .est-col { width: 80px; text-align: center; background: #f0fdf4; }
     .ws-col { width: 80px; text-align: center; background: #faf5ff; }
     .qty-col { width: 100px; text-align: center; }
     .deduct-col { width: 100px; text-align: center; background: #fef3c7; }
     .tilldate-col { width: 110px; text-align: center; background: #dbeafe; }
     .amount-col { width: 100px; text-align: right; font-weight: 600; }
+
+    /* AE (Additional Estimate) row styling */
+    .ae-row { background: #fef2f2 !important; }
+    .ae-row:hover { background: #fee2e2 !important; }
+    .ae-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #dc2626; color: white; font-size: 0.65rem; font-weight: 700; }
+    .ae-separator td { background: #fecaca; padding: 0.25rem 0.5rem !important; font-weight: 700; color: #991b1b; font-size: 0.75rem; }
 
     .item-name {
         font-weight: 600;
@@ -587,8 +593,8 @@
                             <th class="item-col">Items</th>
                             <th class="unit-col">Unit</th>
                             <th class="rate-col">Rate (₹)</th>
-                            <th class="ae-col" style="color: #166534;">
-                                AE Qty<br><small>(Estimate)</small>
+                            <th class="est-col" style="color: #166534;">
+                                Est Qty<br><small>(Estimate)</small>
                             </th>
                             <th class="ws-col" style="color: #7e22ce;">
                                 W Qty<br><small>(Workslip)</small>
@@ -764,6 +770,7 @@
     const SAVE_URL = "{% url 'bill_entry_save' work_id %}";
     const billData = {
         items: {{ bill_items_json|safe }},
+        aeItems: {{ ae_items_json|safe }},
         previousItems: {{ prev_bill_items_json|safe }},
         billNumber: {{ bill_number }},
         workId: {{ work_id }},
@@ -783,6 +790,10 @@
         const tbody = document.getElementById('quantities-tbody');
         let itemCount = 0;
 
+        // Build a set of parent keys that have AE rows (for capping base qty)
+        const aeParentKeys = new Set();
+        billData.aeItems.forEach(ae => { if (ae.parent_key) aeParentKeys.add(ae.parent_key); });
+
         billData.items.forEach((item, idx) => {
             const key = item.key || `item_${idx}`;
             rateMap[key] = parseFloat(item.rate) || 0;
@@ -798,12 +809,16 @@
 
             // Pre-fill quantity from workslip for Bill 1
             const wsQty = parseFloat(item.qty_exec) || 0;
-            const aeQty = parseFloat(item.qty_ae) || 0;
+            const estQty = parseFloat(item.qty_ae) || 0;
+
+            // For Bill 1: if this item has AE excess, cap pre-fill at estimate qty
+            const hasAE = aeParentKeys.has(key);
+            const basePreFill = (hasAE && estQty > 0) ? Math.min(wsQty, estQty) : wsQty;
 
             let supplementalBadge = item.is_supplemental ? '<span class="item-supplemental">SUPP</span>' : '';
 
             if (billData.billNumber === 1) {
-                // BILL 1 UI: Previous = 0 (readonly) + Total Till Date (W1 qty, editable)
+                // BILL 1 UI: Previous = 0 (readonly) + Total Till Date (capped at est qty if AE exists)
                 deductMap[key] = 0;  // Previous = 0 for first bill
                 
                 row.innerHTML = `
@@ -814,7 +829,7 @@
                     </td>
                     <td class="unit-col">${item.unit || 'Nos'}</td>
                     <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
-                    <td class="ae-col" style="color: #166534; font-weight: 500;">${aeQty > 0 ? aeQty : '-'}</td>
+                    <td class="est-col" style="color: #166534; font-weight: 500;">${estQty > 0 ? estQty : '-'}</td>
                     <td class="ws-col" style="color: #7e22ce; font-weight: 500;">${wsQty > 0 ? wsQty : '-'}</td>
                     <td class="deduct-col">
                         <input type="number" class="qty-input readonly deduct-qty" 
@@ -826,7 +841,7 @@
                     <td class="tilldate-col">
                         <input type="number" class="qty-input tilldate exec-qty" 
                                data-key="${key}"
-                               value="${wsQty > 0 ? wsQty : ''}" 
+                               value="${basePreFill > 0 ? basePreFill : ''}" 
                                step="0.01" 
                                min="0"
                                placeholder="0.00">
@@ -834,9 +849,9 @@
                     <td class="amount-col" id="amount_${idx}">₹0.00</td>
                 `;
 
-                // Initialize execMap with workslip quantity
-                if (wsQty > 0) {
-                    execMap[key] = wsQty;
+                // Initialize execMap with base pre-fill quantity
+                if (basePreFill > 0) {
+                    execMap[key] = basePreFill;
                 }
             } else {
                 // BILL 2+ UI: Deduct Previous (readonly) + Total Till Date (editable)
@@ -850,7 +865,7 @@
                     </td>
                     <td class="unit-col">${item.unit || 'Nos'}</td>
                     <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
-                    <td class="ae-col" style="color: #166534; font-weight: 500;">${aeQty > 0 ? aeQty : '-'}</td>
+                    <td class="est-col" style="color: #166534; font-weight: 500;">${estQty > 0 ? estQty : '-'}</td>
                     <td class="ws-col" style="color: #7e22ce; font-weight: 500;">${wsQty > 0 ? wsQty : '-'}</td>
                     <td class="deduct-col">
                         <input type="number" class="qty-input readonly deduct-qty" 
@@ -887,11 +902,117 @@
             });
         });
 
+        // ── AE (Additional Estimate) Rows ──
+        // Items where workslip qty exceeds estimate qty
+        if (billData.aeItems.length > 0) {
+            // Add separator row
+            const sepRow = document.createElement('tr');
+            sepRow.className = 'ae-separator';
+            sepRow.innerHTML = `<td colspan="9"><i class="bi bi-exclamation-triangle-fill me-1"></i> Additional Estimate (AE) — Items exceeding estimate quantity</td>`;
+            tbody.appendChild(sepRow);
+
+            billData.aeItems.forEach((aeItem, aeIdx) => {
+                const aeKey = aeItem.key;
+                const aeRate = parseFloat(aeItem.rate) || 0;
+                rateMap[aeKey] = aeRate;
+
+                const aeRow = document.createElement('tr');
+                aeRow.className = 'ae-row';
+                aeRow.id = `ae_row_${aeIdx}`;
+                aeRow.dataset.key = aeKey;
+                aeRow.dataset.rate = aeRate;
+
+                const excessQty = parseFloat(aeItem.qty_excess) || 0;
+
+                // Find previous AE deduction (for Bill 2+)
+                const prevAE = billData.previousItems.find(p => p.key === aeKey);
+                const prevAEQty = prevAE ? parseFloat(prevAE.qty) || 0 : 0;
+
+                if (billData.billNumber === 1) {
+                    deductMap[aeKey] = 0;
+
+                    aeRow.innerHTML = `
+                        <td class="sl-col"><span class="ae-badge">AE ${aeItem.ae_number}</span></td>
+                        <td class="item-col">
+                            <div class="item-name">${aeItem.item_name || 'Item'}</div>
+                            <small style="color: #dc2626;">Excess over estimate</small>
+                        </td>
+                        <td class="unit-col">${aeItem.unit || 'Nos'}</td>
+                        <td class="rate-col">₹${aeRate.toFixed(2)}</td>
+                        <td class="est-col" style="color: #9ca3af;">-</td>
+                        <td class="ws-col" style="color: #dc2626; font-weight: 600;">${excessQty > 0 ? excessQty : '-'}</td>
+                        <td class="deduct-col">
+                            <input type="number" class="qty-input readonly deduct-qty"
+                                   data-key="${aeKey}"
+                                   value="0"
+                                   readonly tabindex="-1">
+                        </td>
+                        <td class="tilldate-col">
+                            <input type="number" class="qty-input tilldate exec-qty"
+                                   data-key="${aeKey}"
+                                   value="${excessQty > 0 ? excessQty : ''}"
+                                   step="0.01" min="0" placeholder="0.00">
+                        </td>
+                        <td class="amount-col" id="ae_amount_${aeIdx}">₹0.00</td>
+                    `;
+
+                    if (excessQty > 0) {
+                        execMap[aeKey] = excessQty;
+                    }
+                } else {
+                    deductMap[aeKey] = prevAEQty;
+
+                    aeRow.innerHTML = `
+                        <td class="sl-col"><span class="ae-badge">AE ${aeItem.ae_number}</span></td>
+                        <td class="item-col">
+                            <div class="item-name">${aeItem.item_name || 'Item'}</div>
+                            <small style="color: #dc2626;">Excess over estimate</small>
+                        </td>
+                        <td class="unit-col">${aeItem.unit || 'Nos'}</td>
+                        <td class="rate-col">₹${aeRate.toFixed(2)}</td>
+                        <td class="est-col" style="color: #9ca3af;">-</td>
+                        <td class="ws-col" style="color: #dc2626; font-weight: 600;">${excessQty > 0 ? excessQty : '-'}</td>
+                        <td class="deduct-col">
+                            <input type="number" class="qty-input readonly deduct-qty"
+                                   data-key="${aeKey}"
+                                   value="${prevAEQty > 0 ? prevAEQty.toFixed(2) : ''}"
+                                   readonly tabindex="-1">
+                        </td>
+                        <td class="tilldate-col">
+                            <input type="number" class="qty-input tilldate exec-qty"
+                                   data-key="${aeKey}"
+                                   value=""
+                                   step="0.01" min="0" placeholder="0.00">
+                        </td>
+                        <td class="amount-col" id="ae_amount_${aeIdx}">₹0.00</td>
+                    `;
+                }
+
+                tbody.appendChild(aeRow);
+
+                // Event listeners for AE quantity input
+                const aeQtyInput = aeRow.querySelector('.exec-qty');
+                aeQtyInput.addEventListener('input', () => {
+                    const qty = parseFloat(aeQtyInput.value) || 0;
+                    execMap[aeKey] = qty;
+                    updateAERowAmount(aeIdx, aeKey);
+                    updateSummary();
+                });
+                aeQtyInput.addEventListener('change', () => {
+                    updateAERowAmount(aeIdx, aeKey);
+                    updateSummary();
+                });
+            });
+        }
+
         // Trigger initial calculation for Bill 1 pre-filled values
         if (billData.billNumber === 1) {
             billData.items.forEach((item, idx) => {
                 const key = item.key || `item_${idx}`;
                 updateRowAmount(idx, key);
+            });
+            billData.aeItems.forEach((aeItem, aeIdx) => {
+                updateAERowAmount(aeIdx, aeItem.key);
             });
         }
     }
@@ -912,11 +1033,27 @@
         }
     }
 
+    function updateAERowAmount(aeIdx, key) {
+        const tillDateQty = execMap[key] || 0;
+        const deductQty = deductMap[key] || 0;
+        const rate = rateMap[key] || 0;
+
+        let netQty = tillDateQty - deductQty;
+        if (netQty < 0) netQty = 0;
+
+        const amount = netQty * rate;
+        const amountCell = document.getElementById(`ae_amount_${aeIdx}`);
+        if (amountCell) {
+            amountCell.textContent = `₹${amount.toFixed(2)}`;
+        }
+    }
+
     function updateSummary() {
         let totalAmount = 0;
         let totalDeduct = 0;
         let itemCount = 0;
 
+        // Base items
         billData.items.forEach((item, idx) => {
             const key = item.key || `item_${idx}`;
             const tillDateQty = execMap[key] || 0;
@@ -927,6 +1064,22 @@
                 itemCount++;
 
                 // Net Qty = Till Date - Deduct Previous (same formula for all bills)
+                let netQty = tillDateQty - deductQty;
+                if (netQty < 0) netQty = 0;
+                totalDeduct += deductQty * rate;
+                totalAmount += netQty * rate;
+            }
+        });
+
+        // AE items
+        billData.aeItems.forEach((aeItem) => {
+            const key = aeItem.key;
+            const tillDateQty = execMap[key] || 0;
+            const deductQty = deductMap[key] || 0;
+            const rate = rateMap[key] || 0;
+
+            if (tillDateQty > 0) {
+                itemCount++;
                 let netQty = tillDateQty - deductQty;
                 if (netQty < 0) netQty = 0;
                 totalDeduct += deductQty * rate;

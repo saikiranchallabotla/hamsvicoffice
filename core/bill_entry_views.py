@@ -167,6 +167,27 @@ def bill_entry(request, work_id):
                     'rate': supp_rate,
                 })
 
+    # Build AE (Additional Estimate) items for quantities exceeding the estimate
+    # Pattern: if workslip qty > estimate qty, the excess is an AE item
+    ae_items = []
+    ae_counter = 1
+    for item in bill_items:
+        est_qty = float(item.get('qty_ae', 0) or 0)
+        ws_qty = float(item.get('qty_exec', 0) or 0)
+        if est_qty > 0 and ws_qty > est_qty:
+            excess_qty = ws_qty - est_qty
+            ae_items.append({
+                'key': f"ae:{item['key']}",
+                'parent_key': item['key'],
+                'item_name': item['item_name'],
+                'unit': item.get('unit', 'Nos'),
+                'rate': item.get('rate', 0),
+                'qty_excess': excess_qty,
+                'ae_number': ae_counter,
+                'is_ae': True,
+            })
+            ae_counter += 1
+
     # Get previous bill (if Bill 2+)
     # For Bill N, we need to get Bill (N-1) quantities for deduction
     # Bill 1's parent is W1, Bill 2's parent is W2, etc.
@@ -340,6 +361,12 @@ def bill_entry(request, work_id):
             key = item['key']
             if key in bill_exec:
                 item['qty_exec'] = bill_exec[key]
+        
+        # Update AE items with saved quantities
+        for ae_item in ae_items:
+            ae_key = ae_item['key']
+            if ae_key in bill_exec:
+                ae_item['qty_excess'] = float(bill_exec[ae_key])
 
     context = {
         'work_id': work_id,
@@ -351,6 +378,8 @@ def bill_entry(request, work_id):
         'created_date': timezone.now().strftime('%d %b %Y'),
         'bill_items': bill_items,
         'bill_items_json': json.dumps(bill_items),
+        'ae_items': ae_items,
+        'ae_items_json': json.dumps(ae_items),
         'prev_bill': prev_bill,
         'prev_bill_items': prev_bill_items,
         'prev_bill_items_json': json.dumps(prev_bill_items),
