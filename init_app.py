@@ -24,10 +24,17 @@ def run_migrations():
     """Run Django migrations to set up database schema."""
     try:
         print('[INIT] Running migrations...')
-        call_command('migrate', verbosity=0, interactive=False)
+        call_command('migrate', verbosity=1, interactive=False)
         print('[INIT] ✅ Migrations completed successfully')
     except Exception as e:
         print(f'[INIT] ⚠️  Migrations failed: {str(e)}')
+        # Try running just the subscriptions migration explicitly
+        try:
+            print('[INIT] Retrying subscriptions migrations...')
+            call_command('migrate', 'subscriptions', verbosity=1, interactive=False)
+            print('[INIT] ✅ Subscriptions migrations applied')
+        except Exception as e2:
+            print(f'[INIT] ⚠️  Subscriptions migrations also failed: {str(e2)}')
         print('[INIT] Continuing with initialization...')
 
 
@@ -102,28 +109,31 @@ def seed_modules():
 
 def seed_bundle():
     """Seed the 'All Modules' bundle with pricing if not exist."""
-    bundle, created = ModuleBundle.objects.get_or_create(
-        name='All Modules Bundle',
-        defaults={
-            'description': 'Get access to every module at a special bundled price.',
-            'icon': 'box-seam-fill',
-            'color': '#4f46e5',
-            'is_active': True,
-        }
-    )
-    # Add all active paid modules
-    paid_modules = Module.objects.filter(is_active=True, is_free=False)
-    bundle.modules.set(paid_modules)
-
-    # Seed bundle pricing tiers
-    for months, base, sale, popular in [(1, 1999, 1499, False), (3, 4999, 3499, False), (6, 8999, 5999, True), (12, 14999, 9999, False)]:
-        BundlePricing.objects.update_or_create(
-            bundle=bundle, duration_months=months,
-            defaults={'base_price': base, 'sale_price': sale, 'is_popular': popular}
+    try:
+        bundle, created = ModuleBundle.objects.get_or_create(
+            name='All Modules Bundle',
+            defaults={
+                'description': 'Get access to every module at a special bundled price.',
+                'icon': 'box-seam-fill',
+                'color': '#4f46e5',
+                'is_active': True,
+            }
         )
+        # Add all active paid modules
+        paid_modules = Module.objects.filter(is_active=True, is_free=False)
+        bundle.modules.set(paid_modules)
 
-    action = 'Created' if created else 'Updated'
-    print(f'[INIT] {action} bundle "{bundle.name}" with {paid_modules.count()} modules and 4 pricing tiers')
+        # Seed bundle pricing tiers
+        for months, base, sale, popular in [(1, 1999, 1499, False), (3, 4999, 3499, False), (6, 8999, 5999, True), (12, 14999, 9999, False)]:
+            BundlePricing.objects.update_or_create(
+                bundle=bundle, duration_months=months,
+                defaults={'base_price': base, 'sale_price': sale, 'is_popular': popular}
+            )
+
+        action = 'Created' if created else 'Updated'
+        print(f'[INIT] {action} bundle "{bundle.name}" with {paid_modules.count()} modules and 4 pricing tiers')
+    except Exception as e:
+        print(f'[INIT] ⚠️  Bundle seeding skipped (table may not exist yet): {e}')
 
 
 def setup_database_cache():
