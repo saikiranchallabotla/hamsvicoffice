@@ -77,13 +77,23 @@ class Module(models.Model):
     # Trial
     trial_days = models.PositiveIntegerField(
         default=1,
-        help_text="Free trial period in days (1 day per user)"
+        help_text="Free trial period in days"
+    )
+    trial_hours = models.PositiveIntegerField(
+        default=0,
+        help_text="Additional trial hours (added to trial_days)"
     )
     
     # Limits for free tier
     free_tier_limit = models.PositiveIntegerField(
         default=5,
         help_text="Number of free uses per month (0 = unlimited)"
+    )
+    
+    # Module usage limit per subscription period
+    max_usage_per_subscription = models.IntegerField(
+        default=-1,
+        help_text="Max times a user can use this module per subscription. -1 = unlimited, 0 = disabled"
     )
     
     # Backend Excel sheet for modules that use custom data (like AMC)
@@ -108,6 +118,16 @@ class Module(models.Model):
     
     def __str__(self):
         return self.name
+    
+    @property
+    def trial_duration_seconds(self):
+        """Total trial duration in seconds (days + hours)"""
+        return (self.trial_days * 86400) + (self.trial_hours * 3600)
+    
+    @property
+    def trial_duration_timedelta(self):
+        """Total trial duration as timedelta"""
+        return timedelta(days=self.trial_days, hours=self.trial_hours)
     
     def get_active_pricing(self):
         """Get all active pricing options for this module"""
@@ -599,10 +619,37 @@ class UserModuleSubscription(models.Model):
         if not self.is_active():
             return False, "Subscription expired"
         
+        # Check subscription-level usage limit (0 = unlimited)
         if self.usage_limit > 0 and self.usage_count >= self.usage_limit:
-            return False, "Monthly usage limit reached"
+            return False, "Usage limit reached"
+        
+        # Check module-level max usage per subscription (-1 = unlimited, 0 = disabled)
+        module_limit = self.module.max_usage_per_subscription
+        if module_limit == 0:
+            return False, "This module is currently disabled"
+        if module_limit > 0 and self.usage_count >= module_limit:
+            return False, f"You have reached the maximum usage limit ({module_limit}) for this module"
         
         return True, None
+    
+    def usage_limit_display(self):
+        """Human-readable usage limit for display"""
+        # Check module-level limit first
+        module_limit = self.module.max_usage_per_subscription
+        if module_limit == -1 and self.usage_limit == 0:
+            return "Unlimited"
+        if module_limit == 0:
+            return "Disabled"
+        
+        # Use the more restrictive limit
+        effective_limit = self.usage_limit
+        if module_limit > 0:
+            if effective_limit == 0 or module_limit < effective_limit:
+                effective_limit = module_limit
+        
+        if effective_limit > 0:
+            return f"{self.usage_count} / {effective_limit}"
+        return "Unlimited"
     
     def record_usage(self):
         """Record a usage of this module"""

@@ -454,8 +454,8 @@
                     <i class="bi bi-gift-fill"></i>
                     Free Trial Available!
                 </h4>
-                <p>Try {{ module.name }} for 1 day free. No payment required.</p>
-                <form method="post" action="{% url 'start_trial' module_code=module.code %}">
+                <p>Try {{ module.name }} for {{ trial_duration_str }} free. No payment required.</p>
+                <form method="post" action="{% url 'subscriptions_start_trial' module_code=module.code %}">
                     {% csrf_token %}
                     <button type="submit" class="btn-trial">
                         <i class="bi bi-play-fill me-1"></i>

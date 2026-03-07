@@ -353,7 +353,7 @@
           <p class="status-message">
             Experience the full power of <strong>{{ module.name }}</strong> with a {{ module.trial_days }}-day free trial. No credit card required.
           </p>
-          <form method="post" action="{% url 'start_trial' module.code %}">
+          <form method="post" action="{% url 'subscriptions_start_trial' module_code=module.code %}">
             {% csrf_token %}
             <button type="submit" class="action-btn primary">
               <i class="bi bi-play-circle-fill"></i>

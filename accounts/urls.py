@@ -13,6 +13,7 @@ urlpatterns = [
     path('verify-otp/', views.verify_otp_view, name='verify_otp'),
     path('resend-otp/', views.resend_otp_view, name='resend_otp'),
     path('logout/', views.logout_view, name='logout'),
+    path('confirm-device/', views.confirm_device_login_view, name='confirm_device_login'),
     
     # Session management
     path('sessions/', views.active_sessions_view, name='active_sessions'),

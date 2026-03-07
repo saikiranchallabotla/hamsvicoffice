@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/create-bundle-order/', views.create_bundle_order_view, name='create_bundle_order'),
     path('api/verify-payment/', views.verify_payment_view, name='verify_payment'),
     path('api/validate-coupon/', views.validate_coupon_view, name='validate_coupon'),
+    path('api/trial-status/', views.trial_status_api, name='trial_status_api'),
     
     # Subscription actions
     path('cancel/<uuid:subscription_id>/', views.cancel_subscription_view, name='cancel_subscription'),

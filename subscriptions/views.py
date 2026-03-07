@@ -8,7 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
 
 from subscriptions.models import Module, ModulePricing, UserModuleSubscription, Payment
@@ -64,10 +64,20 @@ def module_access_view(request, module_code):
     # Reason for access denial
     reason = request.GET.get('reason', 'You need an active subscription to access this module.')
     
+    # Build human-readable trial duration
+    trial_parts = []
+    if module.trial_days:
+        trial_parts.append(f'{module.trial_days} day{"s" if module.trial_days != 1 else ""}')
+    if module.trial_hours:
+        trial_parts.append(f'{module.trial_hours} hour{"s" if module.trial_hours != 1 else ""}')
+    trial_duration_str = ' and '.join(trial_parts) or '1 day'
+    
     context = {
         'module': module,
         'trial_available': trial_available,
-        'trial_days': 1,  # 1 day free trial
+        'trial_days': module.trial_days,
+        'trial_hours': module.trial_hours,
+        'trial_duration_str': trial_duration_str,
         'plans': plans,
         'reason': reason,
         'current_subscription': current_sub,
@@ -123,8 +133,8 @@ def start_trial_view(request, module_code):
             return redirect(redirect_url)
         return redirect('dashboard')
     
-    # Create 1-day trial subscription
-    trial_expires = timezone.now() + timedelta(days=1)
+    # Create trial subscription using module's configured trial duration
+    trial_expires = timezone.now() + module.trial_duration_timedelta
     
     UserModuleSubscription.objects.create(
         user=request.user,
@@ -132,10 +142,18 @@ def start_trial_view(request, module_code):
         status='trial',
         started_at=timezone.now(),
         expires_at=trial_expires,
-        usage_limit=0,  # Unlimited during trial
+        usage_limit=module.max_usage_per_subscription if module.max_usage_per_subscription >= 0 else 0,
     )
     
-    messages.success(request, f'🎉 Your 1-day free trial for {module.name} is now active!')
+    # Build human-readable duration string
+    parts = []
+    if module.trial_days:
+        parts.append(f'{module.trial_days} day{"s" if module.trial_days != 1 else ""}')
+    if module.trial_hours:
+        parts.append(f'{module.trial_hours} hour{"s" if module.trial_hours != 1 else ""}')
+    duration_str = ' and '.join(parts) or '1 day'
+    
+    messages.success(request, f'🎉 Your {duration_str} free trial for {module.name} is now active!')
     
     # Redirect to originally intended URL
     redirect_url = request.session.pop('subscription_redirect', None)
@@ -426,3 +444,31 @@ def create_bundle_order_view(request):
         })
 
     return JsonResponse({'ok': False, 'reason': result.get('reason', 'Failed to create order.')}, status=400)
+
+
+@login_required
+@require_GET
+def trial_status_api(request):
+    """
+    API endpoint to get trial countdown status for all active trials.
+    Returns seconds remaining for each active trial subscription.
+    """
+    trials = UserModuleSubscription.objects.filter(
+        user=request.user,
+        status='trial',
+        expires_at__gt=timezone.now()
+    ).select_related('module')
+    
+    trial_data = []
+    for trial in trials:
+        remaining = (trial.expires_at - timezone.now()).total_seconds()
+        trial_data.append({
+            'module_code': trial.module.code,
+            'module_name': trial.module.name,
+            'expires_at': trial.expires_at.isoformat(),
+            'seconds_remaining': max(0, int(remaining)),
+            'usage_count': trial.usage_count,
+            'usage_limit': trial.usage_limit,
+        })
+    
+    return JsonResponse({'ok': True, 'trials': trial_data})

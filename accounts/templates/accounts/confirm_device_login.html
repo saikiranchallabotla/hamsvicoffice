@@ -1,0 +1,299 @@
+{% extends 'accounts/auth_base.html' %}
+{% load static %}
+
+{% block title %}Device Conflict - Hamsvic{% endblock %}
+
+{% block auth_content %}
+<style>
+    .device-conflict-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+        padding: 0;
+        width: 100%;
+        max-width: 440px;
+        margin: 0 auto;
+        overflow: hidden;
+        animation: cardSlideUp 0.4s ease-out;
+    }
+    
+    @keyframes cardSlideUp {
+        from { transform: translateY(30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .conflict-header {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        padding: 2rem 2rem 1.5rem;
+        text-align: center;
+        color: white;
+    }
+    
+    .conflict-icon {
+        width: 72px;
+        height: 72px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 2rem;
+        animation: pulseIcon 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulseIcon {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
+        50% { transform: scale(1.05); box-shadow: 0 0 20px 5px rgba(255,255,255,0.2); }
+    }
+    
+    .conflict-header h2 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem;
+    }
+    
+    .conflict-header p {
+        font-size: 0.9rem;
+        opacity: 0.9;
+        margin: 0;
+        line-height: 1.5;
+    }
+    
+    .conflict-body {
+        padding: 1.5rem 2rem 2rem;
+    }
+    
+    .session-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        margin-bottom: 0.75rem;
+    }
+    
+    .active-sessions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .session-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.875rem 1rem;
+        animation: sessionSlide 0.3s ease-out;
+    }
+    
+    .session-item:nth-child(2) { animation-delay: 0.1s; }
+    .session-item:nth-child(3) { animation-delay: 0.2s; }
+    
+    @keyframes sessionSlide {
+        from { transform: translateX(-20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .session-device-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #2563eb;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    
+    .session-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .session-device-name {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.15rem;
+    }
+    
+    .session-meta {
+        font-size: 0.75rem;
+        color: #64748b;
+    }
+    
+    .session-active-dot {
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        flex-shrink: 0;
+        animation: blink 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+    
+    .conflict-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .btn-logout-all {
+        width: 100%;
+        padding: 1rem;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    }
+    
+    .btn-logout-all:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+    }
+    
+    .btn-cancel-login {
+        width: 100%;
+        padding: 0.875rem;
+        background: white;
+        color: #64748b;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-cancel-login:hover {
+        border-color: #cbd5e0;
+        background: #f8fafc;
+        color: #475569;
+    }
+    
+    .conflict-note {
+        text-align: center;
+        margin-top: 1.25rem;
+        font-size: 0.8rem;
+        color: #94a3b8;
+        line-height: 1.5;
+    }
+    
+    .conflict-note i {
+        color: #f59e0b;
+    }
+    
+    @media (max-width: 480px) {
+        .device-conflict-card {
+            border-radius: 16px;
+        }
+        .conflict-header {
+            padding: 1.5rem 1.5rem 1.25rem;
+        }
+        .conflict-body {
+            padding: 1.25rem 1.5rem 1.5rem;
+        }
+    }
+</style>
+
+<div class="device-conflict-card">
+    <div class="conflict-header">
+        <div class="conflict-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+        </div>
+        <h2>Already Logged In</h2>
+        <p>Your account is currently active on {{ session_count }} other device{{ session_count|pluralize }}. Only one device can be logged in at a time.</p>
+    </div>
+    
+    <div class="conflict-body">
+        <div class="session-label">Active Sessions</div>
+        <div class="active-sessions-list">
+            {% for session in active_sessions %}
+            <div class="session-item">
+                <div class="session-device-icon">
+                    {% if session.device_type == 'Mobile' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                        <line x1="12" y1="18" x2="12" y2="18"/>
+                    </svg>
+                    {% elif session.device_type == 'Tablet' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+                        <line x1="12" y1="18" x2="12" y2="18"/>
+                    </svg>
+                    {% else %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div class="session-details">
+                    <div class="session-device-name">
+                        {{ session.device_type|default:"Unknown" }}
+                        {% if session.browser %} &middot; {{ session.browser }}{% endif %}
+                    </div>
+                    <div class="session-meta">
+                        {% if session.os %}{{ session.os }} &middot; {% endif %}
+                        {% if session.ip_address %}IP: {{ session.ip_address }} &middot; {% endif %}
+                        {{ session.last_activity }}
+                    </div>
+                </div>
+                <div class="session-active-dot" title="Active"></div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="conflict-actions">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="logout_all_and_login">
+                <button type="submit" class="btn-logout-all">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Log Out All Devices &amp; Continue
+                </button>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="cancel">
+                <button type="submit" class="btn-cancel-login">Cancel Login</button>
+            </form>
+        </div>
+        
+        <div class="conflict-note">
+            <i class="bi bi-shield-lock"></i>
+            For your security, only one active session is allowed at a time.
+            Logging out other devices will end their sessions immediately.
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -351,7 +351,12 @@
         <div class="module-footer">
             <div class="trial-badge">
                 <i class="bi bi-clock"></i>
-                {{ module.trial_days }} day trial
+                {{ module.trial_days }}d{% if module.trial_hours %} {{ module.trial_hours }}h{% endif %} trial
+                {% if module.max_usage_per_subscription >= 0 %}
+                · {% if module.max_usage_per_subscription == 0 %}Disabled{% else %}{{ module.max_usage_per_subscription }} uses{% endif %}
+                {% else %}
+                · Unlimited uses
+                {% endif %}
             </div>
             <div class="module-actions">
                 <a href="{% url 'admin_module_edit' module.id %}" class="action-btn edit" title="Edit Module">

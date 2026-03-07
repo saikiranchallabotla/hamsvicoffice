@@ -388,6 +388,42 @@
         .status-locked { background: #f1f5f9; color: #64748b; }
         .status-free { background: #dbeafe; color: #2563eb; }
         
+        /* Trial Countdown Badge */
+        .trial-countdown-badge {
+            width: 100%;
+            text-align: center;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            animation: pulse-glow 2s ease-in-out infinite;
+            border: 1px solid #f59e0b;
+            margin-top: 0.25rem;
+        }
+        .trial-countdown-badge.urgent {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border-color: #ef4444;
+            animation: pulse-urgent 1s ease-in-out infinite;
+        }
+        .trial-countdown-badge.expired {
+            background: #f1f5f9;
+            color: #64748b;
+            border-color: #cbd5e0;
+            animation: none;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.2); }
+            50% { box-shadow: 0 0 8px 2px rgba(245, 158, 11, 0.3); }
+        }
+        @keyframes pulse-urgent {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+            50% { box-shadow: 0 0 10px 3px rgba(239, 68, 68, 0.4); }
+        }
+        
         /* Announcements - Compact */
         .announcements {
             background: white;
@@ -682,8 +718,10 @@
                         {% elif card.status == 'trial' and card.module.url_name %}
                             <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-trial">
                                 <i class="bi bi-hourglass-split me-1"></i> Open · Trial
-                                {% if card.days_left > 0 %}<span class="days-badge">{{ card.days_left }}d left</span>{% endif %}
                             </a>
+                            <div class="trial-countdown-badge" id="trial-countdown-{{ card.module.code }}" data-expires="{{ card.expires_at|date:'c' }}" data-module="{{ card.module.code }}">
+                                <i class="bi bi-clock me-1"></i><span class="countdown-text">Loading...</span>
+                            </div>
                         {% elif card.status == 'free' and card.module.url_name %}
                             <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-primary">
                                 <i class="bi bi-arrow-right me-1"></i> Open · Free
@@ -694,11 +732,11 @@
                             </a>
                         {% else %}
                             {% if card.module.trial_days > 0 and not card.trial_used %}
-                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" style="width:100%">
+                            <form action="{% url 'subscriptions_start_trial' module_code=card.module.code %}" method="post" style="width:100%">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-success btn-sm btn-block">
                                     <i class="bi bi-play-circle me-1"></i> Start Free Trial
-                                    <span class="days-badge">{{ card.module.trial_days }}d</span>
+                                    <span class="days-badge">{{ card.module.trial_days }}d{% if card.module.trial_hours %} {{ card.module.trial_hours }}h{% endif %}</span>
                                 </button>
                             </form>
                             {% else %}
@@ -812,6 +850,55 @@
     
     // Fetch immediately on page load
     fetchAnnouncements();
+    
+    // =====================================================
+    // TRIAL COUNTDOWN TIMER (ticking to the second)
+    // =====================================================
+    function updateCountdowns() {
+        const badges = document.querySelectorAll('.trial-countdown-badge');
+        badges.forEach(badge => {
+            const expiresAt = new Date(badge.dataset.expires);
+            const now = new Date();
+            let diff = Math.max(0, Math.floor((expiresAt - now) / 1000));
+            
+            const textEl = badge.querySelector('.countdown-text');
+            if (!textEl) return;
+            
+            if (diff <= 0) {
+                textEl.textContent = 'Trial Expired';
+                badge.classList.add('expired');
+                badge.classList.remove('urgent');
+                return;
+            }
+            
+            const days = Math.floor(diff / 86400);
+            diff %= 86400;
+            const hours = Math.floor(diff / 3600);
+            diff %= 3600;
+            const minutes = Math.floor(diff / 60);
+            const seconds = diff % 60;
+            
+            let parts = [];
+            if (days > 0) parts.push(days + 'd');
+            if (hours > 0 || days > 0) parts.push(String(hours).padStart(2, '0') + 'h');
+            parts.push(String(minutes).padStart(2, '0') + 'm');
+            parts.push(String(seconds).padStart(2, '0') + 's');
+            
+            textEl.textContent = parts.join(' : ');
+            
+            // Urgent if less than 1 hour
+            const totalSeconds = Math.floor((expiresAt - now) / 1000);
+            if (totalSeconds < 3600) {
+                badge.classList.add('urgent');
+            } else {
+                badge.classList.remove('urgent');
+            }
+        });
+    }
+    
+    // Update every second
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
     </script>
 </body>
 </html>

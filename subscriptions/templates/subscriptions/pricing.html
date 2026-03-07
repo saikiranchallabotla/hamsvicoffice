@@ -263,7 +263,7 @@
                         </a>
                         {% if item.module.trial_days > 0 %}
                         <p class="text-center text-muted small mt-2">
-                            or <a href="{% url 'start_trial' item.module.code %}">start {{ item.module.trial_days }}-day free trial</a>
+                            or <a href="{% url 'subscriptions_start_trial' module_code=item.module.code %}">start {{ item.module.trial_days }}-day free trial</a>
                         </p>
                         {% endif %}
                         {% else %}

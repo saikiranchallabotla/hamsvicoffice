@@ -356,8 +356,10 @@ def module_edit(request, module_id=0):
         display_order = int(request.POST.get('display_order', 0))
         is_active = request.POST.get('is_active') == 'on'
         is_free = request.POST.get('is_free') == 'on'
-        trial_days = int(request.POST.get('trial_days', 7))
+        trial_days = int(request.POST.get('trial_days', 1))
+        trial_hours = int(request.POST.get('trial_hours', 0))
         free_tier_limit = int(request.POST.get('free_tier_limit', 5))
+        max_usage_per_subscription = int(request.POST.get('max_usage_per_subscription', -1))
         features = request.POST.get('features', '')
         backend_sheet_name = request.POST.get('backend_sheet_name', '').strip()
         
@@ -378,7 +380,9 @@ def module_edit(request, module_id=0):
             module.is_active = is_active
             module.is_free = is_free
             module.trial_days = trial_days
+            module.trial_hours = trial_hours
             module.free_tier_limit = free_tier_limit
+            module.max_usage_per_subscription = max_usage_per_subscription
             module.features = features_list
             module.backend_sheet_name = backend_sheet_name
             
@@ -400,7 +404,9 @@ def module_edit(request, module_id=0):
                 is_active=is_active,
                 is_free=is_free,
                 trial_days=trial_days,
+                trial_hours=trial_hours,
                 free_tier_limit=free_tier_limit,
+                max_usage_per_subscription=max_usage_per_subscription,
                 features=features_list,
                 backend_sheet_name=backend_sheet_name,
             )

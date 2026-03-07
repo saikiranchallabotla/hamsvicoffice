@@ -639,18 +639,49 @@ def _create_user(identifier: str, data: dict):
 
 
 def _handle_login_success(request, identifier):
-    """Handle successful login."""
+    """Handle successful login - check for existing sessions first."""
     user = _find_user(identifier)
     if not user:
         messages.error(request, 'Account not found.')
         return redirect('login')
     
+    # Check for active sessions on other devices
+    active_sessions = UserSession.objects.filter(
+        user=user,
+        is_active=True
+    ).order_by('-last_activity')
+    
+    if active_sessions.exists():
+        # Store pending login info in session for confirmation
+        request.session['pending_login_identifier'] = identifier
+        request.session['pending_login_user_id'] = user.id
+        
+        # Store session info for the popup
+        session_info = []
+        for s in active_sessions[:5]:
+            session_info.append({
+                'device_type': s.device_type or 'Unknown',
+                'device_name': s.device_name or 'Unknown Device',
+                'browser': s.browser or '',
+                'os': s.os or '',
+                'ip_address': s.ip_address or '',
+                'last_activity': s.last_activity.strftime('%d %b %Y, %I:%M %p') if s.last_activity else '',
+            })
+        request.session['pending_login_sessions'] = session_info
+        
+        return redirect('confirm_device_login')
+    
+    # No existing sessions - proceed directly
+    return _complete_login(request, user, identifier)
+
+
+def _complete_login(request, user, identifier):
+    """Complete the login process after device confirmation."""
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     
     # Ensure profile exists and update it
     profile, created = UserProfile.objects.get_or_create(user=user)
     if created:
-        # Profile was missing (legacy user or edge case) - populate from identifier
         if '@' not in identifier:
             phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
             profile.phone = phone
@@ -658,7 +689,6 @@ def _handle_login_success(request, identifier):
         else:
             profile.email_verified = True
     else:
-        # Update verification status
         profile.last_login_at = timezone.now()
         if '@' not in identifier:
             profile.phone_verified = True
@@ -668,9 +698,57 @@ def _handle_login_success(request, identifier):
     
     messages.success(request, f'Welcome back, {user.first_name or user.username}!')
     
-    # Redirect to next or dashboard
     next_url = request.session.pop('next', None) or request.GET.get('next', '/dashboard/')
     return redirect(next_url)
+
+
+@require_http_methods(["GET", "POST"])
+def confirm_device_login_view(request):
+    """
+    Hotstar-style device conflict page.
+    Shows active sessions and asks user to confirm logging out other devices.
+    """
+    pending_user_id = request.session.get('pending_login_user_id')
+    pending_identifier = request.session.get('pending_login_identifier')
+    session_info = request.session.get('pending_login_sessions', [])
+    
+    if not pending_user_id or not pending_identifier:
+        return redirect('login')
+    
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+        
+        try:
+            user = User.objects.get(id=pending_user_id)
+        except User.DoesNotExist:
+            messages.error(request, 'Account not found.')
+            return redirect('login')
+        
+        if action == 'logout_all_and_login':
+            # Logout all existing sessions
+            UserSession.logout_all(user)
+            
+            # Clean up session data
+            request.session.pop('pending_login_identifier', None)
+            request.session.pop('pending_login_user_id', None)
+            request.session.pop('pending_login_sessions', None)
+            
+            # Complete login
+            return _complete_login(request, user, pending_identifier)
+        
+        elif action == 'cancel':
+            # Clean up and go back to login
+            request.session.pop('pending_login_identifier', None)
+            request.session.pop('pending_login_user_id', None)
+            request.session.pop('pending_login_sessions', None)
+            messages.info(request, 'Login cancelled.')
+            return redirect('login')
+    
+    context = {
+        'active_sessions': session_info,
+        'session_count': len(session_info),
+    }
+    return render(request, 'accounts/confirm_device_login.html', context)
 
 
 def _handle_register_success(request, identifier):

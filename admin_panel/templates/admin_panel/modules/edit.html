@@ -62,16 +62,34 @@
                     <h6 class="text-muted text-uppercase small mb-3">Pricing & Trial</h6>
                     
                     <div class="row mb-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Trial Days</label>
-                            <input type="number" name="trial_days" class="form-control" value="{{ module.trial_days|default:7 }}" min="0">
+                            <input type="number" name="trial_days" class="form-control" value="{{ module.trial_days|default:1 }}" min="0">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Trial Hours</label>
+                            <input type="number" name="trial_hours" class="form-control" value="{{ module.trial_hours|default:0 }}" min="0" max="23">
+                            <div class="form-text">Added to trial days</div>
+                        </div>
+                        <div class="col-md-3">
                             <label class="form-label">Free Tier Limit</label>
                             <input type="number" name="free_tier_limit" class="form-control" value="{{ module.free_tier_limit|default:5 }}" min="0">
                             <div class="form-text">0 = unlimited</div>
                         </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Max Usage/Subscription</label>
+                            <input type="number" name="max_usage_per_subscription" class="form-control" value="{{ module.max_usage_per_subscription|default:-1 }}" min="-1">
+                            <div class="form-text">-1 = unlimited, 0 = disabled</div>
+                        </div>
                     </div>
+                    
+                    {% if module.trial_days or module.trial_hours %}
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Current trial duration: <strong>{{ module.trial_days|default:0 }} day{{ module.trial_days|pluralize }}</strong>
+                        {% if module.trial_hours %} and <strong>{{ module.trial_hours }} hour{{ module.trial_hours|pluralize }}</strong>{% endif %}
+                    </div>
+                    {% endif %}
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
