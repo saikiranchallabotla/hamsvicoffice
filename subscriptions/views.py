@@ -18,7 +18,6 @@ from subscriptions.models import Module, ModulePricing, UserModuleSubscription, 
 def module_access_view(request, module_code):
     """
     Module access page - shows trial/subscription options.
-    Auto-starts free trial if user has never used this module.
     Users can view this page even if they have trial access (to upgrade).
     Admins/superusers can view the page to see pricing options.
     """
@@ -46,32 +45,6 @@ def module_access_view(request, module_code):
         if redirect_url:
             return redirect(redirect_url)
         return redirect('dashboard')
-    
-    # Check if user has never used this module - auto-start trial
-    has_any_subscription = UserModuleSubscription.objects.filter(
-        user=request.user,
-        module=module
-    ).exists()
-    
-    if not has_any_subscription:
-        # Auto-start the free trial
-        try:
-            result = SubscriptionService.start_trial(request.user, module.code)
-            if result['ok']:
-                messages.success(request, f'Your {module.trial_days}-day free trial for {module.name} has started!')
-                # Redirect to the module
-                if module.url_name:
-                    try:
-                        return redirect(module.url_name)
-                    except Exception:
-                        pass
-                redirect_url = request.session.pop('subscription_redirect', None)
-                if redirect_url:
-                    return redirect(redirect_url)
-                return redirect('dashboard')
-        except Exception as e:
-            # Log error but continue to show pricing page
-            pass
     
     # Check current subscription status (for display)
     current_sub = UserModuleSubscription.objects.filter(
