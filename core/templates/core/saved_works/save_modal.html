@@ -29,7 +29,21 @@
                             <option value="">No Folder (Unfiled)</option>
                             <!-- Folders will be loaded dynamically -->
                         </select>
-                        <small class="text-muted">Organize your work in folders for easy access.</small>
+                        <div id="newFolderSection" style="display: none; margin-top: 8px;">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="newFolderName" placeholder="Folder name" style="border-radius: 8px 0 0 8px;">
+                                <button type="button" class="btn btn-success btn-sm" onclick="createNewFolderFromModal()" style="border-radius: 0 8px 8px 0;">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleNewFolderInput(false)" style="border-radius: 0 8px 8px 0; margin-left: 4px;">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-1">
+                            <small class="text-muted">Organize your work in folders for easy access.</small>
+                            <a href="#" class="small" onclick="event.preventDefault(); toggleNewFolderInput(true);">+ New Folder</a>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -263,5 +277,42 @@ function showCurrentWorkIndicator(workName) {
         indicator.style.transition = 'opacity 0.5s';
         setTimeout(() => indicator.remove(), 500);
     }, 5000);
+}
+
+function toggleNewFolderInput(show) {
+    document.getElementById('newFolderSection').style.display = show ? 'block' : 'none';
+    if (show) {
+        document.getElementById('newFolderName').focus();
+    } else {
+        document.getElementById('newFolderName').value = '';
+    }
+}
+
+function createNewFolderFromModal() {
+    const name = document.getElementById('newFolderName').value.trim();
+    if (!name) { showToast('Please enter a folder name', 'error'); return; }
+
+    const csrfToken = document.querySelector('#saveWorkForm [name=csrfmiddlewaretoken]').value;
+    fetch('/saved-works/folder/create/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ name: name })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const select = document.getElementById('saveWorkFolder');
+            const option = document.createElement('option');
+            option.value = data.folder_id;
+            option.textContent = data.folder_name;
+            option.selected = true;
+            select.appendChild(option);
+            toggleNewFolderInput(false);
+            showToast('Folder created!', 'success');
+        } else {
+            showToast(data.error || 'Failed to create folder', 'error');
+        }
+    })
+    .catch(() => showToast('Network error creating folder', 'error'));
 }
 </script>

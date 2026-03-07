@@ -921,9 +921,12 @@ def collect_work_data(request, work_type):
     
     elif work_type == 'temporary_works':
         work_data = {
-            'temp_items': request.session.get('temp_items', []),
-            'temp_selected_entries': request.session.get('temp_selected_entries', {}),
+            'temp_entries': request.session.get('temp_entries', []),
+            'temp_work_name': request.session.get('temp_work_name', ''),
+            'temp_grand_total': request.session.get('temp_grand_total', ''),
+            'temp_selected_backend_id': request.session.get('temp_selected_backend_id'),
             'temp_category': request.session.get('temp_category', 'electrical'),
+            'last_group': request.POST.get('group', ''),
         }
     
     elif work_type == 'amc':
@@ -931,6 +934,11 @@ def collect_work_data(request, work_type):
             'amc_fetched_items': request.session.get('amc_fetched_items', []),
             'amc_qty_map': request.session.get('amc_qty_map', {}),
             'amc_category': request.session.get('amc_category', 'electrical'),
+            'amc_work_name': request.session.get('amc_work_name', ''),
+            'amc_grand_total': request.session.get('amc_grand_total', ''),
+            'amc_selected_backend_id': request.session.get('amc_selected_backend_id'),
+            'amc_work_type': request.session.get('amc_work_type', 'original'),
+            'last_group': request.POST.get('group', ''),
         }
 
     elif work_type == 'bill':
@@ -975,7 +983,7 @@ def calculate_progress(work_data, work_type):
         return min(50, len(rows) * 3)
     
     elif work_type == 'temporary_works':
-        items = work_data.get('temp_items', [])
+        items = work_data.get('temp_entries', [])
         if not items:
             return 0
         return min(80, len(items) * 10)
@@ -1013,7 +1021,7 @@ def get_last_step(request, work_type):
         return "Initial upload"
     
     elif work_type == 'temporary_works':
-        items = request.session.get('temp_items', [])
+        items = request.session.get('temp_entries', [])
         if items:
             return f"Added {len(items)} temporary items"
         return "Category selection"
@@ -1143,14 +1151,22 @@ def restore_work_data(request, saved_work):
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")
     
     elif work_type == 'temporary_works':
-        request.session['temp_items'] = work_data.get('temp_items', [])
-        request.session['temp_selected_entries'] = work_data.get('temp_selected_entries', {})
+        request.session['temp_entries'] = work_data.get('temp_entries', [])
+        request.session['temp_work_name'] = work_data.get('temp_work_name', '')
+        request.session['temp_grand_total'] = work_data.get('temp_grand_total', '')
+        request.session['temp_selected_backend_id'] = work_data.get('temp_selected_backend_id')
         request.session['temp_category'] = work_data.get('temp_category', 'electrical')
+        request.session.modified = True
     
     elif work_type == 'amc':
         request.session['amc_fetched_items'] = work_data.get('amc_fetched_items', [])
         request.session['amc_qty_map'] = work_data.get('amc_qty_map', {})
         request.session['amc_category'] = work_data.get('amc_category', 'electrical')
+        request.session['amc_work_name'] = work_data.get('amc_work_name', '')
+        request.session['amc_grand_total'] = work_data.get('amc_grand_total', '')
+        request.session['amc_selected_backend_id'] = work_data.get('amc_selected_backend_id')
+        request.session['amc_work_type'] = work_data.get('amc_work_type', 'original')
+        request.session.modified = True
 
     elif work_type == 'bill':
         # Restore bill session data for the existing bill engine
@@ -1187,9 +1203,15 @@ def get_module_url(saved_work):
         return reverse('workslip_main') + '?preserve=1'
     
     elif work_type == 'temporary_works':
+        last_group = work_data.get('last_group', '')
+        if last_group:
+            return reverse('temp_items', kwargs={'category': category, 'group': last_group})
         return reverse('temp_groups', kwargs={'category': category})
     
     elif work_type == 'amc':
+        last_group = work_data.get('last_group', '')
+        if last_group:
+            return reverse('amc_items', kwargs={'category': category, 'group': last_group})
         return reverse('amc_groups', kwargs={'category': category})
 
     elif work_type == 'bill':

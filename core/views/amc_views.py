@@ -165,7 +165,7 @@ def amc_items(request, category, group):
     available_backends = get_available_backends_for_module('amc', base_category)
     
     try:
-        items_list, groups_map, _, ws_data, filepath = load_backend(
+        items_list, groups_map, units_map, ws_data, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=amc_selected_backend_id,
             module_code='amc',  # Use amc module's own backends
