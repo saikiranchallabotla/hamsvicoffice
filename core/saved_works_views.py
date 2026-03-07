@@ -324,6 +324,10 @@ def saved_works_list(request):
                 work.last_ws = None
                 work.bill_children = []
 
+        # Attach subscription access flags for template gating
+        work.module_code = work_type_to_module.get(work.work_type, work.work_type)
+        work.has_estimate_access = module_access.get(work.work_type, True)
+
         # Attach item_count for display
         wd = work.work_data or {}
         if work.work_type == 'new_estimate':

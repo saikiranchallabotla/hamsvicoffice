@@ -387,6 +387,30 @@
         border-color: #dc2626; color: #dc2626; background: #fef2f2;
     }
 
+    /* Locked (no subscription) hub buttons */
+    .hub-btn.hub-locked {
+        background: #e2e8f0; color: #94a3b8;
+        border-color: #cbd5e1; cursor: not-allowed;
+        pointer-events: auto;
+    }
+    .hub-btn.hub-locked:hover {
+        transform: none; box-shadow: none;
+        background: #e2e8f0; color: #94a3b8;
+    }
+    .hub-locked-link {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 16px; border-radius: 8px;
+        font-size: 0.82rem; font-weight: 600;
+        text-decoration: none;
+        background: #f1f5f9; color: #6366f1;
+        border: 1.5px dashed #6366f1;
+        transition: all 0.15s;
+    }
+    .hub-locked-link:hover {
+        background: #eef2ff; color: #4f46e5;
+        transform: translateY(-1px);
+    }
+
     /* Hub bottom bar */
     .hub-bottom {
         display: flex; gap: 16px; padding-top: 12px;
@@ -619,51 +643,87 @@
                     <div class="hub-section">
                         <div class="hub-label">Workflow Chain</div>
                         <div class="hub-flow">
-                            <!-- E Button -->
+                            <!-- E Button — gated by estimate module subscription -->
+                            {% if work.has_estimate_access %}
                             <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-e" title="Edit Estimate">
                                 <i class="bi bi-pencil-fill"></i> Edit Estimate
                             </a>
+                            {% else %}
+                            <span class="hub-btn hub-e hub-locked" title="Subscribe to access">
+                                <i class="bi bi-lock-fill"></i> Edit Estimate
+                            </span>
+                            <a href="{% url 'module_access' module_code=work.module_code %}" class="hub-locked-link" title="Subscribe">
+                                <i class="bi bi-unlock"></i> Subscribe
+                            </a>
+                            {% endif %}
                             <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
 
-                            <!-- W Buttons -->
-                            {% if work.workslip_children %}
-                                {% for ws in work.workslip_children %}
-                                <a href="{% url 'resume_saved_work' ws.id %}" class="hub-btn hub-w {% if ws.status == 'completed' %}hub-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">
-                                    <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
-                                    {% if ws.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
+                            <!-- W Buttons — gated by workslip subscription -->
+                            {% if module_access.can_generate_workslip %}
+                                {% if work.workslip_children %}
+                                    {% for ws in work.workslip_children %}
+                                    <a href="{% url 'resume_saved_work' ws.id %}" class="hub-btn hub-w {% if ws.status == 'completed' %}hub-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">
+                                        <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
+                                        {% if ws.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
+                                    </a>
+                                    {% endfor %}
+                                    <!-- +W Next -->
+                                    <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" class="hub-btn hub-w-add" title="Create WorkSlip {{ work.next_ws_number }}">
+                                        <i class="bi bi-plus"></i> W{{ work.next_ws_number }}
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'generate_workslip_from_saved' work.id %}" class="hub-btn hub-w-add" title="Generate WorkSlip 1">
+                                        <i class="bi bi-plus"></i> W1
+                                    </a>
+                                {% endif %}
+                            {% else %}
+                                {% if work.workslip_children %}
+                                    {% for ws in work.workslip_children %}
+                                    <span class="hub-btn hub-w hub-locked" title="Subscribe to access">
+                                        <i class="bi bi-lock-fill"></i> W{{ ws.workslip_number }}
+                                    </span>
+                                    {% endfor %}
+                                {% endif %}
+                                <a href="{% url 'module_access' module_code='workslip' %}" class="hub-locked-link" title="Subscribe for Workslips">
+                                    <i class="bi bi-unlock"></i> Subscribe
                                 </a>
-                                {% endfor %}
-                                <!-- +W Next -->
-                                <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" class="hub-btn hub-w-add" title="Create WorkSlip {{ work.next_ws_number }}">
-                                    <i class="bi bi-plus"></i> W{{ work.next_ws_number }}
+                            {% endif %}
+
+                            {% if work.workslip_children %}
+                            <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
+
+                            <!-- B Buttons — gated by bill subscription -->
+                            {% if module_access.can_generate_bill %}
+                                {% if work.bill_children %}
+                                    {% for bill in work.bill_children %}
+                                    <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }}">
+                                        <i class="bi bi-receipt"></i> B{{ bill.bill_number }}
+                                        {% if bill.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
+                                    </a>
+                                    {% endfor %}
+                                {% endif %}
+                                <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
+                                    <i class="bi bi-plus"></i> Bill
                                 </a>
                             {% else %}
-                                <a href="{% url 'generate_workslip_from_saved' work.id %}" class="hub-btn hub-w-add" title="Generate WorkSlip 1">
-                                    <i class="bi bi-plus"></i> W1
+                                {% if work.bill_children %}
+                                    {% for bill in work.bill_children %}
+                                    <span class="hub-btn hub-b hub-locked" title="Subscribe to access">
+                                        <i class="bi bi-lock-fill"></i> B{{ bill.bill_number }}
+                                    </span>
+                                    {% endfor %}
+                                {% endif %}
+                                <a href="{% url 'module_access' module_code='bill' %}" class="hub-locked-link" title="Subscribe for Bills">
+                                    <i class="bi bi-unlock"></i> Subscribe
                                 </a>
                             {% endif %}
-
-                            {% if work.workslip_children %}
-                            <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
-
-                            <!-- B Buttons -->
-                            {% if work.bill_children %}
-                                {% for bill in work.bill_children %}
-                                <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }}">
-                                    <i class="bi bi-receipt"></i> B{{ bill.bill_number }}
-                                    {% if bill.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
-                                </a>
-                                {% endfor %}
-                            {% endif %}
-                            <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
-                                <i class="bi bi-plus"></i> Bill
-                            </a>
                             {% endif %}
                         </div>
                     </div>
                     {% elif work.work_type == 'workslip' %}
                     <div class="hub-section">
                         <div class="hub-flow">
+                            {% if module_access.workslip %}
                             <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-w" title="Edit Workslip">
                                 <i class="bi bi-pencil-fill"></i> Edit W{{ work.workslip_number }}
                             </a>
@@ -676,17 +736,40 @@
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
+                            {% else %}
+                            <span class="hub-btn hub-w hub-locked" title="Subscribe to access">
+                                <i class="bi bi-lock-fill"></i> Edit W{{ work.workslip_number }}
+                            </span>
+                            <a href="{% url 'module_access' module_code='workslip' %}" class="hub-locked-link" title="Subscribe for Workslips">
+                                <i class="bi bi-unlock"></i> Subscribe
+                            </a>
+                            {% endif %}
+                            {% if module_access.can_generate_bill %}
                             <a href="{% url 'generate_bill_from_saved' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
                                 <i class="bi bi-plus"></i> Bill
                             </a>
+                            {% else %}
+                            <a href="{% url 'module_access' module_code='bill' %}" class="hub-locked-link" title="Subscribe for Bills">
+                                <i class="bi bi-unlock"></i> Subscribe
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                     {% elif work.work_type == 'bill' %}
                     <div class="hub-section">
                         <div class="hub-flow">
+                            {% if module_access.bill %}
                             <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-b" title="Edit Bill">
                                 <i class="bi bi-pencil-fill"></i> Edit Bill {{ work.bill_number }}
                             </a>
+                            {% else %}
+                            <span class="hub-btn hub-b hub-locked" title="Subscribe to access">
+                                <i class="bi bi-lock-fill"></i> Edit Bill {{ work.bill_number }}
+                            </span>
+                            <a href="{% url 'module_access' module_code='bill' %}" class="hub-locked-link" title="Subscribe for Bills">
+                                <i class="bi bi-unlock"></i> Subscribe
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                     {% else %}
