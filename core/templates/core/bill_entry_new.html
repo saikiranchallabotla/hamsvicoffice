@@ -1039,18 +1039,19 @@
 
         // Net Qty = Till Date - Deduct Previous (for all bills)
         let netQty = tillDateQty - deductQty;
-        if (netQty < 0) netQty = 0;
 
         // Update Since Last cell
         const sinceLastCell = document.getElementById(`sincelast_${idx}`);
         if (sinceLastCell) {
             sinceLastCell.textContent = tillDateQty > 0 ? netQty.toFixed(2) : '-';
+            sinceLastCell.style.color = netQty < 0 ? '#dc2626' : '#047857';
         }
 
         const amount = netQty * rate;
         const amountCell = document.getElementById(`amount_${idx}`);
         if (amountCell) {
             amountCell.textContent = `₹${amount.toFixed(2)}`;
+            amountCell.style.color = amount < 0 ? '#dc2626' : '';
         }
     }
 
@@ -1060,18 +1061,19 @@
         const rate = rateMap[key] || 0;
 
         let netQty = tillDateQty - deductQty;
-        if (netQty < 0) netQty = 0;
 
         // Update Since Last cell
         const sinceLastCell = document.getElementById(`ae_sincelast_${aeIdx}`);
         if (sinceLastCell) {
             sinceLastCell.textContent = tillDateQty > 0 ? netQty.toFixed(2) : '-';
+            sinceLastCell.style.color = netQty < 0 ? '#dc2626' : '#047857';
         }
 
         const amount = netQty * rate;
         const amountCell = document.getElementById(`ae_amount_${aeIdx}`);
         if (amountCell) {
             amountCell.textContent = `₹${amount.toFixed(2)}`;
+            amountCell.style.color = amount < 0 ? '#dc2626' : '';
         }
     }
 
@@ -1092,7 +1094,6 @@
 
                 // Net Qty = Till Date - Deduct Previous (same formula for all bills)
                 let netQty = tillDateQty - deductQty;
-                if (netQty < 0) netQty = 0;
                 totalDeduct += deductQty * rate;
                 totalAmount += netQty * rate;
             }
@@ -1108,7 +1109,6 @@
             if (tillDateQty > 0) {
                 itemCount++;
                 let netQty = tillDateQty - deductQty;
-                if (netQty < 0) netQty = 0;
                 totalDeduct += deductQty * rate;
                 totalAmount += netQty * rate;
             }
