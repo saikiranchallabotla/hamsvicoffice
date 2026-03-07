@@ -57,6 +57,16 @@ def bill_entry(request, work_id):
         parent_estimate = source_work.parent
         if parent_estimate and parent_estimate.work_data:
             ae_qty_map = parent_estimate.work_data.get('qty_map', {})
+        # For orphan workslips (no parent estimate), auto-detect next bill number
+        if not source_work.parent:
+            from django.db.models import Max
+            max_bill = SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='bill',
+                parent=source_work,
+            ).exclude(status='draft').aggregate(max_num=Max('bill_number'))['max_num']
+            if max_bill:
+                bill_number = max_bill + 1
     else:
         # From estimate
         ws_rows = work_data.get('fetched_items', [])
@@ -225,6 +235,15 @@ def bill_entry(request, work_id):
                 organization=org,
                 user=user,
                 work_type='bill',
+                bill_number=bill_number - 1,
+            ).first()
+        elif source_work.work_type == 'workslip':
+            # Orphan workslip: bills are parented directly to the workslip
+            prev_bill = SavedWork.objects.filter(
+                organization=org,
+                user=user,
+                work_type='bill',
+                parent=source_work,
                 bill_number=bill_number - 1,
             ).first()
         
@@ -530,6 +549,16 @@ def _bill_entry_save_logic(request, work_id):
                     bill_number = 1
         elif source_work.work_type == 'workslip':
             bill_number = source_work.workslip_number or 1
+            # For orphan workslips (no parent estimate), auto-detect next bill number
+            if not source_work.parent:
+                from django.db.models import Max
+                max_bill = SavedWork.objects.filter(
+                    organization=org, user=user,
+                    work_type='bill',
+                    parent=source_work,
+                ).exclude(status='draft').aggregate(max_num=Max('bill_number'))['max_num']
+                if max_bill:
+                    bill_number = max_bill + 1
         else:
             bill_number = 1
         

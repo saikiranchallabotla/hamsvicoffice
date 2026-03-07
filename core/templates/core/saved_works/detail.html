@@ -315,12 +315,13 @@
     <!-- ========================================= -->
     <!-- WORKFLOW NAVIGATION: E, W1-W3, B1-B3      -->
     <!-- ========================================= -->
-    {% if root_estimate %}
+    {% if root_estimate or is_orphan_workslip %}
     <div class="workflow-nav">
         <h6><i class="bi bi-diagram-3 me-2"></i>Workflow</h6>
 
         <div class="ewb-flow">
             <!-- ── E (Estimate) ── -->
+            {% if root_estimate %}
             <button class="ewb-btn ewb-btn-e {% if work.id == root_estimate.id %}viewing{% endif %}"
                     onclick="handleE({{ root_estimate.id }})"
                     title="Edit Estimate: {{ root_estimate.name }}">
@@ -333,6 +334,7 @@
             </button>
 
             <span class="ewb-divider"></span>
+            {% endif %}
 
             <!-- ── W1, W2, W3... (full workslip chain) ── -->
             {% if workslips|length > 0 %}
@@ -349,7 +351,7 @@
                 </button>
                 {% endfor %}
                 <!-- +W button: create next workslip if last one is completed -->
-                {% if last_workslip.status == 'completed' %}
+                {% if last_workslip.status == 'completed' and not is_orphan_workslip %}
                 <button class="ewb-btn ewb-btn-w"
                         onclick="window.location.href='/saved-works/{{ last_workslip.id }}/generate-next-workslip/'"
                         title="Create WorkSlip {{ last_workslip.workslip_number|add:1 }}">
@@ -380,18 +382,28 @@
                     {% endif %}
                 </button>
                 {% endfor %}
-                <!-- Show +BN button if there's a workslip that doesn't have a bill yet -->
-                {% with next_bill_num=bills|length|add:1 %}
-                    {% for ws in workslips %}
-                        {% if ws.workslip_number == next_bill_num %}
-                        <button class="ewb-btn ewb-btn-b"
-                                onclick="handleBCreate({{ ws.id }})"
-                                title="Generate Bill {{ next_bill_num }} from WorkSlip {{ ws.workslip_number }}">
-                            +B{{ next_bill_num }}
-                        </button>
-                        {% endif %}
-                    {% endfor %}
-                {% endwith %}
+                <!-- Show +BN button for next bill -->
+                {% if is_orphan_workslip %}
+                    {% with next_bill_num=bills|length|add:1 %}
+                    <button class="ewb-btn ewb-btn-b"
+                            onclick="handleBCreate({{ workslips.0.id }})"
+                            title="Generate Bill {{ next_bill_num }}">
+                        +B{{ next_bill_num }}
+                    </button>
+                    {% endwith %}
+                {% else %}
+                    {% with next_bill_num=bills|length|add:1 %}
+                        {% for ws in workslips %}
+                            {% if ws.workslip_number == next_bill_num %}
+                            <button class="ewb-btn ewb-btn-b"
+                                    onclick="handleBCreate({{ ws.id }})"
+                                    title="Generate Bill {{ next_bill_num }} from WorkSlip {{ ws.workslip_number }}">
+                                +B{{ next_bill_num }}
+                            </button>
+                            {% endif %}
+                        {% endfor %}
+                    {% endwith %}
+                {% endif %}
             {% elif workslips|length > 0 %}
             <button class="ewb-btn ewb-btn-b"
                     onclick="handleBNew()"
@@ -786,6 +798,7 @@
 <script>
     const csrfToken = '{{ csrf_token }}';
     const rootEstimateId = {{ root_estimate.id|default:"null" }};
+    const isOrphanWorkslip = {{ is_orphan_workslip|yesno:"true,false" }};
     let pendingBillWorkslipId = null;
 
     // ========================================

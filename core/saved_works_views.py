@@ -3046,6 +3046,19 @@ def saved_work_detail(request, work_id):
                     existing_bill_ids.add(ob.id)
         bills.sort(key=lambda b: b.bill_number or 0)
 
+    # Handle orphan workslips (saved via upload module with no parent estimate)
+    is_orphan_workslip = False
+    if not root_estimate and saved_work.work_type == 'workslip':
+        is_orphan_workslip = True
+        workslips = [saved_work]
+        bills = list(
+            SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='bill',
+                parent=saved_work,
+            ).order_by('bill_number')
+        )
+
     # Get workflow chain (parents)
     parent_chain = []
     current = saved_work.parent
@@ -3109,11 +3122,13 @@ def saved_work_detail(request, work_id):
 
         # For Bill 2+, find the previous bill's data for deductions
         if bill_preview_number > 1:
-            prev_bill = SavedWork.objects.filter(
-                organization=org, user=user, work_type='bill',
-                bill_number=bill_preview_number - 1,
-                parent=root_estimate,
-            ).first()
+            prev_bill = None
+            if root_estimate:
+                prev_bill = SavedWork.objects.filter(
+                    organization=org, user=user, work_type='bill',
+                    bill_number=bill_preview_number - 1,
+                    parent=root_estimate,
+                ).first()
             if not prev_bill:
                 # Check if the previous bill is a child of a workslip
                 for ws in workslips:
@@ -3177,6 +3192,7 @@ def saved_work_detail(request, work_id):
     context = {
         'work': saved_work,
         'root_estimate': root_estimate,
+        'is_orphan_workslip': is_orphan_workslip,
         'workslips': workslips,
         'bills': bills,
         'last_workslip': last_workslip,
