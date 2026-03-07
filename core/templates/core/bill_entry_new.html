@@ -753,6 +753,7 @@
 </form>
 
 <script>
+    const SAVE_URL = "{% url 'bill_entry_save' work_id %}";
     const billData = {
         items: {{ bill_items_json|safe }},
         previousItems: {{ prev_bill_items_json|safe }},
@@ -970,7 +971,7 @@
         // Show loading
         showNotification('Saving and generating bill...', 'info');
 
-        fetch(window.location.pathname, {
+        fetch(SAVE_URL, {
             method: 'POST',
             body: formData,
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
@@ -1015,7 +1016,7 @@
 
         showNotification('Saving and generating document...', 'info');
 
-        fetch(window.location.pathname, {
+        fetch(SAVE_URL, {
             method: 'POST',
             body: formData,
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
@@ -1059,7 +1060,7 @@
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-        fetch(window.location.pathname, {
+        fetch(SAVE_URL, {
             method: 'POST',
             body: new FormData(this),
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
