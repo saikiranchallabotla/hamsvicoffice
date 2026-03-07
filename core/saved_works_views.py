@@ -1911,10 +1911,6 @@ def bill_choice(request, work_id):
         messages.info(request, 'No workslips found. Generate a workslip first.')
         return redirect('saved_works_list')
 
-    # If only one workslip, go straight to bill entry
-    if len(all_workslips) == 1:
-        return redirect('bill_entry', work_id=all_workslips[0].id)
-
     # Gather existing bills
     workslip_ids = [ws.id for ws in all_workslips]
     all_bills = list(
@@ -1923,6 +1919,29 @@ def bill_choice(request, work_id):
             Q(parent_id__in=workslip_ids, work_type='bill')
         ).filter(organization=org, user=user).order_by('bill_number')
     )
+
+    # Determine the next bill number
+    existing_bill_numbers = [b.bill_number for b in all_bills if b.bill_number]
+    next_bill_number = (max(existing_bill_numbers) + 1) if existing_bill_numbers else 1
+
+    # Find the workslip that corresponds to the next bill number
+    # Bill N is generated from Workslip N
+    target_ws = None
+    for ws in all_workslips:
+        if ws.workslip_number == next_bill_number:
+            target_ws = ws
+            break
+
+    # If only one workslip or we found the target workslip, go straight to bill entry
+    if len(all_workslips) == 1:
+        from django.urls import reverse
+        url = reverse('bill_entry', args=[all_workslips[0].id]) + f'?bill_number={next_bill_number}'
+        return redirect(url)
+
+    if target_ws:
+        from django.urls import reverse
+        url = reverse('bill_entry', args=[target_ws.id]) + f'?bill_number={next_bill_number}'
+        return redirect(url)
 
     # Map: which workslip already has a bill generated?
     bills_by_ws = {}
