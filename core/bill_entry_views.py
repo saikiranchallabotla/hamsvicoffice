@@ -334,107 +334,110 @@ def bill_entry_save(request, work_id):
     """
     Save bill data (quantities and deductions) and create/update SavedWork for bill.
     Uses update_or_create to avoid duplicate bill records.
-    
-    POST data:
-        - action: 'save_bill_data'
-        - bill_exec_map: JSON map of {item_key: quantity}
-        - bill_deduct_map: JSON map of {item_key: deduct_quantity}
-        - bill_rate_map: JSON map of {item_key: rate}
-        - mb_measure_no, mb_measure_p_from, mb_measure_p_to: Measurement book details
-        - mb_abstract_no, mb_abstract_p_from, mb_abstract_p_to: Abstract details
-        - doi, doc, domr, dobr: Dates
     """
-    org = get_org_from_request(request)
-    user = request.user
-    
     try:
-        source_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
-    except:
-        return JsonResponse({'success': False, 'error': 'Work not found'}, status=404)
+        org = get_org_from_request(request)
+        user = request.user
+        
+        try:
+            source_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+        except:
+            return JsonResponse({'success': False, 'error': 'Work not found'}, status=404)
+        
+        if source_work.work_type not in ['workslip', 'new_estimate']:
+            return JsonResponse({'success': False, 'error': 'Invalid source work type'}, status=400)
+        
+        # Parse submitted data
+        try:
+            bill_exec_map = json.loads(request.POST.get('bill_exec_map', '{}'))
+            bill_deduct_map = json.loads(request.POST.get('bill_deduct_map', '{}'))
+            bill_rate_map = json.loads(request.POST.get('bill_rate_map', '{}'))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        
+        # Validate that at least one quantity is entered
+        try:
+            has_qty = any(float(q or 0) > 0 for q in bill_exec_map.values())
+        except (ValueError, TypeError):
+            has_qty = False
+        
+        if not has_qty:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Please enter at least one quantity'
+            }, status=400)
     
-    if source_work.work_type not in ['workslip', 'new_estimate']:
-        return JsonResponse({'success': False, 'error': 'Invalid source work type'}, status=400)
-    
-    # Parse submitted data
-    try:
-        bill_exec_map = json.loads(request.POST.get('bill_exec_map', '{}'))
-        bill_deduct_map = json.loads(request.POST.get('bill_deduct_map', '{}'))
-        bill_rate_map = json.loads(request.POST.get('bill_rate_map', '{}'))
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
-    
-    # Validate that at least one quantity is entered
-    has_qty = any(float(q or 0) > 0 for q in bill_exec_map.values())
-    if not has_qty:
-        return JsonResponse({
-            'success': False, 
-            'error': 'Please enter at least one quantity'
-        }, status=400)
-    
-    # Get source work data
-    work_data = source_work.work_data or {}
-    
-    # Determine bill number
-    if source_work.work_type == 'workslip':
-        bill_number = source_work.workslip_number or 1
-    else:
-        bill_number = 1
-    
-    # Build bill data to save
-    bill_data = {
-        'bill_number': bill_number,
-        'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
-        'bill_exec_map': bill_exec_map,
-        'bill_deduct_map': bill_deduct_map,
-        'bill_rate_map': bill_rate_map,
-        # Measurement book details
-        'mb_measure_no': request.POST.get('mb_measure_no', ''),
-        'mb_measure_p_from': request.POST.get('mb_measure_p_from', ''),
-        'mb_measure_p_to': request.POST.get('mb_measure_p_to', ''),
-        'mb_abstract_no': request.POST.get('mb_abstract_no', ''),
-        'mb_abstract_p_from': request.POST.get('mb_abstract_p_from', ''),
-        'mb_abstract_p_to': request.POST.get('mb_abstract_p_to', ''),
-        # Dates
-        'doi': request.POST.get('doi', ''),
-        'doc': request.POST.get('doc', ''),
-        'domr': request.POST.get('domr', ''),
-        'dobr': request.POST.get('dobr', ''),
-        # Copy source work data for bill generation
-        'bill_ws_rows': work_data.get('ws_estimate_rows', work_data.get('fetched_items', [])),
-        'bill_ws_exec_map': bill_exec_map,
-        'bill_ws_tp_percent': work_data.get('ws_tp_percent', 0),
-        'bill_ws_tp_type': work_data.get('ws_tp_type', 'Excess'),
-        'bill_ws_metadata': work_data.get('ws_metadata', {}),
-        'source_workslip_id': source_work.id if source_work.work_type == 'workslip' else None,
-    }
-    
-    # Use update_or_create to avoid duplicate bill records
-    bill_name = f"Bill-{bill_number} from {source_work.name}"
-    
-    saved_bill, created = SavedWork.objects.update_or_create(
-        organization=org,
-        user=user,
-        parent=source_work,
-        work_type='bill',
-        bill_number=bill_number,
-        defaults={
-            'name': bill_name,
-            'work_data': bill_data,
-            'category': source_work.category,
+        # Get source work data
+        work_data = source_work.work_data or {}
+        
+        # Determine bill number
+        if source_work.work_type == 'workslip':
+            bill_number = source_work.workslip_number or 1
+        else:
+            bill_number = 1
+        
+        # Build bill data to save
+        bill_data = {
+            'bill_number': bill_number,
             'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
-            'status': 'in_progress',  # Mark as in_progress (draft) until downloaded
+            'bill_exec_map': bill_exec_map,
+            'bill_deduct_map': bill_deduct_map,
+            'bill_rate_map': bill_rate_map,
+            # Measurement book details
+            'mb_measure_no': request.POST.get('mb_measure_no', ''),
+            'mb_measure_p_from': request.POST.get('mb_measure_p_from', ''),
+            'mb_measure_p_to': request.POST.get('mb_measure_p_to', ''),
+            'mb_abstract_no': request.POST.get('mb_abstract_no', ''),
+            'mb_abstract_p_from': request.POST.get('mb_abstract_p_from', ''),
+            'mb_abstract_p_to': request.POST.get('mb_abstract_p_to', ''),
+            # Dates
+            'doi': request.POST.get('doi', ''),
+            'doc': request.POST.get('doc', ''),
+            'domr': request.POST.get('domr', ''),
+            'dobr': request.POST.get('dobr', ''),
+            # Copy source work data for bill generation
+            'bill_ws_rows': work_data.get('ws_estimate_rows', work_data.get('fetched_items', [])),
+            'bill_ws_exec_map': bill_exec_map,
+            'bill_ws_tp_percent': work_data.get('ws_tp_percent', 0),
+            'bill_ws_tp_type': work_data.get('ws_tp_type', 'Excess'),
+            'bill_ws_metadata': work_data.get('ws_metadata', {}),
+            'source_workslip_id': source_work.id if source_work.work_type == 'workslip' else None,
         }
-    )
+        
+        # Use update_or_create to avoid duplicate bill records
+        bill_name = f"Bill-{bill_number} from {source_work.name}"
+        
+        saved_bill, created = SavedWork.objects.update_or_create(
+            organization=org,
+            user=user,
+            parent=source_work,
+            work_type='bill',
+            bill_number=bill_number,
+            defaults={
+                'name': bill_name,
+                'work_data': bill_data,
+                'category': source_work.category,
+                'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
+                'status': 'in_progress',  # Mark as in_progress (draft) until downloaded
+            }
+        )
     
-    action_msg = 'created' if created else 'updated'
-    messages.success(request, f'Bill-{bill_number} {action_msg} successfully!')
+        action_msg = 'created' if created else 'updated'
+        messages.success(request, f'Bill-{bill_number} {action_msg} successfully!')
 
-    return JsonResponse({
-        'success': True,
-        'work_id': saved_bill.id,
-        'created': created,
-        'message': f'Bill-{bill_number} {action_msg}!'
-    })
+        return JsonResponse({
+            'success': True,
+            'work_id': saved_bill.id,
+            'created': created,
+            'message': f'Bill-{bill_number} {action_msg}!'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }, status=500)
 
 
 @login_required(login_url='login')

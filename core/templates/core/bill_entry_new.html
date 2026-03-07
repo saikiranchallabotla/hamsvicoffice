@@ -974,10 +974,14 @@
             body: formData,
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok && response.headers.get('content-type')?.indexOf('application/json') === -1) {
+                throw new Error('Server returned status ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success || data.work_id) {
-                // Now submit the download form directly (browser will receive the Excel file)
                 prepareDownloadForm(billType);
                 document.getElementById('download-form').submit();
             } else {
@@ -986,7 +990,7 @@
         })
         .catch(err => {
             console.error('Error:', err);
-            alert('Error: ' + err.message);
+            alert('Error saving: ' + err.message);
         });
     }
 
@@ -1015,7 +1019,12 @@
             body: formData,
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok && response.headers.get('content-type')?.indexOf('application/json') === -1) {
+                throw new Error('Server returned status ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success || data.work_id) {
                 prepareDownloadForm(actionType);
@@ -1026,7 +1035,7 @@
         })
         .catch(err => {
             console.error('Error:', err);
-            alert('Error: ' + err.message);
+            alert('Error saving: ' + err.message);
         });
     }
 
@@ -1054,7 +1063,12 @@
             body: new FormData(this),
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok && response.headers.get('content-type')?.indexOf('application/json') === -1) {
+                throw new Error('Server returned status ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showNotification('Bill saved successfully!', 'success');
