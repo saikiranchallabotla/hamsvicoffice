@@ -191,10 +191,13 @@ def bill_entry(request, work_id):
             prev_data = prev_bill.work_data or {}
             prev_rows = prev_data.get('bill_ws_rows', prev_data.get('ws_estimate_rows', []))
             prev_exec = prev_data.get('bill_exec_map', prev_data.get('bill_ws_exec_map', prev_data.get('ws_exec_map', {})))
+            prev_rate_map = prev_data.get('bill_rate_map', {})
             
-            # Build previous bill items
+            # Build previous bill items from rows
+            seen_keys = set()
             for idx, row in enumerate(prev_rows):
                 key = row.get('key') or row.get('item_name') or row.get('display_name') or row.get('desc') or f'item_{idx}'
+                seen_keys.add(key)
                 qty = prev_exec.get(key, 0)
                 try:
                     qty = float(qty) if qty else 0.0
@@ -207,6 +210,30 @@ def bill_entry(request, work_id):
                 prev_bill_items.append({
                     'key': key,
                     'item_name': row.get('display_name') or row.get('item_name') or row.get('desc', ''),
+                    'qty': qty,
+                })
+            
+            # Also check exec_map for supplemental items not in rows
+            # (handles older bills saved before supplemental rows were included)
+            for key, qty_val in prev_exec.items():
+                if key in seen_keys:
+                    continue
+                try:
+                    qty = float(qty_val) if qty_val else 0.0
+                except (ValueError, TypeError):
+                    qty = 0.0
+                if qty <= 0:
+                    continue
+                # Extract readable name from key (supp:Name or prev_supp:N:Name)
+                item_name = key
+                if key.startswith('supp:'):
+                    item_name = key[5:]
+                elif key.startswith('prev_supp:'):
+                    parts = key.split(':', 2)
+                    item_name = parts[2] if len(parts) > 2 else key
+                prev_bill_items.append({
+                    'key': key,
+                    'item_name': item_name,
                     'qty': qty,
                 })
     
@@ -331,6 +358,80 @@ def bill_entry(request, work_id):
     return render(request, 'core/bill_entry_new.html', context)
 
 
+def _build_complete_bill_rows(work_data, source_work, bill_exec_map, bill_rate_map):
+    """
+    Build a complete list of bill rows including both main estimate items and
+    supplemental items. This ensures the next bill can find ALL items from
+    the previous bill for deduction, not just the main estimate rows.
+    """
+    # Start with main estimate rows
+    rows = list(work_data.get('ws_estimate_rows', work_data.get('fetched_items', [])))
+    seen_keys = set()
+    for row in rows:
+        key = row.get('key') or row.get('item_name') or ''
+        if key:
+            seen_keys.add(key)
+
+    if source_work.work_type == 'workslip':
+        # Add previous workslip supplemental items
+        for supp in work_data.get('ws_previous_supp_items', []):
+            supp_name = supp.get('name', '')
+            section = supp.get('supp_section', supp.get('phase', 1))
+            supp_key = f"prev_supp:{section}:{supp_name}"
+            if supp_key in seen_keys:
+                continue
+            seen_keys.add(supp_key)
+            rows.append({
+                'key': supp_key,
+                'item_name': supp_name,
+                'display_name': supp_name,
+                'unit': supp.get('unit', 'Nos') or 'Nos',
+                'rate': float(supp.get('rate', 0) or 0),
+                'label': 'Supplemental',
+            })
+
+        # Add current workslip supplemental items
+        for supp_name in work_data.get('ws_supp_items', []):
+            supp_key = f"supp:{supp_name}"
+            if supp_key in seen_keys:
+                continue
+            seen_keys.add(supp_key)
+            rate = float(bill_rate_map.get(supp_key, 0) or 0)
+            rows.append({
+                'key': supp_key,
+                'item_name': supp_name,
+                'display_name': supp_name,
+                'unit': 'Nos',
+                'rate': rate,
+                'label': 'Supplemental',
+            })
+
+    # Also add any keys from bill_exec_map that aren't in rows yet
+    # (catches edge cases where supplemental items were added manually)
+    for key in bill_exec_map:
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        # Extract readable name from key
+        item_name = key
+        if key.startswith('supp:'):
+            item_name = key[5:]
+        elif key.startswith('prev_supp:'):
+            parts = key.split(':', 2)
+            item_name = parts[2] if len(parts) > 2 else key
+        rate = float(bill_rate_map.get(key, 0) or 0)
+        rows.append({
+            'key': key,
+            'item_name': item_name,
+            'display_name': item_name,
+            'unit': 'Nos',
+            'rate': rate,
+            'label': 'Supplemental',
+        })
+
+    return rows
+
+
 @login_required(login_url='login')
 @require_POST
 def bill_entry_save(request, work_id):
@@ -414,7 +515,8 @@ def _bill_entry_save_logic(request, work_id):
             'domr': request.POST.get('domr', ''),
             'dobr': request.POST.get('dobr', ''),
             # Copy source work data for bill generation
-            'bill_ws_rows': work_data.get('ws_estimate_rows', work_data.get('fetched_items', [])),
+            # Build complete rows list including supplemental items
+            'bill_ws_rows': _build_complete_bill_rows(work_data, source_work, bill_exec_map, bill_rate_map),
             'bill_ws_exec_map': bill_exec_map,
             'bill_ws_tp_percent': work_data.get('ws_tp_percent', 0),
             'bill_ws_tp_type': work_data.get('ws_tp_type', 'Excess'),

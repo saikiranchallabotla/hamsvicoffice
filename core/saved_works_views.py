@@ -2482,8 +2482,24 @@ def bill_generate(request, work_id):
                 saved_bill_type = 'first_part' if bill_number == 1 else 'nth_part'
 
             # Auto-save the bill record — promote draft → completed, or create new
+            # Build complete rows list including supplemental items so the next bill
+            # can find ALL items for deduction
+            complete_bill_rows = list(ws_rows)  # main estimate rows
+            seen_keys = set(row.get('key', f'saved_{i}') for i, row in enumerate(ws_rows))
+            # Add supplemental items that were included in the bill
+            for item in items:
+                if item['key'] not in seen_keys:
+                    seen_keys.add(item['key'])
+                    complete_bill_rows.append({
+                        'key': item['key'],
+                        'item_name': item['desc'],
+                        'display_name': item['desc'],
+                        'unit': item['unit'],
+                        'rate': item['rate'],
+                        'label': 'Supplemental',
+                    })
             bill_save_data = {
-                'bill_ws_rows': ws_rows,
+                'bill_ws_rows': complete_bill_rows,
                 'bill_ws_exec_map': ws_exec_map,
                 'bill_ws_tp_percent': tp_percent,
                 'bill_ws_tp_type': tp_type,
