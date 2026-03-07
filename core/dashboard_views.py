@@ -165,6 +165,24 @@ def dashboard(request):
     except Exception:
         pass
     
+    # Get active bundle for "Buy All Modules" card
+    bundle_info = None
+    try:
+        from subscriptions.models import ModuleBundle
+        bundle = ModuleBundle.objects.filter(is_active=True).prefetch_related(
+            'modules', 'bundle_pricing'
+        ).first()
+        if bundle:
+            best_plan = bundle.bundle_pricing.filter(is_active=True).order_by('duration_months').first()
+            if best_plan:
+                bundle_info = {
+                    'bundle': bundle,
+                    'best_plan': best_plan,
+                    'module_count': bundle.modules.filter(is_active=True).count(),
+                }
+    except Exception:
+        pass
+    
     context = {
         'user': user,
         'profile': profile,
@@ -179,6 +197,7 @@ def dashboard(request):
         },
         'expiring_soon': expiring_soon,
         'letter_settings_complete': letter_settings_complete,
+        'bundle_info': bundle_info,
     }
     
     return render(request, 'core/dashboard_new.html', context)

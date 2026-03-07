@@ -15,7 +15,7 @@ django.setup()
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from accounts.models import UserProfile
-from subscriptions.models import Module, ModulePricing
+from subscriptions.models import Module, ModulePricing, ModuleBundle, BundlePricing
 
 User = get_user_model()
 
@@ -98,6 +98,32 @@ def seed_modules():
             )
     
     print(f'[INIT] Created/Updated {len(modules_data)} modules with pricing')
+
+
+def seed_bundle():
+    """Seed the 'All Modules' bundle with pricing if not exist."""
+    bundle, created = ModuleBundle.objects.get_or_create(
+        name='All Modules Bundle',
+        defaults={
+            'description': 'Get access to every module at a special bundled price.',
+            'icon': 'box-seam-fill',
+            'color': '#4f46e5',
+            'is_active': True,
+        }
+    )
+    # Add all active paid modules
+    paid_modules = Module.objects.filter(is_active=True, is_free=False)
+    bundle.modules.set(paid_modules)
+
+    # Seed bundle pricing tiers
+    for months, base, sale, popular in [(1, 1999, 1499, False), (3, 4999, 3499, False), (6, 8999, 5999, True), (12, 14999, 9999, False)]:
+        BundlePricing.objects.update_or_create(
+            bundle=bundle, duration_months=months,
+            defaults={'base_price': base, 'sale_price': sale, 'is_popular': popular}
+        )
+
+    action = 'Created' if created else 'Updated'
+    print(f'[INIT] {action} bundle "{bundle.name}" with {paid_modules.count()} modules and 4 pricing tiers')
 
 
 def setup_database_cache():
@@ -451,6 +477,7 @@ if __name__ == '__main__':
     setup_database_cache()  # Create cache table if needed
     create_admin()
     seed_modules()
+    seed_bundle()
     load_fixtures()
     seed_module_backends()  # Restore backends after each deploy
     check_data_persistence()  # Comprehensive data persistence check

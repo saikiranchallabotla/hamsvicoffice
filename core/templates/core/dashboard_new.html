@@ -555,6 +555,31 @@
             </div>
             {% endif %}
             
+            <!-- Buy All Modules Bundle Card -->
+            {% if bundle_info %}
+            <div style="margin-bottom: 1.25rem;">
+                <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%); border-radius: 12px; padding: 1.25rem 1.5rem; color: white; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; box-shadow: 0 4px 15px rgba(99,102,241,0.3);">
+                    <div style="display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 200px;">
+                        <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+                            <i class="bi bi-box-seam-fill"></i>
+                        </div>
+                        <div>
+                            <h6 style="margin: 0; font-weight: 700; font-size: 1.05rem;">{{ bundle_info.bundle.name }}</h6>
+                            <p style="margin: 0.15rem 0 0; font-size: 0.82rem; opacity: 0.9;">
+                                Get all {{ bundle_info.module_count }} modules &middot; Starting at ₹{{ bundle_info.best_plan.sale_price|floatformat:0 }}
+                                {% if bundle_info.best_plan.discount_percent > 0 %}
+                                <span style="background: rgba(255,255,255,0.25); padding: 0.1rem 0.5rem; border-radius: 20px; font-weight: 600; font-size: 0.75rem; margin-left: 0.35rem;">Save {{ bundle_info.best_plan.discount_percent|floatformat:0 }}%</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <a href="{% url 'bundle_checkout' bundle_id=bundle_info.bundle.id pricing_id=bundle_info.best_plan.id %}" style="background: white; color: #4f46e5; padding: 0.6rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; white-space: nowrap; transition: transform 0.15s;">
+                        <i class="bi bi-lightning-charge-fill me-1"></i>Buy All Modules
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Module Cards -->
             <h6 class="mb-2 text-muted"><i class="bi bi-boxes me-2"></i>Your Modules</h6>
             <div class="module-grid">

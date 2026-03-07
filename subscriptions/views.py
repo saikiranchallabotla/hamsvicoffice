@@ -21,93 +21,72 @@ def module_access_view(request, module_code):
     Users can view this page even if they have trial access (to upgrade).
     Admins/superusers can view the page to see pricing options.
     """
-    import logging
-    logger = logging.getLogger(__name__)
+    from subscriptions.models import ModuleBundle
     
-    try:
-        from subscriptions.services.subscription_service import SubscriptionService
-        from subscriptions.models import ModuleBundle
-        
-        module = get_object_or_404(Module, code=module_code, is_active=True)
-        
-        # Check if user has active subscription (paid or trial)
-        existing_sub = UserModuleSubscription.objects.filter(
-            user=request.user,
-            module=module,
-            status__in=['active', 'trial'],
-            expires_at__gt=timezone.now()
-        ).first()
-        
-        # If user has active subscription, redirect to module
-        if existing_sub and not (request.user.is_staff or request.user.is_superuser):
-            if module.url_name:
-                try:
-                    return redirect(module.url_name)
-                except Exception:
-                    pass
-            redirect_url = request.session.pop('subscription_redirect', None)
-            if redirect_url:
-                return redirect(redirect_url)
-            return redirect('dashboard')
-        
-        # Check current subscription status (for display)
-        current_sub = UserModuleSubscription.objects.filter(
-            user=request.user,
-            module=module,
-            status__in=['active', 'trial'],
-            expires_at__gt=timezone.now()
-        ).first()
-        
-        # Check if trial available (never used trial before)
-        trial_available = not UserModuleSubscription.objects.filter(
-            user=request.user,
-            module=module,
-            status='trial'
-        ).exists()
-        
-        # Get pricing options
-        plans = ModulePricing.objects.filter(
-            module=module,
-            is_active=True
-        ).order_by('duration_months')
-        
-        # Reason for access denial
-        reason = request.GET.get('reason', 'You need an active subscription to access this module.')
-        
-        context = {
-            'module': module,
-            'trial_available': trial_available,
-            'trial_days': 1,  # 1 day free trial
-            'plans': plans,
-            'reason': reason,
-            'current_subscription': current_sub,  # Show current trial/subscription status
-        }
+    module = get_object_or_404(Module, code=module_code, is_active=True)
+    
+    # Check if user has active subscription (paid or trial)
+    existing_sub = UserModuleSubscription.objects.filter(
+        user=request.user,
+        module=module,
+        status__in=['active', 'trial'],
+        expires_at__gt=timezone.now()
+    ).first()
+    
+    # If user has active subscription, redirect to module
+    if existing_sub and not (request.user.is_staff or request.user.is_superuser):
+        if module.url_name:
+            try:
+                return redirect(module.url_name)
+            except Exception:
+                pass
+        redirect_url = request.session.pop('subscription_redirect', None)
+        if redirect_url:
+            return redirect(redirect_url)
+        return redirect('dashboard')
+    
+    # Check current subscription status (for display)
+    current_sub = existing_sub  # Already fetched above
+    
+    # Check if trial available (never used trial before)
+    trial_available = not UserModuleSubscription.objects.filter(
+        user=request.user,
+        module=module,
+        status='trial'
+    ).exists()
+    
+    # Get pricing options
+    plans = ModulePricing.objects.filter(
+        module=module,
+        is_active=True
+    ).order_by('duration_months')
+    
+    # Reason for access denial
+    reason = request.GET.get('reason', 'You need an active subscription to access this module.')
+    
+    context = {
+        'module': module,
+        'trial_available': trial_available,
+        'trial_days': 1,  # 1 day free trial
+        'plans': plans,
+        'reason': reason,
+        'current_subscription': current_sub,
+    }
 
-        # Add active bundle info if this module is part of a bundle
-        try:
-            bundle = ModuleBundle.objects.filter(
-                is_active=True, modules=module
-            ).prefetch_related('modules', 'bundle_pricing').first()
-            if bundle:
-                bundle_plans = bundle.get_active_pricing()
-                if bundle_plans.exists():
-                    context['bundle'] = bundle
-                    context['bundle_plans'] = bundle_plans
-        except Exception as e:
-            logger.error(f"Bundle query error (non-fatal): {e}")
-        
-        return render(request, 'subscriptions/module_access.html', context)
-    except Exception as e:
-        logger.error(f"module_access_view CRASH for module={module_code}: {e}", exc_info=True)
-        # Temporary: show error details to staff for debugging
-        if request.user.is_staff:
-            from django.http import HttpResponse
-            import traceback
-            return HttpResponse(
-                f"<h2>Debug Error (staff only)</h2><pre>{traceback.format_exc()}</pre>",
-                content_type="text/html", status=500
-            )
-        raise
+    # Add active bundle info if this module is part of a bundle
+    try:
+        bundle = ModuleBundle.objects.filter(
+            is_active=True, modules=module
+        ).prefetch_related('modules', 'bundle_pricing').first()
+        if bundle:
+            bundle_plans = bundle.get_active_pricing()
+            if bundle_plans.exists():
+                context['bundle'] = bundle
+                context['bundle_plans'] = bundle_plans
+    except Exception:
+        pass
+    
+    return render(request, 'subscriptions/module_access.html', context)
 
 
 @login_required
