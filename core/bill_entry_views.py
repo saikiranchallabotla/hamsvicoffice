@@ -22,18 +22,13 @@ from .saved_works_views import get_org_from_request, check_saved_work_access, lo
 @login_required(login_url='login')
 def bill_entry(request, work_id):
     """
-    Display bill entry form for creating a bill from a workslip or estimate.
-    Allows sequential quantity entry without file uploads.
-    
-    Args:
-        work_id: ID of the parent work (Estimate or Workslip)
-    
-    Flow:
-        1. User selects a workslip/estimate
-        2. System loads the items and previous bill data (if Bill 2+)
-        3. User enters quantities and deductions
-        4. User saves bill (goes to bill_entry_save)
+    Display bill entry form (GET) or save bill data (POST).
+    Handles both rendering and AJAX save to avoid URL routing issues.
     """
+    # Handle POST (save bill data) - delegate to save logic
+    if request.method == 'POST':
+        return _bill_entry_save_logic(request, work_id)
+    
     org = get_org_from_request(request)
     user = request.user
     
@@ -331,9 +326,15 @@ def bill_entry(request, work_id):
 @login_required(login_url='login')
 @require_POST
 def bill_entry_save(request, work_id):
+    """Standalone save endpoint (kept for backward compat). Delegates to shared logic."""
+    return _bill_entry_save_logic(request, work_id)
+
+
+def _bill_entry_save_logic(request, work_id):
     """
     Save bill data (quantities and deductions) and create/update SavedWork for bill.
     Uses update_or_create to avoid duplicate bill records.
+    Called from bill_entry (POST) and bill_entry_save.
     """
     try:
         org = get_org_from_request(request)
