@@ -4519,7 +4519,7 @@ def create_first_bill_sheet(
 
         if is_ae:
             ae_num = it.get("ae_number", "")
-            ws_bill.cell(row=row_idx, column=1, value=f"AE{ae_num}" if ae_num else None)
+            ws_bill.cell(row=row_idx, column=1, value=None)
             desc = f"AE{ae_num}" if ae_num else "AE"
         else:
             ws_bill.cell(row=row_idx, column=1, value=slno)
@@ -4788,7 +4788,7 @@ def build_nth_bill_wb(items, header_data, title_text,
 
         if is_ae:
             ae_num = it.get("ae_number", "")
-            ws.cell(row=r, column=1, value=f"AE{ae_num}" if ae_num else "AE")
+            ws.cell(row=r, column=1, value=None)
             desc = f"AE{ae_num}" if ae_num else "AE"
         else:
             ws.cell(row=r, column=1, value=sl)
@@ -5016,7 +5016,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
 
         if is_ae:
             ae_num = it.get("ae_number", "")
-            ws.cell(row=r, column=1, value=f"AE{ae_num}" if ae_num else "AE")
+            ws.cell(row=r, column=1, value=None)
             desc = f"AE{ae_num}" if ae_num else "AE"
         else:
             ws.cell(row=r, column=1, value=sl)
