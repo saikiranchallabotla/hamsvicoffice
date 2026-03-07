@@ -2441,13 +2441,15 @@ def bill_generate(request, work_id):
                     prev = prev_qty_map.get(item['key'], {})
                     prev_qty = prev.get('qty', 0.0)
                     prev_amount = prev_qty * item['rate']
+                    # item['qty'] is the "Total Measurements Till Date" entered by the user
+                    # (NOT "since last"). Column C = Till Date, Column I = C - G (auto-calculated).
                     nth_items.append({
                         'desc': item['desc'],
                         'unit': item['unit'],
                         'rate': item['rate'],
                         'prev_qty': prev_qty,
                         'prev_amount': prev_amount,
-                        'qty_till_date': prev_qty + item['qty'],
+                        'qty_till_date': item['qty'],
                     })
 
                 wb_out = Workbook()
