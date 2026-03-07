@@ -223,11 +223,10 @@
     /* Estimate Table */
     .estimate-table-wrapper {
         border-radius: 6px;
-        overflow: hidden;
+        overflow: auto;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
         margin-bottom: 0.4rem;
-        max-height: calc(100vh - 320px);
-        overflow-y: auto;
+        max-height: calc(100vh - 200px);
     }
     
     .estimate-table {
@@ -815,7 +814,6 @@
                             {% endif %}
                         </tbody>
                     </table>
-                </div>
 
                 <div class="estimate-total-row">
                     <span class="total-label">
@@ -925,6 +923,7 @@
                         Clear All
                     </a>
                 </div>
+                </div><!-- End of estimate-table-wrapper -->
             </form>
         </div>
     </div>
