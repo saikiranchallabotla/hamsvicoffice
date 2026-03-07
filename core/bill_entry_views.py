@@ -341,6 +341,7 @@ def bill_entry(request, work_id):
     doc = ''
     domr = ''
     dobr = ''
+    saved_exec_map = {}
     
     if existing_bill:
         bill_work_data = existing_bill.work_data or {}
@@ -356,21 +357,8 @@ def bill_entry(request, work_id):
         domr = bill_work_data.get('domr', '')
         dobr = bill_work_data.get('dobr', '')
         
-        # Load saved quantities and deductions
-        bill_exec = bill_work_data.get('bill_ws_exec_map', {})
-        bill_deduct = bill_work_data.get('bill_deduct_map', {})
-        
-        # Update bill_items with saved quantities
-        for item in bill_items:
-            key = item['key']
-            if key in bill_exec:
-                item['qty_exec'] = bill_exec[key]
-        
-        # Update AE items with saved quantities
-        for ae_item in ae_items:
-            ae_key = ae_item['key']
-            if ae_key in bill_exec:
-                ae_item['qty_excess'] = float(bill_exec[ae_key])
+        # Load saved "Total Till Date" quantities (kept separate from workslip qty)
+        saved_exec_map = bill_work_data.get('bill_ws_exec_map', {})
 
     context = {
         'work_id': work_id,
@@ -387,6 +375,7 @@ def bill_entry(request, work_id):
         'prev_bill': prev_bill,
         'prev_bill_items': prev_bill_items,
         'prev_bill_items_json': json.dumps(prev_bill_items),
+        'saved_exec_map_json': json.dumps(saved_exec_map),
         'workflow_chain': workflow_chain,
         'source_workslip': source_work if source_work.work_type == 'workslip' else None,
         'item_count': len(bill_items),

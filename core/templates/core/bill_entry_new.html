@@ -13,9 +13,9 @@
     .bill-container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 0.75rem;
+        padding: 0.5rem;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
     }
 
     /* Header */
@@ -170,33 +170,34 @@
     }
 
     .quantities-table th {
-        padding: 0.4rem 0.5rem;
+        padding: 0.25rem 0.35rem;
         text-align: left;
         font-weight: 600;
         color: #1e293b;
-        font-size: 0.68rem;
+        font-size: 0.63rem;
         white-space: nowrap;
     }
 
     .quantities-table td {
-        padding: 0.3rem 0.5rem;
+        padding: 0.2rem 0.35rem;
         border-bottom: 1px solid #f1f5f9;
         color: #475569;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
     }
 
     .quantities-table tbody tr:hover { background: #f8fafc; }
 
-    .sl-col { width: 32px; text-align: center; }
-    .item-col { min-width: 180px; }
-    .unit-col { width: 50px; text-align: center; }
-    .rate-col { width: 80px; text-align: right; }
-    .est-col { width: 80px; text-align: center; background: #f0fdf4; }
-    .ws-col { width: 80px; text-align: center; background: #faf5ff; }
-    .qty-col { width: 100px; text-align: center; }
-    .deduct-col { width: 100px; text-align: center; background: #fef3c7; }
-    .tilldate-col { width: 110px; text-align: center; background: #dbeafe; }
-    .amount-col { width: 100px; text-align: right; font-weight: 600; }
+    .sl-col { width: 28px; text-align: center; }
+    .item-col { min-width: 120px; }
+    .unit-col { width: 40px; text-align: center; }
+    .rate-col { width: 70px; text-align: right; }
+    .est-col { width: 60px; text-align: center; background: #f0fdf4; }
+    .ws-col { width: 60px; text-align: center; background: #faf5ff; }
+    .qty-col { width: 80px; text-align: center; }
+    .deduct-col { width: 80px; text-align: center; background: #fef3c7; }
+    .tilldate-col { width: 90px; text-align: center; background: #dbeafe; }
+    .sincelast-col { width: 80px; text-align: center; background: #ecfdf5; }
+    .amount-col { width: 90px; text-align: right; font-weight: 600; }
 
     /* AE (Additional Estimate) row styling */
     .ae-row { background: #fef2f2 !important; }
@@ -206,8 +207,8 @@
     .item-name {
         font-weight: 600;
         color: #0f172a;
-        font-size: 0.75rem;
-        line-height: 1.3;
+        font-size: 0.7rem;
+        line-height: 1.2;
     }
 
     .item-supplemental {
@@ -224,12 +225,12 @@
     /* Input Fields in Table */
     .qty-input {
         width: 100%;
-        padding: 0.3rem 0.35rem;
+        padding: 0.2rem 0.25rem;
         border: 1px solid #e2e8f0;
         border-radius: 4px;
         text-align: right;
         font-weight: 600;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         font-family: inherit;
         background: #fafbfc;
     }
@@ -604,6 +605,9 @@
                             <th class="tilldate-col" style="color: #1e40af;">
                                 Total Till Date<br><small>{% if bill_number == 1 %}(W1 Qty){% else %}(Enter manually){% endif %}</small>
                             </th>
+                            <th class="sincelast-col" style="color: #047857;">
+                                Since Last<br><small>(Qty)</small>
+                            </th>
                             <th class="amount-col">Amount (₹)</th>
                         </tr>
                     </thead>
@@ -612,7 +616,7 @@
                     </tbody>
                     <tfoot>
                         <tr style="background: #f1f5f9; font-weight: 700;">
-                            <td colspan="8" style="text-align: right; padding: 0.4rem 0.5rem;">
+                            <td colspan="9" style="text-align: right; padding: 0.4rem 0.5rem;">
                                 <strong>Total</strong>
                             </td>
                             <td class="amount-col" style="padding: 0.4rem 0.5rem; font-size: 0.85rem; color: #059669;">
@@ -773,6 +777,7 @@
         previousItems: {{ prev_bill_items_json|safe }},
         billNumber: {{ bill_number }},
         workId: {{ work_id }},
+        savedExecMap: {{ saved_exec_map_json|safe }},
     };
 
     const rateMap = {};
@@ -822,9 +827,14 @@
             // W Qty display: if item has AE excess, show est qty (capped); else show full ws qty
             const displayWsQty = (hasAE && estQty > 0) ? estQty : wsQty;
 
+            // Check for saved "Total Till Date" value (for bill reopen)
+            const savedVal = billData.savedExecMap[key];
+            const hasSaved = savedVal !== undefined && savedVal !== null;
+
             if (billData.billNumber === 1) {
                 // BILL 1 UI: Previous = 0 (readonly) + Total Till Date (capped at est qty if AE exists)
                 deductMap[key] = 0;  // Previous = 0 for first bill
+                const preFill = hasSaved ? (parseFloat(savedVal) || 0) : basePreFill;
                 
                 row.innerHTML = `
                     <td class="sl-col"><strong>${++itemCount}</strong></td>
@@ -846,21 +856,23 @@
                     <td class="tilldate-col">
                         <input type="number" class="qty-input tilldate exec-qty" 
                                data-key="${key}"
-                               value="${basePreFill > 0 ? basePreFill : ''}" 
+                               value="${preFill > 0 ? preFill : ''}" 
                                step="0.01" 
                                min="0"
                                placeholder="0.00">
                     </td>
+                    <td class="sincelast-col" id="sincelast_${idx}" style="color: #047857; font-weight: 600;">-</td>
                     <td class="amount-col" id="amount_${idx}">₹0.00</td>
                 `;
 
-                // Initialize execMap with base pre-fill quantity
-                if (basePreFill > 0) {
-                    execMap[key] = basePreFill;
+                // Initialize execMap with pre-fill quantity
+                if (preFill > 0) {
+                    execMap[key] = preFill;
                 }
             } else {
                 // BILL 2+ UI: Deduct Previous (readonly) + Total Till Date (editable)
                 deductMap[key] = prevQty;
+                const preFill = hasSaved ? (parseFloat(savedVal) || 0) : 0;
 
                 row.innerHTML = `
                     <td class="sl-col"><strong>${++itemCount}</strong></td>
@@ -882,13 +894,18 @@
                     <td class="tilldate-col">
                         <input type="number" class="qty-input tilldate exec-qty" 
                                data-key="${key}"
-                               value="" 
+                               value="${preFill > 0 ? preFill : ''}" 
                                step="0.01" 
                                min="0"
                                placeholder="0.00">
                     </td>
+                    <td class="sincelast-col" id="sincelast_${idx}" style="color: #047857; font-weight: 600;">-</td>
                     <td class="amount-col" id="amount_${idx}">₹0.00</td>
                 `;
+
+                if (preFill > 0) {
+                    execMap[key] = preFill;
+                }
             }
 
             tbody.appendChild(row);
@@ -918,6 +935,10 @@
                 const prevAE = billData.previousItems.find(p => p.key === aeKey);
                 const prevAEQty = prevAE ? parseFloat(prevAE.qty) || 0 : 0;
 
+                // Check for saved AE quantity
+                const savedAEVal = billData.savedExecMap[aeKey];
+                const hasSavedAE = savedAEVal !== undefined && savedAEVal !== null;
+
                 const aeRow = document.createElement('tr');
                 aeRow.className = 'ae-row';
                 aeRow.id = `ae_row_${aeIdx}`;
@@ -926,6 +947,7 @@
 
                 if (billData.billNumber === 1) {
                     deductMap[aeKey] = 0;
+                    const aePreFill = hasSavedAE ? (parseFloat(savedAEVal) || 0) : excessQty;
                     aeRow.innerHTML = `
                         <td class="sl-col"><span class="ae-badge">AE ${aeItem.ae_number}</span></td>
                         <td class="item-col">
@@ -942,16 +964,18 @@
                         <td class="tilldate-col">
                             <input type="number" class="qty-input tilldate exec-qty"
                                    data-key="${aeKey}"
-                                   value="${excessQty > 0 ? excessQty : ''}"
+                                   value="${aePreFill > 0 ? aePreFill : ''}"
                                    step="0.01" min="0" placeholder="0.00">
                         </td>
+                        <td class="sincelast-col" id="ae_sincelast_${aeIdx}" style="color: #047857; font-weight: 600;">-</td>
                         <td class="amount-col" id="ae_amount_${aeIdx}">₹0.00</td>
                     `;
-                    if (excessQty > 0) {
-                        execMap[aeKey] = excessQty;
+                    if (aePreFill > 0) {
+                        execMap[aeKey] = aePreFill;
                     }
                 } else {
                     deductMap[aeKey] = prevAEQty;
+                    const aePreFill = hasSavedAE ? (parseFloat(savedAEVal) || 0) : 0;
                     aeRow.innerHTML = `
                         <td class="sl-col"><span class="ae-badge">AE ${aeItem.ae_number}</span></td>
                         <td class="item-col">
@@ -969,11 +993,15 @@
                         </td>
                         <td class="tilldate-col">
                             <input type="number" class="qty-input tilldate exec-qty"
-                                   data-key="${aeKey}" value=""
+                                   data-key="${aeKey}" value="${aePreFill > 0 ? aePreFill : ''}"
                                    step="0.01" min="0" placeholder="0.00">
                         </td>
+                        <td class="sincelast-col" id="ae_sincelast_${aeIdx}" style="color: #047857; font-weight: 600;">-</td>
                         <td class="amount-col" id="ae_amount_${aeIdx}">₹0.00</td>
                     `;
+                    if (aePreFill > 0) {
+                        execMap[aeKey] = aePreFill;
+                    }
                 }
 
                 tbody.appendChild(aeRow);
@@ -992,8 +1020,8 @@
             }
         });
 
-        // Trigger initial calculation for Bill 1 pre-filled values
-        if (billData.billNumber === 1) {
+        // Trigger initial calculation for pre-filled values (Bill 1 always, Bill 2+ when saved data exists)
+        if (billData.billNumber === 1 || Object.keys(billData.savedExecMap).length > 0) {
             billData.items.forEach((item, idx) => {
                 const key = item.key || `item_${idx}`;
                 updateRowAmount(idx, key);
@@ -1013,6 +1041,12 @@
         let netQty = tillDateQty - deductQty;
         if (netQty < 0) netQty = 0;
 
+        // Update Since Last cell
+        const sinceLastCell = document.getElementById(`sincelast_${idx}`);
+        if (sinceLastCell) {
+            sinceLastCell.textContent = tillDateQty > 0 ? netQty.toFixed(2) : '-';
+        }
+
         const amount = netQty * rate;
         const amountCell = document.getElementById(`amount_${idx}`);
         if (amountCell) {
@@ -1027,6 +1061,12 @@
 
         let netQty = tillDateQty - deductQty;
         if (netQty < 0) netQty = 0;
+
+        // Update Since Last cell
+        const sinceLastCell = document.getElementById(`ae_sincelast_${aeIdx}`);
+        if (sinceLastCell) {
+            sinceLastCell.textContent = tillDateQty > 0 ? netQty.toFixed(2) : '-';
+        }
 
         const amount = netQty * rate;
         const amountCell = document.getElementById(`ae_amount_${aeIdx}`);
