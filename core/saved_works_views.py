@@ -2163,12 +2163,24 @@ def bill_generate(request, work_id):
         status__in=['draft', 'in_progress'],
     ).order_by('-bill_number').first()
 
-    # Completed/finalized bills: used for "Deduct Previous Measurements" in Bill 3, 4, etc.
-    # Include 'completed' and any 'in_progress' bills that are NOT the current draft.
+    # Completed/finalized bills: used for "Deduct Previous Measurements" in Bill 2+.
+    # Search across ALL workslips under the same root estimate, not just the current workslip.
+    # This ensures B2 (parented to W2) can find B1 (parented to W1) for deduction.
+    all_bill_parent_ids = [workslip.id]  # at minimum, include current workslip
+    if workslip.parent:
+        # Find all sibling workslips under the same root estimate
+        sibling_ws_ids = list(
+            SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip',
+                parent=workslip.parent,
+            ).values_list('id', flat=True)
+        )
+        all_bill_parent_ids = sibling_ws_ids + [workslip.parent_id]  # include estimate too
     completed_bills_qs = SavedWork.objects.filter(
         organization=org, user=user,
         work_type='bill',
-        parent=workslip,
+        parent_id__in=all_bill_parent_ids,
     ).exclude(status='draft')
     if draft_bill_record:
         completed_bills_qs = completed_bills_qs.exclude(id=draft_bill_record.id)
@@ -2350,13 +2362,17 @@ def bill_generate(request, work_id):
                 'key': supp_key,
             })
 
-    # For Bill 2+, gather cumulative previous quantities from completed bills under this workslip
+    # For Bill 2+, gather cumulative previous quantities from ALL completed bills
+    # across the entire estimate workflow chain (B1 on W1, B2 on W2, etc.)
     prev_qty_map = {}
     if bill_number > 1:
         prev_bills_for_deduct = [b for b in completed_bills if (b.bill_number or 0) < bill_number]
         for pb in prev_bills_for_deduct:
             pb_data = pb.work_data or {}
             pb_exec = pb_data.get('bill_ws_exec_map', {}) or {}
+            # Also check bill_exec_map (used by bill_entry save)
+            if not pb_exec:
+                pb_exec = pb_data.get('bill_exec_map', {}) or {}
             pb_rows = pb_data.get('bill_ws_rows', ws_rows)  # fallback to workslip rows
             for pidx, prow in enumerate(pb_rows):
                 pkey = prow.get('key', f'saved_{pidx}')
@@ -2372,33 +2388,6 @@ def bill_generate(request, work_id):
                             'rate': float(prow.get('rate', 0) or 0),
                         }
                     prev_qty_map[pkey]['qty'] += pqty
-
-        # Fallback: if no completed bills found, try sibling workslips (legacy behaviour)
-        if not prev_qty_map and workslip.parent:
-            prev_workslips = list(
-                SavedWork.objects.filter(
-                    organization=org, user=user, work_type='workslip',
-                    parent=workslip.parent, workslip_number__lt=bill_number,
-                ).order_by('workslip_number')
-            )
-            for pw in prev_workslips:
-                pw_data = pw.work_data or {}
-                pw_rows = pw_data.get('ws_estimate_rows', [])
-                pw_exec = pw_data.get('ws_exec_map', {}) or {}
-                for pidx, prow in enumerate(pw_rows):
-                    pkey = prow.get('key', f'saved_{pidx}')
-                    pqty = pw_exec.get(pkey, 0)
-                    try:
-                        pqty = float(pqty) if pqty else 0.0
-                    except (ValueError, TypeError):
-                        pqty = 0.0
-                    if pqty > 0:
-                        if pkey not in prev_qty_map:
-                            prev_qty_map[pkey] = {
-                                'qty': 0.0,
-                                'rate': float(prow.get('rate', 0) or 0),
-                            }
-                        prev_qty_map[pkey]['qty'] += pqty
 
     # User document templates
     covering_template = get_user_template(user, 'covering_letter')
