@@ -368,6 +368,57 @@
         .divider span {
             padding: 0 1rem;
         }
+
+        .bundle-card {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 16px;
+            padding: 1.25rem;
+        }
+        .bundle-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .bundle-header i {
+            font-size: 1.75rem;
+            color: #b45309;
+        }
+        .bundle-header h4 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #92400e;
+        }
+        .bundle-header p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: #a16207;
+        }
+        .bundle-modules {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .bundle-module-tag {
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.7);
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+            color: #78350f;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .bundle-btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+        }
+        .bundle-btn:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35) !important;
+        }
     </style>
 </head>
 <body>
@@ -451,6 +502,49 @@
                 {% endif %}
             </form>
             
+            {% if bundle and bundle_plans %}
+            <div class="divider"><span>or get all modules</span></div>
+            <div class="bundle-card">
+                <div class="bundle-header">
+                    <i class="bi bi-box-seam-fill"></i>
+                    <div>
+                        <h4>{{ bundle.name }}</h4>
+                        <p>{{ bundle.description|default:"Get access to every module at a special price" }}</p>
+                    </div>
+                </div>
+                <div class="bundle-modules">
+                    {% for m in bundle.modules.all %}
+                    <span class="bundle-module-tag"><i class="bi bi-{{ m.icon|default:'box' }}"></i> {{ m.name }}</span>
+                    {% endfor %}
+                </div>
+                <div class="pricing-options">
+                    {% for bp in bundle_plans %}
+                    <label class="plan-option {% if bp.is_popular %}selected{% endif %}" onclick="selectBundlePlan(this, {{ bp.id }}, {{ bundle.id }})">
+                        <input type="radio" name="bundle_plan_id" value="{{ bp.id }}" {% if bp.is_popular %}checked{% endif %}>
+                        {% if bp.is_popular %}
+                        <span class="plan-badge">Best Value</span>
+                        {% endif %}
+                        <div class="plan-info">
+                            <h5>{{ bp.get_duration_months_display }}</h5>
+                            <span>All modules · {{ bp.duration_months }} month{% if bp.duration_months > 1 %}s{% endif %}</span>
+                        </div>
+                        <div class="plan-price">
+                            {% if bp.discount_percent > 0 %}
+                            <div class="original">₹{{ bp.base_price|floatformat:0 }}</div>
+                            {% endif %}
+                            <div class="amount">₹{{ bp.sale_price|floatformat:0 }}</div>
+                            <div class="period">{% if bp.duration_months == 1 %}/month{% else %}total{% endif %}</div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn-subscribe bundle-btn" id="bundleBtn" onclick="goToBundle()">
+                    <i class="bi bi-lightning-charge-fill"></i>
+                    Get All Modules
+                </button>
+            </div>
+            {% endif %}
+
             <div class="features">
                 <div class="section-title">What's Included</div>
                 <ul>
@@ -521,6 +615,31 @@
                     showToast('Please select a plan before proceeding', 'warning', 'Plan Required');
                 }
             });
+        }
+        // Bundle plan selection
+        let selectedBundlePlanId = null;
+        let selectedBundleId = null;
+        {% if bundle_plans %}
+        {% for bp in bundle_plans %}{% if bp.is_popular %}
+        selectedBundlePlanId = {{ bp.id }};
+        selectedBundleId = {{ bundle.id }};
+        {% endif %}{% endfor %}
+        {% endif %}
+
+        function selectBundlePlan(el, planId, bundleId) {
+            document.querySelectorAll('[name="bundle_plan_id"]').forEach(r => r.closest('.plan-option').classList.remove('selected'));
+            el.classList.add('selected');
+            el.querySelector('input[type="radio"]').checked = true;
+            selectedBundlePlanId = planId;
+            selectedBundleId = bundleId;
+        }
+
+        function goToBundle() {
+            if (selectedBundlePlanId && selectedBundleId) {
+                window.location.href = '/subscriptions/bundle/checkout/' + selectedBundleId + '/' + selectedBundlePlanId + '/';
+            } else {
+                showToast('Please select a bundle plan', 'warning', 'Plan Required');
+            }
         }
     </script>
 </body>

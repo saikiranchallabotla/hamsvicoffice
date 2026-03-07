@@ -408,6 +408,90 @@ class ModulePricing(models.Model):
 
 
 # ==============================================================================
+# MODULE BUNDLES (Buy All Modules at Once)
+# ==============================================================================
+
+class ModuleBundle(models.Model):
+    """
+    Bundle that allows purchasing all modules at once at a discounted price.
+    Admin can set the name, which modules are included, and pricing tiers.
+    """
+    name = models.CharField(max_length=100, default='All Modules Bundle')
+    description = models.TextField(blank=True, default='Get access to all modules at a special bundled price.')
+    modules = models.ManyToManyField(Module, related_name='bundles', help_text='Modules included in this bundle')
+    icon = models.CharField(max_length=50, default='stack', help_text='Bootstrap icon name')
+    color = models.CharField(max_length=20, default='#8b5cf6')
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+    features = models.JSONField(default=list, blank=True, help_text='Feature strings for display')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+    def get_active_pricing(self):
+        return self.bundle_pricing.filter(is_active=True).order_by('duration_months')
+
+    def individual_total(self, duration_months=1):
+        """Sum of individual module prices for the same duration."""
+        total = Decimal('0.00')
+        for module in self.modules.filter(is_active=True, is_free=False):
+            pricing = ModulePricing.objects.filter(
+                module=module, duration_months=duration_months, is_active=True
+            ).first()
+            if pricing:
+                total += pricing.sale_price
+        return total
+
+
+class BundlePricing(models.Model):
+    """Pricing tiers for a ModuleBundle."""
+    DURATION_CHOICES = ModulePricing.DURATION_CHOICES
+
+    bundle = models.ForeignKey(ModuleBundle, on_delete=models.CASCADE, related_name='bundle_pricing')
+    duration_months = models.PositiveIntegerField(choices=DURATION_CHOICES, default=1)
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))],
+                                     help_text='Original price (can be sum of individual modules or any reference)')
+    sale_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))],
+                                     help_text='Actual bundle selling price')
+    gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    is_active = models.BooleanField(default=True)
+    is_popular = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['bundle', 'duration_months']
+        ordering = ['bundle', 'duration_months']
+
+    def __str__(self):
+        return f"{self.bundle.name} - {self.get_duration_months_display()}"
+
+    @property
+    def discount_percent(self):
+        if self.base_price > 0:
+            return round(((self.base_price - self.sale_price) / self.base_price) * 100, 0)
+        return 0
+
+    @property
+    def gst_amount(self):
+        return (self.sale_price * self.gst_percent) / 100
+
+    @property
+    def total_price(self):
+        return self.sale_price + self.gst_amount
+
+    @property
+    def monthly_price(self):
+        if self.duration_months > 0:
+            return self.sale_price / self.duration_months
+        return self.sale_price
+
+
+# ==============================================================================
 # USER SUBSCRIPTIONS
 # ==============================================================================
 

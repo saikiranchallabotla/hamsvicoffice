@@ -192,6 +192,95 @@ class PaymentService:
         )
     
     @classmethod
+    def create_bundle_order(cls, user, bundle, bundle_pricing, coupon_code=None):
+        """Create order for a module bundle purchase."""
+        from subscriptions.models import Module, Payment, Coupon
+
+        modules = bundle.modules.filter(is_active=True)
+        if not modules.exists():
+            return cls._fail("No modules in bundle.", code="EMPTY_BUNDLE")
+
+        module_codes = list(modules.values_list('code', flat=True))
+        subtotal = bundle_pricing.sale_price
+
+        discount_amount = Decimal('0.00')
+        coupon = None
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(code=coupon_code.upper())
+                can_use, error = coupon.can_use(user, subtotal)
+                if not can_use:
+                    return cls._fail(error, code="COUPON_INVALID")
+                discount_amount = coupon.calculate_discount(subtotal)
+            except Coupon.DoesNotExist:
+                return cls._fail("Invalid coupon code.", code="COUPON_NOT_FOUND")
+
+        taxable = subtotal - discount_amount
+        gst_rate = bundle_pricing.gst_percent
+        gst_amount = (taxable * gst_rate) / 100
+        total = taxable + gst_amount
+
+        order_id = Payment.generate_order_id()
+        razorpay_result = cls._create_razorpay_order(
+            amount=total,
+            receipt=order_id,
+            notes={
+                'user_id': str(user.id),
+                'modules': ','.join(module_codes),
+                'bundle_id': str(bundle.id),
+                'duration': bundle_pricing.duration_months,
+            }
+        )
+        if not razorpay_result['ok']:
+            return razorpay_result
+
+        razorpay_order_id = razorpay_result['data']['id']
+
+        payment = Payment.objects.create(
+            order_id=order_id,
+            user=user,
+            subtotal=subtotal,
+            discount_amount=discount_amount,
+            gst_amount=gst_amount,
+            total_amount=total,
+            coupon=coupon,
+            gateway='razorpay',
+            gateway_order_id=razorpay_order_id,
+            billing_name=user.get_full_name(),
+            billing_email=user.email,
+            pricing_snapshot={
+                'bundle': bundle.name,
+                'modules': [
+                    {'code': m.code, 'name': m.name, 'duration': bundle_pricing.duration_months}
+                    for m in modules
+                ],
+                'gst_percent': str(gst_rate),
+            }
+        )
+        payment.modules.set(modules)
+
+        cls._audit_log(user, "bundle_order_created", {
+            "order_id": order_id, "amount": str(total),
+            "bundle": bundle.name, "modules": module_codes,
+        })
+
+        return cls._success("Order created successfully.", data={
+            "order_id": order_id,
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_key_id": cls.RAZORPAY_KEY_ID,
+            "amount": int(total * 100),
+            "amount_display": f"₹{total:,.2f}",
+            "currency": cls.CURRENCY,
+            "subtotal": str(subtotal),
+            "discount": str(discount_amount),
+            "gst": str(gst_amount),
+            "total": str(total),
+            "user_name": user.get_full_name(),
+            "user_email": user.email,
+            "user_phone": getattr(user, 'phone', ''),
+        })
+
+    @classmethod
     def verify_payment(
         cls,
         razorpay_order_id: str,

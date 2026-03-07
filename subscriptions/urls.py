@@ -22,9 +22,11 @@ urlpatterns = [
     
     # Checkout
     path('checkout/<str:module_code>/<int:pricing_id>/', views.checkout_view, name='checkout'),
+    path('bundle/checkout/<int:bundle_id>/<int:pricing_id>/', views.bundle_checkout_view, name='bundle_checkout'),
     
     # Payment API
     path('api/create-order/', views.create_order_view, name='create_order'),
+    path('api/create-bundle-order/', views.create_bundle_order_view, name='create_bundle_order'),
     path('api/verify-payment/', views.verify_payment_view, name='verify_payment'),
     path('api/validate-coupon/', views.validate_coupon_view, name='validate_coupon'),
     

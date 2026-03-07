@@ -7,7 +7,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from subscriptions.models import (
     Module, ModuleBackend, ModulePricing, UserModuleSubscription,
-    Payment, Invoice, Coupon, UsageLog
+    Payment, Invoice, Coupon, UsageLog, ModuleBundle, BundlePricing
 )
 
 
@@ -115,6 +115,41 @@ class ModulePricingAdmin(admin.ModelAdmin):
             )
         return '-'
     discount_display.short_description = 'Discount'
+
+
+# ==============================================================================
+# MODULE BUNDLE ADMIN
+# ==============================================================================
+
+class BundlePricingInline(admin.TabularInline):
+    model = BundlePricing
+    extra = 1
+    fields = ('duration_months', 'base_price', 'sale_price', 'gst_percent', 'is_active', 'is_popular')
+
+
+@admin.register(ModuleBundle)
+class ModuleBundleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'module_count', 'display_order')
+    list_filter = ('is_active',)
+    list_editable = ('is_active', 'display_order')
+    filter_horizontal = ('modules',)
+    inlines = [BundlePricingInline]
+
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name', 'description', 'modules')
+        }),
+        ('Display', {
+            'fields': ('icon', 'color', 'display_order', 'features')
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+    )
+
+    def module_count(self, obj):
+        return obj.modules.count()
+    module_count.short_description = 'Modules'
 
 
 # ==============================================================================

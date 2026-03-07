@@ -23,6 +23,7 @@ def module_access_view(request, module_code):
     Admins/superusers can view the page to see pricing options.
     """
     from subscriptions.services.subscription_service import SubscriptionService
+    from subscriptions.models import ModuleBundle
     
     module = get_object_or_404(Module, code=module_code, is_active=True)
     
@@ -104,6 +105,16 @@ def module_access_view(request, module_code):
         'reason': reason,
         'current_subscription': current_sub,  # Show current trial/subscription status
     }
+
+    # Add active bundle info if this module is part of a bundle
+    bundle = ModuleBundle.objects.filter(
+        is_active=True, modules=module
+    ).prefetch_related('modules', 'bundle_pricing').first()
+    if bundle:
+        bundle_plans = bundle.get_active_pricing()
+        if bundle_plans.exists():
+            context['bundle'] = bundle
+            context['bundle_plans'] = bundle_plans
     
     return render(request, 'subscriptions/module_access.html', context)
 
@@ -382,3 +393,66 @@ def payment_history_view(request):
     }
     
     return render(request, 'subscriptions/payment_history.html', context)
+
+
+@login_required
+def bundle_checkout_view(request, bundle_id, pricing_id):
+    """Checkout page for purchasing a bundle (all modules at once)."""
+    from subscriptions.models import ModuleBundle, BundlePricing
+
+    bundle = get_object_or_404(ModuleBundle, id=bundle_id, is_active=True)
+    pricing = get_object_or_404(BundlePricing, id=pricing_id, bundle=bundle, is_active=True)
+    bundle_modules = bundle.modules.filter(is_active=True).order_by('display_order')
+
+    context = {
+        'bundle': bundle,
+        'pricing': pricing,
+        'bundle_modules': bundle_modules,
+    }
+    return render(request, 'subscriptions/bundle_checkout.html', context)
+
+
+@login_required
+@require_POST
+def create_bundle_order_view(request):
+    """Create a Razorpay order for a bundle purchase."""
+    from subscriptions.services.payment_service import PaymentService
+    from subscriptions.models import BundlePricing
+
+    pricing_id = request.POST.get('pricing_id')
+    coupon_code = request.POST.get('coupon_code', '').strip() or None
+
+    try:
+        pricing = BundlePricing.objects.select_related('bundle').get(id=pricing_id, is_active=True)
+    except BundlePricing.DoesNotExist:
+        return JsonResponse({'ok': False, 'reason': 'Invalid bundle pricing.'}, status=400)
+
+    bundle = pricing.bundle
+    module_codes = list(bundle.modules.filter(is_active=True).values_list('code', flat=True))
+    if not module_codes:
+        return JsonResponse({'ok': False, 'reason': 'No modules in this bundle.'}, status=400)
+
+    # Use PaymentService.create_order but with the bundle's own price
+    result = PaymentService.create_bundle_order(
+        user=request.user,
+        bundle=bundle,
+        bundle_pricing=pricing,
+        coupon_code=coupon_code,
+    )
+
+    if result['ok']:
+        data = result.get('data', {})
+        return JsonResponse({
+            'ok': True,
+            'order_id': data.get('razorpay_order_id'),
+            'internal_order_id': data.get('order_id'),
+            'amount': data.get('amount'),
+            'currency': data.get('currency', 'INR'),
+            'key': data.get('razorpay_key_id'),
+            'prefill': {
+                'name': data.get('user_name', ''),
+                'email': data.get('user_email', ''),
+            }
+        })
+
+    return JsonResponse({'ok': False, 'reason': result.get('reason', 'Failed to create order.')}, status=400)
