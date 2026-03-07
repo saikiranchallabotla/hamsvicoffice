@@ -202,7 +202,6 @@
     .ae-row { background: #fef2f2 !important; }
     .ae-row:hover { background: #fee2e2 !important; }
     .ae-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #dc2626; color: white; font-size: 0.65rem; font-weight: 700; }
-    .ae-separator td { background: #fecaca; padding: 0.25rem 0.5rem !important; font-weight: 700; color: #991b1b; font-size: 0.75rem; }
 
     .item-name {
         font-weight: 600;
@@ -790,9 +789,12 @@
         const tbody = document.getElementById('quantities-tbody');
         let itemCount = 0;
 
-        // Build a set of parent keys that have AE rows (for capping base qty)
-        const aeParentKeys = new Set();
-        billData.aeItems.forEach(ae => { if (ae.parent_key) aeParentKeys.add(ae.parent_key); });
+        // Build a map of parent_key -> AE item for inline rendering
+        const aeByParent = {};
+        billData.aeItems.forEach((ae, aeIdx) => {
+            aeByParent[ae.parent_key] = { ...ae, _aeIdx: aeIdx };
+        });
+        const aeParentKeys = new Set(Object.keys(aeByParent));
 
         billData.items.forEach((item, idx) => {
             const key = item.key || `item_${idx}`;
@@ -900,21 +902,18 @@
                 updateRowAmount(idx, key);
                 updateSummary();
             });
-        });
 
-        // ── AE (Additional Estimate) Rows ──
-        // Items where workslip qty exceeds estimate qty
-        if (billData.aeItems.length > 0) {
-            // Add separator row
-            const sepRow = document.createElement('tr');
-            sepRow.className = 'ae-separator';
-            sepRow.innerHTML = `<td colspan="9"><i class="bi bi-exclamation-triangle-fill me-1"></i> Additional Estimate (AE) — Items exceeding estimate quantity</td>`;
-            tbody.appendChild(sepRow);
-
-            billData.aeItems.forEach((aeItem, aeIdx) => {
+            // ── Inline AE row right after its parent item ──
+            if (hasAE) {
+                const aeItem = aeByParent[key];
+                const aeIdx = aeItem._aeIdx;
                 const aeKey = aeItem.key;
                 const aeRate = parseFloat(aeItem.rate) || 0;
                 rateMap[aeKey] = aeRate;
+
+                const excessQty = parseFloat(aeItem.qty_excess) || 0;
+                const prevAE = billData.previousItems.find(p => p.key === aeKey);
+                const prevAEQty = prevAE ? parseFloat(prevAE.qty) || 0 : 0;
 
                 const aeRow = document.createElement('tr');
                 aeRow.className = 'ae-row';
@@ -922,20 +921,12 @@
                 aeRow.dataset.key = aeKey;
                 aeRow.dataset.rate = aeRate;
 
-                const excessQty = parseFloat(aeItem.qty_excess) || 0;
-
-                // Find previous AE deduction (for Bill 2+)
-                const prevAE = billData.previousItems.find(p => p.key === aeKey);
-                const prevAEQty = prevAE ? parseFloat(prevAE.qty) || 0 : 0;
-
                 if (billData.billNumber === 1) {
                     deductMap[aeKey] = 0;
-
                     aeRow.innerHTML = `
                         <td class="sl-col"><span class="ae-badge">AE ${aeItem.ae_number}</span></td>
                         <td class="item-col">
-                            <div class="item-name">${aeItem.item_name || 'Item'}</div>
-                            <small style="color: #dc2626;">Excess over estimate</small>
+                            <small style="color: #dc2626; font-weight: 600;">↳ Excess over estimate</small>
                         </td>
                         <td class="unit-col">${aeItem.unit || 'Nos'}</td>
                         <td class="rate-col">₹${aeRate.toFixed(2)}</td>
@@ -943,9 +934,7 @@
                         <td class="ws-col" style="color: #dc2626; font-weight: 600;">${excessQty > 0 ? excessQty : '-'}</td>
                         <td class="deduct-col">
                             <input type="number" class="qty-input readonly deduct-qty"
-                                   data-key="${aeKey}"
-                                   value="0"
-                                   readonly tabindex="-1">
+                                   data-key="${aeKey}" value="0" readonly tabindex="-1">
                         </td>
                         <td class="tilldate-col">
                             <input type="number" class="qty-input tilldate exec-qty"
@@ -955,18 +944,15 @@
                         </td>
                         <td class="amount-col" id="ae_amount_${aeIdx}">₹0.00</td>
                     `;
-
                     if (excessQty > 0) {
                         execMap[aeKey] = excessQty;
                     }
                 } else {
                     deductMap[aeKey] = prevAEQty;
-
                     aeRow.innerHTML = `
                         <td class="sl-col"><span class="ae-badge">AE ${aeItem.ae_number}</span></td>
                         <td class="item-col">
-                            <div class="item-name">${aeItem.item_name || 'Item'}</div>
-                            <small style="color: #dc2626;">Excess over estimate</small>
+                            <small style="color: #dc2626; font-weight: 600;">↳ Excess over estimate</small>
                         </td>
                         <td class="unit-col">${aeItem.unit || 'Nos'}</td>
                         <td class="rate-col">₹${aeRate.toFixed(2)}</td>
@@ -980,8 +966,7 @@
                         </td>
                         <td class="tilldate-col">
                             <input type="number" class="qty-input tilldate exec-qty"
-                                   data-key="${aeKey}"
-                                   value=""
+                                   data-key="${aeKey}" value=""
                                    step="0.01" min="0" placeholder="0.00">
                         </td>
                         <td class="amount-col" id="ae_amount_${aeIdx}">₹0.00</td>
@@ -990,7 +975,6 @@
 
                 tbody.appendChild(aeRow);
 
-                // Event listeners for AE quantity input
                 const aeQtyInput = aeRow.querySelector('.exec-qty');
                 aeQtyInput.addEventListener('input', () => {
                     const qty = parseFloat(aeQtyInput.value) || 0;
@@ -1002,8 +986,8 @@
                     updateAERowAmount(aeIdx, aeKey);
                     updateSummary();
                 });
-            });
-        }
+            }
+        });
 
         // Trigger initial calculation for Bill 1 pre-filled values
         if (billData.billNumber === 1) {
