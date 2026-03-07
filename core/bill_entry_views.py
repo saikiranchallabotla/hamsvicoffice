@@ -47,17 +47,23 @@ def bill_entry(request, work_id):
     work_data = source_work.work_data or {}
     
     # Get items from source work
+    ae_qty_map = {}  # Agreement Estimate quantities
     if source_work.work_type == 'workslip':
         ws_rows = work_data.get('ws_estimate_rows', [])
         ws_exec = work_data.get('ws_exec_map', {})
         bill_number = source_work.workslip_number or 1
         item_type = 'workslip'
+        # Get AE quantities from the parent estimate
+        parent_estimate = source_work.parent
+        if parent_estimate and parent_estimate.work_data:
+            ae_qty_map = parent_estimate.work_data.get('qty_map', {})
     else:
         # From estimate
         ws_rows = work_data.get('fetched_items', [])
         ws_exec = work_data.get('qty_map', {})
         bill_number = 1
         item_type = 'estimate'
+        ae_qty_map = work_data.get('qty_map', {})
     
     # Allow bill_number override via query parameter (used by generate_next_bill, resume)
     bill_number_override = request.GET.get('bill_number')
@@ -81,9 +87,16 @@ def bill_entry(request, work_id):
         except (ValueError, TypeError):
             qty_exec = 0.0
         
+        # Get AE (Agreement Estimate) quantity for this item
+        item_name = row.get('display_name') or row.get('item_name') or row.get('desc') or 'Item'
+        qty_ae = ae_qty_map.get(key, ae_qty_map.get(item_name, row.get('qty', row.get('qty_est', 0))))
+        try:
+            qty_ae = float(qty_ae) if qty_ae else 0.0
+        except (ValueError, TypeError):
+            qty_ae = 0.0
+        
         # Include ALL items from workslip, including supplemental items
         rate = float(row.get('rate', 0) or 0)
-        item_name = row.get('display_name') or row.get('item_name') or row.get('desc') or 'Item'
         unit = row.get('unit') or 'Nos'
         
         bill_items.append({
@@ -91,6 +104,7 @@ def bill_entry(request, work_id):
             'item_name': item_name,
             'unit': unit,
             'qty_exec': qty_exec,
+            'qty_ae': qty_ae,
             'rate': rate,
             'is_supplemental': 'Supplemental' in (row.get('label', '') or ''),
         })
@@ -119,6 +133,7 @@ def bill_entry(request, work_id):
                 'item_name': supp_name,
                 'unit': supp_unit,
                 'qty_exec': supp_qty,
+                'qty_ae': 0,
                 'rate': supp_rate,
             })
 
@@ -148,6 +163,7 @@ def bill_entry(request, work_id):
                     'item_name': supp_name,
                     'unit': supp_unit,
                     'qty_exec': supp_qty,
+                    'qty_ae': 0,
                     'rate': supp_rate,
                 })
 
