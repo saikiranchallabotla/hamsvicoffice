@@ -179,13 +179,18 @@ function saveCurrentWork() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
     btn.disabled = true;
     
-    fetch('/saved-works/save/', {
+    // Sync client-side data (quantities, entries) to session before saving
+    const syncPromise = (typeof window.preSaveSync === 'function')
+        ? Promise.resolve(window.preSaveSync())
+        : Promise.resolve();
+    
+    syncPromise.then(() => fetch('/saved-works/save/', {
         method: 'POST',
         body: formData,
         headers: {
             'X-CSRFToken': formData.get('csrfmiddlewaretoken')
         }
-    })
+    }))
     .then(res => res.json())
     .then(data => {
         btn.innerHTML = originalText;

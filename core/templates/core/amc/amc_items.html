@@ -1702,6 +1702,19 @@ document.addEventListener('click', function(e) {
         document.body.appendChild(form);
         form.submit();
     };
+
+    // Pre-save hook: sync quantities to session before Save Work modal saves
+    window.preSaveSync = function() {
+        var qtyMap = buildQtyMap();
+        var workInput = document.getElementById('work-name-input');
+        var grandTotalInput = document.getElementById('grand-total-input');
+        var formData = new FormData();
+        formData.append('qty_map', JSON.stringify(qtyMap));
+        formData.append('work_name', workInput ? workInput.value : '');
+        formData.append('grand_total', grandTotalInput ? grandTotalInput.value : '');
+        formData.append('csrfmiddlewaretoken', csrfToken);
+        return fetch(saveQtyMapUrl, { method: 'POST', body: formData });
+    };
 })();
 </script>
 

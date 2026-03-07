@@ -1860,6 +1860,9 @@ document.addEventListener('click', function(e) {
   // Expose functions to global scope
   window.updateTaxBreakdown = updateTaxBreakdown;
   window.toggleTaxBreakdown = toggleTaxBreakdown;
+
+  // Pre-save hook: sync entries (with qty/days) to session before Save Work modal saves
+  window.preSaveSync = function() { return saveState(); };
 })();
 </script>
 
