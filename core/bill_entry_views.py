@@ -59,6 +59,14 @@ def bill_entry(request, work_id):
         bill_number = 1
         item_type = 'estimate'
     
+    # Allow bill_number override via query parameter (used by generate_next_bill, resume)
+    bill_number_override = request.GET.get('bill_number')
+    if bill_number_override:
+        try:
+            bill_number = int(bill_number_override)
+        except (ValueError, TypeError):
+            pass
+    
     if not ws_rows:
         messages.error(request, f'{source_work.work_type.title()} has no items.')
         return redirect('saved_work_detail', work_id=work_id)
@@ -186,7 +194,7 @@ def bill_entry(request, work_id):
             
             # Build previous bill items
             for idx, row in enumerate(prev_rows):
-                key = row.get('key', f'item_{idx}')
+                key = row.get('key') or row.get('item_name') or row.get('display_name') or row.get('desc') or f'item_{idx}'
                 qty = prev_exec.get(key, 0)
                 try:
                     qty = float(qty) if qty else 0.0
@@ -371,8 +379,17 @@ def _bill_entry_save_logic(request, work_id):
         # Get source work data
         work_data = source_work.work_data or {}
         
-        # Determine bill number
-        if source_work.work_type == 'workslip':
+        # Determine bill number (from POST override, GET override, or workslip number)
+        bill_number_override = request.POST.get('bill_number_override') or request.GET.get('bill_number')
+        if bill_number_override:
+            try:
+                bill_number = int(bill_number_override)
+            except (ValueError, TypeError):
+                if source_work.work_type == 'workslip':
+                    bill_number = source_work.workslip_number or 1
+                else:
+                    bill_number = 1
+        elif source_work.work_type == 'workslip':
             bill_number = source_work.workslip_number or 1
         else:
             bill_number = 1

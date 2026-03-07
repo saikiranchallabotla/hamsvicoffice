@@ -469,6 +469,7 @@
     <form id="bill-entry-form" method="post" action="">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_bill_data">
+        <input type="hidden" name="bill_number_override" value="{{ bill_number }}">
         <input type="hidden" id="bill-exec-map-field" name="bill_exec_map">
         <input type="hidden" id="bill-deduct-map-field" name="bill_deduct_map">
         <input type="hidden" id="bill-rate-map-field" name="bill_rate_map">

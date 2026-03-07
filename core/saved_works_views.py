@@ -1216,7 +1216,10 @@ def get_module_url(saved_work):
             source_workslip_id = work_data.get('bill_parent_work_id') or work_data.get('source_workslip_id') or work_data.get('bill_source_work_id')
         
         if source_workslip_id:
-            return reverse('bill_entry', kwargs={'work_id': int(source_workslip_id)})
+            bill_num = saved_work.bill_number or 1
+            url = reverse('bill_entry', kwargs={'work_id': int(source_workslip_id)})
+            # Pass bill_number so the page shows the correct bill, not the workslip's number
+            return f"{url}?bill_number={bill_num}"
         # Fallback to old bill module page if no source workslip found
         return reverse('bill') + '?from_saved=1'
 
@@ -3108,10 +3111,28 @@ def generate_next_bill_from_saved(request, work_id):
             if newest_ws:
                 source_workslip_id = newest_ws.id
 
-    # Redirect to bill_entry for the source workslip so user can enter new quantities
+    # Redirect to bill_entry for the next workslip or pass bill_number override
     if source_workslip_id:
+        # Try to find the correct workslip for the next bill number
+        # (e.g., Bill 2 should come from W2 if it exists)
+        source_ws = SavedWork.objects.filter(id=source_workslip_id).first()
+        if source_ws:
+            root_estimate = source_ws.parent if source_ws.work_type == 'workslip' else source_ws
+            if root_estimate:
+                next_ws = SavedWork.objects.filter(
+                    organization=org, user=user,
+                    work_type='workslip',
+                    parent=root_estimate,
+                    workslip_number=next_bill_number,
+                ).first()
+                if next_ws:
+                    # W(N+1) exists, use it directly
+                    messages.success(request, f'Enter quantities for Bill-{next_bill_number}.')
+                    return redirect(f"{reverse('bill_entry', kwargs={'work_id': next_ws.id})}")
+        
+        # No matching workslip found - use the same workslip with bill_number override
         messages.success(request, f'Enter quantities for Bill-{next_bill_number}.')
-        return redirect('bill_entry', work_id=int(source_workslip_id))
+        return redirect(f"{reverse('bill_entry', kwargs={'work_id': int(source_workslip_id)})}?bill_number={next_bill_number}")
 
     # Fallback if no workslip found
     messages.error(request, 'Could not find source workslip for this bill chain.')
