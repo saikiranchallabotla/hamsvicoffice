@@ -2233,8 +2233,15 @@ def bill_generate(request, work_id):
     items = []
     total_amount = 0.0
     for idx, row in enumerate(ws_rows):
-        key = row.get('key', f'saved_{idx}')
+        # Key derivation MUST match bill_entry view: key or item_name or item_{idx}
+        key = row.get('key') or row.get('item_name') or f'item_{idx}'
         exec_qty = ws_exec_map.get(key, 0)
+        # Also try fallback keys in case of older data
+        if not exec_qty:
+            for alt_key in [f'saved_{idx}', row.get('display_name', ''), row.get('desc', '')]:
+                if alt_key and alt_key in ws_exec_map:
+                    exec_qty = ws_exec_map[alt_key]
+                    break
         try:
             exec_qty = float(exec_qty) if exec_qty else 0.0
         except (ValueError, TypeError):
@@ -2375,8 +2382,15 @@ def bill_generate(request, work_id):
                 pb_exec = pb_data.get('bill_exec_map', {}) or {}
             pb_rows = pb_data.get('bill_ws_rows', ws_rows)  # fallback to workslip rows
             for pidx, prow in enumerate(pb_rows):
-                pkey = prow.get('key', f'saved_{pidx}')
+                # Key derivation must match bill_entry: key or item_name or item_{idx}
+                pkey = prow.get('key') or prow.get('item_name') or f'item_{pidx}'
                 pqty = pb_exec.get(pkey, 0)
+                # Also try fallback keys for older data
+                if not pqty:
+                    for alt_key in [f'saved_{pidx}', prow.get('display_name', ''), prow.get('desc', '')]:
+                        if alt_key and alt_key in pb_exec:
+                            pqty = pb_exec[alt_key]
+                            break
                 try:
                     pqty = float(pqty) if pqty else 0.0
                 except (ValueError, TypeError):
@@ -2487,7 +2501,10 @@ def bill_generate(request, work_id):
             # Build complete rows list including supplemental items so the next bill
             # can find ALL items for deduction
             complete_bill_rows = list(ws_rows)  # main estimate rows
-            seen_keys = set(row.get('key', f'saved_{i}') for i, row in enumerate(ws_rows))
+            seen_keys = set(
+                (row.get('key') or row.get('item_name') or f'item_{i}')
+                for i, row in enumerate(ws_rows)
+            )
             # Add supplemental items that were included in the bill
             for item in items:
                 if item['key'] not in seen_keys:
