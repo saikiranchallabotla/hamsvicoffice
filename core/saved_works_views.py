@@ -2381,9 +2381,11 @@ def bill_generate(request, work_id):
             if not pb_exec:
                 pb_exec = pb_data.get('bill_exec_map', {}) or {}
             pb_rows = pb_data.get('bill_ws_rows', ws_rows)  # fallback to workslip rows
+            seen_pb_keys = set()
             for pidx, prow in enumerate(pb_rows):
                 # Key derivation must match bill_entry: key or item_name or item_{idx}
                 pkey = prow.get('key') or prow.get('item_name') or f'item_{pidx}'
+                seen_pb_keys.add(pkey)
                 pqty = pb_exec.get(pkey, 0)
                 # Also try fallback keys for older data
                 if not pqty:
@@ -2402,6 +2404,23 @@ def bill_generate(request, work_id):
                             'rate': float(prow.get('rate', 0) or 0),
                         }
                     prev_qty_map[pkey]['qty'] += pqty
+
+            # Also check pb_exec for supplemental keys NOT found in pb_rows
+            # (handles older bills saved before supplemental items were included in bill_ws_rows)
+            for exec_key, exec_val in pb_exec.items():
+                if exec_key in seen_pb_keys:
+                    continue
+                try:
+                    pqty = float(exec_val) if exec_val else 0.0
+                except (ValueError, TypeError):
+                    pqty = 0.0
+                if pqty > 0:
+                    if exec_key not in prev_qty_map:
+                        prev_qty_map[exec_key] = {
+                            'qty': 0.0,
+                            'rate': 0.0,
+                        }
+                    prev_qty_map[exec_key]['qty'] += pqty
 
     # User document templates
     covering_template = get_user_template(user, 'covering_letter')
