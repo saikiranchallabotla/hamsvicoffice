@@ -88,12 +88,16 @@ def bill_entry(request, work_id):
             qty_exec = 0.0
         
         # Get AE (Agreement Estimate) quantity for this item
+        # Use the estimate qty from the workslip row (qty or qty_est field) as the authoritative source
         item_name = row.get('display_name') or row.get('item_name') or row.get('desc') or 'Item'
-        qty_ae = ae_qty_map.get(key, ae_qty_map.get(item_name, row.get('qty', row.get('qty_est', 0))))
-        try:
-            qty_ae = float(qty_ae) if qty_ae else 0.0
-        except (ValueError, TypeError):
-            qty_ae = 0.0
+        qty_ae = float(row.get('qty', row.get('qty_est', 0)) or 0)
+        # If row doesn't have est qty, try the parent estimate's qty_map
+        if qty_ae <= 0:
+            qty_ae_raw = ae_qty_map.get(key, ae_qty_map.get(item_name, 0))
+            try:
+                qty_ae = float(qty_ae_raw) if qty_ae_raw else 0.0
+            except (ValueError, TypeError):
+                qty_ae = 0.0
         
         # Include ALL items from workslip, including supplemental items
         rate = float(row.get('rate', 0) or 0)

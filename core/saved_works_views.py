@@ -2369,6 +2369,85 @@ def bill_generate(request, work_id):
                 'key': supp_key,
             })
 
+    # ── AE (Excess over Estimate) splitting ──
+    # When workslip qty > estimate qty, split the item into:
+    #   - Base row: qty capped at estimate qty
+    #   - AE row: excess qty (workslip qty - estimate qty)
+    # Get estimate quantities from parent estimate
+    ae_qty_map = {}
+    parent_estimate = workslip.parent
+    if parent_estimate and parent_estimate.work_data:
+        ae_qty_map = parent_estimate.work_data.get('qty_map', {})
+
+    # Also check ws_exec_map for AE keys saved by bill_entry (keys like "ae:...")
+    ae_exec_keys = {k: v for k, v in ws_exec_map.items() if k.startswith('ae:')}
+
+    split_items = []
+    ae_counter = 1
+    for item in items:
+        item_key = item['key']
+        item_name_for_lookup = item['desc']
+
+        # Get est_qty from ws_rows first (authoritative source), then fallback to ae_qty_map
+        est_qty = 0.0
+        for row in ws_rows:
+            rkey = row.get('key') or row.get('item_name') or ''
+            if rkey == item_key:
+                est_qty = float(row.get('qty', row.get('qty_est', 0)) or 0)
+                break
+        if est_qty <= 0:
+            est_raw = ae_qty_map.get(item_key, ae_qty_map.get(item_name_for_lookup, 0))
+            try:
+                est_qty = float(est_raw) if est_raw else 0.0
+            except (ValueError, TypeError):
+                est_qty = 0.0
+
+        exec_qty = item['qty']
+        ae_key = f"ae:{item_key}"
+        ae_saved_qty = 0
+        try:
+            ae_saved_qty = float(ae_exec_keys.get(ae_key, 0) or 0)
+        except (ValueError, TypeError):
+            ae_saved_qty = 0
+
+        if est_qty > 0 and (exec_qty > est_qty or ae_saved_qty > 0):
+            # Cap main item at estimate qty
+            base_qty = min(exec_qty, est_qty)
+            excess_qty = ae_saved_qty if ae_saved_qty > 0 else (exec_qty - est_qty)
+            if excess_qty < 0:
+                excess_qty = 0
+
+            item['qty'] = base_qty
+            item['amount'] = round(base_qty * item['rate'], 2)
+            split_items.append(item)
+
+            if excess_qty > 0:
+                ae_amount = round(excess_qty * item['rate'], 2)
+                split_items.append({
+                    'sl': None,
+                    'qty': excess_qty,
+                    'unit': item['unit'],
+                    'desc': item['desc'],
+                    'rate': item['rate'],
+                    'is_ae': True,
+                    'amount': ae_amount,
+                    'key': ae_key,
+                    'ae_number': ae_counter,
+                })
+                ae_counter += 1
+        else:
+            split_items.append(item)
+
+    # Re-number serial numbers and recalculate total
+    items = split_items
+    slno = 1
+    total_amount = 0.0
+    for item in items:
+        if not item.get('is_ae'):
+            item['sl'] = slno
+            slno += 1
+        total_amount += item['amount']
+
     # For Bill 2+, gather cumulative previous quantities from ALL completed bills
     # across the entire estimate workflow chain (B1 on W1, B2 on W2, etc.)
     prev_qty_map = {}
@@ -2483,6 +2562,8 @@ def bill_generate(request, work_id):
                         'prev_qty': prev_qty,
                         'prev_amount': prev_amount,
                         'qty_till_date': item['qty'],
+                        'is_ae': item.get('is_ae', False),
+                        'ae_number': item.get('ae_number', ''),
                     })
 
                 wb_out = Workbook()

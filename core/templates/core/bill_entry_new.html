@@ -819,6 +819,9 @@
 
             let supplementalBadge = item.is_supplemental ? '<span class="item-supplemental">SUPP</span>' : '';
 
+            // W Qty display: if item has AE excess, show est qty (capped); else show full ws qty
+            const displayWsQty = (hasAE && estQty > 0) ? estQty : wsQty;
+
             if (billData.billNumber === 1) {
                 // BILL 1 UI: Previous = 0 (readonly) + Total Till Date (capped at est qty if AE exists)
                 deductMap[key] = 0;  // Previous = 0 for first bill
@@ -832,7 +835,7 @@
                     <td class="unit-col">${item.unit || 'Nos'}</td>
                     <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
                     <td class="est-col" style="color: #166534; font-weight: 500;">${estQty > 0 ? estQty : '-'}</td>
-                    <td class="ws-col" style="color: #7e22ce; font-weight: 500;">${wsQty > 0 ? wsQty : '-'}</td>
+                    <td class="ws-col" style="color: #7e22ce; font-weight: 500;">${displayWsQty > 0 ? displayWsQty : '-'}</td>
                     <td class="deduct-col">
                         <input type="number" class="qty-input readonly deduct-qty" 
                                data-key="${key}"
@@ -868,7 +871,7 @@
                     <td class="unit-col">${item.unit || 'Nos'}</td>
                     <td class="rate-col">₹${rateMap[key].toFixed(2)}</td>
                     <td class="est-col" style="color: #166534; font-weight: 500;">${estQty > 0 ? estQty : '-'}</td>
-                    <td class="ws-col" style="color: #7e22ce; font-weight: 500;">${wsQty > 0 ? wsQty : '-'}</td>
+                    <td class="ws-col" style="color: #7e22ce; font-weight: 500;">${displayWsQty > 0 ? displayWsQty : '-'}</td>
                     <td class="deduct-col">
                         <input type="number" class="qty-input readonly deduct-qty" 
                                data-key="${key}"

@@ -4518,7 +4518,9 @@ def create_first_bill_sheet(
         is_ae = bool(it.get("is_ae", False))
 
         if is_ae:
-            ws_bill.cell(row=row_idx, column=1, value=None)
+            ae_num = it.get("ae_number", "")
+            ws_bill.cell(row=row_idx, column=1, value=f"AE{ae_num}" if ae_num else None)
+            desc = f"Excess over estimate - {desc}"
         else:
             ws_bill.cell(row=row_idx, column=1, value=slno)
 
@@ -4782,8 +4784,15 @@ def build_nth_bill_wb(items, header_data, title_text,
         rate = it.get("rate", 0.0)
         prev_qty = it.get("prev_qty", 0.0)
         prev_amount = it.get("prev_amount", 0.0)
+        is_ae = bool(it.get("is_ae", False))
 
-        ws.cell(row=r, column=1, value=sl)
+        if is_ae:
+            ae_num = it.get("ae_number", "")
+            ws.cell(row=r, column=1, value=f"AE{ae_num}" if ae_num else "AE")
+            desc = f"Excess over estimate - {desc}"
+        else:
+            ws.cell(row=r, column=1, value=sl)
+
         ws.cell(row=r, column=2, value=desc)
         ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
         ws.cell(row=r, column=4, value=unit)
@@ -4804,7 +4813,8 @@ def build_nth_bill_wb(items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
         r += 1
-        sl += 1
+        if not is_ae:
+            sl += 1
 
     last_item_row = r - 1
 
@@ -5002,8 +5012,15 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
         rate = it.get("rate", 0.0)
         prev_qty = it.get("prev_qty", 0.0)
         prev_amount = it.get("prev_amount", 0.0)
+        is_ae = bool(it.get("is_ae", False))
 
-        ws.cell(row=r, column=1, value=sl)
+        if is_ae:
+            ae_num = it.get("ae_number", "")
+            ws.cell(row=r, column=1, value=f"AE{ae_num}" if ae_num else "AE")
+            desc = f"Excess over estimate - {desc}"
+        else:
+            ws.cell(row=r, column=1, value=sl)
+
         ws.cell(row=r, column=2, value=desc)
         ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
         ws.cell(row=r, column=4, value=unit)
@@ -5024,7 +5041,8 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
         r += 1
-        sl += 1
+        if not is_ae:
+            sl += 1
 
     last_item_row = r - 1
 
