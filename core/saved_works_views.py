@@ -2467,13 +2467,19 @@ def bill_generate(request, work_id):
             slno += 1
         total_amount += item['amount']
 
-    # For Bill 2+, gather cumulative previous quantities from ALL completed bills
-    # across the entire estimate workflow chain (B1 on W1, B2 on W2, etc.)
+    # For Bill 2+, get previous bill's "Total Till Date" quantities for deduction.
+    # Bill N's deduction = Bill (N-1)'s Total Till Date (which is already cumulative).
+    # We only use the immediately previous bill, NOT the sum of all previous bills.
     prev_qty_map = {}
     if bill_number > 1:
-        prev_bills_for_deduct = [b for b in completed_bills if (b.bill_number or 0) < bill_number]
-        for pb in prev_bills_for_deduct:
-            pb_data = pb.work_data or {}
+        # Find the immediately previous bill (bill_number - 1)
+        prev_bill_for_deduct = None
+        for b in completed_bills:
+            if (b.bill_number or 0) == bill_number - 1:
+                prev_bill_for_deduct = b
+                break
+        if prev_bill_for_deduct:
+            pb_data = prev_bill_for_deduct.work_data or {}
             pb_exec = pb_data.get('bill_ws_exec_map', {}) or {}
             # Also check bill_exec_map (used by bill_entry save)
             if not pb_exec:
@@ -2496,15 +2502,12 @@ def bill_generate(request, work_id):
                 except (ValueError, TypeError):
                     pqty = 0.0
                 if pqty > 0:
-                    if pkey not in prev_qty_map:
-                        prev_qty_map[pkey] = {
-                            'qty': 0.0,
-                            'rate': float(prow.get('rate', 0) or 0),
-                        }
-                    prev_qty_map[pkey]['qty'] += pqty
+                    prev_qty_map[pkey] = {
+                        'qty': pqty,
+                        'rate': float(prow.get('rate', 0) or 0),
+                    }
 
             # Also check pb_exec for supplemental keys NOT found in pb_rows
-            # (handles older bills saved before supplemental items were included in bill_ws_rows)
             for exec_key, exec_val in pb_exec.items():
                 if exec_key in seen_pb_keys:
                     continue
@@ -2513,12 +2516,10 @@ def bill_generate(request, work_id):
                 except (ValueError, TypeError):
                     pqty = 0.0
                 if pqty > 0:
-                    if exec_key not in prev_qty_map:
-                        prev_qty_map[exec_key] = {
-                            'qty': 0.0,
-                            'rate': 0.0,
-                        }
-                    prev_qty_map[exec_key]['qty'] += pqty
+                    prev_qty_map[exec_key] = {
+                        'qty': pqty,
+                        'rate': 0.0,
+                    }
 
     # User document templates
     covering_template = get_user_template(user, 'covering_letter')
