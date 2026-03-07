@@ -466,7 +466,7 @@
     </div>
 
     <!-- Form -->
-    <form id="bill-entry-form" method="post" action="{% url 'bill_entry' work_id %}">
+    <form id="bill-entry-form" method="post" action="">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_bill_data">
         <input type="hidden" id="bill-exec-map-field" name="bill_exec_map">
@@ -969,7 +969,7 @@
         // Show loading
         showNotification('Saving and generating bill...', 'info');
 
-        fetch('{% url "bill_entry" work_id %}', {
+        fetch(window.location.pathname, {
             method: 'POST',
             body: formData,
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
@@ -1014,7 +1014,7 @@
 
         showNotification('Saving and generating document...', 'info');
 
-        fetch('{% url "bill_entry" work_id %}', {
+        fetch(window.location.pathname, {
             method: 'POST',
             body: formData,
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
@@ -1058,7 +1058,7 @@
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-        fetch(this.action, {
+        fetch(window.location.pathname, {
             method: 'POST',
             body: new FormData(this),
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
