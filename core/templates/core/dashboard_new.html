@@ -340,6 +340,46 @@
             padding: 0.3rem 0.5rem;
             white-space: nowrap;
         }
+
+        .module-card .module-actions .btn-block {
+            width: 100%;
+            text-align: center;
+        }
+
+        .module-card .module-actions .btn .days-badge {
+            font-size: 0.6rem;
+            background: rgba(255,255,255,0.25);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            margin-left: 0.25rem;
+        }
+
+        .module-card .module-actions .btn-subscribed {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: white;
+        }
+        .module-card .module-actions .btn-subscribed:hover {
+            background: #15803d;
+        }
+
+        .module-card .module-actions .btn-trial {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            border: none;
+            color: white;
+        }
+        .module-card .module-actions .btn-trial:hover {
+            background: linear-gradient(135deg, #d97706, #b45309);
+        }
+
+        .module-card .module-actions .btn-expired {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: white;
+        }
+        .module-card .module-actions .btn-expired:hover {
+            background: #b91c1c;
+        }
         
         /* Status Colors */
         .status-active { background: #dcfce7; color: #16a34a; }
@@ -634,31 +674,38 @@
                     {% endif %}
                     
                     <div class="module-actions">
-                        {% if card.can_access and card.module.url_name %}
-                            <a href="{% url card.module.url_name %}" class="btn btn-primary btn-sm">
-                                <i class="bi bi-arrow-right me-1"></i> Open
+                        {% if card.status == 'active' and card.module.url_name %}
+                            <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-subscribed">
+                                <i class="bi bi-check-circle-fill me-1"></i> Open
+                                {% if card.days_left > 0 %}<span class="days-badge">{{ card.days_left }}d left</span>{% endif %}
                             </a>
-                            {% if card.status == 'trial' %}
-                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-outline-success btn-sm" title="Upgrade to paid subscription">
-                                <i class="bi bi-cart me-1"></i> Subscribe
+                        {% elif card.status == 'trial' and card.module.url_name %}
+                            <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-trial">
+                                <i class="bi bi-hourglass-split me-1"></i> Open · Trial
+                                {% if card.days_left > 0 %}<span class="days-badge">{{ card.days_left }}d left</span>{% endif %}
                             </a>
-                            {% endif %}
-                        {% elif card.status == 'locked' or card.status == 'expired' %}
-                            {% if card.module.trial_days > 0 and not card.trial_used %}
-                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-success btn-sm">
-                                    <i class="bi bi-play-circle me-1"></i> Free Trial
-                                </button>
-                            </form>
-                            {% endif %}
-                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-cart me-1"></i> Subscribe
+                        {% elif card.status == 'free' and card.module.url_name %}
+                            <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-primary">
+                                <i class="bi bi-arrow-right me-1"></i> Open · Free
+                            </a>
+                        {% elif card.status == 'expired' %}
+                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-sm btn-block btn-expired">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Renew Subscription
                             </a>
                         {% else %}
-                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-outline-primary btn-sm">
+                            {% if card.module.trial_days > 0 and not card.trial_used %}
+                            <form action="{% url 'start_trial' module_code=card.module.code %}" method="post" style="width:100%">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success btn-sm btn-block">
+                                    <i class="bi bi-play-circle me-1"></i> Start Free Trial
+                                    <span class="days-badge">{{ card.module.trial_days }}d</span>
+                                </button>
+                            </form>
+                            {% else %}
+                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-outline-primary btn-sm btn-block">
                                 <i class="bi bi-cart me-1"></i> Subscribe
                             </a>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
