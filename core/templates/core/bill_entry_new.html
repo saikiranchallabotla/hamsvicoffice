@@ -1020,6 +1020,20 @@
             }
         });
 
+        // Keyboard navigation: Enter/Down → next qty input, Up → previous
+        const allQtyInputs = Array.from(document.querySelectorAll('.exec-qty:not(.readonly)'));
+        allQtyInputs.forEach(function(inp, idx) {
+            inp.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (idx + 1 < allQtyInputs.length) allQtyInputs[idx + 1].focus();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (idx - 1 >= 0) allQtyInputs[idx - 1].focus();
+                }
+            });
+        });
+
         // Trigger initial calculation for pre-filled values (Bill 1 always, Bill 2+ when saved data exists)
         if (billData.billNumber === 1 || Object.keys(billData.savedExecMap).length > 0) {
             billData.items.forEach((item, idx) => {

@@ -272,6 +272,22 @@ document.querySelectorAll('.qty-input').forEach(function(inp) {
         inp.classList.add('has-value');
     }
 });
+
+// Keyboard navigation: Enter/Down → next qty input, Up → previous
+(function() {
+    const inputs = Array.from(document.querySelectorAll('.qty-input'));
+    inputs.forEach(function(inp, idx) {
+        inp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (idx + 1 < inputs.length) inputs[idx + 1].focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (idx - 1 >= 0) inputs[idx - 1].focus();
+            }
+        });
+    });
+})();
 </script>
 
 {% endblock %}
