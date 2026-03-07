@@ -54,6 +54,7 @@ def amc_home(request):
     request.session["amc_work_name"] = ""
     request.session["amc_grand_total"] = ""
     request.session["amc_selected_backend_id"] = None  # Clear backend selection
+    request.session["current_saved_work_id"] = None  # Clear so save modal shows "Save" not "Update"
 
     mode = request.GET.get("work_type")
     if mode in ("original", "repair"):

@@ -49,6 +49,7 @@ def tempworks_home(request):
     request.session["temp_entries"] = []  # list of {"id":..., "name":...}
     request.session["temp_work_name"] = ""
     request.session["temp_selected_backend_id"] = None  # Clear backend selection
+    request.session["current_saved_work_id"] = None  # Clear so save modal shows "Save" not "Update"
     return render(request, "core/tempworks_home.html")
 
 
