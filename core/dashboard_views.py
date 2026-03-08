@@ -36,16 +36,33 @@ def dashboard(request):
     # Get all active modules
     modules = Module.objects.filter(is_active=True).order_by('display_order')
     
-    # Get user's subscriptions
-    # Order by -status so 'trial' comes before 'active' alphabetically reversed,
-    # ensuring 'active' overwrites 'trial' in the dict comprehension below
+    # Get user's subscriptions (all active/trial rows, including expired ones)
     subscriptions = UserModuleSubscription.objects.filter(
         user=user,
         status__in=['active', 'trial']
-    ).select_related('module', 'pricing').order_by('-status')
+    ).select_related('module', 'pricing')
     
-    # Build subscription lookup — active subscription takes precedence over expired trial
-    sub_by_module = {sub.module_id: sub for sub in subscriptions}
+    # Build subscription lookup — prefer active non-expired over expired
+    # For each module, pick the best subscription:
+    #   1. Active non-expired (status='active', expires_at > now)
+    #   2. Trial non-expired (status='trial', expires_at > now)
+    #   3. Any remaining (expired trial or expired active)
+    sub_by_module = {}
+    now = timezone.now()
+    for sub in subscriptions:
+        existing = sub_by_module.get(sub.module_id)
+        if existing is None:
+            sub_by_module[sub.module_id] = sub
+        else:
+            # Prefer non-expired over expired
+            existing_valid = existing.expires_at > now
+            sub_valid = sub.expires_at > now
+            if sub_valid and not existing_valid:
+                sub_by_module[sub.module_id] = sub
+            elif sub_valid and existing_valid:
+                # Both valid — prefer 'active' over 'trial'
+                if sub.status == 'active' and existing.status == 'trial':
+                    sub_by_module[sub.module_id] = sub
     
     # Build module cards with status
     module_cards = []
