@@ -37,12 +37,14 @@ def dashboard(request):
     modules = Module.objects.filter(is_active=True).order_by('display_order')
     
     # Get user's subscriptions
+    # Order by -status so 'trial' comes before 'active' alphabetically reversed,
+    # ensuring 'active' overwrites 'trial' in the dict comprehension below
     subscriptions = UserModuleSubscription.objects.filter(
         user=user,
         status__in=['active', 'trial']
-    ).select_related('module', 'pricing')
+    ).select_related('module', 'pricing').order_by('-status')
     
-    # Build subscription lookup
+    # Build subscription lookup — active subscription takes precedence over expired trial
     sub_by_module = {sub.module_id: sub for sub in subscriptions}
     
     # Build module cards with status
@@ -142,9 +144,9 @@ def dashboard(request):
     ).values_list('announcement_id', flat=True)
     announcements = announcements.exclude(id__in=dismissed_ids).order_by('-starts_at')[:5]
     
-    # Calculate stats
-    active_subs = subscriptions.filter(status='active').count()
-    trial_subs = subscriptions.filter(status='trial').count()
+    # Calculate stats — only count non-expired subscriptions
+    active_subs = subscriptions.filter(status='active', expires_at__gt=timezone.now()).count()
+    trial_subs = subscriptions.filter(status='trial', expires_at__gt=timezone.now()).count()
     total_usage = sum(s.usage_count for s in subscriptions)
     
     # Get expiring soon (within 7 days)

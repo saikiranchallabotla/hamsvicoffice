@@ -239,23 +239,30 @@ def saved_works_list(request):
     }
 
     module_access = {}
-    try:
-        from subscriptions.services import SubscriptionService
-        for work_type, module_code in work_type_to_module.items():
-            result = SubscriptionService.check_access(user, module_code)
-            module_access[work_type] = result.get('ok', False)
-        # Also check workslip access for the generate workslip button
-        workslip_result = SubscriptionService.check_access(user, 'workslip')
-        module_access['can_generate_workslip'] = workslip_result.get('ok', False)
-        # Check bill access
-        bill_result = SubscriptionService.check_access(user, 'bill')
-        module_access['can_generate_bill'] = bill_result.get('ok', False)
-    except Exception:
-        # If subscription service fails, allow access (fallback)
+    if user.is_staff or user.is_superuser:
+        # Staff/admin bypass subscription checks
         for work_type in work_type_to_module.keys():
             module_access[work_type] = True
         module_access['can_generate_workslip'] = True
         module_access['can_generate_bill'] = True
+    else:
+        try:
+            from subscriptions.services import SubscriptionService
+            for work_type, module_code in work_type_to_module.items():
+                result = SubscriptionService.check_access(user, module_code)
+                module_access[work_type] = result.get('ok', False)
+            # Also check workslip access for the generate workslip button
+            workslip_result = SubscriptionService.check_access(user, 'workslip')
+            module_access['can_generate_workslip'] = workslip_result.get('ok', False)
+            # Check bill access
+            bill_result = SubscriptionService.check_access(user, 'bill')
+            module_access['can_generate_bill'] = bill_result.get('ok', False)
+        except Exception:
+            # If subscription service fails, deny access (secure fallback)
+            for work_type in work_type_to_module.keys():
+                module_access[work_type] = False
+            module_access['can_generate_workslip'] = False
+            module_access['can_generate_bill'] = False
 
     # Evaluate queryset to list so we can attach workflow chain data
     works_list = list(works)
@@ -326,7 +333,7 @@ def saved_works_list(request):
 
         # Attach subscription access flags for template gating
         work.module_code = work_type_to_module.get(work.work_type, work.work_type)
-        work.has_estimate_access = module_access.get(work.work_type, True)
+        work.has_estimate_access = module_access.get(work.work_type, False)
 
         # Attach item_count for display
         wd = work.work_data or {}

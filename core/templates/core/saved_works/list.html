@@ -296,6 +296,7 @@
     .qf-w { background: #16a34a; }
     .qf-b { background: #dc2626; }
     .qf-done { opacity: 0.5; }
+    .qf-locked { opacity: 0.35; filter: grayscale(1); }
 
     .wc-expand {
         width: 28px; height: 28px;
@@ -621,15 +622,15 @@
                     </div>
                     <div class="wc-quick-flow">
                         {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
-                        <span class="qf-pill qf-e" title="Estimate">E</span>
+                        <span class="qf-pill qf-e {% if not work.has_estimate_access %}qf-locked{% endif %}" title="Estimate">E</span>
                         {% if work.workslip_children %}
                             {% for ws in work.workslip_children %}
-                            <span class="qf-pill qf-w {% if ws.status == 'completed' %}qf-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">W{{ ws.workslip_number }}</span>
+                            <span class="qf-pill qf-w {% if ws.status == 'completed' %}qf-done{% endif %}{% if not module_access.can_generate_workslip %} qf-locked{% endif %}" title="WorkSlip {{ ws.workslip_number }}">W{{ ws.workslip_number }}</span>
                             {% endfor %}
                         {% endif %}
                         {% if work.bill_children %}
                             {% for bill in work.bill_children %}
-                            <span class="qf-pill qf-b {% if bill.status == 'completed' %}qf-done{% endif %}" title="Bill {{ bill.bill_number }}">B{{ bill.bill_number }}</span>
+                            <span class="qf-pill qf-b {% if bill.status == 'completed' %}qf-done{% endif %}{% if not module_access.can_generate_bill %} qf-locked{% endif %}" title="Bill {{ bill.bill_number }}">B{{ bill.bill_number }}</span>
                             {% endfor %}
                         {% endif %}
                         {% endif %}
