@@ -322,6 +322,7 @@
         <div class="ewb-flow">
             <!-- ── E (Estimate) ── -->
             {% if root_estimate %}
+            {% if has_subscription_access %}
             <button class="ewb-btn ewb-btn-e {% if work.id == root_estimate.id %}viewing{% endif %}"
                     onclick="handleE({{ root_estimate.id }})"
                     title="Edit Estimate: {{ root_estimate.name }}">
@@ -332,6 +333,11 @@
                 <span class="badge-wip"></span>
                 {% endif %}
             </button>
+            {% else %}
+            <button class="ewb-btn ewb-btn-e" style="opacity:0.5;cursor:not-allowed;" title="Subscribe to access" onclick="window.location.href='{% url 'module_access' module_code=module_code %}'">
+                <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i>
+            </button>
+            {% endif %}
 
             <span class="ewb-divider"></span>
             {% endif %}
@@ -339,6 +345,7 @@
             <!-- ── W1, W2, W3... (full workslip chain) ── -->
             {% if workslips|length > 0 %}
                 {% for ws in workslips %}
+                {% if module_access.workslip %}
                 <button class="ewb-btn ewb-btn-w {% if work.id == ws.id %}viewing{% endif %} {% if ws.status == 'completed' %}done{% endif %}"
                         onclick="handleWn({{ ws.id }}, {{ ws.workslip_number|default:1 }}, '{{ ws.status }}')"
                         title="WorkSlip {{ ws.workslip_number }} ({{ ws.get_status_display }})">
@@ -349,21 +356,38 @@
                     <span class="badge-wip"></span>
                     {% endif %}
                 </button>
+                {% else %}
+                <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.href='{% url 'module_access' module_code='workslip' %}'">
+                    <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> W{{ ws.workslip_number }}
+                </button>
+                {% endif %}
                 {% endfor %}
                 <!-- +W button: create next workslip if last one is completed -->
                 {% if last_workslip.status == 'completed' and not is_orphan_workslip %}
+                {% if module_access.workslip %}
                 <button class="ewb-btn ewb-btn-w"
                         onclick="window.location.href='/saved-works/{{ last_workslip.id }}/generate-next-workslip/'"
                         title="Create WorkSlip {{ last_workslip.workslip_number|add:1 }}">
                     +W{{ last_workslip.workslip_number|add:1 }}
                 </button>
+                {% else %}
+                <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.href='{% url 'module_access' module_code='workslip' %}'">
+                    <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +W
+                </button>
+                {% endif %}
                 {% endif %}
             {% else %}
+            {% if module_access.workslip %}
             <button class="ewb-btn ewb-btn-w"
                     onclick="handleWNew()"
                     title="Generate WorkSlip 1 from Estimate">
                 +W1
             </button>
+            {% else %}
+            <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.href='{% url 'module_access' module_code='workslip' %}'">
+                <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +W1
+            </button>
+            {% endif %}
             {% endif %}
 
             <span class="ewb-divider"></span>
@@ -371,6 +395,7 @@
             <!-- ── B1, B2, B3... (full bill chain) ── -->
             {% if bills|length > 0 %}
                 {% for bill in bills %}
+                {% if module_access.bill %}
                 <button class="ewb-btn ewb-btn-b {% if work.id == bill.id %}viewing{% endif %} {% if bill.status == 'completed' %}done{% endif %}"
                         onclick="handleBn({{ bill.parent_id }}, {{ bill.bill_number }}, '{{ bill.status }}')"
                         title="Bill {{ bill.bill_number }} ({{ bill.get_status_display }})">
@@ -381,35 +406,58 @@
                     <span class="badge-wip"></span>
                     {% endif %}
                 </button>
+                {% else %}
+                <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                    <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> B{{ bill.bill_number }}
+                </button>
+                {% endif %}
                 {% endfor %}
                 <!-- Show +BN button for next bill -->
                 {% if is_orphan_workslip %}
                     {% with next_bill_num=bills|length|add:1 %}
+                    {% if module_access.bill %}
                     <button class="ewb-btn ewb-btn-b"
                             onclick="handleBCreate({{ workslips.0.id }})"
                             title="Generate Bill {{ next_bill_num }}">
                         +B{{ next_bill_num }}
                     </button>
+                    {% else %}
+                    <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                        <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B
+                    </button>
+                    {% endif %}
                     {% endwith %}
                 {% else %}
                     {% with next_bill_num=bills|length|add:1 %}
                         {% for ws in workslips %}
                             {% if ws.workslip_number == next_bill_num %}
+                            {% if module_access.bill %}
                             <button class="ewb-btn ewb-btn-b"
                                     onclick="handleBCreate({{ ws.id }})"
                                     title="Generate Bill {{ next_bill_num }} from WorkSlip {{ ws.workslip_number }}">
                                 +B{{ next_bill_num }}
                             </button>
+                            {% else %}
+                            <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                                <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B{{ next_bill_num }}
+                            </button>
+                            {% endif %}
                             {% endif %}
                         {% endfor %}
                     {% endwith %}
                 {% endif %}
             {% elif workslips|length > 0 %}
+            {% if module_access.bill %}
             <button class="ewb-btn ewb-btn-b"
                     onclick="handleBNew()"
                     title="Generate Bill 1 from WorkSlip">
                 +B1
             </button>
+            {% else %}
+            <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B1
+            </button>
+            {% endif %}
             {% else %}
             <button class="ewb-btn ewb-btn-b off"
                     title="Generate a WorkSlip first">

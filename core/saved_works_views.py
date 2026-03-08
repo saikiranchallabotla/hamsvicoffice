@@ -1526,6 +1526,18 @@ def generate_workslip_from_saved(request, work_id):
     
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
+    # Check workslip subscription access BEFORE allowing generation
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'workslip')
+            if not result.get('ok', False):
+                messages.warning(request, 'You need an active Workslip subscription to generate workslips.')
+                return redirect('module_access', module_code='workslip')
+        except Exception:
+            messages.error(request, 'Unable to verify subscription. Please try again.')
+            return redirect('saved_works_list')
+    
     # Verify this is an estimate, temporary_works, or amc
     if saved_work.work_type not in ['new_estimate', 'temporary_works', 'amc']:
         messages.error(request, 'Only estimates, temporary works, or AMC can be used to generate workslips.')
@@ -1737,6 +1749,18 @@ def generate_next_workslip_from_saved(request, work_id):
     
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
+    # Check workslip subscription access BEFORE allowing generation
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'workslip')
+            if not result.get('ok', False):
+                messages.warning(request, 'You need an active Workslip subscription to generate workslips.')
+                return redirect('module_access', module_code='workslip')
+        except Exception:
+            messages.error(request, 'Unable to verify subscription. Please try again.')
+            return redirect('saved_works_list')
+    
     # Verify this is a workslip
     if saved_work.work_type != 'workslip':
         messages.error(request, 'Only saved workslips can generate next workslips.')
@@ -1918,6 +1942,18 @@ def bill_choice(request, work_id):
     org = get_org_from_request(request)
     user = request.user
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+
+    # Check bill subscription access BEFORE showing bill choices
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'bill')
+            if not result.get('ok', False):
+                messages.warning(request, 'You need an active Bill subscription to generate bills.')
+                return redirect('module_access', module_code='bill')
+        except Exception:
+            messages.error(request, 'Unable to verify subscription. Please try again.')
+            return redirect('saved_works_list')
 
     # Only estimates should reach this page
     if saved_work.work_type != 'new_estimate':
@@ -2868,6 +2904,18 @@ def generate_bill_from_saved(request, work_id):
 
     org = get_org_from_request(request)
     user = request.user
+
+    # Check bill subscription access BEFORE allowing generation
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'bill')
+            if not result.get('ok', False):
+                messages.warning(request, 'You need an active Bill subscription to generate bills.')
+                return redirect('module_access', module_code='bill')
+        except Exception:
+            messages.error(request, 'Unable to verify subscription. Please try again.')
+            return redirect('saved_works_list')
 
     try:
         saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)

@@ -32,6 +32,16 @@ def bill_entry(request, work_id):
     org = get_org_from_request(request)
     user = request.user
     
+    # Subscription check for bill module
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'bill')
+            if not result.get('ok', False):
+                return redirect('module_access', module_code='bill')
+        except Exception:
+            return redirect('saved_works_list')
+    
     # Get the parent work (source workslip or estimate)
     try:
         source_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
@@ -506,6 +516,16 @@ def _bill_entry_save_logic(request, work_id):
         org = get_org_from_request(request)
         user = request.user
         
+        # Subscription check for bill module
+        if not user.is_staff and not user.is_superuser:
+            try:
+                from subscriptions.services import SubscriptionService
+                result = SubscriptionService.check_access(user, 'bill')
+                if not result.get('ok', False):
+                    return JsonResponse({'success': False, 'error': 'Bill module subscription required'}, status=403)
+            except Exception:
+                return JsonResponse({'success': False, 'error': 'Subscription check failed'}, status=500)
+        
         try:
             source_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
         except:
@@ -671,6 +691,16 @@ def workslip_entry(request, work_id):
     org = get_org_from_request(request)
     user = request.user
     
+    # Subscription check for workslip module
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'workslip')
+            if not result.get('ok', False):
+                return redirect('module_access', module_code='workslip')
+        except Exception:
+            return redirect('saved_works_list')
+    
     # Get the source estimate
     try:
         source_estimate = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
@@ -817,6 +847,16 @@ def workslip_entry_save(request, work_id):
     """
     org = get_org_from_request(request)
     user = request.user
+    
+    # Subscription check for workslip module
+    if not user.is_staff and not user.is_superuser:
+        try:
+            from subscriptions.services import SubscriptionService
+            result = SubscriptionService.check_access(user, 'workslip')
+            if not result.get('ok', False):
+                return JsonResponse({'success': False, 'error': 'Workslip module subscription required'}, status=403)
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'Subscription check failed'}, status=500)
     
     try:
         source_estimate = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
