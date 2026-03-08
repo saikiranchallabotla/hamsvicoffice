@@ -1,0 +1,177 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_invoice_list' %}">Invoices</a></li>
+<li class="breadcrumb-item active">{{ invoice.invoice_number }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Invoice {{ invoice.invoice_number }}</h4>
+    <div class="d-flex gap-2">
+        {% if invoice.pdf_file %}
+        <a href="{{ invoice.pdf_file.url }}" class="btn btn-primary" target="_blank">
+            <i class="bi bi-download me-1"></i> Download PDF
+        </a>
+        {% endif %}
+        <a href="{% url 'admin_invoice_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Invoice Card -->
+        <div class="admin-card mb-4">
+            <div class="card-body p-4">
+                <!-- Header -->
+                <div class="row mb-4">
+                    <div class="col-6">
+                        <h5 class="text-primary mb-1">{{ invoice.seller_name }}</h5>
+                        <div class="text-muted small" style="white-space: pre-line;">{{ invoice.seller_address }}</div>
+                        {% if invoice.seller_gstin %}
+                        <div class="small mt-1"><strong>GSTIN:</strong> {{ invoice.seller_gstin }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-6 text-end">
+                        <h4 class="text-uppercase text-muted mb-2">Tax Invoice</h4>
+                        <div><strong>Invoice #:</strong> {{ invoice.invoice_number }}</div>
+                        <div><strong>Date:</strong> {{ invoice.invoice_date|date:"d M Y" }}</div>
+                        {% if invoice.due_date %}
+                        <div><strong>Due:</strong> {{ invoice.due_date|date:"d M Y" }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- Bill To -->
+                <div class="mb-4">
+                    <h6 class="text-muted">Bill To</h6>
+                    <div class="fw-semibold">{{ invoice.billing_name }}</div>
+                    <div class="text-muted small" style="white-space: pre-line;">{{ invoice.billing_address }}</div>
+                    {% if invoice.billing_gstin %}
+                    <div class="small mt-1"><strong>GSTIN:</strong> {{ invoice.billing_gstin }}</div>
+                    {% endif %}
+                    {% if invoice.billing_state %}
+                    <div class="small"><strong>State:</strong> {{ invoice.billing_state }}</div>
+                    {% endif %}
+                </div>
+                
+                <!-- Line Items -->
+                <table class="table table-bordered mb-4">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Description</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in invoice.line_items %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>
+                                {{ item.module|default:"Subscription" }}
+                                {% if item.duration %}<span class="text-muted">({{ item.duration }})</span>{% endif %}
+                            </td>
+                            <td class="text-end">₹{{ item.price|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">No line items</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- Totals -->
+                <div class="row">
+                    <div class="col-md-6 offset-md-6">
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <td class="text-muted">Subtotal</td>
+                                <td class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td>
+                            </tr>
+                            {% if invoice.discount_amount %}
+                            <tr>
+                                <td class="text-muted">Discount</td>
+                                <td class="text-end text-danger">-₹{{ invoice.discount_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td class="text-muted">Taxable Amount</td>
+                                <td class="text-end">₹{{ invoice.taxable_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% if invoice.cgst_amount %}
+                            <tr>
+                                <td class="text-muted">CGST</td>
+                                <td class="text-end">₹{{ invoice.cgst_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if invoice.sgst_amount %}
+                            <tr>
+                                <td class="text-muted">SGST</td>
+                                <td class="text-end">₹{{ invoice.sgst_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if invoice.igst_amount %}
+                            <tr>
+                                <td class="text-muted">IGST</td>
+                                <td class="text-end">₹{{ invoice.igst_amount|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="border-top">
+                                <td class="fw-bold fs-5">Total</td>
+                                <td class="text-end fw-bold fs-5">₹{{ invoice.total_amount|floatformat:2 }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Info -->
+        <div class="admin-card mb-4">
+            <div class="card-header"><h5>Details</h5></div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">User</td>
+                        <td><a href="{% url 'admin_user_detail' invoice.user.id %}">{{ invoice.user.username }}</a></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td>
+                            {% if invoice.is_paid %}
+                                <span class="badge bg-success">Paid</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if invoice.payment %}
+                    <tr>
+                        <td class="text-muted">Payment</td>
+                        <td><a href="{% url 'admin_payment_detail' invoice.payment.id %}">{{ invoice.payment.order_id|truncatechars:20 }}</a></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Gateway</td>
+                        <td>{{ invoice.payment.get_gateway_display }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="text-muted">Created</td>
+                        <td>{{ invoice.created_at|date:"d M Y, h:i A" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

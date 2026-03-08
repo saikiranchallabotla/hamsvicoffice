@@ -1,0 +1,150 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}{% if coupon %}Edit Coupon{% else %}Create Coupon{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_coupon_list' %}">Coupons</a></li>
+<li class="breadcrumb-item active">{% if coupon %}Edit{% else %}Create{% endif %}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">{% if coupon %}Edit Coupon: {{ coupon.code }}{% else %}Create New Coupon{% endif %}</h4>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Basic Info -->
+            <div class="admin-card mb-4">
+                <div class="card-header"><h5>Coupon Details</h5></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Coupon Code <span class="text-danger">*</span></label>
+                            <input type="text" name="code" class="form-control font-monospace" value="{{ coupon.code|default:'' }}" required placeholder="e.g. SAVE20" style="text-transform: uppercase;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Description</label>
+                            <input type="text" name="description" class="form-control" value="{{ coupon.description|default:'' }}" placeholder="Brief description">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Discount Type</label>
+                            <select name="discount_type" class="form-select">
+                                <option value="percent" {% if coupon.discount_type == 'percent' %}selected{% endif %}>Percentage (%)</option>
+                                <option value="fixed" {% if coupon.discount_type == 'fixed' %}selected{% endif %}>Fixed Amount (₹)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Discount Value <span class="text-danger">*</span></label>
+                            <input type="number" name="discount_value" class="form-control" value="{{ coupon.discount_value|default:'10' }}" step="0.01" min="0.01" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Max Discount (₹)</label>
+                            <input type="number" name="max_discount" class="form-control" value="{{ coupon.max_discount|default:'' }}" step="0.01" min="0" placeholder="For % coupons">
+                            <div class="form-text">Leave empty for no cap</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Usage & Validity -->
+            <div class="admin-card mb-4">
+                <div class="card-header"><h5>Usage & Validity</h5></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Min Purchase (₹)</label>
+                            <input type="number" name="min_purchase" class="form-control" value="{{ coupon.min_purchase|default:'0' }}" step="0.01" min="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Max Total Uses</label>
+                            <input type="number" name="max_uses" class="form-control" value="{{ coupon.max_uses|default:'0' }}" min="0">
+                            <div class="form-text">0 = unlimited</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Max Uses Per User</label>
+                            <input type="number" name="max_uses_per_user" class="form-control" value="{{ coupon.max_uses_per_user|default:'1' }}" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Valid From</label>
+                            <input type="datetime-local" name="valid_from" class="form-control" value="{% if coupon.valid_from %}{{ coupon.valid_from|date:'Y-m-d\TH:i' }}{% endif %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Valid Until</label>
+                            <input type="datetime-local" name="valid_until" class="form-control" value="{% if coupon.valid_until %}{{ coupon.valid_until|date:'Y-m-d\TH:i' }}{% endif %}">
+                            <div class="form-text">Leave empty for no expiry</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Applicable Modules -->
+            <div class="admin-card mb-4">
+                <div class="card-header"><h5>Applicable Modules</h5></div>
+                <div class="card-body">
+                    <div class="form-text mb-3">Leave all unchecked to apply to all modules.</div>
+                    <div class="row g-2">
+                        {% for module in modules %}
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="applicable_modules" value="{{ module.id }}" id="mod_{{ module.id }}"
+                                    {% if coupon and module in coupon.applicable_modules.all %}checked{% endif %}>
+                                <label class="form-check-label" for="mod_{{ module.id }}">{{ module.name }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Status & Options -->
+            <div class="admin-card mb-4">
+                <div class="card-header"><h5>Status</h5></div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="isActive" {% if coupon.is_active or not coupon %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="isActive">Active</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="first_purchase_only" id="firstPurchase" {% if coupon.first_purchase_only %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="firstPurchase">First Purchase Only</label>
+                    </div>
+                </div>
+            </div>
+            
+            {% if coupon %}
+            <!-- Stats -->
+            <div class="admin-card mb-4">
+                <div class="card-header"><h5>Statistics</h5></div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Times Used</span>
+                        <span class="fw-semibold">{{ coupon.current_uses }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Created</span>
+                        <span>{{ coupon.created_at|date:"d M Y" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Updated</span>
+                        <span>{{ coupon.updated_at|date:"d M Y" }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Actions -->
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-check-lg me-1"></i> {% if coupon %}Update Coupon{% else %}Create Coupon{% endif %}
+                </button>
+                <a href="{% url 'admin_coupon_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

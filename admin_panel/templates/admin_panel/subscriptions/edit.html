@@ -1,0 +1,165 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Edit Subscription{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_subscription_list' %}">Subscriptions</a></li>
+<li class="breadcrumb-item active">Edit</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1">Manage Subscription</h4>
+        <span class="text-muted">{{ sub.user.get_full_name|default:sub.user.username }} — {{ sub.module.name }}</span>
+    </div>
+    <a href="{% url 'admin_user_detail' sub.user.id %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back to User
+    </a>
+</div>
+
+<div class="row">
+    <!-- Subscription Info -->
+    <div class="col-lg-5 mb-4">
+        <div class="admin-card">
+            <div class="card-header"><h5>Subscription Details</h5></div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" style="width:40%">Module</td>
+                        <td class="fw-semibold">{{ sub.module.name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td>
+                            <span class="badge status-{{ sub.status }}">{{ sub.get_status_display }}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Started</td>
+                        <td>{{ sub.started_at|date:"d M Y, h:i A" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Expires</td>
+                        <td>
+                            {{ sub.expires_at|date:"d M Y, h:i A" }}
+                            {% if sub.is_active %}
+                                <div class="text-success small">{{ sub.days_remaining }} days remaining</div>
+                            {% else %}
+                                <div class="text-danger small">Expired</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Usage</td>
+                        <td>
+                            {{ sub.usage_count }}
+                            {% if sub.usage_limit > 0 %}
+                                / {{ sub.usage_limit }}
+                            {% else %}
+                                / Unlimited
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Auto Renew</td>
+                        <td>{{ sub.auto_renew|yesno:"Yes,No" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="col-lg-7">
+        <!-- Extend Subscription -->
+        <div class="admin-card mb-4">
+            <div class="card-header"><h5><i class="bi bi-calendar-plus me-2"></i>Extend Duration</h5></div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="extend">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Days to Add</label>
+                            <input type="number" name="extend_days" class="form-control" min="1" value="30" required>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-outline-secondary" onclick="document.querySelector('[name=extend_days]').value=7">7d</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="document.querySelector('[name=extend_days]').value=30">30d</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="document.querySelector('[name=extend_days]').value=90">90d</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="document.querySelector('[name=extend_days]').value=365">1y</button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-plus-circle me-1"></i> Extend
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Change Status -->
+        <div class="admin-card mb-4">
+            <div class="card-header"><h5><i class="bi bi-arrow-repeat me-2"></i>Change Status</h5></div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="change_status">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">New Status</label>
+                            <select name="new_status" class="form-select" required>
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if sub.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Change subscription status?')">
+                                <i class="bi bi-arrow-repeat me-1"></i> Update Status
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Usage Management -->
+        <div class="admin-card mb-4">
+            <div class="card-header"><h5><i class="bi bi-speedometer me-2"></i>Usage Management</h5></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_usage">
+                            <label class="form-label fw-semibold">Usage Limit</label>
+                            <div class="input-group">
+                                <input type="number" name="usage_limit" class="form-control" value="{{ sub.usage_limit }}" min="0">
+                                <button type="submit" class="btn btn-outline-primary">Update</button>
+                            </div>
+                            <div class="form-text">0 = unlimited</div>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="reset_usage">
+                            <label class="form-label fw-semibold">Reset Usage Counter</label>
+                            <div>
+                                <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Reset usage count to 0?')">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to 0 (Current: {{ sub.usage_count }})
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -274,34 +274,29 @@ def user_toggle_status(request, user_id):
 def user_change_role(request, user_id):
     """
     Change user role (superadmin only).
-    Requires password verification for security.
+    Requires typing the target username as confirmation.
     """
     user = get_object_or_404(User, id=user_id)
     profile, _ = UserProfile.objects.get_or_create(user=user)
-    
-    # Security: Require admin's password for role changes
-    admin_password = request.POST.get('admin_password', '')
-    if not admin_password:
-        messages.error(request, 'Password verification is required to change user roles.')
+
+    # Prevent self-demotion
+    if user.id == request.user.id:
+        messages.warning(request, 'You cannot change your own role. Ask another superadmin.')
         return redirect('admin_user_detail', user_id=user.id)
-    
-    if not request.user.check_password(admin_password):
-        messages.error(request, 'Incorrect password. Role change denied for security reasons.')
-        # Log failed attempt
+
+    # Security: Require typing target username to confirm
+    confirm_text = request.POST.get('confirm_username', '').strip()
+    if confirm_text != user.username:
+        messages.error(request, 'Confirmation failed. Please type the exact username to confirm the role change.')
         from datasets.models import AuditLog
         AuditLog.log(
             user=request.user,
             action='security_alert',
             obj=user,
-            changes={'attempted_action': 'role_change', 'reason': 'incorrect_password'},
+            changes={'attempted_action': 'role_change', 'reason': 'confirmation_mismatch'},
             metadata={'target_user_id': user.id},
             request=request
         )
-        return redirect('admin_user_detail', user_id=user.id)
-    
-    # Prevent self-demotion for superadmins (safety measure)
-    if user.id == request.user.id:
-        messages.warning(request, 'You cannot change your own role. Ask another superadmin.')
         return redirect('admin_user_detail', user_id=user.id)
 
     old_role = profile.role
@@ -1252,3 +1247,330 @@ def payment_detail(request, payment_id):
     }
     
     return render(request, 'admin_panel/payments/detail.html', context)
+
+
+# =============================================================================
+# COUPON MANAGEMENT
+# =============================================================================
+
+from subscriptions.models import Coupon, Invoice
+
+@admin_required
+def coupon_list(request):
+    """List all coupons with search/filter."""
+    coupons = Coupon.objects.all()
+    
+    status_filter = request.GET.get('status', '')
+    if status_filter == 'active':
+        coupons = coupons.filter(is_active=True)
+    elif status_filter == 'inactive':
+        coupons = coupons.filter(is_active=False)
+    
+    search = request.GET.get('q', '').strip()
+    if search:
+        coupons = coupons.filter(
+            Q(code__icontains=search) | Q(description__icontains=search)
+        )
+    
+    paginator = Paginator(coupons, 25)
+    page = request.GET.get('page', 1)
+    coupons_page = paginator.get_page(page)
+    
+    context = {
+        'coupons': coupons_page,
+        'status_filter': status_filter,
+        'search': search,
+    }
+    return render(request, 'admin_panel/coupons/list.html', context)
+
+
+@admin_required
+@require_http_methods(["GET", "POST"])
+def coupon_edit(request, coupon_id=0):
+    """Create or edit a coupon."""
+    if coupon_id:
+        coupon = get_object_or_404(Coupon, id=coupon_id)
+    else:
+        coupon = None
+    
+    modules = Module.objects.filter(is_active=True).order_by('display_order')
+    
+    if request.method == 'POST':
+        code = request.POST.get('code', '').strip().upper()
+        description = request.POST.get('description', '').strip()
+        discount_type = request.POST.get('discount_type', 'percent')
+        discount_value = request.POST.get('discount_value', '0')
+        max_discount = request.POST.get('max_discount', '').strip()
+        min_purchase = request.POST.get('min_purchase', '0')
+        max_uses = int(request.POST.get('max_uses', 0))
+        max_uses_per_user = int(request.POST.get('max_uses_per_user', 1))
+        valid_from = request.POST.get('valid_from', '')
+        valid_until = request.POST.get('valid_until', '')
+        first_purchase_only = request.POST.get('first_purchase_only') == 'on'
+        is_active = request.POST.get('is_active') == 'on'
+        applicable_module_ids = request.POST.getlist('applicable_modules')
+        
+        # Validate unique code
+        existing = Coupon.objects.filter(code=code)
+        if coupon:
+            existing = existing.exclude(id=coupon.id)
+        if existing.exists():
+            messages.error(request, f'Coupon code "{code}" already exists.')
+            return redirect(request.path)
+        
+        from decimal import Decimal, InvalidOperation
+        try:
+            discount_value = Decimal(discount_value)
+            min_purchase = Decimal(min_purchase)
+            max_discount_val = Decimal(max_discount) if max_discount else None
+        except (InvalidOperation, ValueError):
+            messages.error(request, 'Invalid number values.')
+            return redirect(request.path)
+        
+        if coupon:
+            coupon.code = code
+            coupon.description = description
+            coupon.discount_type = discount_type
+            coupon.discount_value = discount_value
+            coupon.max_discount = max_discount_val
+            coupon.min_purchase = min_purchase
+            coupon.max_uses = max_uses
+            coupon.max_uses_per_user = max_uses_per_user
+            coupon.first_purchase_only = first_purchase_only
+            coupon.is_active = is_active
+        else:
+            coupon = Coupon(
+                code=code,
+                description=description,
+                discount_type=discount_type,
+                discount_value=discount_value,
+                max_discount=max_discount_val,
+                min_purchase=min_purchase,
+                max_uses=max_uses,
+                max_uses_per_user=max_uses_per_user,
+                first_purchase_only=first_purchase_only,
+                is_active=is_active,
+            )
+        
+        if valid_from:
+            coupon.valid_from = timezone.datetime.fromisoformat(valid_from)
+        if valid_until:
+            coupon.valid_until = timezone.datetime.fromisoformat(valid_until)
+        else:
+            coupon.valid_until = None
+        
+        coupon.save()
+        
+        # Set applicable modules
+        if applicable_module_ids:
+            coupon.applicable_modules.set(Module.objects.filter(id__in=applicable_module_ids))
+        else:
+            coupon.applicable_modules.clear()
+        
+        action = 'updated' if coupon_id else 'created'
+        messages.success(request, f'Coupon "{code}" {action}.')
+        return redirect('admin_coupon_list')
+    
+    context = {
+        'coupon': coupon,
+        'modules': modules,
+    }
+    return render(request, 'admin_panel/coupons/edit.html', context)
+
+
+@admin_required
+@require_POST
+def coupon_toggle(request, coupon_id):
+    """Toggle coupon active status."""
+    coupon = get_object_or_404(Coupon, id=coupon_id)
+    coupon.is_active = not coupon.is_active
+    coupon.save(update_fields=['is_active'])
+    status = 'activated' if coupon.is_active else 'deactivated'
+    messages.success(request, f'Coupon "{coupon.code}" {status}.')
+    return redirect('admin_coupon_list')
+
+
+@admin_required
+@require_POST
+def coupon_delete(request, coupon_id):
+    """Delete a coupon."""
+    coupon = get_object_or_404(Coupon, id=coupon_id)
+    code = coupon.code
+    coupon.delete()
+    messages.success(request, f'Coupon "{code}" deleted.')
+    return redirect('admin_coupon_list')
+
+
+# =============================================================================
+# AUDIT LOG VIEWER
+# =============================================================================
+
+from datasets.models import AuditLog
+
+@admin_required
+def audit_log_list(request):
+    """View audit logs with filtering."""
+    logs = AuditLog.objects.select_related('user').all()
+    
+    action_filter = request.GET.get('action', '')
+    if action_filter:
+        logs = logs.filter(action=action_filter)
+    
+    search = request.GET.get('q', '').strip()
+    if search:
+        logs = logs.filter(
+            Q(user_email__icontains=search) |
+            Q(model_name__icontains=search) |
+            Q(object_repr__icontains=search) |
+            Q(ip_address__icontains=search)
+        )
+    
+    # Date filter
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    if date_from:
+        logs = logs.filter(created_at__date__gte=date_from)
+    if date_to:
+        logs = logs.filter(created_at__date__lte=date_to)
+    
+    paginator = Paginator(logs, 50)
+    page = request.GET.get('page', 1)
+    logs_page = paginator.get_page(page)
+    
+    context = {
+        'logs': logs_page,
+        'action_filter': action_filter,
+        'search': search,
+        'date_from': date_from,
+        'date_to': date_to,
+        'action_choices': AuditLog.ACTION_CHOICES,
+    }
+    return render(request, 'admin_panel/audit/list.html', context)
+
+
+# =============================================================================
+# SUBSCRIPTION EXTEND/MODIFY
+# =============================================================================
+
+@superadmin_required
+@require_http_methods(["GET", "POST"])
+def subscription_edit(request, subscription_id):
+    """Extend or modify an active subscription."""
+    sub = get_object_or_404(UserModuleSubscription, id=subscription_id)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'extend':
+            days = int(request.POST.get('extend_days', 0))
+            if days > 0:
+                sub.expires_at += timedelta(days=days)
+                if sub.status == 'expired':
+                    sub.status = 'active'
+                sub.save(update_fields=['expires_at', 'status'])
+                messages.success(request, f'Subscription extended by {days} days.')
+        
+        elif action == 'change_status':
+            new_status = request.POST.get('new_status')
+            if new_status in dict(UserModuleSubscription.STATUS_CHOICES):
+                sub.status = new_status
+                sub.save(update_fields=['status'])
+                messages.success(request, f'Subscription status changed to {new_status}.')
+        
+        elif action == 'update_usage':
+            usage_limit = int(request.POST.get('usage_limit', 0))
+            sub.usage_limit = usage_limit
+            sub.save(update_fields=['usage_limit'])
+            messages.success(request, f'Usage limit updated to {usage_limit if usage_limit > 0 else "unlimited"}.')
+        
+        elif action == 'reset_usage':
+            sub.usage_count = 0
+            sub.save(update_fields=['usage_count'])
+            messages.success(request, 'Usage count reset to 0.')
+        
+        return redirect('admin_subscription_edit', subscription_id=sub.id)
+    
+    context = {
+        'sub': sub,
+        'status_choices': UserModuleSubscription.STATUS_CHOICES,
+    }
+    return render(request, 'admin_panel/subscriptions/edit.html', context)
+
+
+# =============================================================================
+# FORCE SESSION LOGOUT
+# =============================================================================
+
+@superadmin_required
+@require_POST
+def force_logout_session(request, session_id):
+    """Force logout a specific user session."""
+    session = get_object_or_404(UserSession, id=session_id)
+    username = session.user.username
+    session.logout()
+    messages.success(request, f'Session for {username} terminated.')
+    return redirect('admin_user_detail', user_id=session.user.id)
+
+
+@superadmin_required
+@require_POST
+def force_logout_all(request, user_id):
+    """Force logout all sessions for a user."""
+    user = get_object_or_404(User, id=user_id)
+    count = UserSession.logout_all(user)
+    messages.success(request, f'Terminated {count} session(s) for {user.username}.')
+    return redirect('admin_user_detail', user_id=user.id)
+
+
+# =============================================================================
+# INVOICE MANAGEMENT
+# =============================================================================
+
+@admin_required
+def invoice_list(request):
+    """List all invoices."""
+    invoices = Invoice.objects.select_related('user', 'payment').all()
+    
+    search = request.GET.get('q', '').strip()
+    if search:
+        invoices = invoices.filter(
+            Q(invoice_number__icontains=search) |
+            Q(user__username__icontains=search) |
+            Q(billing_name__icontains=search) |
+            Q(billing_gstin__icontains=search)
+        )
+    
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    if date_from:
+        invoices = invoices.filter(invoice_date__gte=date_from)
+    if date_to:
+        invoices = invoices.filter(invoice_date__lte=date_to)
+    
+    paginator = Paginator(invoices, 25)
+    page = request.GET.get('page', 1)
+    invoices_page = paginator.get_page(page)
+    
+    # Summary stats
+    from django.db.models import Sum as DjSum
+    total_revenue = Invoice.objects.aggregate(total=DjSum('total_amount'))['total'] or 0
+    
+    context = {
+        'invoices': invoices_page,
+        'search': search,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_revenue': total_revenue,
+    }
+    return render(request, 'admin_panel/invoices/list.html', context)
+
+
+@admin_required
+def invoice_detail(request, invoice_id):
+    """View invoice details."""
+    invoice = get_object_or_404(Invoice.objects.select_related('user', 'payment'), id=invoice_id)
+    
+    context = {
+        'invoice': invoice,
+    }
+    return render(request, 'admin_panel/invoices/detail.html', context)

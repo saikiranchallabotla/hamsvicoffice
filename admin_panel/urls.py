@@ -72,4 +72,25 @@ urlpatterns = [
     # Payments
     path('payments/', views.payment_list, name='admin_payment_list'),
     path('payments/<uuid:payment_id>/', views.payment_detail, name='admin_payment_detail'),
+    
+    # Coupon Management
+    path('coupons/', views.coupon_list, name='admin_coupon_list'),
+    path('coupons/create/', views.coupon_edit, name='admin_coupon_create'),
+    path('coupons/<int:coupon_id>/edit/', views.coupon_edit, name='admin_coupon_edit'),
+    path('coupons/<int:coupon_id>/toggle/', views.coupon_toggle, name='admin_coupon_toggle'),
+    path('coupons/<int:coupon_id>/delete/', views.coupon_delete, name='admin_coupon_delete'),
+    
+    # Audit Logs
+    path('audit-logs/', views.audit_log_list, name='admin_audit_log_list'),
+    
+    # Subscription Edit
+    path('subscriptions/<uuid:subscription_id>/edit/', views.subscription_edit, name='admin_subscription_edit'),
+    
+    # Force Session Logout
+    path('sessions/<int:session_id>/logout/', views.force_logout_session, name='admin_force_logout_session'),
+    path('users/<int:user_id>/logout-all/', views.force_logout_all, name='admin_force_logout_all'),
+    
+    # Invoice Management
+    path('invoices/', views.invoice_list, name='admin_invoice_list'),
+    path('invoices/<uuid:invoice_id>/', views.invoice_detail, name='admin_invoice_detail'),
 ]

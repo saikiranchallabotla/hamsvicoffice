@@ -685,11 +685,19 @@
                 <i class="bi bi-wallet2"></i>
                 <span>Payments</span>
             </a>
+            <a href="{% url 'admin_invoice_list' %}" class="nav-link {% if 'invoice' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-receipt"></i>
+                <span>Invoices</span>
+            </a>
             
             <div class="nav-section">Products</div>
             <a href="{% url 'admin_module_list' %}" class="nav-link {% if 'module' in request.resolver_match.url_name or 'pricing' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="bi bi-box-seam-fill"></i>
                 <span>Modules</span>
+            </a>
+            <a href="{% url 'admin_coupon_list' %}" class="nav-link {% if 'coupon' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-ticket-perforated-fill"></i>
+                <span>Coupons</span>
             </a>
             <a href="{% url 'admin_data_management' %}" class="nav-link {% if 'data' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="bi bi-database-fill"></i>
@@ -710,6 +718,12 @@
             <a href="{% url 'admin_announcement_list' %}" class="nav-link {% if 'announcement' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="bi bi-megaphone-fill"></i>
                 <span>Announcements</span>
+            </a>
+            
+            <div class="nav-section">Administration</div>
+            <a href="{% url 'admin_audit_log_list' %}" class="nav-link {% if 'audit' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-clock-history"></i>
+                <span>Audit Logs</span>
             </a>
         </nav>
         
