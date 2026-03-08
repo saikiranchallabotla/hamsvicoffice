@@ -10,16 +10,16 @@
 <style>
     .modules-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-        gap: 1.5rem;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 0.6rem;
     }
     
     .module-card {
         background: #ffffff;
-        border-radius: 20px;
-        border: none;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--card-shadow);
+        transition: all 0.2s ease;
         overflow: hidden;
         position: relative;
     }
@@ -30,15 +30,15 @@
         top: 0;
         left: 0;
         right: 0;
-        height: 4px;
+        height: 3px;
         background: var(--module-color, #6366f1);
         opacity: 0;
-        transition: opacity 0.3s ease;
+        transition: opacity 0.2s ease;
     }
     
     .module-card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 12px 28px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
+        box-shadow: var(--card-shadow-hover);
     }
     
     .module-card:hover::before {
@@ -46,20 +46,20 @@
     }
     
     .module-card .card-body {
-        padding: 1.75rem;
+        padding: 0.75rem;
     }
     
     .module-header {
         display: flex;
         align-items: flex-start;
-        gap: 1rem;
-        margin-bottom: 1rem;
+        gap: 0.6rem;
+        margin-bottom: 0.5rem;
     }
     
     .module-icon {
-        width: 52px;
-        height: 52px;
-        border-radius: 14px;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -68,7 +68,7 @@
     }
     
     .module-icon i {
-        font-size: 1.5rem;
+        font-size: 1.05rem;
         color: white;
     }
     
@@ -78,27 +78,27 @@
     }
     
     .module-title {
-        font-size: 1.15rem;
+        font-size: 0.88rem;
         font-weight: 700;
         color: #1e293b;
-        margin: 0 0 0.25rem 0;
-        line-height: 1.3;
+        margin: 0 0 0.15rem 0;
+        line-height: 1.2;
     }
     
     .module-status {
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
-        padding: 0.25rem 0.65rem;
-        border-radius: 20px;
-        font-size: 0.7rem;
+        gap: 0.25rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 10px;
+        font-size: 0.6rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.4px;
     }
     
     .module-status.active {
-        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        background: #dcfce7;
         color: #15803d;
     }
     
@@ -108,14 +108,14 @@
     }
     
     .module-status i {
-        font-size: 0.5rem;
+        font-size: 0.35rem;
     }
     
     .module-desc {
-        font-size: 0.875rem;
+        font-size: 0.72rem;
         color: #64748b;
-        line-height: 1.6;
-        margin-bottom: 1.25rem;
+        line-height: 1.4;
+        margin-bottom: 0.6rem;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -124,25 +124,25 @@
     
     .module-stats-row {
         display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
+        gap: 0.35rem;
+        margin-bottom: 0;
     }
     
     .stat-chip {
         flex: 1;
         background: #f8fafc;
-        border-radius: 12px;
-        padding: 0.75rem 0.5rem;
+        border-radius: 6px;
+        padding: 0.35rem 0.25rem;
         text-align: center;
         border: 1px solid #f1f5f9;
     }
     
     .stat-chip .value {
-        font-size: 1.25rem;
+        font-size: 0.95rem;
         font-weight: 800;
         display: block;
         line-height: 1;
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.1rem;
     }
     
     .stat-chip .value.primary { color: #6366f1; }
@@ -150,53 +150,54 @@
     .stat-chip .value.success { color: #10b981; }
     
     .stat-chip .label {
-        font-size: 0.65rem;
+        font-size: 0.55rem;
         color: #94a3b8;
         text-transform: uppercase;
-        font-weight: 600;
-        letter-spacing: 0.5px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
     }
     
     .module-footer {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 1rem 1.75rem;
-        background: #fafbfc;
+        padding: 0.4rem 0.75rem;
+        background: #f9fafb;
         border-top: 1px solid #f1f5f9;
     }
     
     .trial-badge {
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        font-size: 0.8rem;
+        gap: 0.3rem;
+        font-size: 0.68rem;
         color: #64748b;
         font-weight: 500;
     }
     
     .trial-badge i {
-        font-size: 0.9rem;
+        font-size: 0.72rem;
         color: #94a3b8;
     }
     
     .module-actions {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.3rem;
     }
     
     .action-btn {
-        width: 34px;
-        height: 34px;
-        border-radius: 10px;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
         border: 1px solid #e2e8f0;
         background: white;
         color: #64748b;
-        transition: all 0.2s ease;
+        transition: all 0.15s ease;
         cursor: pointer;
+        font-size: 0.78rem;
     }
     
     .action-btn:hover {
@@ -221,11 +222,11 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 2rem;
+        margin-bottom: 0.75rem;
     }
     
     .page-title {
-        font-size: 1.5rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: #1e293b;
         margin: 0;
@@ -234,57 +235,58 @@
     .add-module-btn {
         background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
         border: none;
-        padding: 0.65rem 1.25rem;
-        border-radius: 12px;
+        padding: 0.4rem 0.85rem;
+        border-radius: 8px;
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 0.78rem;
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        gap: 0.35rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
     }
     
     .add-module-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
         background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
     }
     
     .empty-state {
         text-align: center;
-        padding: 4rem 2rem;
+        padding: 2rem 1.5rem;
         background: white;
-        border-radius: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        border-radius: 10px;
+        box-shadow: var(--card-shadow);
     }
     
     .empty-state-icon {
-        width: 80px;
-        height: 80px;
-        border-radius: 20px;
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
         background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: 0.75rem;
     }
     
     .empty-state-icon i {
-        font-size: 2rem;
+        font-size: 1.35rem;
         color: #94a3b8;
     }
     
     .empty-state-title {
-        font-size: 1.1rem;
+        font-size: 0.9rem;
         font-weight: 600;
         color: #334155;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
     }
     
     .empty-state-desc {
         color: #64748b;
-        margin-bottom: 1.5rem;
+        font-size: 0.78rem;
+        margin-bottom: 0.75rem;
     }
 </style>
 {% endblock %}
@@ -386,7 +388,7 @@
 
 <!-- Bundle Pricing Section -->
 {% if bundles %}
-<h6 class="mb-2 mt-4 text-muted"><i class="bi bi-box-seam me-2"></i>Bundle Pricing</h6>
+<h6 class="mb-2 mt-3 text-muted" style="font-size:0.78rem;"><i class="bi bi-box-seam me-1"></i>Bundle Pricing</h6>
 <div class="modules-grid">
     {% for bundle in bundles %}
     <div class="module-card" style="--module-color: {{ bundle.color|default:'#8b5cf6' }};">

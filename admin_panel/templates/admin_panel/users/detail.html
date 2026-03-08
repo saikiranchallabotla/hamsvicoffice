@@ -10,7 +10,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div class="d-flex align-items-center">
-        <div class="user-avatar me-3" style="width:56px;height:56px;background:linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:1.5rem;font-weight:600;">
+        <div class="user-avatar me-2" style="width:40px;height:40px;background:linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:1.1rem;font-weight:600;">
             {{ target_user.first_name|slice:":1"|upper }}{{ target_user.last_name|slice:":1"|upper|default:"U" }}
         </div>
         <div>
