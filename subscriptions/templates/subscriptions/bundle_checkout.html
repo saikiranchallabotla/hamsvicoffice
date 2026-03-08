@@ -219,7 +219,25 @@
             .checkout-card, .payment-card { padding: 1.5rem; }
             .amount-value { font-size: 2rem; }
             .bundle-header { flex-direction: column; text-align: center; }
+            .duration-options { flex-direction: column; }
         }
+
+        .duration-options {
+            display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+        }
+        .duration-option {
+            flex: 1; min-width: 120px; position: relative; cursor: pointer;
+            background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px;
+            padding: 1rem; text-align: center; transition: all 0.2s ease;
+        }
+        .duration-option:hover { border-color: #f59e0b; background: #fffbeb; }
+        .duration-option.active { border-color: #f59e0b; background: #fffbeb; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+        .duration-option input[type="radio"] { display: none; }
+        .duration-option .dur-label { font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 0.25rem; }
+        .duration-option .dur-price { font-size: 1.1rem; font-weight: 800; color: #f59e0b; }
+        .duration-option .dur-original { font-size: 0.78rem; color: #94a3b8; text-decoration: line-through; }
+        .duration-option .dur-save { display: inline-block; background: #dcfce7; color: #16a34a; font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 10px; margin-top: 0.25rem; }
+        .duration-option .dur-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #f59e0b, #d97706); color: white; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 10px; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -294,6 +312,30 @@
                         <span class="module-tag"><i class="bi bi-{{ m.icon|default:'box' }}"></i> {{ m.name }}</span>
                         {% endfor %}
                     </div>
+
+                    {% if all_plans.count > 1 %}
+                    <h6 style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; margin-bottom:0.75rem;">
+                        <i class="bi bi-calendar3 me-1"></i> Choose Duration
+                    </h6>
+                    <div class="duration-options">
+                        {% for plan in all_plans %}
+                        <label class="duration-option {% if plan.id == pricing.id %}active{% endif %}" onclick="switchPlan(this, {{ bundle.id }}, {{ plan.id }})">
+                            <input type="radio" name="duration" value="{{ plan.id }}" {% if plan.id == pricing.id %}checked{% endif %}>
+                            {% if plan.is_popular %}
+                            <span class="dur-popular">Popular</span>
+                            {% endif %}
+                            <div class="dur-label">{{ plan.get_duration_months_display }}</div>
+                            {% if plan.discount_percent > 0 %}
+                            <div class="dur-original">₹{{ plan.base_price|floatformat:0 }}</div>
+                            {% endif %}
+                            <div class="dur-price">₹{{ plan.sale_price|floatformat:0 }}</div>
+                            {% if plan.discount_percent > 0 %}
+                            <span class="dur-save">Save {{ plan.discount_percent|floatformat:0 }}%</span>
+                            {% endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
 
                     <div class="order-summary">
                         <div class="order-row">
@@ -571,6 +613,17 @@
                     applyCouponBtn.textContent = 'Apply';
                 }
             });
+        }
+
+        const planUrls = {
+            {% for plan in all_plans %}
+            {{ plan.id }}: '{% url "bundle_checkout" bundle_id=bundle.id pricing_id=plan.id %}'{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        };
+        function switchPlan(el, bundleId, planId) {
+            document.querySelectorAll('.duration-option').forEach(o => o.classList.remove('active'));
+            el.classList.add('active');
+            if (planUrls[planId]) window.location.href = planUrls[planId];
         }
     </script>
 </body>

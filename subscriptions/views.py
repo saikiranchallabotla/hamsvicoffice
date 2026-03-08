@@ -391,11 +391,13 @@ def bundle_checkout_view(request, bundle_id, pricing_id):
     bundle = get_object_or_404(ModuleBundle, id=bundle_id, is_active=True)
     pricing = get_object_or_404(BundlePricing, id=pricing_id, bundle=bundle, is_active=True)
     bundle_modules = bundle.modules.filter(is_active=True).order_by('display_order')
+    all_plans = bundle.bundle_pricing.filter(is_active=True).order_by('duration_months')
 
     context = {
         'bundle': bundle,
         'pricing': pricing,
         'bundle_modules': bundle_modules,
+        'all_plans': all_plans,
     }
     return render(request, 'subscriptions/bundle_checkout.html', context)
 
