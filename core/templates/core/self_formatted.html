@@ -536,7 +536,7 @@
                         <span class="name">{{ fmt.name }}</span>
                         <div class="actions">
                             <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
-                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" onsubmit="return confirm('Delete?');">
+                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" data-confirm="Delete?" data-confirm-title="Delete Format">
                                 {% csrf_token %}
                                 <button type="submit" class="del"><i class="bi bi-x"></i></button>
                             </form>

@@ -100,7 +100,7 @@
                         </form>
                         <form action="{% url 'admin_coupon_delete' coupon.id %}" method="post" class="d-inline">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete coupon {{ coupon.code }}?')" title="Delete">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete coupon {{ coupon.code }}?" data-confirm-title="Delete Coupon" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </form>

@@ -126,6 +126,32 @@
 
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Toast notification for this base template
+(function() {
+    var container;
+    function getContainer() {
+        if (!container) {
+            container = document.createElement('div');
+            container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:10px;max-width:400px;';
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+    window.showToast = function(message, type) {
+        var c = getContainer();
+        var colors = {info:'#3b82f6',warning:'#f59e0b',error:'#ef4444',success:'#22c55e'};
+        var color = colors[type] || colors.info;
+        var t = document.createElement('div');
+        t.style.cssText = 'display:flex;align-items:center;padding:14px 18px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.15);background:white;border-left:4px solid '+color+';animation:slideIn 0.3s ease-out;';
+        t.innerHTML = '<span style="flex:1;color:#1e293b;font-size:0.95rem;">' + message + '</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;margin-left:12px;font-size:1.2rem;">&times;</button>';
+        c.appendChild(t);
+        setTimeout(function() { if (t.parentElement) t.remove(); }, 5000);
+    };
+    window.alert = function(message) { showToast(message, 'warning'); };
+})();
+</script>
+{% include "includes/app_modal.html" %}
 {% block extra_js %}{% endblock %}
 
 </body>

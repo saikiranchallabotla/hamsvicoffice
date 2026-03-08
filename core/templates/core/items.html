@@ -2147,22 +2147,23 @@ document.addEventListener('keydown', function(e) {
     if (saveBtn && form && projectNameField && qtyMapField) {
         saveBtn.addEventListener("click", function(e) {
             e.preventDefault();
-            var projName = window.prompt("Enter project name to save:");
-            if (!projName) {
-                return;
-            }
-            projectNameField.value = projName;
+            appPrompt("Enter project name to save:", "Save Project").then(function(projName) {
+                if (!projName) {
+                    return;
+                }
+                projectNameField.value = projName;
 
-            var m = buildQtyMap();
-            qtyMapField.value = JSON.stringify(m);
-            
-            if (unitMapField) {
-                var um = buildUnitMapLocal();
-                unitMapField.value = JSON.stringify(um);
-            }
+                var m = buildQtyMap();
+                qtyMapField.value = JSON.stringify(m);
+                
+                if (unitMapField) {
+                    var um = buildUnitMapLocal();
+                    unitMapField.value = JSON.stringify(um);
+                }
 
-            form.action = "{% url 'save_project' category %}";
-            form.submit();
+                form.action = "{% url 'save_project' category %}";
+                form.submit();
+            });
         });
     }
     

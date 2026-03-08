@@ -119,7 +119,7 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Change subscription status?')">
+                            <button type="submit" class="btn btn-warning w-100" data-confirm="Change subscription status?" data-confirm-title="Update Status">
                                 <i class="bi bi-arrow-repeat me-1"></i> Update Status
                             </button>
                         </div>
@@ -151,7 +151,7 @@
                             <input type="hidden" name="action" value="reset_usage">
                             <label class="form-label fw-semibold">Reset Usage Counter</label>
                             <div>
-                                <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Reset usage count to 0?')">
+                                <button type="submit" class="btn btn-outline-danger w-100" data-confirm="Reset usage count to 0?" data-confirm-title="Reset Usage">
                                     <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to 0 (Current: {{ sub.usage_count }})
                                 </button>
                             </div>

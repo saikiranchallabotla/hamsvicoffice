@@ -1006,52 +1006,55 @@
     }
 
     function createSubfolder() {
-        const folderName = prompt('Enter new subfolder name:');
-        if (folderName && folderName.trim()) {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch('/saved-works/folder/create/', {
-                method: 'POST',
-                body: new URLSearchParams({
-                    name: folderName.trim(),
-                    parent_id: selectedFolderId,
-                    color: '#6366f1'
-                }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to create subfolder');
-            });
-        }
+        appPrompt('Enter new subfolder name:', 'Create Subfolder').then(function(folderName) {
+            if (folderName && folderName.trim()) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                fetch('/saved-works/folder/create/', {
+                    method: 'POST',
+                    body: new URLSearchParams({
+                        name: folderName.trim(),
+                        parent_id: selectedFolderId,
+                        color: '#6366f1'
+                    }),
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) location.reload();
+                    else alert(data.error || 'Failed to create subfolder');
+                });
+            }
+        });
     }
 
     function renameSelectedFolder() {
-        const newName = prompt('Enter new folder name:', selectedFolderName);
-        if (newName && newName !== selectedFolderName) {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch(`/saved-works/folder/${selectedFolderId}/rename/`, {
-                method: 'POST',
-                body: new URLSearchParams({ name: newName }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to rename');
-            });
-        }
+        appPrompt('Enter new folder name:', 'Rename Folder', selectedFolderName).then(function(newName) {
+            if (newName && newName !== selectedFolderName) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                fetch(`/saved-works/folder/${selectedFolderId}/rename/`, {
+                    method: 'POST',
+                    body: new URLSearchParams({ name: newName }),
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) location.reload();
+                    else alert(data.error || 'Failed to rename');
+                });
+            }
+        });
     }
 
     // Direct button-based folder actions
     function deleteFolder(folderId, folderName) {
-        if (confirm(`Are you sure you want to delete folder "${folderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
+        appConfirm('Are you sure you want to delete folder "' + folderName + '" permanently?\n\nAll works and subfolders inside will be permanently deleted.', 'Delete Folder', {type: 'danger', danger: true, okText: 'Delete'}).then(function(ok) {
+            if (!ok) return;
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             fetch(`/saved-works/folder/${folderId}/delete/`, {
                 method: 'POST',
@@ -1066,31 +1069,33 @@
                 if (data.success) location.reload();
                 else alert(data.error || 'Failed to delete folder');
             });
-        }
+        });
     }
 
     function renameFolder(folderId, folderName) {
-        const newName = prompt('Enter new folder name:', folderName);
-        if (newName && newName !== folderName) {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            fetch(`/saved-works/folder/${folderId}/rename/`, {
-                method: 'POST',
-                body: new URLSearchParams({ name: newName }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) location.reload();
-                else alert(data.error || 'Failed to rename folder');
-            });
-        }
+        appPrompt('Enter new folder name:', 'Rename Folder', folderName).then(function(newName) {
+            if (newName && newName !== folderName) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                fetch(`/saved-works/folder/${folderId}/rename/`, {
+                    method: 'POST',
+                    body: new URLSearchParams({ name: newName }),
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) location.reload();
+                    else alert(data.error || 'Failed to rename folder');
+                });
+            }
+        });
     }
 
     function deleteSelectedFolder() {
-        if (confirm(`Are you sure you want to delete folder "${selectedFolderName}" permanently?\n\nAll works and subfolders inside will be permanently deleted.`)) {
+        appConfirm('Are you sure you want to delete folder "' + selectedFolderName + '" permanently?\n\nAll works and subfolders inside will be permanently deleted.', 'Delete Folder', {type: 'danger', danger: true, okText: 'Delete'}).then(function(ok) {
+            if (!ok) return;
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             fetch(`/saved-works/folder/${selectedFolderId}/delete/`, {
                 method: 'POST',
@@ -1105,7 +1110,7 @@
                 if (data.success) location.reload();
                 else alert(data.error || 'Failed to delete folder');
             });
-        }
+        });
     }
 
     // Work actions
@@ -1167,16 +1172,18 @@
 
     // Direct delete from inline button
     function deleteWorkDirect(workId, workName) {
-        if (!confirm(`Delete "${workName}"? This cannot be undone.`)) return;
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        fetch(`/saved-works/${workId}/delete/`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) location.reload();
-            else alert(data.error || 'Failed to delete');
+        appConfirm('Delete "' + workName + '"? This cannot be undone.', 'Delete Work', {type: 'danger', danger: true, okText: 'Delete'}).then(function(ok) {
+            if (!ok) return;
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/${workId}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to delete');
+            });
         });
     }
 

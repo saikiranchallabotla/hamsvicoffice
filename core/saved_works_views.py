@@ -43,10 +43,6 @@ def check_saved_work_access(user, saved_work):
     Returns:
         dict: {ok: bool, reason: str, module_code: str}
     """
-    # Staff/superusers always have access
-    if user.is_staff or user.is_superuser:
-        return {'ok': True, 'reason': 'Admin access', 'module_code': None}
-    
     work_type = saved_work.work_type
     module_code = WORK_TYPE_TO_MODULE.get(work_type)
     
@@ -239,30 +235,23 @@ def saved_works_list(request):
     }
 
     module_access = {}
-    if user.is_staff or user.is_superuser:
-        # Staff/admin bypass subscription checks
+    try:
+        from subscriptions.services import SubscriptionService
+        for work_type, module_code in work_type_to_module.items():
+            result = SubscriptionService.check_access(user, module_code)
+            module_access[work_type] = result.get('ok', False)
+        # Also check workslip access for the generate workslip button
+        workslip_result = SubscriptionService.check_access(user, 'workslip')
+        module_access['can_generate_workslip'] = workslip_result.get('ok', False)
+        # Check bill access
+        bill_result = SubscriptionService.check_access(user, 'bill')
+        module_access['can_generate_bill'] = bill_result.get('ok', False)
+    except Exception:
+        # If subscription service fails, deny access (secure fallback)
         for work_type in work_type_to_module.keys():
-            module_access[work_type] = True
-        module_access['can_generate_workslip'] = True
-        module_access['can_generate_bill'] = True
-    else:
-        try:
-            from subscriptions.services import SubscriptionService
-            for work_type, module_code in work_type_to_module.items():
-                result = SubscriptionService.check_access(user, module_code)
-                module_access[work_type] = result.get('ok', False)
-            # Also check workslip access for the generate workslip button
-            workslip_result = SubscriptionService.check_access(user, 'workslip')
-            module_access['can_generate_workslip'] = workslip_result.get('ok', False)
-            # Check bill access
-            bill_result = SubscriptionService.check_access(user, 'bill')
-            module_access['can_generate_bill'] = bill_result.get('ok', False)
-        except Exception:
-            # If subscription service fails, deny access (secure fallback)
-            for work_type in work_type_to_module.keys():
-                module_access[work_type] = False
-            module_access['can_generate_workslip'] = False
-            module_access['can_generate_bill'] = False
+            module_access[work_type] = False
+        module_access['can_generate_workslip'] = False
+        module_access['can_generate_bill'] = False
 
     # Evaluate queryset to list so we can attach workflow chain data
     works_list = list(works)
@@ -1534,16 +1523,15 @@ def generate_workslip_from_saved(request, work_id):
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
     # Check workslip subscription access BEFORE allowing generation
-    if not user.is_staff and not user.is_superuser:
-        try:
-            from subscriptions.services import SubscriptionService
-            result = SubscriptionService.check_access(user, 'workslip')
-            if not result.get('ok', False):
-                messages.warning(request, 'You need an active Workslip subscription to generate workslips.')
-                return redirect('module_access', module_code='workslip')
-        except Exception:
-            messages.error(request, 'Unable to verify subscription. Please try again.')
-            return redirect('saved_works_list')
+    try:
+        from subscriptions.services import SubscriptionService
+        result = SubscriptionService.check_access(user, 'workslip')
+        if not result.get('ok', False):
+            messages.warning(request, 'You need an active Workslip subscription to generate workslips.')
+            return redirect('module_access', module_code='workslip')
+    except Exception:
+        messages.error(request, 'Unable to verify subscription. Please try again.')
+        return redirect('saved_works_list')
     
     # Verify this is an estimate, temporary_works, or amc
     if saved_work.work_type not in ['new_estimate', 'temporary_works', 'amc']:
@@ -1757,16 +1745,15 @@ def generate_next_workslip_from_saved(request, work_id):
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
     
     # Check workslip subscription access BEFORE allowing generation
-    if not user.is_staff and not user.is_superuser:
-        try:
-            from subscriptions.services import SubscriptionService
-            result = SubscriptionService.check_access(user, 'workslip')
-            if not result.get('ok', False):
-                messages.warning(request, 'You need an active Workslip subscription to generate workslips.')
-                return redirect('module_access', module_code='workslip')
-        except Exception:
-            messages.error(request, 'Unable to verify subscription. Please try again.')
-            return redirect('saved_works_list')
+    try:
+        from subscriptions.services import SubscriptionService
+        result = SubscriptionService.check_access(user, 'workslip')
+        if not result.get('ok', False):
+            messages.warning(request, 'You need an active Workslip subscription to generate workslips.')
+            return redirect('module_access', module_code='workslip')
+    except Exception:
+        messages.error(request, 'Unable to verify subscription. Please try again.')
+        return redirect('saved_works_list')
     
     # Verify this is a workslip
     if saved_work.work_type != 'workslip':
@@ -1951,16 +1938,15 @@ def bill_choice(request, work_id):
     saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
 
     # Check bill subscription access BEFORE showing bill choices
-    if not user.is_staff and not user.is_superuser:
-        try:
-            from subscriptions.services import SubscriptionService
-            result = SubscriptionService.check_access(user, 'bill')
-            if not result.get('ok', False):
-                messages.warning(request, 'You need an active Bill subscription to generate bills.')
-                return redirect('module_access', module_code='bill')
-        except Exception:
-            messages.error(request, 'Unable to verify subscription. Please try again.')
-            return redirect('saved_works_list')
+    try:
+        from subscriptions.services import SubscriptionService
+        result = SubscriptionService.check_access(user, 'bill')
+        if not result.get('ok', False):
+            messages.warning(request, 'You need an active Bill subscription to generate bills.')
+            return redirect('module_access', module_code='bill')
+    except Exception:
+        messages.error(request, 'Unable to verify subscription. Please try again.')
+        return redirect('saved_works_list')
 
     # Only estimates should reach this page
     if saved_work.work_type != 'new_estimate':
@@ -2913,16 +2899,15 @@ def generate_bill_from_saved(request, work_id):
     user = request.user
 
     # Check bill subscription access BEFORE allowing generation
-    if not user.is_staff and not user.is_superuser:
-        try:
-            from subscriptions.services import SubscriptionService
-            result = SubscriptionService.check_access(user, 'bill')
-            if not result.get('ok', False):
-                messages.warning(request, 'You need an active Bill subscription to generate bills.')
-                return redirect('module_access', module_code='bill')
-        except Exception:
-            messages.error(request, 'Unable to verify subscription. Please try again.')
-            return redirect('saved_works_list')
+    try:
+        from subscriptions.services import SubscriptionService
+        result = SubscriptionService.check_access(user, 'bill')
+        if not result.get('ok', False):
+            messages.warning(request, 'You need an active Bill subscription to generate bills.')
+            return redirect('module_access', module_code='bill')
+    except Exception:
+        messages.error(request, 'Unable to verify subscription. Please try again.')
+        return redirect('saved_works_list')
 
     try:
         saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
@@ -3161,7 +3146,7 @@ def saved_work_detail(request, work_id):
             module_access[wt] = result.get('ok', False)
     except Exception:
         for wt in WORK_TYPE_TO_MODULE:
-            module_access[wt] = True
+            module_access[wt] = False
 
     # ===========================================================
     # BILL PREVIEW: Build preview rows for workslip/bill types

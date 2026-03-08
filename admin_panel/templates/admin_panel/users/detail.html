@@ -127,7 +127,7 @@
                         <div class="form-text">Type <code>{{ target_user.username }}</code> exactly to confirm</div>
                     </div>
                     
-                    <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Are you sure you want to change this user\'s role? This action will be logged.')">
+                    <button type="submit" class="btn btn-warning w-100" data-confirm="Are you sure you want to change this user's role? This action will be logged." data-confirm-title="Change Role">
                         <i class="bi bi-shield-check me-1"></i> Change Role
                     </button>
                 </form>
@@ -183,7 +183,7 @@
                                 {% if sub.status in 'active,trial' %}
                                 <form action="{% url 'admin_revoke_subscription' sub.id %}" method="post" class="d-inline">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Revoke this subscription?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Revoke this subscription?" data-confirm-title="Revoke Subscription">
                                         Revoke
                                     </button>
                                 </form>
@@ -244,7 +244,7 @@
                 {% if sessions %}
                 <form action="{% url 'admin_force_logout_all' target_user.id %}" method="post" class="d-inline">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Terminate ALL sessions for this user?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Terminate ALL sessions for this user?" data-confirm-title="Terminate Sessions">
                         <i class="bi bi-box-arrow-right me-1"></i> Logout All
                     </button>
                 </form>
@@ -274,7 +274,7 @@
                             <td>
                                 <form action="{% url 'admin_force_logout_session' session.id %}" method="post" class="d-inline">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Terminate this session?')" title="Force Logout">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Terminate this session?" data-confirm-title="Force Logout" title="Force Logout">
                                         <i class="bi bi-x-circle"></i>
                                     </button>
                                 </form>
