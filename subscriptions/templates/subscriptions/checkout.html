@@ -590,9 +590,15 @@
                             <span class="label">GST ({{ pricing.gst_percent|floatformat:0 }}%)</span>
                             <span class="value">₹{{ pricing.gst_amount|floatformat:0 }}</span>
                         </div>
+                        <div id="couponDiscountRow" class="order-row discount" style="display:none;">
+                            <span class="label" id="couponDiscountLabel">
+                                <i class="bi bi-ticket-perforated-fill me-1"></i> Promo discount
+                            </span>
+                            <span class="value" id="couponDiscountValue"></span>
+                        </div>
                         <div class="order-row total">
                             <span class="label">Total Amount</span>
-                            <span class="value">₹{{ pricing.total_price|floatformat:0 }}</span>
+                            <span class="value" id="totalAmountDisplay">₹{{ pricing.total_price|floatformat:0 }}</span>
                         </div>
                     </div>
                     
@@ -612,13 +618,7 @@
                         <div id="couponMessage" style="font-size:0.78rem; margin-top:0.3rem;"></div>
                     </div>
 
-                    <!-- Coupon discount row (hidden initially) -->
-                    <div id="couponDiscountRow" class="order-row discount" style="display:none; padding:0.4rem 0;">
-                        <span class="label" id="couponDiscountLabel">
-                            <i class="bi bi-ticket-perforated-fill me-1"></i> Promo discount
-                        </span>
-                        <span class="value" id="couponDiscountValue"></span>
-                    </div>
+
 
                     <!-- Features -->
                     <ul class="features-list">
@@ -881,6 +881,14 @@
                         const row = document.getElementById('couponDiscountRow');
                         const val = document.getElementById('couponDiscountValue');
                         if (row && val) { val.textContent = '- \u20b9' + parseFloat(data.discount).toFixed(0); row.style.display = 'flex'; }
+                        // Update total amount display
+                        const couponDiscount = parseFloat(data.discount) || 0;
+                        const baseTotal = {{ pricing.total_price|floatformat:2 }};
+                        const newTotal = Math.max(0, baseTotal - couponDiscount);
+                        const totalEl = document.getElementById('totalAmountDisplay');
+                        if (totalEl) totalEl.textContent = '\u20b9' + Math.round(newTotal);
+                        const amountEl = document.querySelector('.amount-value');
+                        if (amountEl) amountEl.innerHTML = '\u20b9' + Math.round(newTotal) + ' <small>INR</small>';
                         codeInput.disabled = true;
                         applyCouponBtn.textContent = 'Applied';
                     } else {

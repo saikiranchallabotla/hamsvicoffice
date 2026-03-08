@@ -309,13 +309,19 @@
                             <span class="value">- ₹{{ pricing.discount_amount|floatformat:0 }}</span>
                         </div>
                         {% endif %}
+                        <div id="couponDiscountRow" class="order-row discount" style="display:none;">
+                            <span class="label" id="couponDiscountLabel">
+                                <i class="bi bi-ticket-perforated-fill me-1"></i> Promo discount
+                            </span>
+                            <span class="value" id="couponDiscountValue"></span>
+                        </div>
                         <div class="order-row">
                             <span class="label">GST ({{ pricing.gst_percent|floatformat:0 }}%)</span>
                             <span class="value">₹{{ pricing.gst_amount|floatformat:0 }}</span>
                         </div>
                         <div class="order-row total">
                             <span class="label">Total Amount</span>
-                            <span class="value">₹{{ pricing.total_price|floatformat:0 }}</span>
+                            <span class="value" id="totalAmountDisplay">₹{{ pricing.total_price|floatformat:0 }}</span>
                         </div>
                     </div>
 
@@ -333,13 +339,6 @@
                             </button>
                         </div>
                         <div id="couponMessage" style="font-size:0.78rem; margin-top:0.3rem;"></div>
-                    </div>
-
-                    <div id="couponDiscountRow" class="order-row discount" style="display:none; padding:0.4rem 0;">
-                        <span class="label" id="couponDiscountLabel">
-                            <i class="bi bi-ticket-perforated-fill me-1"></i> Promo discount
-                        </span>
-                        <span class="value" id="couponDiscountValue"></span>
                     </div>
 
                     <ul class="features-list">
@@ -546,7 +545,18 @@
                         msg.innerHTML = '<span style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> ' + data.description + ' applied!</span>';
                         const row = document.getElementById('couponDiscountRow');
                         const val = document.getElementById('couponDiscountValue');
-                        if (row && val) { val.textContent = '- \u20b9' + parseFloat(data.discount).toFixed(0); row.style.display = 'flex'; }
+                        const couponDiscount = parseFloat(data.discount) || 0;
+                        if (row && val) {
+                            val.textContent = '- \u20b9' + couponDiscount.toFixed(0);
+                            row.style.display = 'flex';
+                        }
+                        // Update total amount display
+                        const baseTotal = {{ pricing.total_price|floatformat:2 }};
+                        const newTotal = Math.max(0, baseTotal - couponDiscount);
+                        const totalEl = document.getElementById('totalAmountDisplay');
+                        if (totalEl) totalEl.textContent = '\u20b9' + Math.round(newTotal);
+                        const amountEl = document.querySelector('.amount-value');
+                        if (amountEl) amountEl.innerHTML = '\u20b9' + Math.round(newTotal) + ' <small>INR</small>';
                         codeInput.disabled = true;
                         applyCouponBtn.textContent = 'Applied';
                     } else {

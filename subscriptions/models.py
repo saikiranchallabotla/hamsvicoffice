@@ -497,6 +497,10 @@ class BundlePricing(models.Model):
         return 0
 
     @property
+    def discount_amount(self):
+        return self.base_price - self.sale_price
+
+    @property
     def gst_amount(self):
         return (self.sale_price * self.gst_percent) / 100
 
