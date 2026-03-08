@@ -51,10 +51,25 @@ def dashboard(request):
         sub = sub_by_module.get(module.id)
         
         if sub:
-            if sub.status == 'trial':
+            if sub.status == 'trial' and sub.is_active():
                 status = 'trial'
-                status_label = f'Trial ({sub.days_remaining()} days left)'
+                # Calculate remaining time for label
+                remaining = sub.expires_at - timezone.now()
+                total_seconds = int(remaining.total_seconds())
+                hours_left = total_seconds // 3600
+                mins_left = (total_seconds % 3600) // 60
+                if hours_left >= 24:
+                    status_label = f'Trial ({sub.days_remaining()} days left)'
+                elif hours_left > 0:
+                    status_label = f'Trial ({hours_left}h {mins_left}m left)'
+                else:
+                    status_label = f'Trial ({mins_left}m left)'
                 status_class = 'warning'
+            elif sub.status == 'trial' and not sub.is_active():
+                # Trial has expired by time
+                status = 'expired'
+                status_label = 'Trial Expired'
+                status_class = 'danger'
             elif sub.is_active():
                 status = 'active'
                 status_label = 'Active'

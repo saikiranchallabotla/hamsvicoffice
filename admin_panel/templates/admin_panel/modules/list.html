@@ -383,4 +383,60 @@
     </div>
     {% endfor %}
 </div>
+
+<!-- Bundle Pricing Section -->
+{% if bundles %}
+<h6 class="mb-2 mt-4 text-muted"><i class="bi bi-box-seam me-2"></i>Bundle Pricing</h6>
+<div class="modules-grid">
+    {% for bundle in bundles %}
+    <div class="module-card" style="--module-color: {{ bundle.color|default:'#8b5cf6' }};">
+        <div class="card-body">
+            <div class="module-header">
+                <div class="module-icon" style="background: linear-gradient(135deg, {{ bundle.color|default:'#8b5cf6' }} 0%, {{ bundle.color|default:'#8b5cf6' }}dd 100%);">
+                    <i class="bi bi-{{ bundle.icon|default:'stack' }}"></i>
+                </div>
+                <div class="module-info">
+                    <h3 class="module-title">{{ bundle.name }}</h3>
+                    <span class="module-status {% if bundle.is_active %}active{% else %}inactive{% endif %}">
+                        <i class="bi bi-circle-fill"></i>
+                        {% if bundle.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                </div>
+            </div>
+            <p class="module-desc">{{ bundle.description|default:"All modules bundled at a discounted price." }}</p>
+            <div class="module-stats-row">
+                <div class="stat-chip">
+                    <span class="value primary">{{ bundle.modules.count }}</span>
+                    <span class="label">Modules</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="value info">{{ bundle.bundle_pricing.count }}</span>
+                    <span class="label">Plans</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="value success">
+                        {% with best=bundle.get_active_pricing.first %}
+                            {% if best %}₹{{ best.sale_price|floatformat:0 }}{% else %}—{% endif %}
+                        {% endwith %}
+                    </span>
+                    <span class="label">Starting</span>
+                </div>
+            </div>
+        </div>
+        <div class="module-footer">
+            <div class="trial-badge">
+                <i class="bi bi-box-seam"></i>
+                {% for m in bundle.modules.all %}{{ m.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            </div>
+            <div class="module-actions">
+                <a href="{% url 'admin_bundle_pricing_edit' bundle.id %}" class="action-btn pricing" title="Edit Bundle Pricing">
+                    <i class="bi bi-currency-rupee"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% endblock %}

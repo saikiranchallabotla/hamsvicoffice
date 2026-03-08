@@ -6,7 +6,7 @@
 from admin_panel.decorators import admin_required, superadmin_required
 from subscriptions.models import Module
 from accounts.models import UserProfile, UserSession
-from subscriptions.models import ModulePricing, UserModuleSubscription, Payment
+from subscriptions.models import ModulePricing, UserModuleSubscription, Payment, ModuleBundle, BundlePricing
 from support.models import SupportTicket, TicketMessage, Announcement, FAQCategory, FAQItem
 
 import json
@@ -24,11 +24,24 @@ from django.utils import timezone
 @admin_required
 def module_list(request):
     """
-    List all modules for admin panel.
+    List all modules for admin panel with subscription stats.
     """
-    modules = Module.objects.all().order_by('display_order', 'name')
+    modules = Module.objects.annotate(
+        active_count=Count('subscriptions', filter=Q(subscriptions__status='active', subscriptions__expires_at__gt=timezone.now())),
+        trial_count=Count('subscriptions', filter=Q(subscriptions__status='trial', subscriptions__expires_at__gt=timezone.now())),
+    ).order_by('display_order', 'name')
+
+    # Attach base_price (monthly sale_price) to each module
+    for module in modules:
+        monthly = ModulePricing.objects.filter(module=module, duration_months=1, is_active=True).first()
+        module.base_price = monthly.sale_price if monthly else 0
+
+    # Get bundles for bundle management section
+    bundles = ModuleBundle.objects.prefetch_related('modules', 'bundle_pricing').all()
+
     context = {
         'modules': modules,
+        'bundles': bundles,
     }
     return render(request, 'admin_panel/modules/list.html', context)
 
@@ -507,6 +520,83 @@ def pricing_edit(request, module_id, pricing_id=None):
     }
     
     return render(request, 'admin_panel/modules/pricing_edit.html', context)
+
+
+@admin_required
+def bundle_pricing_edit(request, bundle_id):
+    """
+    Edit pricing tiers for a module bundle.
+    """
+    bundle = get_object_or_404(ModuleBundle, id=bundle_id)
+    existing_pricing = {p.duration_months: p for p in bundle.bundle_pricing.all()}
+
+    pricing_tiers = [
+        {'months': 1, 'name': 'Monthly', 'icon': 'calendar-month'},
+        {'months': 3, 'name': 'Quarterly', 'icon': 'calendar3'},
+        {'months': 6, 'name': 'Half-Yearly', 'icon': 'calendar-range'},
+        {'months': 12, 'name': 'Yearly', 'icon': 'calendar-check'},
+    ]
+
+    if request.method == 'POST':
+        from decimal import Decimal
+
+        # Update bundle name/description
+        bundle.name = request.POST.get('bundle_name', bundle.name).strip()
+        bundle.description = request.POST.get('bundle_description', bundle.description).strip()
+        bundle.is_active = request.POST.get('bundle_is_active') == 'on'
+        bundle.save()
+
+        for tier in pricing_tiers:
+            months = tier['months']
+            prefix = f'tier_{months}_'
+            is_enabled = request.POST.get(f'{prefix}enabled') == 'on'
+
+            if is_enabled:
+                base_price = Decimal(request.POST.get(f'{prefix}base_price', '0') or '0')
+                sale_price = Decimal(request.POST.get(f'{prefix}sale_price', '0') or '0')
+                gst_percent = Decimal(request.POST.get(f'{prefix}gst_percent', '18') or '18')
+                is_popular = request.POST.get(f'{prefix}is_popular') == 'on'
+
+                BundlePricing.objects.update_or_create(
+                    bundle=bundle,
+                    duration_months=months,
+                    defaults={
+                        'base_price': base_price,
+                        'sale_price': sale_price if sale_price > 0 else base_price,
+                        'gst_percent': gst_percent,
+                        'is_active': True,
+                        'is_popular': is_popular,
+                    }
+                )
+            else:
+                BundlePricing.objects.filter(bundle=bundle, duration_months=months).update(is_active=False)
+
+        messages.success(request, f'Bundle pricing updated for {bundle.name}.')
+        return redirect('admin_module_list')
+
+    tiers_data = []
+    for tier in pricing_tiers:
+        months = tier['months']
+        existing = existing_pricing.get(months)
+        individual_total = bundle.individual_total(months)
+        tiers_data.append({
+            'months': months,
+            'name': tier['name'],
+            'icon': tier['icon'],
+            'pricing': existing,
+            'is_enabled': existing.is_active if existing else False,
+            'base_price': existing.base_price if existing else individual_total,
+            'sale_price': existing.sale_price if existing else 0,
+            'gst_percent': existing.gst_percent if existing else 18,
+            'is_popular': existing.is_popular if existing else False,
+            'individual_total': individual_total,
+        })
+
+    context = {
+        'bundle': bundle,
+        'tiers': tiers_data,
+    }
+    return render(request, 'admin_panel/modules/bundle_pricing_edit.html', context)
 
 
 # =============================================================================

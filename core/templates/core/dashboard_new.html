@@ -381,6 +381,18 @@
             background: #b91c1c;
         }
         
+        .module-card .module-actions .btn-subscribe-now {
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
+            border: none;
+            color: white;
+            font-weight: 600;
+            width: 100%;
+        }
+        .module-card .module-actions .btn-subscribe-now:hover {
+            background: linear-gradient(135deg, #1d4ed8, #4338ca);
+            color: white;
+        }
+        
         /* Status Colors */
         .status-active { background: #dcfce7; color: #16a34a; }
         .status-trial { background: #fef3c7; color: #d97706; }
@@ -727,8 +739,8 @@
                                 <i class="bi bi-arrow-right me-1"></i> Open · Free
                             </a>
                         {% elif card.status == 'expired' %}
-                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-sm btn-block btn-expired">
-                                <i class="bi bi-arrow-clockwise me-1"></i> Renew Subscription
+                            <a href="{% url 'module_access' module_code=card.module.code %}" class="btn btn-sm btn-block btn-subscribe-now">
+                                <i class="bi bi-cart me-1"></i> Subscribe
                             </a>
                         {% else %}
                             {% if card.module.trial_days > 0 and not card.trial_used %}
@@ -865,9 +877,24 @@
             if (!textEl) return;
             
             if (diff <= 0) {
-                textEl.textContent = 'Trial Expired';
-                badge.classList.add('expired');
-                badge.classList.remove('urgent');
+                // Trial expired: replace the entire actions area with Subscribe button
+                const card = badge.closest('.module-card');
+                if (card) {
+                    const moduleCode = badge.dataset.module;
+                    const actionsDiv = card.querySelector('.module-actions');
+                    if (actionsDiv) {
+                        actionsDiv.innerHTML = '<a href="/subscriptions/access/' + moduleCode + '/" class="btn btn-sm btn-block btn-subscribe-now"><i class="bi bi-cart me-1"></i> Subscribe</a>';
+                    }
+                    // Update status badge
+                    const statusBadge = card.querySelector('.module-status');
+                    if (statusBadge) {
+                        statusBadge.className = 'module-status status-expired';
+                        statusBadge.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>Trial Expired';
+                    }
+                    // Update meta
+                    const meta = card.querySelector('.module-meta');
+                    if (meta) meta.remove();
+                }
                 return;
             }
             

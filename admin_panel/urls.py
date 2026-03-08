@@ -47,6 +47,7 @@ urlpatterns = [
     path('modules/', views.module_list, name='admin_module_list'),
     path('modules/<int:module_id>/edit/', views.module_edit, name='admin_module_edit'),
     path('modules/<int:module_id>/pricing/', views.pricing_edit, name='admin_pricing_edit'),
+    path('bundles/<int:bundle_id>/pricing/', views.bundle_pricing_edit, name='admin_bundle_pricing_edit'),
     
     # Subscription Management
     path('subscriptions/', views.subscription_list, name='admin_subscription_list'),
