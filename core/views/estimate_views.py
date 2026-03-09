@@ -724,8 +724,7 @@ def download_specification_report(request, estimate_id):
             run.font.bold = True
         
         # Generate filename
-        safe_work_name = work_name.replace(" ", "_").replace("/", "_")[:30]
-        filename = f'Specification_Report_{safe_work_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Spec_Report.docx'
         
         # Save to response
         response = HttpResponse(
@@ -1288,8 +1287,7 @@ def generate_specification_report_from_file(request):
                           'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
         
         # Generate filename
-        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
-        filename = f'Specification_Report_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Spec_Report.docx'
         
         # Return as download
         response = HttpResponse(
@@ -1432,8 +1430,7 @@ def download_specification_report_live(request, category):
                           'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
         
         # Generate filename
-        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
-        filename = f'Specification_Report_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Spec_Report.docx'
         
         # Return as download
         response = HttpResponse(
@@ -1781,8 +1778,7 @@ def download_forwarding_letter_live(request, category):
         copy_para.add_run(' for information.')
         
         # Generate filename
-        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
-        filename = f'Forwarding_Letter_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Fwd_Letter.docx'
         
         # Return as download
         response = HttpResponse(
@@ -2236,7 +2232,7 @@ def generate_estimate_forwarding_letter(request):
         copy_para.add_run(' for information.')
         
         # Generate filename
-        filename = f'Forwarding_Letter_{financial_year}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Fwd_Letter.docx'
         
         # Return as download
         response = HttpResponse(

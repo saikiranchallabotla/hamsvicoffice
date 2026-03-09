@@ -2662,7 +2662,7 @@ def bill_generate(request, work_id):
             resp = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
-            fname = f'Bill_{bill_number}_{"Final" if is_final else "Part"}.xlsx'
+            fname = 'Bill.xlsx'
             resp['Content-Disposition'] = f'attachment; filename="{fname}"'
             wb_out.save(resp)
 
@@ -2772,7 +2772,7 @@ def bill_generate(request, work_id):
             resp = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
-            dl_name = f'LS_Form_{"Part" if action_type == "ls_part" else "Final"}_B{bill_number}.xlsx'
+            dl_name = 'LS_Form.xlsx'
             resp['Content-Disposition'] = f'attachment; filename="{dl_name}"'
             wb_out.save(resp)
             return resp
@@ -2850,8 +2850,7 @@ def bill_generate(request, work_id):
             word_doc.save(buf)
             buf.seek(0)
 
-            base_name = 'Covering_Letter' if action_type == 'covering' else 'Movement_Slip'
-            dl_name = f'{base_name}_B{bill_number}.docx'
+            dl_name = 'Cover_Letter.docx' if action_type == 'covering' else 'Movement_Slip.docx'
             resp = HttpResponse(
                 buf.getvalue(),
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',

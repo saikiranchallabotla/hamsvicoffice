@@ -281,7 +281,7 @@ def bill(request):
             resp = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
-            resp['Content-Disposition'] = 'attachment; filename="Bill_from_WorkSlip.xlsx"'
+            resp['Content-Disposition'] = 'attachment; filename="Bill.xlsx"'
             wb_out.save(resp)
             print(f"DEBUG: Generated bill from session data ({len(items)} items)")
             return resp
@@ -628,7 +628,7 @@ def bill(request):
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-            filename = "Nth_Bill_from_FirstPart.xlsx" if action == "firstpart_nth_part" else "Second_Final_from_FirstPart.xlsx"
+            filename = "Nth_Bill.xlsx" if action == "firstpart_nth_part" else "Final_Bill.xlsx"
             resp["Content-Disposition"] = f'attachment; filename="{filename}"'
             wb_out.save(resp)
             return resp
@@ -770,7 +770,7 @@ def bill(request):
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-            filename = "Nth_Bill_from_NthPart.xlsx" if action == "nth_nth_part" else "Nth_Final_from_NthPart.xlsx"
+            filename = "Nth_Bill.xlsx" if action == "nth_nth_part" else "Final_Bill.xlsx"
             resp["Content-Disposition"] = f'attachment; filename="{filename}"'
             wb_out.save(resp)
             return resp

@@ -722,6 +722,6 @@ def export_analytics(request, export_type):
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="analytics_{export_type}_{today.strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = 'attachment; filename="Analytics.xlsx"'
     
     return response

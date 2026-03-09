@@ -869,7 +869,7 @@ def temp_download_output(request, category):
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    response["Content-Disposition"] = f'attachment; filename="{category}_temp_output_estimate.xlsx"'
+    response["Content-Disposition"] = 'attachment; filename="Temp_Estimate.xlsx"'
     wb.save(response)
     return response
 
@@ -984,8 +984,7 @@ def temp_download_specification_report(request, category):
         funds_para.add_run('The estimate requires Administrative sanction and also fixes up the agency with provision of funds '
                           'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
         
-        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
-        filename = f'TempWorks_Specification_Report_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Temp_Spec_Report.docx'
         
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -1303,8 +1302,7 @@ def temp_download_forwarding_letter(request, category):
             copy_placeholder.font.italic = True
         copy_para.add_run(' for information.')
         
-        safe_name = work_name.replace(" ", "_").replace("/", "_").replace("{{", "").replace("}}", "")[:25]
-        filename = f'TempWorks_Forwarding_Letter_{safe_name}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.docx'
+        filename = 'Temp_Fwd_Letter.docx'
         
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'

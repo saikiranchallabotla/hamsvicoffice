@@ -252,10 +252,10 @@ def bill_document(request):
     if doc_kind in ("ls_part", "ls_final"):
         if doc_kind == "ls_part":
             template_name = "LS_Form_Part.xlsx"
-            download_name = "LS_Form_Part.xlsx"
+            download_name = "LS_Form.xlsx"
         else:
             template_name = "LS_Form_Final.xlsx"
-            download_name = "LS_Form_Final.xlsx"
+            download_name = "LS_Form.xlsx"
 
         template_path = os.path.join(BILL_TEMPLATES_DIR, template_name)
         if not os.path.exists(template_path):
@@ -359,7 +359,7 @@ def bill_document(request):
                     for row_num, row_dim in ws.row_dimensions.items():
                         new_ws.row_dimensions[row_num].height = row_dim.height
             
-            download_name = f"LS_Forms_{'Part' if doc_kind == 'ls_part' else 'Final'}.xlsx"
+            download_name = "LS_Forms.xlsx"
         else:
             # Single sheet - use original logic
             header = _extract_header_data_fuzzy_from_wb(wb_in)
@@ -403,7 +403,7 @@ def bill_document(request):
         
         if doc_kind == "covering":
             template_type = "covering_letter"
-            base_download_name = "Covering_Letter"
+            base_download_name = "Cover_Letter"
             template_type_display = "Covering Letter"
         else:
             template_type = "movement_slip"

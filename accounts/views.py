@@ -1083,7 +1083,7 @@ def export_data_view(request):
         json.dumps(data, indent=2, default=str),
         content_type='application/json'
     )
-    response['Content-Disposition'] = f'attachment; filename="my_data_{user.username}.json"'
+    response['Content-Disposition'] = 'attachment; filename="My_Data.json"'
     return response
 
 
