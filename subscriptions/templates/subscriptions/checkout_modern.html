@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -493,17 +494,7 @@
         }
     });
     </script>
-    <script>
-    (function(){
-        try{
-            var key='_hamsvic_entered';
-            if(sessionStorage.getItem(key)){
-                history.replaceState(null,'',location.href);
-            }else{
-                sessionStorage.setItem(key,'1');
-            }
-        }catch(e){}
-    })();
-    </script>
+
+    <script src="{% static 'js/no-history.js' %}"></script>
 </body>
 </html>
