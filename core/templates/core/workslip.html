@@ -666,7 +666,9 @@
     }
     .subtype-option:hover { background: #e6fffa; border-color: #38a169; }
     .subtype-option.selected { background: #c6f6d5; border-color: #38a169; }
-    .subtype-option.processing { opacity: 0.6; pointer-events: none; }
+    .subtype-option.already-added { opacity: 0.6; cursor: default; background: #e2e8f0; border-color: #a0aec0; }
+    .subtype-option.already-added:hover { background: #e2e8f0; border-color: #a0aec0; }
+    .subtype-option.already-added i { color: #a0aec0; }
     .subtype-option i { color: #38a169; font-size: 0.85rem; }
     .subtype-name { flex: 1; font-size: 0.72rem; color: #2d3748; line-height: 1.3; }
 </style>
@@ -834,6 +836,9 @@
                     <input type="hidden" name="tp_percent" id="supp-tp-percent-field">
                     <input type="hidden" name="tp_type" id="supp-tp-type-field">
 
+                    <!-- Hidden inputs for subtype selections -->
+                    <div id="subtype-hidden-inputs"></div>
+
                     <ul class="items-list" id="items-list">
                         {% for info in items_info %}
                             <li data-item-name="{{ info.name|lower }}">
@@ -843,7 +848,7 @@
                                            data-subtypes-index="{{ forloop.counter0 }}"
                                            onclick="openSubtypesModal(this)">
                                         <span class="item-name">{{ info.name }}</span>
-                                        <span class="subtype-badge">{{ info.subtypes_count }} types</span>
+                                        <span class="subtype-badge" id="subtype-badge-{{ forloop.counter0 }}">{{ info.subtypes_count }} types</span>
                                     </label>
                                 {% else %}
                                     <label class="item-label">
@@ -1333,36 +1338,52 @@ function openSubtypesModal(labelElement) {
         document.getElementById('modal-parent-name').textContent = parentName;
         var subtypesList = document.getElementById('subtypes-list');
         subtypesList.innerHTML = '';
-        // Check which subtypes are already added as supplemental items
+        // Check which subtypes are already added as supplemental items in the table
         var existingSuppRows = document.querySelectorAll('#ws-table tbody tr[data-row-type="supp"]');
         var existingSuppNames = [];
         existingSuppRows.forEach(function(row) {
             var suppName = row.getAttribute('data-supp-name');
             if (suppName) existingSuppNames.push(suppName);
         });
-        // Also check checkboxes for selected items
-        var checkedItems = [];
-        document.querySelectorAll('.supp-item-checkbox:checked').forEach(function(cb) {
-            checkedItems.push(cb.getAttribute('data-item-name'));
+        // Check which subtypes have hidden inputs already (selected but not yet submitted)
+        var hiddenContainer = document.getElementById('subtype-hidden-inputs');
+        var selectedHiddenNames = [];
+        hiddenContainer.querySelectorAll('input[name="supp_items"]').forEach(function(inp) {
+            selectedHiddenNames.push(inp.value);
         });
 
         subtypes.forEach(function(subtype) {
             var li = document.createElement('li');
-            var isSelected = existingSuppNames.indexOf(subtype) !== -1 || checkedItems.indexOf(subtype) !== -1;
+            var isAlreadyAdded = existingSuppNames.indexOf(subtype) !== -1;
+            var isSelected = selectedHiddenNames.indexOf(subtype) !== -1;
             var button = document.createElement('button');
             button.type = 'button';
-            button.className = 'subtype-option' + (isSelected ? ' selected' : '');
             button.setAttribute('data-subtype-name', subtype);
-            button.onclick = function() { selectWorkslipSubtype(subtype, button); };
+            button.setAttribute('data-subtypes-index', subtypesIndex);
             var colonIdx = subtype.indexOf(':');
             var typePart = colonIdx !== -1 ? subtype.substring(colonIdx + 1).trim() : subtype;
 
             var iconEl = document.createElement('i');
-            iconEl.className = 'bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle');
-
             var typeSpan = document.createElement('span');
             typeSpan.className = 'subtype-name';
             typeSpan.textContent = typePart;
+
+            if (isAlreadyAdded) {
+                // Already in the workslip table - show as disabled/checked
+                button.className = 'subtype-option selected already-added';
+                button.disabled = true;
+                button.title = 'Already added to workslip';
+                iconEl.className = 'bi bi-check-circle-fill';
+            } else if (isSelected) {
+                // Selected via popup but not yet submitted
+                button.className = 'subtype-option selected';
+                button.onclick = function() { toggleSubtypeSelection(subtype, button, subtypesIndex); };
+                iconEl.className = 'bi bi-check-circle-fill';
+            } else {
+                button.className = 'subtype-option';
+                button.onclick = function() { toggleSubtypeSelection(subtype, button, subtypesIndex); };
+                iconEl.className = 'bi bi-circle';
+            }
 
             button.appendChild(iconEl);
             button.appendChild(typeSpan);
@@ -1391,51 +1412,51 @@ function closeSubtypesModal() {
     currentParentLabel = null;
 }
 
-function selectWorkslipSubtype(subtypeName, buttonElement) {
+function toggleSubtypeSelection(subtypeName, buttonElement, subtypesIndex) {
     var isCurrentlySelected = buttonElement.classList.contains('selected');
-    var action = isCurrentlySelected ? 'remove' : 'add';
-    buttonElement.classList.add('processing');
+    var hiddenContainer = document.getElementById('subtype-hidden-inputs');
     var icon = buttonElement.querySelector('i');
-    var originalClass = icon.className;
-    icon.className = 'bi bi-hourglass-split';
-    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    fetch("{% url 'workslip_ajax_toggle_supp' %}", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify({
-            item: subtypeName,
-            action: action
-        })
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        buttonElement.classList.remove('processing');
-        if (data.status === 'ok') {
-            if (action === 'add' && data.action_taken === 'added') {
-                buttonElement.classList.add('selected');
-                icon.className = 'bi bi-check-circle-fill';
-                // Reload the page to show the new supplemental item in the table
-                window.location.href = "{% url 'workslip_main' %}?preserve=1&group={{ current_group|urlencode }}";
-            } else if (action === 'remove' && data.action_taken === 'removed') {
-                buttonElement.classList.remove('selected');
-                icon.className = 'bi bi-circle';
-                // Remove from the preview table
-                removeSuppItemFromTable(subtypeName);
-                if (typeof updateSuppSerialNumbers === 'function') updateSuppSerialNumbers();
-                if (typeof window.recalcTotal === 'function') window.recalcTotal();
-            } else {
-                icon.className = originalClass;
-            }
-        } else {
-            icon.className = originalClass;
-            console.error('Toggle failed:', data.message);
+
+    if (isCurrentlySelected) {
+        // Deselect: remove the hidden input
+        buttonElement.classList.remove('selected');
+        icon.className = 'bi bi-circle';
+        var existing = hiddenContainer.querySelector('input[value="' + CSS.escape(subtypeName) + '"]');
+        if (existing) existing.remove();
+    } else {
+        // Select: add a hidden input to the form
+        buttonElement.classList.add('selected');
+        icon.className = 'bi bi-check-circle-fill';
+        var hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'supp_items';
+        hiddenInput.value = subtypeName;
+        hiddenContainer.appendChild(hiddenInput);
+    }
+
+    // Update the badge count on the parent label
+    updateSubtypeBadge(subtypesIndex);
+}
+
+function updateSubtypeBadge(subtypesIndex) {
+    var subtypes = subtypesData[subtypesIndex] || [];
+    var hiddenContainer = document.getElementById('subtype-hidden-inputs');
+    var selectedCount = 0;
+    subtypes.forEach(function(subtype) {
+        if (hiddenContainer.querySelector('input[value="' + CSS.escape(subtype) + '"]')) {
+            selectedCount++;
         }
-    })
-    .catch(function(error) {
-        buttonElement.classList.remove('processing');
-        icon.className = originalClass;
-        console.error('Error toggling subtype:', error);
     });
+    var badge = document.getElementById('subtype-badge-' + subtypesIndex);
+    if (badge) {
+        if (selectedCount > 0) {
+            badge.textContent = selectedCount + ' selected';
+            badge.style.background = '#22c55e';
+        } else {
+            badge.textContent = subtypes.length + ' types';
+            badge.style.background = '';
+        }
+    }
 }
 
 // Close subtypes popup when clicking outside
