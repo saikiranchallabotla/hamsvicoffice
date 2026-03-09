@@ -264,6 +264,14 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
         }
         filepath = file_map.get(category_key)
 
+        # Restore from DB if admin uploaded a newer version (survives redeploys)
+        if filepath:
+            try:
+                from datasets.models import LegacyBackendData
+                LegacyBackendData.restore_if_needed(category_key, filepath)
+            except Exception:
+                pass
+
     if not filepath or not os.path.exists(filepath):
         raise FileNotFoundError(f"Excel file not found for category: {category_key}")
 

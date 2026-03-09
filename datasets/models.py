@@ -1150,3 +1150,67 @@ class UserStatePreference(models.Model):
             defaults={'preferred_state': State.get_default()}
         )
         return pref
+
+
+# ==============================================================================
+# LEGACY BACKEND DATA PERSISTENCE
+# ==============================================================================
+
+class LegacyBackendData(models.Model):
+    """
+    Stores legacy backend Excel file bytes in the database so they survive
+    ephemeral filesystem redeployments (e.g., Railway, Heroku).
+    
+    Categories: electrical, civil, temp_electrical, temp_civil, amc_electrical, amc_civil
+    """
+    category = models.CharField(max_length=50, unique=True, db_index=True)
+    file_data = models.BinaryField(help_text="Raw Excel file bytes")
+    file_name = models.CharField(max_length=255, blank=True, default='')
+    uploaded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Legacy Backend Data'
+        verbose_name_plural = 'Legacy Backend Data'
+
+    def __str__(self):
+        return f"{self.category} ({self.file_name})"
+
+    @classmethod
+    def store(cls, category, file_bytes, file_name=''):
+        """Store or update file bytes for a category."""
+        obj, _ = cls.objects.update_or_create(
+            category=category,
+            defaults={'file_data': file_bytes, 'file_name': file_name},
+        )
+        return obj
+
+    @classmethod
+    def restore_if_needed(cls, category, disk_path):
+        """
+        If the disk file is missing or older than the DB copy, restore it.
+        Returns True if the file was restored, False otherwise.
+        """
+        import os
+        try:
+            obj = cls.objects.filter(category=category).first()
+            if not obj or not obj.file_data:
+                return False
+
+            if not os.path.exists(disk_path):
+                os.makedirs(os.path.dirname(disk_path), exist_ok=True)
+                with open(disk_path, 'wb') as f:
+                    f.write(bytes(obj.file_data))
+                return True
+
+            # Check if DB version is newer than disk version
+            disk_mtime = os.path.getmtime(disk_path)
+            from datetime import datetime
+            db_timestamp = obj.uploaded_at.timestamp() if obj.uploaded_at else 0
+            if db_timestamp > disk_mtime:
+                with open(disk_path, 'wb') as f:
+                    f.write(bytes(obj.file_data))
+                return True
+
+        except Exception:
+            pass
+        return False

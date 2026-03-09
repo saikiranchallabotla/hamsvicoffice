@@ -276,6 +276,16 @@ def upload_file(request, category):
             except PermissionError:
                 pass  # File will be cleaned up later
 
+            # Persist file bytes in database (survives Railway/Heroku redeploys)
+            if category not in ('ls_form_final', 'ls_form_part'):
+                try:
+                    from datasets.models import LegacyBackendData
+                    with open(current_file, 'rb') as f:
+                        file_bytes = f.read()
+                    LegacyBackendData.store(category, file_bytes, uploaded_file.name)
+                except Exception:
+                    pass  # DB persistence is best-effort
+
             # --- AUDIT LOG ---
             from datasets.models import AuditLog
             AuditLog.log(
