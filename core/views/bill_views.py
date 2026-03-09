@@ -183,6 +183,7 @@ def bill(request):
 
             # Convert session rows + exec_map into items format for create_first_bill_sheet
             items = []
+            bill_ae_counter = 0
             for idx, row in enumerate(ws_rows):
                 key = row.get('key', f'saved_{idx}')
                 exec_qty = ws_exec_map.get(key, 0)
@@ -206,13 +207,23 @@ def bill(request):
                 desc = max(_desc_opts, key=len) if _desc_opts else row.get('item_name', '')
                 unit = row.get('unit', 'Nos')
                 is_ae = str(desc).lower().startswith('ae')
-                items.append({
+                item_dict = {
                     'qty': exec_qty,
                     'unit': unit,
                     'desc': desc,
                     'rate': rate,
                     'is_ae': is_ae,
-                })
+                }
+                if is_ae:
+                    # Extract AE number from description (e.g. "AE1" -> 1, "AE2" -> 2)
+                    import re as _re
+                    _ae_match = _re.match(r'[Aa][Ee]\s*(\d+)', desc.strip())
+                    if _ae_match:
+                        item_dict['ae_number'] = int(_ae_match.group(1))
+                    else:
+                        bill_ae_counter += 1
+                        item_dict['ae_number'] = bill_ae_counter
+                items.append(item_dict)
 
             if not items:
                 return JsonResponse({"error": "No executed items found (all quantities are zero)."}, status=400)

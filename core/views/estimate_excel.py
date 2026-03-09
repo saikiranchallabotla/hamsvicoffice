@@ -190,6 +190,7 @@ def build_estimate_wb(ws_src, blocks):
         Rate is always from Estimate Rate column for multi-phase workslips.
         """
         items = []
+        ae_counter_local = 0
         max_row = min(ws.max_row, 5000)
         
         # Step 1: Find header row and detect column structure
@@ -287,13 +288,22 @@ def build_estimate_wb(ws_src, blocks):
 
             unit = str(ws.cell(row=r, column=3).value or "").strip()  # C
 
-            items.append({
+            item_dict = {
                 "qty": qty_exec,
                 "unit": unit,
                 "desc": desc,
                 "rate": rate_exec,
                 "is_ae": is_ae,
-            })
+            }
+            if is_ae:
+                import re as _re
+                _ae_match = _re.match(r'[Aa][Ee]\s*(\d+)', desc.strip())
+                if _ae_match:
+                    item_dict['ae_number'] = int(_ae_match.group(1))
+                else:
+                    ae_counter_local += 1
+                    item_dict['ae_number'] = ae_counter_local
+            items.append(item_dict)
 
         return items
 
@@ -379,7 +389,14 @@ def build_estimate_wb(ws_src, blocks):
                 "rate": rate_val,
                 "prev_qty": qty_val,
                 "prev_amount": prev_amount_val,
+                "is_ae": desc_low.startswith("ae"),
             })
+
+            if desc_low.startswith("ae"):
+                import re as _re
+                _ae_m = _re.match(r'[Aa][Ee]\s*(\d+)', desc.strip())
+                if _ae_m:
+                    items[-1]['ae_number'] = int(_ae_m.group(1))
 
         return items
 

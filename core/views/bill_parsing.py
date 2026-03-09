@@ -664,6 +664,7 @@ def parse_workslip_items(ws):
     multi-phase workslips don't have separate Rate columns per phase.
     """
     items = []
+    ae_counter = 0
     max_row = min(ws.max_row, 5000)
     
     # Step 1: Find header row and detect column structure
@@ -763,13 +764,22 @@ def parse_workslip_items(ws):
 
         unit = str(ws.cell(row=r, column=3).value or "").strip()
 
-        items.append({
+        item_dict = {
             "qty": qty_exec,
             "unit": unit,
             "desc": desc,
             "rate": rate_exec,
             "is_ae": is_ae,
-        })
+        }
+        if is_ae:
+            import re as _re
+            _ae_match = _re.match(r'[Aa][Ee]\s*(\d+)', desc.strip())
+            if _ae_match:
+                item_dict['ae_number'] = int(_ae_match.group(1))
+            else:
+                ae_counter += 1
+                item_dict['ae_number'] = ae_counter
+        items.append(item_dict)
 
     return items
 
@@ -847,7 +857,14 @@ def parse_first_bill_for_nth(ws, header_row):
             "rate": rate_val,
             "prev_qty": qty_val,
             "prev_amount": prev_amount_val,
+            "is_ae": desc_low.startswith("ae"),
         })
+
+        if desc_low.startswith("ae"):
+            import re as _re
+            _ae_m = _re.match(r'[Aa][Ee]\s*(\d+)', desc.strip())
+            if _ae_m:
+                items[-1]['ae_number'] = int(_ae_m.group(1))
 
     return items
 
