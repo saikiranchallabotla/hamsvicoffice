@@ -195,6 +195,50 @@ def workslip(request):
     detected_names = {i["name"] for i in items_list}
     items_in_group = [name for name in group_items if name in detected_names]
 
+    # Build item subtypes map: items with ":" are subtypes
+    # Group subtypes by their parent name (part before ":")
+    import re as _re
+    _colon_re = _re.compile(r'\s*:\s*')
+
+    def _has_colon(name):
+        return bool(_colon_re.search(name))
+
+    def _split_parent(name):
+        return _colon_re.split(name, 1)[0].strip()
+
+    item_subtypes = {}
+    parent_items_set = set()
+
+    for name in items_in_group:
+        if _has_colon(name):
+            parent_name = _split_parent(name)
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+            parent_items_set.add(parent_name)
+
+    items_info = []
+    seen_parents = set()
+    for name in items_in_group:
+        if _has_colon(name):
+            parent_name = _split_parent(name)
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": json.dumps(subtypes_list),
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": "[]",
+                "subtypes_count": 0,
+            })
+
     # helper: group â†’ units
     item_to_group = {}
     for grp_name, item_list_grp in groups_map.items():
@@ -236,7 +280,7 @@ def workslip(request):
                     "category": category,
                     "groups": groups,
                     "current_group": current_group,
-                    "items_in_group": items_in_group,
+                    "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
                     "preview_rows": [],
                     "tp_percent": ws_tp_percent if ws_tp_percent else "",
@@ -256,7 +300,7 @@ def workslip(request):
                     "category": category,
                     "groups": groups,
                     "current_group": current_group,
-                    "items_in_group": items_in_group,
+                    "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
                     "preview_rows": [],
                     "tp_percent": ws_tp_percent if ws_tp_percent else "",
@@ -299,7 +343,7 @@ def workslip(request):
                     "category": category,
                     "groups": groups,
                     "current_group": current_group,
-                    "items_in_group": items_in_group,
+                    "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
                     "preview_rows": [],
                     "tp_percent": ws_tp_percent if ws_tp_percent else "",
@@ -820,7 +864,7 @@ def workslip(request):
                     return render(request, "core/workslip.html", {
                         "error": "Please upload an Estimate file for Workslip-1.",
                         "category": category, "groups": groups, "current_group": current_group,
-                        "items_in_group": items_in_group, "ws_estimate_rows": ws_estimate_rows,
+                        "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                         "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                         "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
                         "work_name": ws_work_name, "current_phase": ws_current_phase,
@@ -833,7 +877,7 @@ def workslip(request):
                     return render(request, "core/workslip.html", {
                         "error": f"Please upload either an Estimate file OR previous Workslip files for Workslip-{target_workslip}.",
                         "category": category, "groups": groups, "current_group": current_group,
-                        "items_in_group": items_in_group, "ws_estimate_rows": ws_estimate_rows,
+                        "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                         "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                         "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
                         "work_name": ws_work_name, "current_phase": ws_current_phase,
@@ -849,7 +893,7 @@ def workslip(request):
                         return render(request, "core/workslip.html", {
                             "error": f"Please upload at least Workslip-{most_recent_required} to generate Workslip-{target_workslip}.",
                             "category": category, "groups": groups, "current_group": current_group,
-                            "items_in_group": items_in_group, "ws_estimate_rows": ws_estimate_rows,
+                            "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                             "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                             "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
                             "work_name": ws_work_name, "current_phase": ws_current_phase,
@@ -978,7 +1022,7 @@ def workslip(request):
                         return render(request, "core/workslip.html", {
                             "error": f"Couldn't read Workslip-{ws_file_num} file: {e}",
                             "category": category, "groups": groups, "current_group": current_group,
-                            "items_in_group": items_in_group, "ws_estimate_rows": ws_estimate_rows,
+                            "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                             "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                             "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
                             "work_name": ws_work_name, "current_phase": ws_current_phase,
@@ -1377,7 +1421,7 @@ def workslip(request):
                         return render(request, "core/workslip.html", {
                             "error": "No sheet in the uploaded workbook matches the Estimate format.",
                             "category": category, "groups": groups, "current_group": current_group,
-                            "items_in_group": items_in_group, "ws_estimate_rows": ws_estimate_rows,
+                            "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                             "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                             "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
                             "work_name": ws_work_name, "current_phase": ws_current_phase,
@@ -1473,7 +1517,7 @@ def workslip(request):
                     return render(request, "core/workslip.html", {
                         "error": f"Error parsing estimate file: {e}",
                         "category": category, "groups": groups, "current_group": current_group,
-                        "items_in_group": items_in_group, "ws_estimate_rows": ws_estimate_rows,
+                        "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                         "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                         "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
                         "work_name": ws_work_name, "current_phase": ws_current_phase,
@@ -1515,7 +1559,7 @@ def workslip(request):
                     "category": category,
                     "groups": groups,
                     "current_group": current_group,
-                    "items_in_group": items_in_group,
+                    "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
                     "preview_rows": [],
                     "tp_percent": ws_tp_percent if ws_tp_percent else "",
@@ -1535,7 +1579,7 @@ def workslip(request):
                     "category": category,
                     "groups": groups,
                     "current_group": current_group,
-                    "items_in_group": items_in_group,
+                    "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
                     "preview_rows": [],
                     "tp_percent": ws_tp_percent if ws_tp_percent else "",
@@ -2862,7 +2906,7 @@ def workslip(request):
         "module_code": module_code,
         "groups": groups,
         "current_group": current_group,
-        "items_in_group": items_in_group,
+        "items_in_group": items_in_group, "items_info": items_info,
         "ws_estimate_rows": ws_estimate_rows,
         "preview_rows": preview_rows,
         "tp_percent": tp_percent_str,

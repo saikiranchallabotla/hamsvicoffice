@@ -583,6 +583,92 @@
         opacity: 0.5;
         pointer-events: none;
     }
+
+    /* Subtypes parent item */
+    .item-label.has-subtypes {
+        cursor: pointer;
+        justify-content: space-between;
+    }
+    .item-label.has-subtypes .subtype-badge {
+        background: #f59e0b;
+        color: white;
+        font-size: 0.6rem;
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin-left: 4px;
+    }
+    /* Subtypes Dropdown Popup */
+    .subtypes-popup {
+        display: none;
+        position: absolute;
+        z-index: 1000;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        min-width: 220px;
+        max-width: 320px;
+        max-height: 250px;
+        overflow: hidden;
+        animation: popupFadeIn 0.15s ease;
+    }
+    .subtypes-popup.active { display: block; }
+    @keyframes popupFadeIn {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .subtypes-popup-header {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        padding: 0.4rem 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .subtypes-popup-header span { display: flex; align-items: center; gap: 0.3rem; }
+    .subtypes-popup-close {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+    .subtypes-popup-close:hover { background: rgba(255,255,255,0.3); }
+    .subtypes-popup-body {
+        padding: 0.4rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .subtypes-list { list-style: none; padding: 0; margin: 0; }
+    .subtypes-list li { margin-bottom: 0.25rem; }
+    .subtypes-list li:last-child { margin-bottom: 0; }
+    .subtype-option {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.5rem;
+        background: #f8f9fa;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.15s;
+        width: 100%;
+        text-align: left;
+        font-size: 0.75rem;
+    }
+    .subtype-option:hover { background: #e6fffa; border-color: #38a169; }
+    .subtype-option.selected { background: #c6f6d5; border-color: #38a169; }
+    .subtype-option.processing { opacity: 0.6; pointer-events: none; }
+    .subtype-option i { color: #38a169; font-size: 0.85rem; }
+    .subtype-name { flex: 1; font-size: 0.72rem; color: #2d3748; line-height: 1.3; }
 </style>
 
 {% if error %}
@@ -685,6 +771,17 @@
 </style>
 {% endif %}
 
+<!-- Subtypes Selection Popup -->
+<div class="subtypes-popup" id="subtypes-modal">
+    <div class="subtypes-popup-header">
+        <span><i class="bi bi-list-ul"></i> <span id="modal-parent-name">Select Type</span></span>
+        <button class="subtypes-popup-close" onclick="closeSubtypesModal()">&times;</button>
+    </div>
+    <div class="subtypes-popup-body">
+        <ul class="subtypes-list" id="subtypes-list"></ul>
+    </div>
+</div>
+
 <div class="layout-3panel">
 
     <!-- LEFT: GROUPS (for supplemental items) -->
@@ -728,7 +825,7 @@
             <input type="text" id="items-search" placeholder="Search items..." autocomplete="off">
         </div>
         <div class="panel-body">
-            {% if items_in_group %}
+            {% if items_info %}
                 <form id="supp-form" method="post" action="{% url 'workslip_main' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_supplemental">
@@ -738,18 +835,28 @@
                     <input type="hidden" name="tp_type" id="supp-tp-type-field">
 
                     <ul class="items-list" id="items-list">
-                        {% for name in items_in_group %}
-                            <li data-item-name="{{ name|lower }}">
-                                <label class="item-label">
-                                    <input type="checkbox"
-                                           class="item-checkbox supp-item-checkbox"
-                                           name="supp_items"
-                                           value="{{ name }}"
-                                           data-item-name="{{ name }}"
-                                           {% if name in supp_items_selected %}checked{% endif %}
-                                           {% if not ws_estimate_rows %}disabled{% endif %}>
-                                    <span class="item-name">{{ name }}</span>
-                                </label>
+                        {% for info in items_info %}
+                            <li data-item-name="{{ info.name|lower }}">
+                                {% if info.has_subtypes %}
+                                    <label class="item-label has-subtypes"
+                                           data-parent-name="{{ info.name }}"
+                                           data-subtypes-index="{{ forloop.counter0 }}"
+                                           onclick="openSubtypesModal(this)">
+                                        <span class="item-name">{{ info.name }}</span>
+                                        <span class="subtype-badge">{{ info.subtypes_count }} types</span>
+                                    </label>
+                                {% else %}
+                                    <label class="item-label">
+                                        <input type="checkbox"
+                                               class="item-checkbox supp-item-checkbox"
+                                               name="supp_items"
+                                               value="{{ info.name }}"
+                                               data-item-name="{{ info.name }}"
+                                               {% if info.name in supp_items_selected %}checked{% endif %}
+                                               {% if not ws_estimate_rows %}disabled{% endif %}>
+                                        <span class="item-name">{{ info.name }}</span>
+                                    </label>
+                                {% endif %}
                             </li>
                         {% endfor %}
                     </ul>
@@ -1204,6 +1311,143 @@
 </div>
 
 <script>
+// ========================================
+// SUBTYPES DATA AND MODAL FUNCTIONS
+// ========================================
+var subtypesData = {
+    {% for info in items_info %}
+    {% if info.has_subtypes %}
+    {{ forloop.counter0 }}: {{ info.subtypes|safe }},
+    {% endif %}
+    {% endfor %}
+};
+
+var currentParentLabel = null;
+
+function openSubtypesModal(labelElement) {
+    var parentName = labelElement.getAttribute('data-parent-name');
+    var subtypesIndex = labelElement.getAttribute('data-subtypes-index');
+    try {
+        var subtypes = subtypesData[subtypesIndex] || [];
+        currentParentLabel = labelElement;
+        document.getElementById('modal-parent-name').textContent = parentName;
+        var subtypesList = document.getElementById('subtypes-list');
+        subtypesList.innerHTML = '';
+        // Check which subtypes are already added as supplemental items
+        var existingSuppRows = document.querySelectorAll('#ws-table tbody tr[data-row-type="supp"]');
+        var existingSuppNames = [];
+        existingSuppRows.forEach(function(row) {
+            var suppName = row.getAttribute('data-supp-name');
+            if (suppName) existingSuppNames.push(suppName);
+        });
+        // Also check checkboxes for selected items
+        var checkedItems = [];
+        document.querySelectorAll('.supp-item-checkbox:checked').forEach(function(cb) {
+            checkedItems.push(cb.getAttribute('data-item-name'));
+        });
+
+        subtypes.forEach(function(subtype) {
+            var li = document.createElement('li');
+            var isSelected = existingSuppNames.indexOf(subtype) !== -1 || checkedItems.indexOf(subtype) !== -1;
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'subtype-option' + (isSelected ? ' selected' : '');
+            button.setAttribute('data-subtype-name', subtype);
+            button.onclick = function() { selectWorkslipSubtype(subtype, button); };
+            var colonIdx = subtype.indexOf(':');
+            var typePart = colonIdx !== -1 ? subtype.substring(colonIdx + 1).trim() : subtype;
+
+            var iconEl = document.createElement('i');
+            iconEl.className = 'bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle');
+
+            var typeSpan = document.createElement('span');
+            typeSpan.className = 'subtype-name';
+            typeSpan.textContent = typePart;
+
+            button.appendChild(iconEl);
+            button.appendChild(typeSpan);
+            li.appendChild(button);
+            subtypesList.appendChild(li);
+        });
+        var popup = document.getElementById('subtypes-modal');
+        var rect = labelElement.getBoundingClientRect();
+        popup.style.position = 'fixed';
+        popup.style.top = rect.top + 'px';
+        popup.style.left = (rect.right + 5) + 'px';
+        if (rect.right + 280 + 10 > window.innerWidth) {
+            popup.style.left = (rect.left - 280 - 5) + 'px';
+        }
+        if (rect.top + 200 > window.innerHeight) {
+            popup.style.top = (window.innerHeight - 200 - 10) + 'px';
+        }
+        popup.classList.add('active');
+    } catch (e) {
+        console.error('Error opening subtypes modal:', e);
+    }
+}
+
+function closeSubtypesModal() {
+    document.getElementById('subtypes-modal').classList.remove('active');
+    currentParentLabel = null;
+}
+
+function selectWorkslipSubtype(subtypeName, buttonElement) {
+    var isCurrentlySelected = buttonElement.classList.contains('selected');
+    var action = isCurrentlySelected ? 'remove' : 'add';
+    buttonElement.classList.add('processing');
+    var icon = buttonElement.querySelector('i');
+    var originalClass = icon.className;
+    icon.className = 'bi bi-hourglass-split';
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch("{% url 'workslip_ajax_toggle_supp' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({
+            item: subtypeName,
+            action: action
+        })
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        buttonElement.classList.remove('processing');
+        if (data.status === 'ok') {
+            if (action === 'add' && data.action_taken === 'added') {
+                buttonElement.classList.add('selected');
+                icon.className = 'bi bi-check-circle-fill';
+                // Reload the page to show the new supplemental item in the table
+                window.location.href = "{% url 'workslip_main' %}?preserve=1&group={{ current_group|urlencode }}";
+            } else if (action === 'remove' && data.action_taken === 'removed') {
+                buttonElement.classList.remove('selected');
+                icon.className = 'bi bi-circle';
+                // Remove from the preview table
+                removeSuppItemFromTable(subtypeName);
+                if (typeof updateSuppSerialNumbers === 'function') updateSuppSerialNumbers();
+                if (typeof window.recalcTotal === 'function') window.recalcTotal();
+            } else {
+                icon.className = originalClass;
+            }
+        } else {
+            icon.className = originalClass;
+            console.error('Toggle failed:', data.message);
+        }
+    })
+    .catch(function(error) {
+        buttonElement.classList.remove('processing');
+        icon.className = originalClass;
+        console.error('Error toggling subtype:', error);
+    });
+}
+
+// Close subtypes popup when clicking outside
+document.addEventListener('click', function(e) {
+    var popup = document.getElementById('subtypes-modal');
+    if (popup && popup.classList.contains('active')) {
+        if (!popup.contains(e.target) && !e.target.closest('.has-subtypes')) {
+            closeSubtypesModal();
+        }
+    }
+});
+
 // ========================================
 // SEARCH FILTER FUNCTIONS
 // ========================================
