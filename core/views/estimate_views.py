@@ -6,6 +6,7 @@ import logging
 from copy import copy
 
 import inflect
+from docx import Document
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
 from django.utils import timezone
