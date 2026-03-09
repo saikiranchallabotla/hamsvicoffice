@@ -1298,11 +1298,19 @@ function openSubtypesModal(labelElement) {
                 selectSubtype(subtype, button);
             };
             
-            // Extract the type part (after colon)
-            var typePart = subtype.includes(' : ') ? subtype.split(' : ')[1] : subtype;
+            // Extract the type part (after colon, with or without spaces)
+            var colonIdx = subtype.indexOf(':');
+            var typePart = colonIdx !== -1 ? subtype.substring(colonIdx + 1).trim() : subtype;
             
-            button.innerHTML = '<i class="bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle') + '"></i>' +
-                               '<span class="subtype-name">' + typePart + '</span>';
+            var iconEl = document.createElement('i');
+            iconEl.className = 'bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle');
+            
+            var typeSpan = document.createElement('span');
+            typeSpan.className = 'subtype-name';
+            typeSpan.textContent = typePart;
+            
+            button.appendChild(iconEl);
+            button.appendChild(typeSpan);
             
             li.appendChild(button);
             subtypesList.appendChild(li);
@@ -1558,6 +1566,18 @@ document.addEventListener('keydown', function(e) {
 (function() {
     // URLs for AJAX operations
     var saveQtyMapUrl = "{% url 'save_qty_map' category %}";
+
+    // --- Helper: escape for HTML text/attribute insertion ---
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    // --- Helper: escape for CSS attribute selectors ---
+    function escapeCssSelector(str) {
+        return String(str).replace(/([\\"'\[\]])/g, '\\$1');
+    }
     var ajaxToggleUrl = "{% url 'ajax_toggle_item' category %}";
     var ajaxReorderUrl = "{% url 'ajax_reorder_items' category %}";
     var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
@@ -1650,7 +1670,7 @@ document.addEventListener('keydown', function(e) {
         }
         
         // Check if item already exists
-        if (tbody.querySelector('tr[data-item-name="' + itemName + '"]')) {
+        if (tbody.querySelector('tr[data-item-name="' + escapeCssSelector(itemName) + '"]')) {
             return;
         }
         
@@ -1668,14 +1688,20 @@ document.addEventListener('keydown', function(e) {
         
         var sl = tbody.querySelectorAll('tr[data-item-name]').length + 1;
         
+        var safeHtml = escapeHtml(itemName);
         newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
                            '<td class="sl-cell">' + sl + '</td>' +
-                           '<td class="desc-col" title="' + itemName + '">' + itemName + '</td>' +
-                           '<td class="unit-cell">' + unit + '</td>' +
+                           '<td class="desc-col" title="' + safeHtml + '">' + safeHtml + '</td>' +
+                           '<td class="unit-cell">' + escapeHtml(unit) + '</td>' +
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '"></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
                            '<td class="amount-cell"></td>' +
-                           '<td class="delete-cell"><button type="button" class="btn-delete-item" onclick="deleteItemFromPreview(\'' + itemName.replace(/'/g, "\\'") + '\')" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
+                           '<td class="delete-cell"><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
+        
+        // Attach delete handler via JS instead of inline onclick to avoid quote issues
+        newRow.querySelector('.btn-delete-item').addEventListener('click', function() {
+            window.deleteItemFromPreview(itemName);
+        });
         
         tbody.appendChild(newRow);
         
@@ -1685,7 +1711,7 @@ document.addEventListener('keydown', function(e) {
     }
     
     function removeItemFromTable(itemName) {
-        var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + itemName + '"]');
+        var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + escapeCssSelector(itemName) + '"]');
         if (row) {
             row.remove();
         }
@@ -2315,6 +2341,7 @@ document.addEventListener('keydown', function(e) {
     window.attachDragListeners = attachDragListeners;
     window.updateTaxBreakdown = updateTaxBreakdown;
     window.toggleTaxBreakdown = toggleTaxBreakdown;
+    window.escapeCssSelector = escapeCssSelector;
     
     // Delete item from preview table and uncheck the corresponding checkbox
     window.deleteItemFromPreview = function(itemName) {
@@ -2328,13 +2355,13 @@ document.addEventListener('keydown', function(e) {
         recalcTotal();
         
         // Uncheck the corresponding checkbox in the items list
-        var checkbox = document.querySelector('.item-checkbox[data-item-name="' + itemName + '"]');
+        var checkbox = document.querySelector('.item-checkbox[data-item-name="' + escapeCssSelector(itemName) + '"]');
         if (checkbox) {
             checkbox.checked = false;
         }
         
         // Also handle subtypes - find parent checkbox if this is a subtype
-        var subtypeButton = document.querySelector('.subtype-option[data-subtype-name="' + itemName + '"]');
+        var subtypeButton = document.querySelector('.subtype-option[data-subtype-name="' + escapeCssSelector(itemName) + '"]');
         if (subtypeButton) {
             subtypeButton.classList.remove('selected');
             var icon = subtypeButton.querySelector('i');

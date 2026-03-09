@@ -1038,9 +1038,18 @@ function openSubtypesModal(labelElement) {
             button.className = 'subtype-option' + (isSelected ? ' selected' : '');
             button.setAttribute('data-subtype-name', subtype);
             button.onclick = function() { selectTempSubtype(subtype, button); };
-            var typePart = subtype.includes(' : ') ? subtype.split(' : ')[1] : subtype;
-            button.innerHTML = '<i class="bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle') + '"></i>' +
-                               '<span class="subtype-name">' + typePart + '</span>';
+            var colonIdx = subtype.indexOf(':');
+            var typePart = colonIdx !== -1 ? subtype.substring(colonIdx + 1).trim() : subtype;
+            
+            var iconEl = document.createElement('i');
+            iconEl.className = 'bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle');
+            
+            var typeSpan = document.createElement('span');
+            typeSpan.className = 'subtype-name';
+            typeSpan.textContent = typePart;
+            
+            button.appendChild(iconEl);
+            button.appendChild(typeSpan);
             li.appendChild(button);
             subtypesList.appendChild(li);
         });
@@ -1413,6 +1422,13 @@ document.addEventListener('click', function(e) {
     // AJAX URL for adding items
     var ajaxAddUrl = "{% url 'temp_ajax_add_item' category %}";
     var ajaxReorderUrl = "{% url 'temp_ajax_reorder_items' category %}";
+
+    // --- Helper: escape for HTML text/attribute insertion ---
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
     
     // ========================================
     // QUEUED ITEM ADD SYSTEM
@@ -1500,15 +1516,22 @@ document.addEventListener('click', function(e) {
         // Extract unit from itemInfo
         var unit = (itemInfo && itemInfo.unit) ? itemInfo.unit : 'Nos';
         
+        var safeHtml = escapeHtml(itemName);
         newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
                            '<td class="sl-cell">' + sl + '</td>' +
-                           '<td class="desc-col" title="' + itemName + '">' + itemName + '</td>' +
-                           '<td class="unit-cell">' + unit + '</td>' +
+                           '<td class="desc-col" title="' + safeHtml + '">' + safeHtml + '</td>' +
+                           '<td class="unit-cell">' + escapeHtml(unit) + '</td>' +
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value=""></td>' +
                            '<td><input type="number" min="1" step="1" class="days-input" value="1"></td>' +
                            '<td class="rate-cell"></td>' +
                            '<td class="amount-cell"></td>' +
-                           '<td><a class="btn-remove" href="#" onclick="removeEntry(\'' + entryId + '\'); return false;" title="Remove item"><i class="bi bi-x-lg"></i></a></td>';
+                           '<td><a class="btn-remove" href="#" title="Remove item"><i class="bi bi-x-lg"></i></a></td>';
+        
+        // Attach remove handler via JS instead of inline onclick to avoid quote issues
+        newRow.querySelector('.btn-remove').addEventListener('click', function(e) {
+            e.preventDefault();
+            removeEntry(entryId);
+        });
         
         tbody.appendChild(newRow);
         attachRowListeners(newRow);

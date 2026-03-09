@@ -978,9 +978,18 @@ function openSubtypesModal(labelElement) {
             button.className = 'subtype-option' + (isSelected ? ' selected' : '');
             button.setAttribute('data-subtype-name', subtype);
             button.onclick = function() { selectSubtype(subtype, button); };
-            var typePart = subtype.includes(' : ') ? subtype.split(' : ')[1] : subtype;
-            button.innerHTML = '<i class="bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle') + '"></i>' +
-                               '<span class="subtype-name">' + typePart + '</span>';
+            var colonIdx = subtype.indexOf(':');
+            var typePart = colonIdx !== -1 ? subtype.substring(colonIdx + 1).trim() : subtype;
+            
+            var iconEl = document.createElement('i');
+            iconEl.className = 'bi ' + (isSelected ? 'bi-check-circle-fill' : 'bi-circle');
+            
+            var typeSpan = document.createElement('span');
+            typeSpan.className = 'subtype-name';
+            typeSpan.textContent = typePart;
+            
+            button.appendChild(iconEl);
+            button.appendChild(typeSpan);
             li.appendChild(button);
             subtypesList.appendChild(li);
         });
@@ -1072,6 +1081,18 @@ document.addEventListener('click', function(e) {
     var ajaxToggleUrl = "{% url 'amc_ajax_toggle_item' category %}";
     var ajaxReorderUrl = "{% url 'amc_ajax_reorder_items' category %}";
     var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+    // --- Helper: escape for HTML text/attribute insertion ---
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    // --- Helper: escape for CSS attribute selectors ---
+    function escapeCssSelector(str) {
+        return String(str).replace(/([\\"'\[\]])/g, '\\$1');
+    }
     
     // ========================================
     // QUEUED ITEM FETCH SYSTEM
@@ -1151,7 +1172,7 @@ document.addEventListener('click', function(e) {
             emptyRow.closest('tr').remove();
         }
         
-        if (tbody.querySelector('tr[data-item-name="' + itemName + '"]')) {
+        if (tbody.querySelector('tr[data-item-name="' + escapeCssSelector(itemName) + '"]')) {
             return;
         }
         
@@ -1167,14 +1188,20 @@ document.addEventListener('click', function(e) {
         var rate = (itemInfo && itemInfo.rate) ? itemInfo.rate : 0;
         var rateDisplay = rate ? parseFloat(rate).toFixed(2) : '';
         
+        var safeHtml = escapeHtml(itemName);
         newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
                            '<td class="sl-cell">' + sl + '</td>' +
-                           '<td class="desc-col" title="' + itemName + '">' + itemName + '</td>' +
-                           '<td class="unit-cell">' + unit + '</td>' +
+                           '<td class="desc-col" title="' + safeHtml + '">' + safeHtml + '</td>' +
+                           '<td class="unit-cell">' + escapeHtml(unit) + '</td>' +
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rate + '"></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
                            '<td class="amount-cell"></td>' +
-                           '<td class="delete-cell"><button type="button" class="btn-delete-item" onclick="deleteItemFromPreview(\'' + itemName.replace(/'/g, "\\'") + '\')" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
+                           '<td class="delete-cell"><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
+        
+        // Attach delete handler via JS instead of inline onclick to avoid quote issues
+        newRow.querySelector('.btn-delete-item').addEventListener('click', function() {
+            window.deleteItemFromPreview(itemName);
+        });
         
         tbody.appendChild(newRow);
         attachRowListeners(newRow);
@@ -1182,7 +1209,7 @@ document.addEventListener('click', function(e) {
     }
     
     function removeItemFromTable(itemName) {
-        var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + itemName + '"]');
+        var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + escapeCssSelector(itemName) + '"]');
         if (row) {
             row.remove();
         }
@@ -1558,7 +1585,7 @@ document.addEventListener('click', function(e) {
         recalcTotal();
         
         // Uncheck the corresponding checkbox in the items list
-        var checkbox = document.querySelector('.item-checkbox[data-item-name="' + itemName + '"]');
+        var checkbox = document.querySelector('.item-checkbox[data-item-name="' + escapeCssSelector(itemName) + '"]');
         if (checkbox) {
             checkbox.checked = false;
         }

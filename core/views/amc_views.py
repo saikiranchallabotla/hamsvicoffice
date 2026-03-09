@@ -246,12 +246,24 @@ def amc_items(request, category, group):
 
     # Build item subtypes map: items with ":" are subtypes
     # Group subtypes by their parent name (part before ":")
+    # Support both " : " (with spaces) and ":" (without spaces)
+    import re as _re
+    _colon_re = _re.compile(r'\s*:\s*')
+
+    def _has_colon(name):
+        """Check if item name contains a colon separator (with or without spaces)."""
+        return bool(_colon_re.search(name))
+
+    def _split_parent(name):
+        """Extract parent name from a colon-separated item name."""
+        return _colon_re.split(name, 1)[0].strip()
+
     item_subtypes = {}  # parent_name -> [list of full subtype names]
     parent_items = set()  # items that have subtypes
 
     for name in display_items:
-        if " : " in name:
-            parent_name = name.split(" : ")[0].strip()
+        if _has_colon(name):
+            parent_name = _split_parent(name)
             if parent_name not in item_subtypes:
                 item_subtypes[parent_name] = []
             item_subtypes[parent_name].append(name)
@@ -260,8 +272,8 @@ def amc_items(request, category, group):
     items_info = []
     seen_parents = set()
     for name in display_items:
-        if " : " in name:
-            parent_name = name.split(" : ")[0].strip()
+        if _has_colon(name):
+            parent_name = _split_parent(name)
             if parent_name not in seen_parents:
                 subtypes_list = item_subtypes.get(parent_name, [])
                 items_info.append({
