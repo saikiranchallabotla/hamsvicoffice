@@ -43,6 +43,17 @@ def login_view(request):
     show_otp = None
     identifier = ''
     
+    # Check if we have OTP to display (from redirect after POST)
+    if request.method == 'GET' and request.GET.get('otp_sent'):
+        show_otp = request.session.pop('_dev_otp', None)
+        identifier = request.session.get('otp_identifier', '')
+        if show_otp:
+            return render(request, 'accounts/login.html', {
+                'identifier': identifier,
+                'show_otp': show_otp,
+                'otp_sent': True
+            })
+    
     if request.method == 'POST':
         identifier = request.POST.get('identifier', '').strip()
         
@@ -75,13 +86,10 @@ def login_view(request):
             logger.info(f"[LOGIN_OTP] dev_mode={dev_mode}, otp={'***' if otp else 'None'}")
             
             if dev_mode and otp:
-                # Show OTP on login page only (don't store in session to avoid duplicate)
+                # Store OTP in session and redirect to avoid no-history.js interference
+                request.session['_dev_otp'] = otp
                 messages.success(request, f'OTP sent! Use the code shown below.')
-                return render(request, 'accounts/login.html', {
-                    'identifier': identifier,
-                    'show_otp': otp,
-                    'otp_sent': True
-                })
+                return redirect(f"{request.path}?otp_sent=1")
             else:
                 # Production mode - redirect to verify page
                 messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
