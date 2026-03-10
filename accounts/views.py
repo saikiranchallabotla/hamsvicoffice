@@ -725,7 +725,7 @@ def confirm_device_login_view(request):
         return redirect('login')
     
     if request.method == 'POST':
-        action = request.POST.get('action', '')
+        action = request.POST.get('form_action', '')
         
         try:
             user = User.objects.get(id=pending_user_id)

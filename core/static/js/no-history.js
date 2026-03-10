@@ -24,7 +24,8 @@
     // Intercept form submissions
     document.addEventListener('submit', function(e){
         var f = e.target;
-        var action = f.action || location.href;
+        // Use getAttribute to avoid name collision with inputs named 'action'
+        var action = f.getAttribute('action') || location.href;
         // Skip forms with file uploads or external actions
         if (f.querySelector('input[type=file]')) return;
         try { if (new URL(action, location.origin).origin !== location.origin) return; } catch(x){ return; }
