@@ -86,7 +86,7 @@ class SessionTrackingMiddleware:
                 
                 # Redirect to login
                 from django.urls import reverse
-                return redirect(reverse('accounts:login'))
+                return redirect(reverse('login'))
         
         except Exception as e:
             logger.error(f"Error checking session validity: {e}")
