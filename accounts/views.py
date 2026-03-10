@@ -43,9 +43,10 @@ def login_view(request):
     show_otp = None
     identifier = ''
     
-    # Check if we have OTP to display (from redirect after POST)
+    # Check if we have OTP to display (from redirect after POST - dev mode only)
     if request.method == 'GET' and request.GET.get('otp_sent'):
-        show_otp = request.session.pop('_dev_otp', None)
+        # OTP is passed in URL for dev mode (to survive no-history.js fetch + redirect)
+        show_otp = request.GET.get('_otp')
         identifier = request.session.get('otp_identifier', '')
         if show_otp:
             return render(request, 'accounts/login.html', {
@@ -86,10 +87,10 @@ def login_view(request):
             logger.info(f"[LOGIN_OTP] dev_mode={dev_mode}, otp={'***' if otp else 'None'}")
             
             if dev_mode and otp:
-                # Store OTP in session and redirect to avoid no-history.js interference
-                request.session['_dev_otp'] = otp
+                # Pass OTP in URL for dev mode (to survive no-history.js fetch + redirect)
+                # This is safe because it's only for testing when SMS/Email isn't configured
                 messages.success(request, f'OTP sent! Use the code shown below.')
-                return redirect(f"{request.path}?otp_sent=1")
+                return redirect(f"{request.path}?otp_sent=1&_otp={otp}")
             else:
                 # Production mode - redirect to verify page
                 messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
