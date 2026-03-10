@@ -1134,6 +1134,14 @@
             // Submit the form with the doc_kind
             const form = btn.closest('form');
             if (form) {
+                // Check if file is selected (required for document generation)
+                const fileInput = form.querySelector('input[type="file"][name="bill_file"]');
+                if (fileInput && !fileInput.files.length) {
+                    alert('Please select an Estimate/Bill Excel file first before generating ' + docName + '.');
+                    fileInput.focus();
+                    return;
+                }
+
                 // Create a hidden input for doc_kind and submit
                 let hiddenInput = form.querySelector('input[name="doc_kind"]');
                 if (!hiddenInput) {
