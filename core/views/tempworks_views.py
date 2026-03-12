@@ -584,7 +584,22 @@ def temp_download_output(request, category):
         logger.error(f"Error loading temp backend for download: {category} - {e}")
         return redirect("temp_groups", category=category)
     
+    # Also load with data_only=True to get actual cached rate values
+    try:
+        wb_vals = load_workbook(filepath, data_only=True)
+        ws_vals = wb_vals["Master Datas"]
+    except Exception as e:
+        logger.error(f"Error loading backend values: {e}")
+        ws_vals = None
+    
     name_to_info = {it["name"]: it for it in items_list}
+
+    # Build day rates map like the UI does (for reliable rate lookup)
+    day_rates = build_temp_day_rates(filepath, items_list)
+    
+    def _norm_name(s):
+        """Normalize item name for lookup in day_rates."""
+        return re.sub(r'\s+', ' ', str(s or '').strip().lower())
 
     # map item -> group for units
     item_to_group = {}
@@ -751,10 +766,29 @@ def temp_download_output(request, category):
         if not info:
             continue
 
-        # base description: 2 rows below heading
+        # Find base description from backend
+        # Look for the first non-empty description text in column D after start_row
         start_row = info["start_row"]
-        base_desc = ws_src.cell(row=start_row + 2, column=4).value or ""
-        base_desc_str = str(base_desc).strip()
+        end_row = info["end_row"]
+        base_desc_str = ""
+        
+        # First try: get description from data_only worksheet (cached values)
+        desc_ws = ws_vals if ws_vals else ws_src
+        for r in range(start_row + 1, min(start_row + 5, end_row + 1)):
+            cell_val = desc_ws.cell(row=r, column=4).value
+            if cell_val:
+                cell_str = str(cell_val).strip()
+                # Skip header-like text and "Hire charges" rows
+                if cell_str and not cell_str.lower().startswith("hire charges"):
+                    # Check if it looks like a description (not just a number or formula)
+                    if len(cell_str) > 5 and not cell_str.startswith("="):
+                        base_desc_str = cell_str
+                        break
+        
+        # Fallback: use row+2 like before
+        if not base_desc_str:
+            fallback_val = desc_ws.cell(row=start_row + 2, column=4).value
+            base_desc_str = str(fallback_val).strip() if fallback_val else ""
 
         # suffix: "for X day(s)"
         if days == 1:
@@ -764,9 +798,36 @@ def temp_download_output(request, category):
 
         desc = f"{base_desc_str}, {suffix}" if base_desc_str else suffix
 
-        # rate formula references Output!J<row>
-        _, rr = rate_rows[idx - 1]
-        rate_formula = f"=Output!J{rr}" if rr else ""
+        # Get actual rate value from day_rates (reliable, uses same logic as UI)
+        norm_name = _norm_name(name)
+        item_day_rates = day_rates.get(norm_name, {})
+        
+        # Find matching rate for this day count
+        rate_value = item_day_rates.get(days, 0)
+        
+        # If exact day not found, try to find closest available day
+        if rate_value == 0 and item_day_rates:
+            available_days = sorted(item_day_rates.keys())
+            # Find closest day that's >= requested days, or the max available
+            closest_day = None
+            for d in available_days:
+                if d >= days:
+                    closest_day = d
+                    break
+            if closest_day is None and available_days:
+                closest_day = available_days[-1]  # Use max available
+            if closest_day:
+                rate_value = item_day_rates.get(closest_day, 0)
+        
+        # Fallback: try to get rate from Output sheet formula result
+        if rate_value == 0:
+            _, rr = rate_rows[idx - 1] if idx - 1 < len(rate_rows) else (None, None)
+            if rr and ws_vals:
+                # Try to get the cached value from data_only workbook
+                try:
+                    rate_value = ws_vals.cell(row=rr, column=10).value or 0
+                except:
+                    pass
 
         plural, singular = units_for(name)
 
@@ -786,9 +847,11 @@ def temp_download_output(request, category):
         d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
         d_cell.border = border_all
 
-        e = ws_est.cell(row=row_est, column=5, value=rate_formula)
+        # Use actual rate value instead of formula (formulas may not evaluate)
+        e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
         e.alignment = Alignment(horizontal="center", vertical="center")
         e.border = border_all
+        e.number_format = '#,##0.00'
 
         f_cell = ws_est.cell(row=row_est, column=6, value=1)
         f_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -801,6 +864,7 @@ def temp_download_output(request, category):
         h = ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}")
         h.alignment = Alignment(horizontal="center", vertical="center")
         h.border = border_all
+        h.number_format = '#,##0.00'
 
         row_est += 1
         slno += 1
