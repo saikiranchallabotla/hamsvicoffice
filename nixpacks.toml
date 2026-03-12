@@ -10,11 +10,8 @@ aptPkgs = ["poppler-utils"]
 
 [phases.build]
 cmds = [
-    "pip install -r requirements.txt"
-]
-
-[phases.release]
-cmds = [
+    "pip install -r requirements.txt",
+    "mkdir -p staticfiles",
     "python manage.py collectstatic --noinput"
 ]
 
