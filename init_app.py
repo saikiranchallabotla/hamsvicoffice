@@ -247,12 +247,19 @@ def seed_module_backends():
         
         try:
             shutil.copy2(source_path, dest_path)
+            
+            # Read file data for DB backup (survives ephemeral filesystem)
+            with open(dest_path, 'rb') as f:
+                file_bytes = f.read()
+            
             ModuleBackend.objects.create(
                 module=module,
                 category=category,
                 name=name,
                 code=f'{module_code}_{category}_default',
                 file=f'module_backends/{dest_filename}',
+                file_data=file_bytes,
+                file_name=dest_filename,
                 is_active=True,
                 is_default=is_default,
                 display_order=0,

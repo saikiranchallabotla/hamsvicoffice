@@ -239,6 +239,8 @@ class ModuleBackend(models.Model):
         return f"{self.module.name} - {self.name} ({self.get_category_display()})"
     
     def save(self, *args, **kwargs):
+        import os
+        
         # Ensure only one default per module + category
         if self.is_default:
             ModuleBackend.objects.filter(
@@ -246,7 +248,24 @@ class ModuleBackend(models.Model):
                 category=self.category,
                 is_default=True
             ).exclude(pk=self.pk).update(is_default=False)
+        
         super().save(*args, **kwargs)
+        
+        # After save, backup file to file_data for persistence on ephemeral filesystems
+        # This runs after save so the file is already written to disk
+        if self.file and not self.file_data:
+            try:
+                file_path = self.file.path
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as f:
+                        data = f.read()
+                    # Use update() to avoid triggering save() again
+                    ModuleBackend.objects.filter(pk=self.pk).update(
+                        file_data=data,
+                        file_name=os.path.basename(file_path)
+                    )
+            except Exception:
+                pass
     
     def get_file_bytes(self):
         """
