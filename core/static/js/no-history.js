@@ -26,6 +26,12 @@
         var f = e.target;
         // Use getAttribute to avoid name collision with inputs named 'action'
         var action = f.getAttribute('action') || location.href;
+        
+        // Skip forms intended for file downloads (they need native browser handling)
+        if (action.indexOf('download') !== -1 || 
+            f.classList.contains('download-form') ||
+            f.querySelector('button[type="submit"].btn-download')) return;
+        
         // Skip forms with file uploads or external actions
         if (f.querySelector('input[type=file]')) return;
         try { if (new URL(action, location.origin).origin !== location.origin) return; } catch(x){ return; }
