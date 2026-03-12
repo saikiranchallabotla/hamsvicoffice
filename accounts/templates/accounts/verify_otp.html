@@ -121,6 +121,35 @@ function copyOtpCode() {
         }, 2000);
     });
 }
+
+// Dynamic OTP popup for resend
+function showOtpPopup(otp) {
+    // Remove existing popup if any
+    const existingPopup = document.getElementById('otpPopup');
+    if (existingPopup) existingPopup.remove();
+    
+    // Create popup HTML
+    const popupHtml = `
+    <div id="otpPopup" class="otp-popup-overlay">
+        <div class="otp-popup-modal">
+            <div class="otp-popup-dev-banner">
+                ⚠️ DEVELOPMENT MODE - SMS/Email services not configured
+            </div>
+            <div class="otp-popup-header">
+                <span class="otp-popup-icon">🔐</span>
+                <h3>Your New OTP Code</h3>
+            </div>
+            <div class="otp-popup-code" id="otpCodeDisplay">${otp}</div>
+            <button type="button" class="otp-copy-btn" onclick="copyOtpCode()">
+                <span id="copyBtnText">📋 Copy Code</span>
+            </button>
+            <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
+            <button type="button" class="otp-popup-btn" onclick="closeOtpPopup()">Got it!</button>
+        </div>
+    </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', popupHtml);
+}
 </script>
 {% endif %}
 
@@ -364,7 +393,12 @@ resendBtn.addEventListener('click', async function() {
                 }
             }, 1000);
             
-            alert('OTP sent successfully!');
+            // Show OTP popup if in dev mode
+            if (data.dev_mode && data.otp) {
+                showOtpPopup(data.otp);
+            } else {
+                alert('OTP sent successfully!');
+            }
         } else {
             alert(data.reason || 'Failed to resend OTP');
             resendBtn.disabled = false;

@@ -117,8 +117,9 @@ def verify_otp_view(request):
         messages.warning(request, 'Please enter your phone/email first.')
         return redirect('login')
     
-    # Get OTP for popup display (if set)
-    show_otp = request.session.pop('show_otp', None)
+    # Get OTP for popup display (check URL param first for dev mode, then session)
+    # URL param survives no-history.js fetch+redirect cycle
+    show_otp = request.GET.get('_otp') or request.session.pop('show_otp', None)
     
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
@@ -179,10 +180,13 @@ def resend_otp_view(request):
             'reason': 'OTP sent successfully.',
             'cooldown': result['data'].get('cooldown', 60),
         }
-        # In DEBUG mode, include OTP for testing
-        if settings.DEBUG and result.get('data', {}).get('otp'):
-            response_data['otp'] = result['data']['otp']
-            response_data['reason'] = f"OTP sent. [DEV MODE] Your OTP is: {result['data']['otp']}"
+        # In dev_mode (no SMS/Email configured), include OTP for testing
+        dev_mode = result.get('data', {}).get('dev_mode', False)
+        otp = result.get('data', {}).get('otp')
+        if dev_mode and otp:
+            response_data['otp'] = otp
+            response_data['dev_mode'] = True
+            response_data['reason'] = f"OTP sent. [DEV MODE] Your OTP is: {otp}"
         return JsonResponse(response_data)
     else:
         return JsonResponse({
@@ -249,12 +253,20 @@ def register_view(request):
         result = OTPService.request_otp(phone, 'sms')
         
         if result['ok']:
-            # Store OTP in session for popup display (testing mode)
+            # Get OTP for display in dev mode
             otp = result.get('data', {}).get('otp')
-            if otp:
-                request.session['show_otp'] = otp
-            messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
-            return redirect('verify_otp')
+            dev_mode = result.get('data', {}).get('dev_mode', False)
+            
+            if dev_mode and otp:
+                # Pass OTP in URL for dev mode (to survive no-history.js fetch + redirect)
+                # This is safe because it's only for testing when SMS/Email isn't configured
+                messages.success(request, f'OTP sent! Use the code shown below.')
+                from django.urls import reverse
+                return redirect(f"{reverse('verify_otp')}?_otp={otp}")
+            else:
+                # Production mode - redirect to verify page without OTP in URL
+                messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
+                return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])
             return render(request, 'accounts/register.html', {
