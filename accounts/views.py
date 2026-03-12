@@ -88,9 +88,10 @@ def login_view(request):
             
             if dev_mode and otp:
                 # Pass OTP in URL for dev mode (to survive no-history.js fetch + redirect)
-                # This is safe because it's only for testing when SMS/Email isn't configured
+                # Redirect to verify_otp page like registration does
+                from django.urls import reverse
                 messages.success(request, f'OTP sent! Use the code shown below.')
-                return redirect(f"{request.path}?otp_sent=1&_otp={otp}")
+                return redirect(f"{reverse('verify_otp')}?_otp={otp}")
             else:
                 # Production mode - redirect to verify page
                 messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
