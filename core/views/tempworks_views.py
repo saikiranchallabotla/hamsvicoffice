@@ -766,29 +766,14 @@ def temp_download_output(request, category):
         if not info:
             continue
 
-        # Find base description from backend
-        # Look for the first non-empty description text in column D after start_row
+        # Get base description from row+2 (standard position in backend)
         start_row = info["start_row"]
         end_row = info["end_row"]
-        base_desc_str = ""
         
-        # First try: get description from data_only worksheet (cached values)
+        # Use data_only worksheet to get cached values
         desc_ws = ws_vals if ws_vals else ws_src
-        for r in range(start_row + 1, min(start_row + 5, end_row + 1)):
-            cell_val = desc_ws.cell(row=r, column=4).value
-            if cell_val:
-                cell_str = str(cell_val).strip()
-                # Skip header-like text and "Hire charges" rows
-                if cell_str and not cell_str.lower().startswith("hire charges"):
-                    # Check if it looks like a description (not just a number or formula)
-                    if len(cell_str) > 5 and not cell_str.startswith("="):
-                        base_desc_str = cell_str
-                        break
-        
-        # Fallback: use row+2 like before
-        if not base_desc_str:
-            fallback_val = desc_ws.cell(row=start_row + 2, column=4).value
-            base_desc_str = str(fallback_val).strip() if fallback_val else ""
+        base_desc = desc_ws.cell(row=start_row + 2, column=4).value or ""
+        base_desc_str = str(base_desc).strip()
 
         # suffix: "for X day(s)"
         if days == 1:
