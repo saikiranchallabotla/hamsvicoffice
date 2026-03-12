@@ -902,7 +902,7 @@
 
                 <!-- Buttons -->
                 <div class="action-buttons">
-                    <button type="submit" class="btn-action btn-download">
+                    <button type="button" class="btn-action btn-download" onclick="downloadTempEstimate()">
                         <i class="bi bi-download"></i>
                         Download Estimate
                     </button>
@@ -1754,6 +1754,73 @@ document.addEventListener('click', function(e) {
         }
     });
   }
+  
+  // ---- Download Temp Estimate (Excel) ----
+  window.downloadTempEstimate = function() {
+    var entries = [];
+    var workName = document.getElementById("work-name-input").value || "";
+    var grandTotalInput = document.getElementById("grand-total-input");
+    var grandTotal = grandTotalInput ? grandTotalInput.value : "";
+    
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+      var itemName = row.getAttribute("data-item-name");
+      if (!itemName) return;
+      
+      var qtyInput = row.querySelector(".qty-input");
+      var daysInput = row.querySelector(".days-input");
+      if (!qtyInput || !daysInput) return;
+      
+      var qty = parseFloat(qtyInput.value || "0");
+      if (isNaN(qty) || qty <= 0) return;
+      
+      var days = parseInt(daysInput.value || "1", 10);
+      if (isNaN(days) || days < 1) days = 1;
+      
+      entries.push({
+        name: itemName,
+        qty: qty,
+        days: days
+      });
+    });
+    
+    if (entries.length === 0) {
+      alert("Please add items with quantities to download the estimate");
+      return;
+    }
+    
+    // Create dynamic form for download
+    var form = document.createElement("form");
+    form.method = "POST";
+    form.action = "{% url 'temp_download_output' category %}";
+    form.style.display = "none";
+    
+    var csrfInput = document.createElement("input");
+    csrfInput.type = "hidden";
+    csrfInput.name = "csrfmiddlewaretoken";
+    csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+    form.appendChild(csrfInput);
+    
+    var entriesInput = document.createElement("input");
+    entriesInput.type = "hidden";
+    entriesInput.name = "entries_json";
+    entriesInput.value = JSON.stringify(entries);
+    form.appendChild(entriesInput);
+    
+    var workNameInput = document.createElement("input");
+    workNameInput.type = "hidden";
+    workNameInput.name = "work_name";
+    workNameInput.value = workName;
+    form.appendChild(workNameInput);
+    
+    var grandTotalInputField = document.createElement("input");
+    grandTotalInputField.type = "hidden";
+    grandTotalInputField.name = "grand_total";
+    grandTotalInputField.value = grandTotal;
+    form.appendChild(grandTotalInputField);
+    
+    document.body.appendChild(form);
+    form.submit();
+  };
   
   // ---- Download Specification Report ----
   window.downloadSpecificationReport = function() {
