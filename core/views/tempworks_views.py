@@ -598,8 +598,11 @@ def temp_download_output(request, category):
     day_rates = build_temp_day_rates(filepath, items_list)
     
     def _norm_name(s):
-        """Normalize item name for lookup in day_rates."""
-        return re.sub(r'\s+', ' ', str(s or '').strip().lower())
+        """Normalize item name for lookup in day_rates - must match _norm_item_name in utils_excel."""
+        s = "" if s is None else str(s)
+        s = s.replace("\n", " ").replace("\r", " ")
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
 
     # map item -> group for units
     item_to_group = {}
@@ -697,8 +700,24 @@ def temp_download_output(request, category):
             col_end=10,
         )
 
-        # Keep formulas as-is in Output sheet (copied from backend)
-        # Estimate sheet will use actual cached values from day_rates
+        # Fix rate columns (I=9, J=10) where formulas reference cells outside copied block
+        # Overlay actual cached values from ws_vals for rows with day numbers in column C
+        if ws_vals:
+            for src_r in range(src_min, effective_end + 1):
+                dst_r = dst_start + (src_r - src_min)
+                # Check if this row has a day number in column C
+                day_cell = ws_vals.cell(row=src_r, column=3).value
+                if day_cell not in (None, ""):
+                    try:
+                        day_no = int(float(day_cell))
+                        if day_no > 0:
+                            # This is a rate row - overlay actual values for columns I and J
+                            for col in (9, 10):
+                                cached_val = ws_vals.cell(row=src_r, column=col).value
+                                if cached_val is not None:
+                                    ws_out.cell(row=dst_r, column=col).value = cached_val
+                    except (ValueError, TypeError):
+                        pass
 
         # Label first row as Data block
         ws_out.cell(row=dst_start, column=1).value = f"Data {idx}"
@@ -795,7 +814,8 @@ def temp_download_output(request, category):
         
         # If exact day not found, try to find closest available day
         if rate_value == 0 and item_day_rates:
-            available_days = sorted(item_day_rates.keys())
+            # Keys are integers, sort numerically
+            available_days = sorted([int(k) for k in item_day_rates.keys()])
             # Find closest day that's >= requested days, or the max available
             closest_day = None
             for d in available_days:

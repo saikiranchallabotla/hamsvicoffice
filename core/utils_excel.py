@@ -815,10 +815,10 @@ def build_temp_day_rates(filepath, items_list):
             if day_no <= 0:
                 continue
 
-            # Try cached numeric
-            rate_cached = _safe_float(ws_vals.cell(row=r, column=10).value)  # J
+            # Try cached numeric from column J
+            rate_cached = _safe_float(ws_vals.cell(row=r, column=10).value)
             if rate_cached is not None and rate_cached > 0:
-                per_item[str(day_no)] = rate_cached
+                per_item[day_no] = rate_cached  # Use int key
                 continue
 
             # Fallback: evaluate formula from ws_for J
@@ -826,7 +826,13 @@ def build_temp_day_rates(filepath, items_list):
             if isinstance(f, str) and f.startswith("="):
                 rate_calc = _eval_excel_formula(f, ws_vals, ws_for)
                 if rate_calc and rate_calc > 0:
-                    per_item[str(day_no)] = float(rate_calc)
+                    per_item[day_no] = float(rate_calc)  # Use int key
+                    continue
+            
+            # Last fallback: try column I (sometimes rates are there)
+            rate_col_i = _safe_float(ws_vals.cell(row=r, column=9).value)
+            if rate_col_i is not None and rate_col_i > 0:
+                per_item[day_no] = rate_col_i
 
         if per_item:
             day_rates[_norm_item_name(name)] = per_item
