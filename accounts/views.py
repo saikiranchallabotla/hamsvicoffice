@@ -574,10 +574,33 @@ def _find_user(identifier: str):
     if '@' in identifier:
         return User.objects.filter(email=identifier).first()
     
-    # Check by phone
+    # Check by phone - normalize and try multiple formats
     phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
+    
+    # Try exact match first
     profile = UserProfile.objects.filter(phone=phone).select_related('user').first()
-    return profile.user if profile else None
+    if profile:
+        return profile.user
+    
+    # Try without country code (strip common prefixes: +91, +1, +44, etc.)
+    # Handle formats: +919848389501 -> 9848389501
+    if phone.startswith('+'):
+        # Remove + and try stripping 1-4 digit country codes
+        digits_only = phone[1:]  # Remove +
+        for prefix_len in [1, 2, 3, 4]:
+            if len(digits_only) > prefix_len:
+                phone_without_prefix = digits_only[prefix_len:]
+                profile = UserProfile.objects.filter(phone=phone_without_prefix).select_related('user').first()
+                if profile:
+                    return profile.user
+    
+    # Try adding +91 prefix if not present (for Indian numbers)
+    if not phone.startswith('+') and len(phone) == 10:
+        profile = UserProfile.objects.filter(phone='+91' + phone).select_related('user').first()
+        if profile:
+            return profile.user
+    
+    return None
 
 
 def _create_user(identifier: str, data: dict):
