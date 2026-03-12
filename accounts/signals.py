@@ -71,6 +71,9 @@ def track_user_login(sender, request, user, **kwargs):
             for user_session in other_sessions:
                 try:
                     Session.objects.filter(session_key=user_session.session_key).delete()
+                    # Invalidate session validity cache
+                    from django.core.cache import cache
+                    cache.delete(f'session_valid_{user_session.session_key}')
                     logger.info(f"Kicked out session {user_session.session_key[:8]}... for user {user.username}")
                 except Exception as e:
                     logger.warning(f"Could not delete session: {e}")

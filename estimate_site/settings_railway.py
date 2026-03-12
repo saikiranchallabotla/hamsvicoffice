@@ -118,7 +118,7 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=60,  # Reduced to prevent connection exhaustion
             conn_health_checks=True,
         )
     }
@@ -134,7 +134,7 @@ elif DB_ENGINE in ('postgresql', 'postgres', 'postgres_psycopg2'):
             'HOST': os.environ.get('DB_HOST', 'localhost'),
             'PORT': os.environ.get('DB_PORT', '5432'),
             'ATOMIC_REQUESTS': True,
-            'CONN_MAX_AGE': 600,
+            'CONN_MAX_AGE': 60,  # Reduced to prevent connection exhaustion
             'OPTIONS': {
                 'sslmode': 'require',
             },

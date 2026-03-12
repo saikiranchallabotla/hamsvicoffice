@@ -9,7 +9,20 @@ from core import views, auth_views, api_views, dashboard_views, template_views, 
 
 # Health check endpoint for load balancers and container orchestration
 def health_check(request):
-    return JsonResponse({'status': 'healthy', 'app': 'hamsvic'})
+    from django.db import connection
+    try:
+        # Quick database connectivity check
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        db_status = 'connected'
+    except Exception as e:
+        db_status = f'error: {str(e)[:50]}'
+    
+    return JsonResponse({
+        'status': 'healthy',
+        'app': 'hamsvic',
+        'database': db_status
+    })
 
 urlpatterns = [
     path('health/', health_check, name='health_check'),

@@ -53,6 +53,7 @@ class SessionTrackingMiddleware:
         """
         Check if this session was invalidated by another login.
         If so, logout the user and redirect to login page with message.
+        Uses cache to reduce database queries.
         """
         if not request.user.is_authenticated:
             return None
@@ -62,6 +63,15 @@ class SessionTrackingMiddleware:
             return None
         
         try:
+            from django.core.cache import cache
+            
+            # Check cache first to avoid DB query on every request
+            cache_key = f'session_valid_{session_key}'
+            is_valid = cache.get(cache_key)
+            
+            if is_valid is True:
+                return None  # Session is valid, no need to check DB
+            
             from accounts.models import UserSession
             
             # Check if this session is still valid
@@ -87,6 +97,9 @@ class SessionTrackingMiddleware:
                 # Redirect to login
                 from django.urls import reverse
                 return redirect(reverse('login'))
+            
+            # Cache valid status for 60 seconds
+            cache.set(cache_key, True, 60)
         
         except Exception as e:
             logger.error(f"Error checking session validity: {e}")
@@ -154,6 +167,7 @@ class SessionTrackingMiddleware:
         Logout oldest sessions if limit exceeded (Netflix-style).
         """
         from accounts.models import UserSession
+        from django.core.cache import cache
         
         active_sessions = UserSession.objects.filter(
             user=user,
@@ -171,6 +185,9 @@ class SessionTrackingMiddleware:
             for session in sessions_to_kill:
                 session.is_active = False
                 session.save(update_fields=['is_active'])
+                
+                # Invalidate session validity cache
+                cache.delete(f'session_valid_{session.session_key}')
                 
                 # Also delete the Django session
                 try:

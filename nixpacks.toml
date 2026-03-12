@@ -16,7 +16,7 @@ cmds = [
 ]
 
 [start]
-cmd = "python init_app.py && gunicorn estimate_site.wsgi --bind 0.0.0.0:$PORT"
+cmd = "python init_app.py && gunicorn estimate_site.wsgi --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class gthread --timeout 120 --keep-alive 5 --max-requests 1000 --max-requests-jitter 50"
 
 # Note: Migrations, admin creation, and module seeding are now done at runtime
 # in init_app.py to handle external database connections that may not be
