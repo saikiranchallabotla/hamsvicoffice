@@ -697,16 +697,8 @@ def temp_download_output(request, category):
             col_end=10,
         )
 
-        # Fix columns I and J (rate columns) - formulas reference cells outside copied block
-        # Overwrite with actual cached values from ws_vals
-        if ws_vals:
-            for src_r in range(src_min, effective_end + 1):
-                dst_r = dst_start + (src_r - src_min)
-                # Fix column I (9) and column J (10)
-                for col in (9, 10):
-                    val = ws_vals.cell(row=src_r, column=col).value
-                    if val is not None:
-                        ws_out.cell(row=dst_r, column=col).value = val
+        # Keep formulas as-is in Output sheet (copied from backend)
+        # Estimate sheet will use actual cached values from day_rates
 
         # Label first row as Data block
         ws_out.cell(row=dst_start, column=1).value = f"Data {idx}"
@@ -836,11 +828,9 @@ def temp_download_output(request, category):
         d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
         d_cell.border = border_all
 
-        # Use formula to reference Output sheet rate (like other modules)
-        if rr:
-            e = ws_est.cell(row=row_est, column=5, value=f"=Output!J{rr}")
-        else:
-            e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
+        # Use actual rate value from day_rates (reliable cached values)
+        # This ensures correct rates even if Output formulas reference missing cells
+        e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
         e.alignment = Alignment(horizontal="center", vertical="center")
         e.border = border_all
         e.number_format = '#,##0.00'
