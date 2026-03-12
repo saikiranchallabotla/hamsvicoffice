@@ -697,6 +697,17 @@ def temp_download_output(request, category):
             col_end=10,
         )
 
+        # Fix columns I and J (rate columns) - formulas reference cells outside copied block
+        # Overwrite with actual cached values from ws_vals
+        if ws_vals:
+            for src_r in range(src_min, effective_end + 1):
+                dst_r = dst_start + (src_r - src_min)
+                # Fix column I (9) and column J (10)
+                for col in (9, 10):
+                    val = ws_vals.cell(row=src_r, column=col).value
+                    if val is not None:
+                        ws_out.cell(row=dst_r, column=col).value = val
+
         # Label first row as Data block
         ws_out.cell(row=dst_start, column=1).value = f"Data {idx}"
 
