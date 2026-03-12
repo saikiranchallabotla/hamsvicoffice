@@ -32,6 +32,10 @@
             f.classList.contains('download-form') ||
             f.querySelector('button[type="submit"].btn-download')) return;
         
+        // Skip auth forms that need normal redirect behavior for OTP display
+        if (f.classList.contains('auth-form') || 
+            action.indexOf('/accounts/') !== -1) return;
+        
         // Skip forms with file uploads or external actions
         if (f.querySelector('input[type=file]')) return;
         try { if (new URL(action, location.origin).origin !== location.origin) return; } catch(x){ return; }
