@@ -645,7 +645,7 @@ def temp_download_output(request, category):
     hdr.alignment = Alignment(horizontal="left", vertical="center")
 
     cursor = 3  # start blocks after header + blank row
-    rate_rows = []  # each element: (entry_index, row_in_output)
+    rate_rows = {}  # dict mapping entry_index -> row_in_output for rate
 
     # =====================================================
     # 1) OUTPUT SHEET: one block per entry (supports dupes)
@@ -712,9 +712,9 @@ def temp_download_output(request, category):
         ws_out.cell(row=dst_start, column=1).value = f"Data {idx}"
 
         if rate_src_row:
-            rate_rows.append((idx - 1, dst_start + (rate_src_row - src_min)))
+            rate_rows[idx] = dst_start + (rate_src_row - src_min)
         else:
-            rate_rows.append((idx - 1, None))
+            rate_rows[idx] = None
 
         cursor += (effective_end - src_min + 1)
 
@@ -814,18 +814,11 @@ def temp_download_output(request, category):
                 closest_day = available_days[-1]  # Use max available
             if closest_day:
                 rate_value = item_day_rates.get(closest_day, 0)
-        
-        # Fallback: try to get rate from Output sheet formula result
-        if rate_value == 0:
-            _, rr = rate_rows[idx - 1] if idx - 1 < len(rate_rows) else (None, None)
-            if rr and ws_vals:
-                # Try to get the cached value from data_only workbook
-                try:
-                    rate_value = ws_vals.cell(row=rr, column=10).value or 0
-                except:
-                    pass
 
         plural, singular = units_for(name)
+
+        # Get the rate row reference from rate_rows (points to Output sheet)
+        rr = rate_rows.get(idx)
 
         a = ws_est.cell(row=row_est, column=1, value=slno)
         a.alignment = Alignment(horizontal="center", vertical="center")
@@ -843,8 +836,11 @@ def temp_download_output(request, category):
         d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
         d_cell.border = border_all
 
-        # Use actual rate value instead of formula (formulas may not evaluate)
-        e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
+        # Use formula to reference Output sheet rate (like other modules)
+        if rr:
+            e = ws_est.cell(row=row_est, column=5, value=f"=Output!J{rr}")
+        else:
+            e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
         e.alignment = Alignment(horizontal="center", vertical="center")
         e.border = border_all
         e.number_format = '#,##0.00'
