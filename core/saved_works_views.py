@@ -2284,6 +2284,7 @@ def bill_generate(request, work_id):
         'tech_sanction': ws_metadata.get('tech_sanction', ''),
         'agreement': ws_metadata.get('agreement', ''),
         'agency': ws_metadata.get('agency_name', '') or ws_metadata.get('agency', ''),
+        'cc_header': ws_metadata.get('cc_header', ''),
     }
 
     # Build items from workslip exec data
@@ -2803,6 +2804,11 @@ def bill_generate(request, work_id):
                 cc_header = f'CC First & {bill_type_text} Bill'
             else:
                 cc_header = f'CC {ord_text} & {bill_type_text} Bill'
+
+            # Use CC Header from saved work data if available
+            file_cc_header = (header_data.get('cc_header') or '').strip()
+            if file_cc_header:
+                cc_header = file_cc_header
 
             mb_details_str = _build_mb_details_string(
                 mb_measure_no, mb_measure_p_from, mb_measure_p_to,

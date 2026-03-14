@@ -86,6 +86,15 @@ def bill_document(request):
     action = (request.POST.get("action") or "").strip()
     nth_number_str = (request.POST.get("nth_number") or "").strip()
 
+    # For LS forms: if action is empty, derive action from doc_kind for CC header resolution
+    # This happens when user clicks LS form buttons directly (which set doc_kind but not action)
+    if not action and doc_kind in ("ls_part", "ls_final"):
+        # Default to first bill if nth_number not specified
+        if not nth_number_str or nth_number_str == "1":
+            action = "estimate_first_part" if doc_kind == "ls_part" else "estimate_first_final"
+        else:
+            action = "nth_nth_part" if doc_kind == "ls_part" else "nth_nth_final"
+
     # 3) MB details from form
     mb_measure_no = (request.POST.get("mb_measure_no") or "").strip()
     mb_measure_p_from = (request.POST.get("mb_measure_p_from") or "").strip()
@@ -156,6 +165,10 @@ def bill_document(request):
         )
 
     cc_header = _resolve_cc_header(action, nth_number_str=nth_number_str)
+    # Use CC Header from uploaded file if available
+    file_cc_header = (file_header.get("cc_header") or "").strip()
+    if file_cc_header:
+        cc_header = file_cc_header
     
     # Current month + year
     now = timezone.now()
@@ -470,7 +483,7 @@ def bill_document(request):
                             text = text.replace(ph, val or "")
                             changed = True
                     if "dd.mm.yyyy" in text:
-                        text = text.replace("dd.mm.yyyy", f"dd.{mm_yyyy_val}")
+                        text = text.replace("dd.mm.yyyy", f"  .{mm_yyyy_val}")  # two spaces before dot
                         changed = True
                     if changed:
                         run.text = text

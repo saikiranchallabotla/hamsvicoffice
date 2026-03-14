@@ -94,6 +94,7 @@ def _extract_header_data_fuzzy_from_wb(wb):
         "agreement": "",
         "agency": "",
         "mb_details": "",
+        "cc_header": "",
     }
 
     def clean_value_for_header(val):
@@ -170,6 +171,14 @@ def _extract_header_data_fuzzy_from_wb(wb):
                         header["mb_details"] = clean_value_for_header(s_full)
                         continue
 
+                # ---- CC Header (CC First & Part Bill, CC Second & Final Bill, etc.) ----
+                if not header["cc_header"]:
+                    # Look for "CC" followed by bill type text
+                    if low.startswith("cc ") and ("bill" in low or "part" in low or "final" in low):
+                        # Use the full value as CC header (don't strip before colon)
+                        header["cc_header"] = s_full.strip()
+                        continue
+
     return header
 
 
@@ -211,6 +220,7 @@ def _extract_header_data_from_sheet(ws):
         "agreement": "...",
         "agency": "...",
         "mb_details": "...",
+        "cc_header": "...",
       }
     """
     header = {
@@ -221,6 +231,7 @@ def _extract_header_data_from_sheet(ws):
         "agreement": "",
         "agency": "",
         "mb_details": "",
+        "cc_header": "",
     }
 
     def clean_value_for_header(val):
@@ -294,6 +305,14 @@ def _extract_header_data_from_sheet(ws):
             if not header["mb_details"]:
                 if _cell_has_mb_details(low, tokens):
                     header["mb_details"] = clean_value_for_header(s_full)
+                    continue
+
+            # ---- CC Header (CC First & Part Bill, CC Second & Final Bill, etc.) ----
+            if not header["cc_header"]:
+                # Look for "CC" followed by bill type text
+                if low.startswith("cc ") and ("bill" in low or "part" in low or "final" in low):
+                    # Use the full value as CC header (don't strip before colon)
+                    header["cc_header"] = s_full.strip()
                     continue
 
     return header
