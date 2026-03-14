@@ -2778,8 +2778,8 @@ def bill_generate(request, work_id):
             return resp
 
         # ── COVERING LETTER / MOVEMENT SLIP ──
-        if action_type in ('covering', 'movement'):
-            template_type = 'covering_letter' if action_type == 'covering' else 'movement_slip'
+        if action_type in ('covering', 'covering_part', 'covering_final', 'movement'):
+            template_type = 'covering_letter' if action_type.startswith('covering') else 'movement_slip'
             user_tmpl = get_user_template(user, template_type)
             if not user_tmpl:
                 return HttpResponse(
@@ -2795,7 +2795,14 @@ def bill_generate(request, work_id):
             total_str = f'{grand_total:,.2f}'
             amount_words = _number_to_words_rupees(grand_total)
             ord_text = ordinal_word(bill_number)
-            cc_header = 'CC First & Part Bill' if bill_number == 1 else f'CC {ord_text} & Part Bill'
+
+            # Determine bill type based on action_type (Part or Final)
+            is_final = action_type == 'covering_final'
+            bill_type_text = 'Final' if is_final else 'Part'
+            if bill_number == 1:
+                cc_header = f'CC First & {bill_type_text} Bill'
+            else:
+                cc_header = f'CC {ord_text} & {bill_type_text} Bill'
 
             mb_details_str = _build_mb_details_string(
                 mb_measure_no, mb_measure_p_from, mb_measure_p_to,
@@ -2850,7 +2857,7 @@ def bill_generate(request, work_id):
             word_doc.save(buf)
             buf.seek(0)
 
-            dl_name = 'Cover_Letter.docx' if action_type == 'covering' else 'Movement_Slip.docx'
+            dl_name = 'Cover_Letter.docx' if action_type.startswith('covering') else 'Movement_Slip.docx'
             resp = HttpResponse(
                 buf.getvalue(),
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
