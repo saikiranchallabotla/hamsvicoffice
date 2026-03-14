@@ -417,7 +417,7 @@
                     {% with next_bill_num=bills|length|add:1 %}
                     {% if module_access.bill %}
                     <button class="ewb-btn ewb-btn-b"
-                            onclick="handleBCreate({{ workslips.0.id }})"
+                            onclick="handleBCreateWithNum({{ workslips.0.id }}, {{ next_bill_num }})"
                             title="Generate Bill {{ next_bill_num }}">
                         +B{{ next_bill_num }}
                     </button>
@@ -428,22 +428,18 @@
                     {% endif %}
                     {% endwith %}
                 {% else %}
-                    {% with next_bill_num=bills|length|add:1 %}
-                        {% for ws in workslips %}
-                            {% if ws.workslip_number == next_bill_num %}
-                            {% if module_access.bill %}
-                            <button class="ewb-btn ewb-btn-b"
-                                    onclick="handleBCreate({{ ws.id }})"
-                                    title="Generate Bill {{ next_bill_num }} from WorkSlip {{ ws.workslip_number }}">
-                                +B{{ next_bill_num }}
-                            </button>
-                            {% else %}
-                            <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
-                                <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B{{ next_bill_num }}
-                            </button>
-                            {% endif %}
-                            {% endif %}
-                        {% endfor %}
+                    {% with next_bill_num=bills|length|add:1 last_ws=workslips|last %}
+                    {% if last_ws and module_access.bill %}
+                    <button class="ewb-btn ewb-btn-b"
+                            onclick="handleBCreateWithNum({{ last_ws.id }}, {{ next_bill_num }})"
+                            title="Generate Bill {{ next_bill_num }} from WorkSlip {{ last_ws.workslip_number }}">
+                        +B{{ next_bill_num }}
+                    </button>
+                    {% elif not module_access.bill %}
+                    <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                        <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B{{ next_bill_num }}
+                    </button>
+                    {% endif %}
                     {% endwith %}
                 {% endif %}
             {% elif workslips|length > 0 %}
@@ -946,6 +942,17 @@
             window.location.href = '/bill/entry/' + workslipId + '/';
         } catch (e) {
             console.error('handleBCreate error:', e);
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Create new bill from workslip with specific bill number
+    function handleBCreateWithNum(workslipId, billNum) {
+        try {
+            // Go to bill entry UI with the workslip ID and bill_number parameter
+            window.location.href = '/bill/entry/' + workslipId + '/?bill_number=' + billNum;
+        } catch (e) {
+            console.error('handleBCreateWithNum error:', e);
             alert('Error: ' + e.message);
         }
     }

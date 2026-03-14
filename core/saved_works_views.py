@@ -2835,7 +2835,7 @@ def bill_generate(request, work_id):
                                 text = text.replace(ph, val or '')
                                 changed = True
                         if 'dd.mm.yyyy' in text:
-                            text = text.replace('dd.mm.yyyy', f'dd.{mm_yyyy}')
+                            text = text.replace('dd.mm.yyyy', f'  .{mm_yyyy}')
                             changed = True
                         if changed:
                             run.text = text
@@ -3123,6 +3123,21 @@ def saved_work_detail(request, work_id):
                 parent=saved_work,
             ).order_by('bill_number')
         )
+
+    # Handle bills belonging to orphan workslips
+    # (when viewing a bill whose parent workslip has no parent estimate)
+    if not root_estimate and saved_work.work_type == 'bill':
+        parent_workslip = saved_work.parent
+        if parent_workslip and parent_workslip.work_type == 'workslip':
+            is_orphan_workslip = True
+            workslips = [parent_workslip]
+            bills = list(
+                SavedWork.objects.filter(
+                    organization=org, user=user,
+                    work_type='bill',
+                    parent=parent_workslip,
+                ).order_by('bill_number')
+            )
 
     # Get workflow chain (parents)
     parent_chain = []
