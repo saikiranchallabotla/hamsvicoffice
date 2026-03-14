@@ -901,10 +901,10 @@
     // ========================================
     // B — Bill 1 (main B button) — uses resume for existing bills
     // ========================================
-    function handleB(billId, billNum, billStatus) {
+    function handleB(parentId, billNum, billStatus) {
         try {
-            // New: Always go to bill entry UI for editing
-            window.location.href = '/bill/entry/' + billId + '/';
+            // Go to bill entry UI for editing with bill_number parameter
+            window.location.href = '/bill/entry/' + parentId + '/?bill_number=' + billNum;
         } catch (e) {
             console.error('handleB error:', e);
             alert('Error: ' + e.message);
@@ -928,10 +928,11 @@
     }
 
     // B2, B3, … additional bill buttons — uses resume for existing bills
-    function handleBn(billId, billNum, billStatus) {
+    function handleBn(parentId, billNum, billStatus) {
         try {
-            // New: Always go to bill entry UI for editing or creating next
-            window.location.href = '/bill/entry/' + billId + '/';
+            // Go to bill entry UI for editing with bill_number parameter
+            // This allows editing any specific bill regardless of workslip number
+            window.location.href = '/bill/entry/' + parentId + '/?bill_number=' + billNum;
         } catch (e) {
             console.error('handleBn error:', e);
             alert('Error: ' + e.message);

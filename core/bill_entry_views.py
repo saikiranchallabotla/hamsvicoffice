@@ -628,9 +628,13 @@ def _bill_entry_save_logic(request, work_id):
                 'status': 'in_progress',  # Mark as in_progress (draft) until downloaded
             }
         )
-    
+
         action_msg = 'created' if created else 'updated'
         messages.success(request, f'Bill-{bill_number} {action_msg} successfully!')
+
+        # Propagate changes to subsequent bills if this bill was updated
+        if not created:
+            _propagate_bill_to_subsequent_bills(saved_bill, org, user)
 
         return JsonResponse({
             'success': True,
@@ -645,6 +649,118 @@ def _bill_entry_save_logic(request, work_id):
             'success': False,
             'error': f'Server error: {str(e)}'
         }, status=500)
+
+
+def _propagate_bill_to_subsequent_bills(edited_bill, org, user):
+    """
+    When a bill is edited, update the deduct_map in all subsequent bills.
+
+    For example, if B1 is edited:
+    - B2's bill_deduct_map should reflect B1's new quantities
+    - B3's bill_deduct_map should reflect B2's quantities (which includes B1's changes)
+    - And so on...
+
+    This maintains the chain: B2 deducts B1, B3 deducts B2, etc.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    bill_number = edited_bill.bill_number
+    source_work = edited_bill.parent  # The parent workslip or estimate
+
+    if not source_work:
+        return
+
+    # Find the root estimate to locate all bills in the workflow
+    root_estimate = None
+    if source_work.work_type == 'workslip':
+        root_estimate = source_work.parent
+    elif source_work.work_type == 'new_estimate':
+        root_estimate = source_work
+
+    if not root_estimate:
+        # Orphan workslip case: bills parented directly to workslip
+        all_bills = list(
+            SavedWork.objects.filter(
+                organization=org,
+                user=user,
+                work_type='bill',
+                parent=source_work,
+                bill_number__gt=bill_number,  # Only subsequent bills
+            ).order_by('bill_number')
+        )
+    else:
+        # Find all workslip IDs in the workflow
+        all_workslip_ids = list(
+            SavedWork.objects.filter(
+                organization=org,
+                user=user,
+                work_type='workslip',
+                parent=root_estimate,
+            ).values_list('id', flat=True)
+        )
+
+        # Find all subsequent bills (bill_number > edited bill's number)
+        all_bills = list(
+            SavedWork.objects.filter(
+                Q(parent=root_estimate) | Q(parent_id__in=all_workslip_ids),
+                organization=org,
+                user=user,
+                work_type='bill',
+                bill_number__gt=bill_number,  # Only subsequent bills
+            ).order_by('bill_number')
+        )
+
+    if not all_bills:
+        logger.info(f"[PROPAGATE BILL] No subsequent bills found for Bill-{bill_number}")
+        return
+
+    # Build a map of all bills by bill_number for quick lookup
+    # Include the edited bill itself
+    bills_by_number = {edited_bill.bill_number: edited_bill}
+    for bill in all_bills:
+        bills_by_number[bill.bill_number] = bill
+
+    updated_count = 0
+
+    # Process each subsequent bill in order
+    for next_bill in all_bills:
+        next_bill_number = next_bill.bill_number
+        prev_bill_number = next_bill_number - 1
+
+        # Get the previous bill (the one to deduct from)
+        prev_bill = bills_by_number.get(prev_bill_number)
+        if not prev_bill:
+            continue
+
+        prev_data = prev_bill.work_data or {}
+        prev_exec_map = prev_data.get('bill_exec_map', prev_data.get('bill_ws_exec_map', {}))
+
+        # Update next_bill's deduct_map with prev_bill's quantities
+        next_data = next_bill.work_data or {}
+        old_deduct_map = next_data.get('bill_deduct_map', {})
+        new_deduct_map = {}
+
+        # Copy quantities from previous bill
+        for key, qty in prev_exec_map.items():
+            try:
+                new_deduct_map[key] = float(qty) if qty else 0.0
+            except (ValueError, TypeError):
+                new_deduct_map[key] = 0.0
+
+        # Check if deduct_map has changed
+        if new_deduct_map != old_deduct_map:
+            next_data['bill_deduct_map'] = new_deduct_map
+            next_bill.work_data = next_data
+            next_bill.save(update_fields=['work_data', 'updated_at'])
+            updated_count += 1
+            logger.info(
+                f"[PROPAGATE BILL] Updated Bill-{next_bill_number} deduct_map "
+                f"with {len(new_deduct_map)} items from Bill-{prev_bill_number}"
+            )
+
+    if updated_count:
+        logger.info(f"[PROPAGATE BILL] Propagated Bill-{bill_number} changes to {updated_count} subsequent bill(s)")
 
 
 @login_required(login_url='login')
