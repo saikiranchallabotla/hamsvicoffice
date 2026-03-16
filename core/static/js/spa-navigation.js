@@ -370,6 +370,17 @@
         }
         console.log('[SPA] Found matching content area:', currentSelector);
 
+        // Check if either current or new page has embedded <style> tags
+        // If so, fall back to full page reload to ensure proper styling
+        const currentHasStyles = currentContent.querySelector('style') !== null;
+        const newHasStyles = newContent.querySelector('style') !== null;
+        
+        if (currentHasStyles || newHasStyles) {
+            console.log('[SPA] Page has embedded styles - falling back to full reload for proper CSS');
+            window.location.replace(url);
+            return;
+        }
+
         // Update the URL using replaceState (no history entry)
         history.replaceState({ spa: true, url: url }, '', url);
         console.log('[SPA] URL updated to:', url);
@@ -379,23 +390,7 @@
         
         await new Promise(r => setTimeout(r, 100));
 
-        // Handle page-specific styles: extract from new content and inject into head
-        // Remove old SPA-injected styles first
-        document.querySelectorAll('style[data-spa-style]').forEach(s => s.remove());
-        
-        // Extract style tags from new content and add to head
-        const newStyles = newContent.querySelectorAll('style');
-        newStyles.forEach((style, index) => {
-            const newStyle = document.createElement('style');
-            newStyle.setAttribute('data-spa-style', 'true');
-            newStyle.textContent = style.textContent;
-            document.head.appendChild(newStyle);
-            console.log('[SPA] Injected style block', index + 1);
-            // Remove from content to avoid duplication (we already added to head)
-            style.remove();
-        });
-
-        // Replace content (now without style tags which are in head)
+        // Replace content
         currentContent.innerHTML = newContent.innerHTML;
         console.log('[SPA] Content replaced successfully');
         
