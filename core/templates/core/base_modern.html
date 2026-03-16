@@ -12,6 +12,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SPA Navigation Styles -->
+    <link href="{% static 'css/spa-navigation.css' %}" rel="stylesheet">
     
     <style>
         :root {
@@ -1277,6 +1279,7 @@
     
     {% include "includes/app_modal.html" %}
     {% block extra_scripts %}{% endblock %}
-    <script src="{% static 'js/no-history.js' %}"></script>
+    <!-- SPA Navigation (replaces no-history.js) -->
+    <script src="{% static 'js/spa-navigation.js' %}"></script>
 </body>
 </html>
