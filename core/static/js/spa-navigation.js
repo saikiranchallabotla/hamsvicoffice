@@ -379,7 +379,23 @@
         
         await new Promise(r => setTimeout(r, 100));
 
-        // Replace content
+        // Handle page-specific styles: extract from new content and inject into head
+        // Remove old SPA-injected styles first
+        document.querySelectorAll('style[data-spa-style]').forEach(s => s.remove());
+        
+        // Extract style tags from new content and add to head
+        const newStyles = newContent.querySelectorAll('style');
+        newStyles.forEach((style, index) => {
+            const newStyle = document.createElement('style');
+            newStyle.setAttribute('data-spa-style', 'true');
+            newStyle.textContent = style.textContent;
+            document.head.appendChild(newStyle);
+            console.log('[SPA] Injected style block', index + 1);
+            // Remove from content to avoid duplication (we already added to head)
+            style.remove();
+        });
+
+        // Replace content (now without style tags which are in head)
         currentContent.innerHTML = newContent.innerHTML;
         console.log('[SPA] Content replaced successfully');
         
@@ -393,7 +409,7 @@
         const newH1 = doc.querySelector('.page-title h1');
         const currentH1 = document.querySelector('.page-title h1');
         if (newH1 && currentH1) {
-            currentH1.textContent = newH1.textContent;
+            currentH1.innerHTML = newH1.innerHTML;
         }
 
         // Update breadcrumbs if present
