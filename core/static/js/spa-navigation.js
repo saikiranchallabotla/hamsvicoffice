@@ -9,6 +9,8 @@
  */
 (function() {
     'use strict';
+    
+    console.log('[SPA] Script loaded, initializing...');
 
     // Configuration
     const CONFIG = {
@@ -22,6 +24,7 @@
             '/accounts/logout',
             '/accounts/register',
             '/accounts/verify',
+            '/accounts/confirm-device',
             'download',
             '/api/',
             '/admin/',  // Django admin
@@ -150,13 +153,18 @@
             link.hasAttribute('data-no-spa') ||
             link.classList.contains('no-spa') ||
             e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+            console.log('[SPA] Skipping link (special case):', href);
             return;
         }
 
         // Check if we should intercept
-        if (!shouldIntercept(href)) return;
+        if (!shouldIntercept(href)) {
+            console.log('[SPA] Skipping link (excluded):', href);
+            return;
+        }
 
         // Prevent default and navigate via SPA
+        console.log('[SPA] Intercepting navigation to:', href);
         e.preventDefault();
         navigateTo(href);
     }
@@ -313,6 +321,7 @@
      * Load content from response into the page
      */
     async function loadContent(url, response) {
+        console.log('[SPA] Loading content for:', url);
         const html = await response.text();
         
         // Parse the HTML
@@ -321,26 +330,33 @@
 
         // Get new content area from response
         let newContent = null;
+        let matchedSelector = null;
         for (const selector of CONFIG.contentSelectors) {
             newContent = doc.querySelector(selector);
-            if (newContent) break;
+            if (newContent) {
+                matchedSelector = selector;
+                break;
+            }
         }
 
         if (!newContent) {
-            console.error('[SPA] Could not find content area in response');
+            console.error('[SPA] Could not find content area in response. Selectors tried:', CONFIG.contentSelectors);
             window.location.replace(url);
             return;
         }
+        console.log('[SPA] Found new content with selector:', matchedSelector);
 
         // Get current content area
         const currentContent = getContentArea();
         if (!currentContent) {
+            console.error('[SPA] Could not find current content area on page');
             window.location.replace(url);
             return;
         }
 
         // Update the URL using replaceState (no history entry)
         history.replaceState({ spa: true, url: url }, '', url);
+        console.log('[SPA] URL updated to:', url);
 
         // Animate out old content
         currentContent.classList.add('spa-fade-out');
@@ -349,6 +365,7 @@
 
         // Replace content
         currentContent.innerHTML = newContent.innerHTML;
+        console.log('[SPA] Content replaced successfully');
         
         // Update page title
         const newTitle = doc.querySelector('title');
