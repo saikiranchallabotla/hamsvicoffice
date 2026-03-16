@@ -52,21 +52,21 @@
 /* Content area transitions */
 .content-area,
 .admin-content {
-    transition: opacity 0.15s ease-out;
+    transition: opacity 0.1s ease-out;
 }
 
 .spa-fade-out {
-    opacity: 0.4 !important;
+    opacity: 0.5 !important;
 }
 
 .spa-fade-in {
-    animation: spa-content-enter 0.2s ease-out forwards;
+    animation: spa-content-enter 0.15s ease-out forwards;
 }
 
 @keyframes spa-content-enter {
     from {
-        opacity: 0.4;
-        transform: translateY(8px);
+        opacity: 0.5;
+        transform: translateY(4px);
     }
     to {
         opacity: 1;

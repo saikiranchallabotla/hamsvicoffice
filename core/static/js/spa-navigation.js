@@ -44,10 +44,10 @@
         ],
         // Page title element selector
         titleSelector: '.page-title h1, .admin-topbar h1, title',
-        // Loading indicator delay (ms)
-        loadingDelay: 50,
-        // Minimum loading time for visual feedback (ms)
-        minLoadingTime: 150,
+        // Loading indicator delay (ms) - show loading bar only if request takes longer
+        loadingDelay: 100,
+        // Minimum loading time for visual feedback (ms) - reduced for snappy feel
+        minLoadingTime: 50,
     };
 
     // State
@@ -284,7 +284,6 @@
         
         // Show loading after a small delay (avoid flicker for fast loads)
         const loadingTimeout = setTimeout(showLoading, CONFIG.loadingDelay);
-        const startTime = Date.now();
 
         try {
             const response = await fetch(url, {
@@ -303,13 +302,7 @@
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            // Ensure minimum loading time for visual feedback
-            const elapsed = Date.now() - startTime;
-            if (elapsed < CONFIG.minLoadingTime) {
-                showLoading(); // Show it now if we haven't
-                await new Promise(r => setTimeout(r, CONFIG.minLoadingTime - elapsed));
-            }
-
+            // Load content immediately - no artificial delays
             await loadContent(url, response);
 
         } catch (error) {
@@ -370,28 +363,35 @@
         }
         console.log('[SPA] Found matching content area:', currentSelector);
 
-        // Check if either current or new page has embedded <style> tags
-        // If so, fall back to full page reload to ensure proper styling
-        const currentHasStyles = currentContent.querySelector('style') !== null;
-        const newHasStyles = newContent.querySelector('style') !== null;
-        
-        if (currentHasStyles || newHasStyles) {
-            console.log('[SPA] Page has embedded styles - falling back to full reload for proper CSS');
-            window.location.replace(url);
-            return;
-        }
-
         // Update the URL using replaceState (no history entry)
         history.replaceState({ spa: true, url: url }, '', url);
         console.log('[SPA] URL updated to:', url);
 
-        // Animate out old content
-        currentContent.classList.add('spa-fade-out');
+        // Remove old SPA-injected styles
+        document.querySelectorAll('style[data-spa-page-style]').forEach(s => s.remove());
         
-        await new Promise(r => setTimeout(r, 100));
+        // Extract and inject page-specific styles BEFORE replacing content
+        const newStyles = newContent.querySelectorAll('style');
+        newStyles.forEach((style, index) => {
+            // Create new style element and copy content
+            const injectStyle = document.createElement('style');
+            injectStyle.setAttribute('data-spa-page-style', url);
+            injectStyle.textContent = style.textContent;
+            document.head.appendChild(injectStyle);
+            // Remove from the content element so it's not duplicated
+            style.parentNode.removeChild(style);
+        });
+        if (newStyles.length > 0) {
+            console.log('[SPA] Injected', newStyles.length, 'style block(s) to head');
+        }
 
-        // Replace content
+        // Quick fade animation - just 30ms for visual feedback without delay
+        currentContent.style.opacity = '0.6';
+        await new Promise(r => setTimeout(r, 30));
+
+        // Replace content (styles already removed from newContent)
         currentContent.innerHTML = newContent.innerHTML;
+        currentContent.style.opacity = '';
         console.log('[SPA] Content replaced successfully');
         
         // Update page title
@@ -422,14 +422,6 @@
 
         // Re-initialize any Bootstrap components
         reinitBootstrap(currentContent);
-
-        // Animate in new content
-        currentContent.classList.remove('spa-fade-out');
-        currentContent.classList.add('spa-fade-in');
-        
-        setTimeout(() => {
-            currentContent.classList.remove('spa-fade-in');
-        }, 200);
 
         // Scroll to top of content
         currentContent.scrollTop = 0;
