@@ -15,16 +15,29 @@
     // Configuration
     const CONFIG = {
         // Content area selectors (in order of priority)
-        contentSelectors: ['.content-area', '.admin-content', 'main'],
+        contentSelectors: ['.content-area', '.admin-content'],
         // Sidebar nav selectors
         navSelectors: ['.sidebar-nav', '.admin-nav'],
-        // Links that should NOT be intercepted
+        // Links that should NOT be intercepted (standalone templates, auth, etc.)
         excludePatterns: [
+            // Auth pages
             '/accounts/login',
             '/accounts/logout',
             '/accounts/register',
             '/accounts/verify',
             '/accounts/confirm-device',
+            '/accounts/profile',        // Standalone template
+            '/accounts/sessions',       // Standalone template  
+            '/accounts/notification',   // Standalone template
+            '/accounts/delete',         // Standalone template
+            // Support pages (standalone templates)
+            '/help/',
+            // Subscription pages (standalone templates)
+            '/subscriptions/pricing',
+            '/subscriptions/checkout',
+            '/subscriptions/my-subscription',
+            '/subscriptions/payment-history',
+            // Other
             'download',
             '/api/',
             '/admin/',  // Django admin
@@ -328,31 +341,34 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        // Get new content area from response
-        let newContent = null;
-        let matchedSelector = null;
+        // Get current content area first - determine which selector we're using
+        let currentContent = null;
+        let currentSelector = null;
         for (const selector of CONFIG.contentSelectors) {
-            newContent = doc.querySelector(selector);
-            if (newContent) {
-                matchedSelector = selector;
+            currentContent = document.querySelector(selector);
+            if (currentContent) {
+                currentSelector = selector;
                 break;
             }
         }
+        
+        if (!currentContent) {
+            console.error('[SPA] No content area found on current page');
+            window.location.replace(url);
+            return;
+        }
+
+        // Get new content area from response using THE SAME selector
+        // This ensures we only SPA-load compatible templates
+        const newContent = doc.querySelector(currentSelector);
 
         if (!newContent) {
-            console.error('[SPA] Could not find content area in response. Selectors tried:', CONFIG.contentSelectors);
+            console.log('[SPA] Template structure mismatch - falling back to full reload');
+            console.log('[SPA] Current page has:', currentSelector, 'but new page does not');
             window.location.replace(url);
             return;
         }
-        console.log('[SPA] Found new content with selector:', matchedSelector);
-
-        // Get current content area
-        const currentContent = getContentArea();
-        if (!currentContent) {
-            console.error('[SPA] Could not find current content area on page');
-            window.location.replace(url);
-            return;
-        }
+        console.log('[SPA] Found matching content area:', currentSelector);
 
         // Update the URL using replaceState (no history entry)
         history.replaceState({ spa: true, url: url }, '', url);
@@ -462,6 +478,7 @@
 
     /**
      * Execute inline scripts in new content
+     * Only executes scripts that are safe (not initialization/global scripts)
      */
     function executeScripts(container) {
         const scripts = container.querySelectorAll('script');
@@ -469,8 +486,29 @@
             // Skip external scripts (they should already be loaded)
             if (oldScript.src) return;
             
+            const content = oldScript.textContent;
+            
+            // Skip scripts that look like they might cause duplicates or global issues
+            // These patterns indicate initialization code that shouldn't be re-run
+            const skipPatterns = [
+                'DOMContentLoaded',
+                'sessionCheckInterval',
+                'checkSessionValidity',
+                'loadNotifications',
+                'setInterval',
+                'showLoggedOutModal',
+                'toast-container',
+                'toastContainer',
+            ];
+            
+            const shouldSkip = skipPatterns.some(pattern => content.includes(pattern));
+            if (shouldSkip) {
+                console.log('[SPA] Skipping initialization script');
+                return;
+            }
+            
             const newScript = document.createElement('script');
-            newScript.textContent = oldScript.textContent;
+            newScript.textContent = content;
             oldScript.parentNode.replaceChild(newScript, oldScript);
         });
     }
