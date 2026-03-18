@@ -678,7 +678,7 @@
         }
         
         /* Extra styles block */
-        {% block extra_styles %}{% endblock %}
+        /* SPA:APP:STYLES_START */{% block extra_styles %}{% endblock %}/* SPA:APP:STYLES_END */
         
         /* Notification Bell */
         .notification-bell {
@@ -859,7 +859,7 @@
             text-decoration: underline;
         }
     </style>
-    {% block extra_head %}{% endblock %}
+    <!-- SPA:APP:HEAD_START -->{% block extra_head %}{% endblock %}<!-- SPA:APP:HEAD_END -->
 </head>
 <body>
     <!-- Sidebar -->
@@ -920,7 +920,7 @@
                 <a href="javascript:void(0)" class="back-to-dashboard" title="Go Back" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='{% url 'dashboard' %}'; }">
                     <i class="bi bi-arrow-left"></i>
                 </a>
-                <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+                <h1><!-- SPA:APP:TITLE_START -->{% block page_title %}Dashboard{% endblock %}<!-- SPA:APP:TITLE_END --></h1>
                 {% block page_badge %}{% endblock %}
             </div>
             
@@ -985,7 +985,7 @@
             </div>
             {% endif %}
             
-            {% block content %}{% endblock %}
+            <!-- SPA:APP:CONTENT_START -->{% block content %}{% endblock %}<!-- SPA:APP:CONTENT_END -->
         </div>
     </main>
     
@@ -1276,7 +1276,7 @@
     </script>
     
     {% include "includes/app_modal.html" %}
-    {% block extra_scripts %}{% endblock %}
-    <script src="{% static 'js/no-history.js' %}"></script>
+    <!-- SPA:APP:SCRIPTS_START -->{% block extra_scripts %}{% endblock %}<!-- SPA:APP:SCRIPTS_END -->
+    <script src="{% static 'js/spa-router.js' %}"></script>
 </body>
 </html>
