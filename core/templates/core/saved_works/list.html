@@ -509,6 +509,46 @@
         font-size: 0.8rem;
         color: #666;
     }
+
+    @media (max-width: 768px) {
+        .explorer {
+            flex-direction: column;
+            min-height: auto;
+        }
+
+        .explorer-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #e0e0e0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .explorer-toolbar {
+            padding: 8px 10px;
+            gap: 8px;
+        }
+
+        .file-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+            gap: 8px !important;
+            padding: 8px !important;
+        }
+
+        .context-menu {
+            max-width: calc(100vw - 2rem);
+        }
+    }
+
+    @media (max-width: 480px) {
+        .explorer-sidebar {
+            max-height: 150px;
+        }
+
+        .file-grid {
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+        }
+    }
 </style>
 
 <div class="explorer">

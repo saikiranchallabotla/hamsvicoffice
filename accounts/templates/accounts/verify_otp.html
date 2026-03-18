@@ -266,6 +266,41 @@ function showOtpPopup(otp) {
 .btn-link:hover {
     text-decoration: underline;
 }
+
+@media (max-width: 480px) {
+    .otp-input-container {
+        gap: 0.35rem;
+    }
+
+    .otp-digit {
+        width: 40px;
+        height: 48px;
+        font-size: 1.25rem;
+    }
+
+    .otp-popup-code {
+        font-size: 1.8rem;
+        letter-spacing: 5px;
+        padding: 1rem;
+        margin: 0.5rem 1rem;
+    }
+
+    .otp-popup-modal {
+        width: 92%;
+    }
+}
+
+@media (max-width: 360px) {
+    .otp-input-container {
+        gap: 0.25rem;
+    }
+
+    .otp-digit {
+        width: 36px;
+        height: 44px;
+        font-size: 1.1rem;
+    }
+}
 </style>
 
 <script>

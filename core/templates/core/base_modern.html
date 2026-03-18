@@ -625,36 +625,184 @@
             font-size: 0.875rem;
         }
         
-        /* Responsive */
+        /* Hamburger toggle - hidden on desktop */
+        .sidebar-toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1.3rem;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .sidebar-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+        }
+
+        /* Sidebar overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Responsive - Tablet */
         @media (max-width: 1024px) {
             .sidebar {
                 width: 80px;
                 padding: 1rem;
             }
-            
+
             .sidebar-brand h1,
             .nav-section,
             .nav-link span {
                 display: none;
             }
-            
+
             .main-content {
                 margin-left: 80px;
             }
+
+            .top-header {
+                padding: 0 1rem;
+            }
+
+            .content-area {
+                padding: 1.25rem;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .user-dropdown .bi-chevron-down {
+                display: none;
+            }
         }
-        
+
+        /* Responsive - Mobile */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
-                transition: transform 0.3s;
+                transition: transform 0.3s ease;
+                width: var(--sidebar-width);
+                padding: 1.5rem;
             }
-            
+
             .sidebar.open {
                 transform: translateX(0);
             }
-            
+
+            .sidebar.open ~ .sidebar-overlay {
+                display: block;
+                opacity: 1;
+            }
+
+            .sidebar-brand h1,
+            .nav-section,
+            .nav-link span {
+                display: revert;
+            }
+
             .main-content {
                 margin-left: 0;
+            }
+
+            .sidebar-toggle {
+                display: flex;
+            }
+
+            .back-to-dashboard {
+                display: none;
+            }
+
+            .top-header {
+                padding: 0 0.75rem;
+                height: 56px;
+            }
+
+            .page-title h1 {
+                font-size: 1rem;
+            }
+
+            .page-title {
+                gap: 0.5rem;
+            }
+
+            .content-area {
+                padding: 1rem;
+            }
+
+            .header-actions {
+                gap: 0.5rem;
+            }
+
+            .user-dropdown {
+                padding: 0.35rem 0.5rem;
+            }
+
+            .notification-dropdown {
+                right: -60px;
+                width: calc(100vw - 1.5rem);
+                max-width: 360px;
+            }
+
+            .content-footer {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 0.5rem;
+                text-align: center;
+            }
+        }
+
+        /* Responsive - Small phones */
+        @media (max-width: 480px) {
+            .top-header {
+                padding: 0 0.5rem;
+            }
+
+            .content-area {
+                padding: 0.75rem;
+            }
+
+            .page-title h1 {
+                font-size: 0.9rem;
+                max-width: 140px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 0.75rem;
+            }
+
+            .sidebar-toggle {
+                width: 36px;
+                height: 36px;
+                font-size: 1.1rem;
             }
         }
         
@@ -911,12 +1059,16 @@
             {% endif %}
         </nav>
     </aside>
-    
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
         <header class="top-header">
             <div class="page-title">
+                <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
+                    <i class="bi bi-list"></i>
+                </button>
                 <a href="javascript:void(0)" class="back-to-dashboard" title="Go Back" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='{% url 'dashboard' %}'; }">
                     <i class="bi bi-arrow-left"></i>
                 </a>
@@ -1273,8 +1425,36 @@
         sessionCheckInterval = setInterval(checkSessionValidity, 10000);
     });
     {% endif %}
+
+    // Sidebar toggle for mobile
+    function toggleSidebar() {
+        var sidebar = document.querySelector('.sidebar');
+        var overlay = document.querySelector('.sidebar-overlay');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+    }
+
+    // Close sidebar on ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var sidebar = document.querySelector('.sidebar');
+            if (sidebar && sidebar.classList.contains('open')) {
+                toggleSidebar();
+            }
+        }
+    });
+
+    // Close sidebar when a nav link is clicked (mobile)
+    document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        });
+    });
     </script>
-    
+
     {% include "includes/app_modal.html" %}
     <!-- SPA:APP:SCRIPTS_START -->{% block extra_scripts %}{% endblock %}<!-- SPA:APP:SCRIPTS_END -->
     <script src="{% static 'js/spa-router.js' %}"></script>
