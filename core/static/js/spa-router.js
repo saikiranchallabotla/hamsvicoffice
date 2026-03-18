@@ -562,6 +562,12 @@
             return;
         }
 
+        // Skip auth forms - they have complex OTP/redirect flows that need native handling
+        if (form.classList.contains('auth-form') ||
+            action.indexOf('/accounts/') !== -1) {
+            return;
+        }
+
         // Skip forms with file uploads (they need native handling for progress)
         if (form.querySelector('input[type=file]')) {
             // But still handle them via SPA for non-download forms
