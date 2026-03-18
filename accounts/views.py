@@ -80,22 +80,14 @@ def login_view(request):
             # Get OTP for display in dev mode
             otp = result.get('data', {}).get('otp')
             dev_mode = result.get('data', {}).get('dev_mode', False)
-            
-            # Log for debugging on Railway
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"[LOGIN_OTP] dev_mode={dev_mode}, otp={'***' if otp else 'None'}")
-            
+
             if dev_mode and otp:
-                # Pass OTP in URL for dev mode (to survive no-history.js fetch + redirect)
-                # Redirect to verify_otp page like registration does
-                from django.urls import reverse
+                # Store OTP in session for display on verify page (SPA-safe)
+                request.session['show_otp'] = otp
                 messages.success(request, f'OTP sent! Use the code shown below.')
-                return redirect(f"{reverse('verify_otp')}?_otp={otp}")
             else:
-                # Production mode - redirect to verify page
                 messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
-                return redirect('verify_otp')
+            return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])
             return render(request, 'accounts/login.html', {'identifier': identifier})
@@ -257,17 +249,14 @@ def register_view(request):
             # Get OTP for display in dev mode
             otp = result.get('data', {}).get('otp')
             dev_mode = result.get('data', {}).get('dev_mode', False)
-            
+
             if dev_mode and otp:
-                # Pass OTP in URL for dev mode (to survive no-history.js fetch + redirect)
-                # This is safe because it's only for testing when SMS/Email isn't configured
+                # Store OTP in session for display on verify page (SPA-safe)
+                request.session['show_otp'] = otp
                 messages.success(request, f'OTP sent! Use the code shown below.')
-                from django.urls import reverse
-                return redirect(f"{reverse('verify_otp')}?_otp={otp}")
             else:
-                # Production mode - redirect to verify page without OTP in URL
                 messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
-                return redirect('verify_otp')
+            return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])
             return render(request, 'accounts/register.html', {

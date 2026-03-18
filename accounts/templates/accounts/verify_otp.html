@@ -4,25 +4,7 @@
 {% block title %}Verify OTP - SSR Estimation{% endblock %}
 
 {% block auth_content %}
-<!-- OTP Popup Modal - Shows in Development Mode -->
-{% if show_otp %}
-<div id="otpPopup" class="otp-popup-overlay">
-    <div class="otp-popup-modal">
-        <div class="otp-popup-dev-banner">
-            ⚠️ DEVELOPMENT MODE - SMS/Email services not configured
-        </div>
-        <div class="otp-popup-header">
-            <span class="otp-popup-icon">🔐</span>
-            <h3>Your OTP Code</h3>
-        </div>
-        <div class="otp-popup-code" id="otpCodeDisplay">{{ show_otp }}</div>
-        <button type="button" class="otp-copy-btn" onclick="copyOtpCode()">
-            <span id="copyBtnText">📋 Copy Code</span>
-        </button>
-        <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
-        <button type="button" class="otp-popup-btn" onclick="closeOtpPopup()">Got it!</button>
-    </div>
-</div>
+<!-- OTP Popup Styles (always included for resend support) -->
 <style>
 .otp-popup-overlay {
     position: fixed;
@@ -108,49 +90,26 @@
 }
 .otp-popup-btn:hover { background: #4f46e5; }
 </style>
-<script>
-function closeOtpPopup() {
-    document.getElementById('otpPopup').style.display = 'none';
-}
-function copyOtpCode() {
-    const otp = document.getElementById('otpCodeDisplay').textContent.trim();
-    navigator.clipboard.writeText(otp).then(() => {
-        document.getElementById('copyBtnText').textContent = '✓ Copied!';
-        setTimeout(() => {
-            document.getElementById('copyBtnText').textContent = '📋 Copy Code';
-        }, 2000);
-    });
-}
 
-// Dynamic OTP popup for resend
-function showOtpPopup(otp) {
-    // Remove existing popup if any
-    const existingPopup = document.getElementById('otpPopup');
-    if (existingPopup) existingPopup.remove();
-    
-    // Create popup HTML
-    const popupHtml = `
-    <div id="otpPopup" class="otp-popup-overlay">
-        <div class="otp-popup-modal">
-            <div class="otp-popup-dev-banner">
-                ⚠️ DEVELOPMENT MODE - SMS/Email services not configured
-            </div>
-            <div class="otp-popup-header">
-                <span class="otp-popup-icon">🔐</span>
-                <h3>Your New OTP Code</h3>
-            </div>
-            <div class="otp-popup-code" id="otpCodeDisplay">${otp}</div>
-            <button type="button" class="otp-copy-btn" onclick="copyOtpCode()">
-                <span id="copyBtnText">📋 Copy Code</span>
-            </button>
-            <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
-            <button type="button" class="otp-popup-btn" onclick="closeOtpPopup()">Got it!</button>
+<!-- OTP Popup Modal - Shows in Development Mode -->
+{% if show_otp %}
+<div id="otpPopup" class="otp-popup-overlay">
+    <div class="otp-popup-modal">
+        <div class="otp-popup-dev-banner">
+            ⚠️ DEVELOPMENT MODE - SMS/Email services not configured
         </div>
-    </div>`;
-    
-    document.body.insertAdjacentHTML('beforeend', popupHtml);
-}
-</script>
+        <div class="otp-popup-header">
+            <span class="otp-popup-icon">🔐</span>
+            <h3>Your OTP Code</h3>
+        </div>
+        <div class="otp-popup-code" id="otpCodeDisplay">{{ show_otp }}</div>
+        <button type="button" class="otp-copy-btn" onclick="copyOtpCode()">
+            <span id="copyBtnText">📋 Copy Code</span>
+        </button>
+        <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
+        <button type="button" class="otp-popup-btn" onclick="closeOtpPopup()">Got it!</button>
+    </div>
+</div>
 {% endif %}
 
 <div class="auth-card">
@@ -269,6 +228,46 @@ function showOtpPopup(otp) {
 </style>
 
 <script>
+// OTP Popup helpers (always available for initial display and resend)
+function closeOtpPopup() {
+    const popup = document.getElementById('otpPopup');
+    if (popup) popup.style.display = 'none';
+}
+function copyOtpCode() {
+    const el = document.getElementById('otpCodeDisplay');
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+        const btn = document.getElementById('copyBtnText');
+        if (btn) {
+            btn.textContent = '✓ Copied!';
+            setTimeout(() => { btn.textContent = '📋 Copy Code'; }, 2000);
+        }
+    });
+}
+function showOtpPopup(otp) {
+    const existing = document.getElementById('otpPopup');
+    if (existing) existing.remove();
+    const popupHtml = `
+    <div id="otpPopup" class="otp-popup-overlay">
+        <div class="otp-popup-modal">
+            <div class="otp-popup-dev-banner">
+                ⚠️ DEVELOPMENT MODE - SMS/Email services not configured
+            </div>
+            <div class="otp-popup-header">
+                <span class="otp-popup-icon">🔐</span>
+                <h3>Your New OTP Code</h3>
+            </div>
+            <div class="otp-popup-code" id="otpCodeDisplay">${otp}</div>
+            <button type="button" class="otp-copy-btn" onclick="copyOtpCode()">
+                <span id="copyBtnText">📋 Copy Code</span>
+            </button>
+            <p class="otp-popup-note">This OTP will expire in 5 minutes</p>
+            <button type="button" class="otp-popup-btn" onclick="closeOtpPopup()">Got it!</button>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', popupHtml);
+}
+
 // OTP input handling
 const otpInputs = document.querySelectorAll('.otp-digit');
 const otpFull = document.getElementById('otpFull');
