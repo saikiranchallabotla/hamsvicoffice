@@ -35,7 +35,8 @@ p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
 _inflect_engine = inflect.engine()
 
-from .utils import get_org_from_request
+from docx import Document
+from .utils import get_org_from_request, _apply_print_settings, _number_to_words_rupees
 
 def _extract_value_part_from_line(s: str) -> str:
     """
@@ -1191,8 +1192,7 @@ def _extract_labels_from_source_file(uploaded_file):
 # -------------------------------------------
 
 # imports consolidated at top of file
-# from .utils import _number_to_words_rupees, _extract_labels_from_source_file
-# or similar  -  just make sure they are imported somewhere above.
+# _number_to_words_rupees, _apply_print_settings imported at top of file from .utils
 
 
 def _fuzzy_find_from_lines(lines, label_hint: str, threshold: float = 0.55) -> str:

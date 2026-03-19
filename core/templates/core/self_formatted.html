@@ -819,8 +819,10 @@ window.toggleHelpPopup = function() {
                 a.download = filename;
                 document.body.appendChild(a);
                 a.click();
-                window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
+                // Delay revoking the object URL to ensure the browser
+                // has fully initiated the download before the URL is freed
+                setTimeout(() => window.URL.revokeObjectURL(url), 1500);
                 document.getElementById('use-format-dialog').close();
             } else {
                 const text = await response.text();
