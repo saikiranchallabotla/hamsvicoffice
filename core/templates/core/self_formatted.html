@@ -420,7 +420,7 @@
             Quick Generate
         </div>
         <div class="sf-card-body">
-            <form id="generate-form" method="POST" action="{% url 'self_formatted_generate' %}" enctype="multipart/form-data">
+            <form id="generate-form" class="download-form" method="POST" action="{% url 'self_formatted_generate' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 
                 <div class="sf-row">
@@ -560,7 +560,7 @@
                     </button>
                 </div>
                 
-                <form id="use-format-form" method="POST" enctype="multipart/form-data" onsubmit="submitUseFormatForm(event)">
+                <form id="use-format-form" class="download-form" method="POST" enctype="multipart/form-data" onsubmit="submitUseFormatForm(event)">
                     {% csrf_token %}
                     <input type="hidden" id="format-pk" name="format_pk" value="">
                     
@@ -596,7 +596,7 @@
     </div>
     
     <div style="padding:1.25rem; background:white;">
-        <form id="dialog-use-format-form" onsubmit="submitUseFormatForm(event)">
+        <form id="dialog-use-format-form" class="download-form" onsubmit="submitUseFormatForm(event)">
             {% csrf_token %}
             <input type="hidden" id="dialog-format-pk" value="">
             

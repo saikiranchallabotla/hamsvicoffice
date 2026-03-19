@@ -26,7 +26,7 @@
     var BYPASS_EXACT = ['/accounts/logout/', '/logout/'];
 
     // URL patterns that indicate file downloads
-    var DOWNLOAD_PATTERNS = ['/download/', '/export/', '/specification-report/', '/forwarding-letter/'];
+    var DOWNLOAD_PATTERNS = ['/download/', '/export/', '/specification-report/', '/forwarding-letter/', '/self-formatted/generate/', '/self-formatted/use/'];
 
     // Current layout mode
     var currentLayout = detectCurrentLayout();
