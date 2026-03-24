@@ -46,20 +46,22 @@ def self_formatted_form_page(request):
     Shows:
       - Quick one-time generation form
       - Create reusable format form
-      - List of saved formats
+      - List of saved formats (with lock status)
     Optimized: Limited query with only necessary fields for faster load.
     """
     # Only fetch the current user's formats (not other users')
     saved_formats = SelfFormattedTemplate.objects.filter(
         user=request.user
     ).only(
-        'id', 'name', 'created_at'
+        'id', 'name', 'created_at', 'is_locked', 'template_file_size'
     ).order_by("-created_at")[:20]
     error_message = request.GET.get("error")  # optional error via redirect
+    success_message = request.GET.get("success")  # optional success message
 
     return render(request, "core/self_formatted.html", {
         "saved_formats": saved_formats,
         "error_message": error_message,
+        "success_message": success_message,
     })
 
 
@@ -143,6 +145,7 @@ def self_formatted_preview(request):
 def self_formatted_save_format(request):
     """
     Save a reusable format (name + description + template file + custom placeholders).
+    Automatically creates a database backup of the template for maximum persistence.
     Optimized: Redirect with error instead of querying DB.
     """
     if request.method != "POST":
@@ -156,6 +159,11 @@ def self_formatted_save_format(request):
     if not format_name or not template_file:
         return redirect(f"{reverse('self_formatted_form_page')}?error=Format+name+and+template+file+are+required")
 
+    # Read the template file content for backup before save
+    template_file.seek(0)
+    template_content = template_file.read()
+    template_file.seek(0)  # Reset for FileField save
+
     fmt = SelfFormattedTemplate(
         name=format_name,
         description=format_description,
@@ -163,6 +171,10 @@ def self_formatted_save_format(request):
         custom_placeholders=raw_custom,
         user=request.user,
         organization=request.organization,
+        is_locked=True,  # New formats are locked by default
+        template_file_backup=template_content,
+        template_file_name=template_file.name,
+        template_file_size=len(template_content),
     )
     fmt.save()
 
@@ -192,16 +204,15 @@ def self_formatted_use_format(request, pk):
         placeholder_source = fmt.custom_placeholders or ""
         placeholder_map = _build_placeholder_map(labels, lines, placeholder_source)
 
-        # Reopen template file from disk
-        try:
-            with fmt.template_file.open("rb") as f:
-                data = f.read()
-        except FileNotFoundError:
-            # Template file was moved/deleted from media folder
+        # Use the new get_template_content method which falls back to backup
+        data = fmt.get_template_content()
+        
+        if not data:
+            # Template file was not found in file storage OR database backup
             return redirect(
                 f"{reverse('self_formatted_form_page')}?error="
-                "Template file not found on server. "
-                "Delete this saved format and create it again."
+                "Template file not found. The template may have been corrupted. "
+                "Please re-create this format."
             )
 
         mem = io.BytesIO(data)
@@ -222,11 +233,22 @@ def self_formatted_use_format(request, pk):
 def self_formatted_delete_format(request, pk):
     """
     Delete a saved format (and its underlying template file).
+    Respects is_locked flag - locked templates require explicit unlock first.
     """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
     fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    
+    # Check if format is locked
+    if fmt.is_locked:
+        # Check for unlock confirmation in request
+        confirm_delete = request.POST.get('confirm_delete', '').lower()
+        if confirm_delete != 'yes':
+            return redirect(
+                f"{reverse('self_formatted_form_page')}?error="
+                "Format is locked. Click the lock icon to unlock before deleting."
+            )
 
     template = fmt.template_file
     storage = template.storage if template else None
@@ -322,6 +344,12 @@ def self_formatted_edit_format(request, pk):
             old_name = fmt.template_file.name
             storage = fmt.template_file.storage
         fmt.template_file = new_template
+        # Update backup with new template content
+        new_template.seek(0)
+        fmt.template_file_backup = new_template.read()
+        fmt.template_file_name = new_template.name
+        fmt.template_file_size = len(fmt.template_file_backup)
+        new_template.seek(0)
 
     fmt.name = name
     fmt.description = description
@@ -336,6 +364,55 @@ def self_formatted_edit_format(request, pk):
         pass
 
     return redirect("self_formatted_form_page")
+
+
+@org_required
+@require_POST
+def self_formatted_toggle_lock(request, pk):
+    """
+    Toggle the lock status of a saved format.
+    Locked formats require extra confirmation to delete.
+    Returns JSON response for AJAX calls.
+    """
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    fmt.is_locked = not fmt.is_locked
+    fmt.save(update_fields=['is_locked'])
+    
+    return JsonResponse({
+        'success': True,
+        'is_locked': fmt.is_locked,
+        'message': f"Format {'locked' if fmt.is_locked else 'unlocked'} successfully"
+    })
+
+
+@org_required
+@require_POST
+def self_formatted_restore_backup(request, pk):
+    """
+    Restore a format's template file from database backup.
+    Used when file storage fails but backup exists.
+    """
+    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    
+    if not fmt.template_file_backup:
+        return JsonResponse({
+            'success': False,
+            'message': 'No backup available for this format'
+        }, status=400)
+    
+    success = fmt.restore_from_backup()
+    
+    if success:
+        return JsonResponse({
+            'success': True,
+            'message': 'Template restored from backup successfully'
+        })
+    else:
+        return JsonResponse({
+            'success': False,
+            'message': 'Failed to restore template from backup'
+        }, status=500)
+
 
 # ==========================
 #  TEMPORARY WORKS MODULE

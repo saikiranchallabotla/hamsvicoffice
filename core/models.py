@@ -322,6 +322,15 @@ class SelfFormattedTemplate(models.Model):
     custom_placeholders = models.JSONField(default=dict, blank=True)
     
     is_shared = models.BooleanField(default=False)  # Can be shared across org
+    
+    # PERSISTENCE IMPROVEMENTS
+    # Lock to prevent accidental deletion - user must unlock before deleting
+    is_locked = models.BooleanField(default=True, help_text="Locked formats require confirmation to delete")
+    # Binary backup of template file stored in database for maximum persistence
+    template_file_backup = models.BinaryField(null=True, blank=True, editable=False, 
+                                               help_text="Database backup of template - survives file storage issues")
+    template_file_name = models.CharField(max_length=255, blank=True, help_text="Original filename for backup")
+    template_file_size = models.PositiveIntegerField(default=0, help_text="File size in bytes")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -332,6 +341,56 @@ class SelfFormattedTemplate(models.Model):
     def __str__(self):
         org = self.organization.name if self.organization else "Shared"
         return f"{self.name} ({org})"
+    
+    def save(self, *args, **kwargs):
+        """Override save to automatically backup template file to database"""
+        # If template_file is provided and we don't have a backup yet (or file changed)
+        if self.template_file and self.pk is None:
+            # New record - backup the file
+            try:
+                self.template_file.seek(0)
+                self.template_file_backup = self.template_file.read()
+                self.template_file_name = self.template_file.name
+                self.template_file_size = len(self.template_file_backup)
+                self.template_file.seek(0)  # Reset for normal save
+            except Exception:
+                pass  # If backup fails, still save normally
+        super().save(*args, **kwargs)
+    
+    def restore_from_backup(self):
+        """Restore the template file from database backup if file storage fails"""
+        if not self.template_file_backup:
+            return False
+        try:
+            from django.core.files.base import ContentFile
+            import os
+            filename = self.template_file_name or f"template_{self.pk}.docx"
+            # Get just the filename without path
+            filename = os.path.basename(filename)
+            self.template_file.save(filename, ContentFile(self.template_file_backup), save=True)
+            return True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to restore template backup: {e}")
+            return False
+    
+    def get_template_content(self):
+        """Get template content - tries file first, falls back to backup"""
+        # Try file storage first
+        try:
+            if self.template_file:
+                self.template_file.open('rb')
+                content = self.template_file.read()
+                self.template_file.close()
+                if content:
+                    return content
+        except Exception:
+            pass
+        
+        # Fall back to database backup
+        if self.template_file_backup:
+            return bytes(self.template_file_backup)
+        return None
 
 
 class BackendWorkbook(models.Model):

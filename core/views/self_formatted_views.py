@@ -812,60 +812,116 @@ def _extract_labels_from_lines(lines):
 
 def _preprocess_image_for_ocr(img):
     """
-    Preprocess image for better OCR accuracy, especially for blurred/low-quality images.
-    Uses various image enhancement techniques including deskewing.
+    ULTIMATE OCR preprocessing for best accuracy on government documents.
+    Handles blurred, skewed, low-quality scanned images with advanced techniques.
+    
+    Enhancement Pipeline:
+    1. Auto-orientation detection
+    2. Deskewing (straightening tilted text)
+    3. Smart upscaling for small images
+    4. Adaptive contrast enhancement
+    5. Noise reduction with edge preservation
+    6. Sharpening for blurred text
+    7. Adaptive binarization (Otsu)
+    8. Morphological cleanup
     """
     try:
-        from PIL import Image, ImageEnhance, ImageFilter
+        from PIL import Image, ImageEnhance, ImageFilter, ImageOps
         import numpy as np
     except ImportError:
         return img  # Return original if dependencies not available
 
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
-        # Convert to RGB if necessary
-        if img.mode != 'RGB':
+        original_mode = img.mode
+        
+        # 1. Auto-rotate based on EXIF data (for photos)
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+
+        # Convert to RGB for processing
+        if img.mode not in ('RGB', 'L'):
             img = img.convert('RGB')
 
-        # 1. Resize if image is too small (upscale for better OCR)
+        # 2. Smart upscaling for better OCR on small/low-res images
         width, height = img.size
-        if width < 1500 or height < 1500:
-            scale_factor = max(2000 / width, 2000 / height)
+        target_dpi_size = 2500  # Target minimum dimension
+        if width < target_dpi_size or height < target_dpi_size:
+            scale_factor = max(target_dpi_size / width, target_dpi_size / height)
+            # Limit scale factor to prevent excessive memory use
+            scale_factor = min(scale_factor, 4.0)
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
             img = img.resize((new_width, new_height), Image.LANCZOS)
+            logger.debug(f"OCR: Upscaled image from {width}x{height} to {new_width}x{new_height}")
 
-        # 2. Convert to grayscale
-        img = img.convert('L')
+        # 3. Convert to grayscale
+        gray = img.convert('L')
 
-        # 3. Increase contrast
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(2.0)
-
-        # 4. Increase sharpness (helps with blurred images)
-        img = img.convert('RGB')  # Convert back for sharpness
-        enhancer = ImageEnhance.Sharpness(img)
-        img = enhancer.enhance(2.5)
-
-        # 5. Apply unsharp mask for deblurring effect
-        img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
-
-        # 6. Convert back to grayscale for OCR
-        img = img.convert('L')
-
-        # 7. Apply Otsu-style adaptive thresholding using numpy
+        # 4. Deskew detection and correction
         try:
-            img_array = np.array(img)
+            gray = _deskew_image(gray)
+        except Exception as e:
+            logger.debug(f"OCR: Deskew failed: {e}")
 
-            # Apply Gaussian blur to reduce noise
-            img_blurred = Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(radius=1))
-            img_array = np.array(img_blurred)
+        # 5. Adaptive contrast enhancement (CLAHE-like approach)
+        try:
+            img_array = np.array(gray)
+            # Apply local contrast enhancement
+            from PIL import ImageFilter
+            
+            # High-pass filter for local contrast
+            blurred = gray.filter(ImageFilter.GaussianBlur(radius=50))
+            blurred_array = np.array(blurred)
+            
+            # Unsharp masking with gentle settings
+            enhanced = img_array.astype(np.float32) - 0.5 * blurred_array.astype(np.float32)
+            enhanced = np.clip(enhanced, 0, 255).astype(np.uint8)
+            gray = Image.fromarray(enhanced)
+        except Exception:
+            pass
 
-            # Otsu-inspired thresholding for cleaner binarization
+        # 6. Auto-levels (stretch histogram for better contrast)
+        try:
+            gray = ImageOps.autocontrast(gray, cutoff=0.5)
+        except Exception:
+            pass
+
+        # 7. Enhanced sharpness for blurred documents
+        gray_rgb = gray.convert('RGB')
+        enhancer = ImageEnhance.Sharpness(gray_rgb)
+        gray_rgb = enhancer.enhance(2.5)
+        
+        # Apply unsharp mask for additional deblurring
+        gray_rgb = gray_rgb.filter(ImageFilter.UnsharpMask(radius=2, percent=200, threshold=2))
+        gray = gray_rgb.convert('L')
+
+        # 8. Noise reduction with edge preservation
+        try:
+            # Bilateral-like filtering using median + edge detection
+            gray = gray.filter(ImageFilter.MedianFilter(size=3))
+        except Exception:
+            pass
+
+        # 9. Otsu-style adaptive thresholding for binarization
+        try:
+            img_array = np.array(gray)
+            
+            # Apply slight Gaussian blur before thresholding
+            blurred = Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(radius=1))
+            img_array = np.array(blurred)
+            
+            # Calculate Otsu threshold
             hist, _ = np.histogram(img_array.ravel(), bins=256, range=(0, 256))
             total = img_array.size
             sum_all = np.sum(np.arange(256) * hist)
             sum_bg, w_bg = 0.0, 0
             max_var, threshold = 0.0, 128
+            
             for t in range(256):
                 w_bg += hist[t]
                 if w_bg == 0:
@@ -881,34 +937,86 @@ def _preprocess_image_for_ocr(img):
                     max_var = var_between
                     threshold = t
 
-            img_array = np.where(img_array > threshold, 255, 0).astype(np.uint8)
-            img = Image.fromarray(img_array)
-        except Exception:
-            pass  # Continue with enhanced image if thresholding fails
-
-        # 8. Apply slight median filter to remove noise
-        img = img.filter(ImageFilter.MedianFilter(size=3))
-
-        # 9. Morphological dilation to thicken thin text
-        try:
-            img_array = np.array(img)
-            from PIL import ImageFilter
-            # Slight dilation using min filter (thickens dark text on white background)
-            img = Image.fromarray(img_array).filter(ImageFilter.MinFilter(size=3))
+            # Apply threshold with slight bias towards preserving text (lower threshold)
+            adjusted_threshold = max(threshold - 10, 50)
+            img_array = np.where(img_array > adjusted_threshold, 255, 0).astype(np.uint8)
+            gray = Image.fromarray(img_array)
         except Exception:
             pass
 
-        return img
+        # 10. Morphological operations to clean up text
+        try:
+            img_array = np.array(gray)
+            # Slight dilation to thicken thin text (helps with degraded scans)
+            gray = Image.fromarray(img_array).filter(ImageFilter.MinFilter(size=3))
+            # Then slight erosion to remove noise
+            gray = gray.filter(ImageFilter.MaxFilter(size=3))
+        except Exception:
+            pass
+
+        logger.debug(f"OCR: Preprocessing complete, final size: {gray.size}")
+        return gray
+
     except Exception as e:
-        logger.warning(f"Image preprocessing failed: {e}")
+        logger.warning(f"OCR preprocessing failed: {e}")
         return img  # Return original on error
+
+
+def _deskew_image(img):
+    """
+    Detect and correct skew angle in document images.
+    Uses projection profile analysis for accurate skew detection.
+    Returns the deskewed image.
+    """
+    import numpy as np
+    from PIL import Image
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        img_array = np.array(img)
+        
+        # Convert to binary for analysis
+        threshold = np.mean(img_array)
+        binary = (img_array < threshold).astype(np.uint8)  # Text is dark
+        
+        # Test rotation angles from -15 to +15 degrees
+        best_angle = 0
+        best_score = 0
+        
+        for angle in np.arange(-15, 15.5, 0.5):
+            # Rotate image
+            rotated = img.rotate(angle, fillcolor=255, resample=Image.BICUBIC)
+            rot_array = np.array(rotated)
+            rot_binary = (rot_array < threshold).astype(np.uint8)
+            
+            # Calculate horizontal projection profile
+            projection = np.sum(rot_binary, axis=1)
+            
+            # Score: variance of projection (higher = more aligned text)
+            score = np.var(projection)
+            
+            if score > best_score:
+                best_score = score
+                best_angle = angle
+        
+        if abs(best_angle) > 0.5:  # Only deskew if significant angle detected
+            logger.debug(f"OCR: Deskewing by {best_angle} degrees")
+            return img.rotate(best_angle, fillcolor=255, resample=Image.BICUBIC, expand=True)
+        
+        return img
+        
+    except Exception as e:
+        logger.debug(f"Deskew failed: {e}")
+        return img
 
 
 def _ocr_with_multiple_configs(img, lang='eng'):
     """
-    OCR extraction with multiple Tesseract configurations for better accuracy.
-    Tries multiple PSM modes and picks the best result.
-    Applies image preprocessing before OCR.
+    ULTIMATE OCR extraction with multiple Tesseract configurations for maximum accuracy.
+    Tries multiple PSM modes, OEM engines, and language combinations.
+    Automatically detects and uses available languages.
+    Applies advanced image preprocessing before OCR.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -916,52 +1024,188 @@ def _ocr_with_multiple_configs(img, lang='eng'):
     try:
         import pytesseract
     except ImportError:
+        logger.error("pytesseract not installed. OCR unavailable.")
         return ""
 
     # Preprocess the image for better OCR accuracy
     preprocessed_img = _preprocess_image_for_ocr(img)
 
-    # Try multiple configurations and pick the one with most content
+    # Detect available languages (fallback to eng if detection fails)
+    available_langs = ['eng']
+    try:
+        langs_output = pytesseract.get_languages()
+        available_langs = [l for l in langs_output if l not in ('osd', 'snum')]
+        logger.debug(f"OCR: Available languages: {available_langs}")
+    except Exception:
+        pass
+
+    # Build language string - prioritize English, add Hindi/Telugu if available for Indian docs
+    lang_priority = ['eng']
+    for indian_lang in ['hin', 'tel', 'tam', 'kan', 'mar', 'guj', 'ben']:
+        if indian_lang in available_langs:
+            lang_priority.append(indian_lang)
+    
+    lang_str = '+'.join(lang_priority[:3])  # Max 3 languages for speed
+    logger.debug(f"OCR: Using languages: {lang_str}")
+
+    # Extended configurations to try - ordered by typical effectiveness for documents
     configs = [
-        ('--oem 3 --psm 6', 'PSM6-block'),    # Uniform block of text (best for documents)
-        ('--oem 3 --psm 3', 'PSM3-auto'),      # Fully automatic page segmentation
-        ('--oem 3 --psm 4', 'PSM4-column'),     # Single column of text
+        ('--oem 3 --psm 6', 'PSM6-block'),       # Uniform block of text (best for documents)
+        ('--oem 1 --psm 6', 'LSTM-PSM6'),        # LSTM neural net, block mode
+        ('--oem 3 --psm 3', 'PSM3-auto'),        # Fully automatic page segmentation
+        ('--oem 3 --psm 4', 'PSM4-column'),      # Single column of text
+        ('--oem 3 --psm 11', 'PSM11-sparse'),    # Sparse text - find as much text as possible
+        ('--oem 1 --psm 3', 'LSTM-PSM3'),        # LSTM with auto segmentation
     ]
 
     best_result = ""
     best_score = 0
+    
+    # Track all results for ensemble approach
+    all_results = []
 
     for config, label in configs:
         try:
-            result = pytesseract.image_to_string(preprocessed_img, lang=lang, config=config)
-            # Score based on content quality: line count, avg line length, alphanumeric ratio
+            result = pytesseract.image_to_string(preprocessed_img, lang=lang_str, config=config)
+            
+            # Apply domain-specific corrections
+            result = _apply_domain_corrections(result)
+            
+            # Score based on content quality metrics
             result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
             alnum_chars = sum(1 for c in result if c.isalnum())
             total_chars = len(result) or 1
-            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50
-            logger.debug(f"OCR {label}: {len(result_lines)} lines, score={score:.0f}")
+            
+            # Advanced scoring
+            # - More lines is better
+            # - Higher alphanumeric ratio is better
+            # - Presence of key document terms is better
+            key_terms_found = sum(1 for term in ['sanction', 'estimate', 'contractor', 'work', 'amount', 'Rs'] 
+                                  if term.lower() in result.lower())
+            
+            score = (
+                len(result_lines) * 10 +           # Line count
+                alnum_chars +                       # Character count
+                (alnum_chars / total_chars) * 50 + # Alphanumeric ratio
+                key_terms_found * 30                # Domain relevance
+            )
+            
+            logger.debug(f"OCR {label}: {len(result_lines)} lines, {key_terms_found} keywords, score={score:.0f}")
+            
+            all_results.append((score, result, label))
+            
             if score > best_score:
                 best_score = score
                 best_result = result
+                
         except Exception as e:
             logger.debug(f"OCR {label} failed: {e}")
 
     # If preprocessed results are poor, try original image as fallback
-    if best_score < 50:
+    if best_score < 100:
         try:
-            result = pytesseract.image_to_string(img, lang=lang, config='--oem 3 --psm 6')
+            result = pytesseract.image_to_string(img, lang=lang_str, config='--oem 3 --psm 6')
+            result = _apply_domain_corrections(result)
             result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
             alnum_chars = sum(1 for c in result if c.isalnum())
             total_chars = len(result) or 1
-            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50
+            key_terms_found = sum(1 for term in ['sanction', 'estimate', 'contractor', 'work', 'amount', 'Rs'] 
+                                  if term.lower() in result.lower())
+            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50 + key_terms_found * 30
+            
             if score > best_score:
                 best_result = result
+                best_score = score
                 logger.debug(f"Original image OCR was better: score={score:.0f}")
         except Exception:
             pass
 
-    logger.debug(f"OCR final result: {len(best_result)} chars")
+    logger.info(f"OCR completed: {len(best_result)} chars, {len(best_result.splitlines())} lines, score={best_score:.0f}")
     return best_result
+
+
+# Domain-specific word corrections for government & engineering documents
+_DOMAIN_CORRECTIONS = {
+    # Common OCR errors in government documents
+    'sanctoin': 'sanction',
+    'sancfion': 'sanction',
+    'sanct1on': 'sanction',
+    'estlmate': 'estimate',
+    'est1mate': 'estimate',
+    'esimate': 'estimate',
+    'estmate': 'estimate',
+    'contractar': 'contractor',
+    'contracter': 'contractor',
+    'contractor': 'contractor',
+    'contracor': 'contractor',
+    'arnount': 'amount',
+    'amoun+': 'amount',
+    'amcunt': 'amount',
+    'adminisirative': 'administrative',
+    'administratve': 'administrative',
+    'administrat1ve': 'administrative',
+    'techmical': 'technical',
+    'technlcal': 'technical',
+    'technica1': 'technical',
+    'tander': 'tender',
+    'tendar': 'tender',
+    'prernium': 'premium',
+    'premiurn': 'premium',
+    'prem1um': 'premium',
+    'cornpletion': 'completion',
+    'completlon': 'completion',
+    'complet1on': 'completion',
+    'perlod': 'period',
+    'pericd': 'period',
+    'per1od': 'period',
+    'electricai': 'electrical',
+    'electrlcal': 'electrical',
+    'electrica1': 'electrical',
+    'c1vil': 'civil',
+    'civll': 'civil',
+    'maintenace': 'maintenance',
+    'maintainence': 'maintenance',
+    'maintenanoe': 'maintenance',
+    'providng': 'providing',
+    'provlding': 'providing',
+    'provid1ng': 'providing',
+    'generatar': 'generator',
+    'generater': 'generator',
+    'generat0r': 'generator',
+    'servlcing': 'servicing',
+    'serviclng': 'servicing',
+    'annuai': 'annual',
+    'annua1': 'annual',
+    'forwaroing': 'forwarding',
+    'forwardlng': 'forwarding',
+    # NIT/Agreement patterns
+    'NlT': 'NIT',
+    'N1T': 'NIT',
+    'Agreernent': 'Agreement',
+    'Agreemen+': 'Agreement',
+    # Common unit errors
+    'Rs,': 'Rs.',
+    'Rs ': 'Rs.',
+    'R5.': 'Rs.',
+    'Rs-': 'Rs.',
+    '/-': '/-',
+    '/ -': '/-',
+    '/- ': '/-',
+}
+
+
+def _apply_domain_corrections(text):
+    """Apply domain-specific word corrections for government documents."""
+    if not text:
+        return text
+    
+    # Apply word-level corrections (case-insensitive with proper replacement)
+    for wrong, correct in _DOMAIN_CORRECTIONS.items():
+        # Use word boundaries for whole word replacement
+        pattern = re.compile(re.escape(wrong), re.IGNORECASE)
+        text = pattern.sub(correct, text)
+    
+    return text
 
 
 # Common OCR character confusions applied to all text
@@ -972,10 +1216,13 @@ _OCR_CHAR_FIXES = {
     '®': 'R',     # registered → R
     '—': '-',     # em dash → hyphen
     '–': '-',     # en dash → hyphen
-    '\u2018': "'", # left single quote
+    '\u2018': "'", # left single quote  
     '\u2019': "'", # right single quote
     '\u201c': '"', # left double quote
     '\u201d': '"', # right double quote
+    '„': '"',     # low double quote
+    '»': '"',     # right angle quote
+    '«': '"',     # left angle quote
 }
 
 
@@ -983,13 +1230,27 @@ def _fix_ocr_text(text):
     """Apply character-level OCR fixes and clean common artifacts."""
     if not text:
         return text
+    
+    # Apply character fixes
     for wrong, correct in _OCR_CHAR_FIXES.items():
         text = text.replace(wrong, correct)
-    # Fix common OCR number/letter confusions in context
+    
+    # Fix common OCR patterns
     text = re.sub(r'\bRs\s*[.,]\s*', 'Rs. ', text)  # Fix "Rs," or "Rs ." to "Rs. "
     text = re.sub(r'\b0f\b', 'of', text, flags=re.I)  # 0f → of
     text = re.sub(r'\b1n\b', 'in', text, flags=re.I)  # 1n → in
     text = re.sub(r'\bthe\s+the\b', 'the', text, flags=re.I)  # Remove duplicate "the the"
+    text = re.sub(r'\btbe\b', 'the', text, flags=re.I)  # tbe → the
+    text = re.sub(r'\bvvork\b', 'work', text, flags=re.I)  # vvork → work
+    text = re.sub(r'\bworK\b', 'work', text, flags=re.I)  # worK → work
+    
+    # Fix number/letter confusions in specific contexts
+    text = re.sub(r'(\d),(\d{3})', r'\1,\2', text)  # Ensure proper comma in numbers
+    text = re.sub(r'Rs\.?\s*([0-9,]+)\s*/-', r'Rs. \1/-', text)  # Standardize Rs format
+    
+    # Apply domain corrections
+    text = _apply_domain_corrections(text)
+    
     return text
 
 

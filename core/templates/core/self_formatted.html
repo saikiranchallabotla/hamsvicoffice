@@ -298,6 +298,46 @@
         color: #c53030;
     }
     
+    .sf-format-chip .actions .del.disabled {
+        background: #e2e8f0;
+        color: #a0aec0;
+        cursor: not-allowed;
+    }
+    
+    .sf-format-chip .actions .edit {
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+    
+    .sf-format-chip .actions .edit:hover {
+        background: #cbd5e0;
+    }
+    
+    .sf-format-chip .actions .lock-btn {
+        background: #e6fffa;
+        color: #319795;
+        transition: all 0.2s;
+    }
+    
+    .sf-format-chip .actions .lock-btn.locked {
+        background: #fef3c7;
+        color: #d97706;
+    }
+    
+    .sf-format-chip .actions .lock-btn:hover {
+        background: #81e6d9;
+    }
+    
+    .sf-format-chip .actions .lock-btn.locked:hover {
+        background: #fcd34d;
+    }
+    
+    .sf-format-chip .format-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+    
     .sf-empty {
         color: #a0aec0;
         font-size: 0.72rem;
@@ -528,18 +568,45 @@
             <div class="sf-formats-section">
                 <div class="sf-formats-header">
                     <i class="bi bi-collection"></i> Saved Formats
+                    <span style="font-size:0.7rem; color:#718096; margin-left:0.5rem;">
+                        <i class="bi bi-shield-check"></i> Formats are backed up in database - they persist across deployments
+                    </span>
                 </div>
                 {% if saved_formats %}
                 <div class="sf-formats-grid">
                     {% for fmt in saved_formats %}
-                    <div class="sf-format-chip">
-                        <span class="name">{{ fmt.name }}</span>
+                    <div class="sf-format-chip" data-format-id="{{ fmt.pk }}" data-locked="{{ fmt.is_locked|yesno:'true,false' }}">
+                        <div class="format-info">
+                            <span class="name">{{ fmt.name }}</span>
+                            {% if fmt.template_file_size %}
+                            <span class="size" style="font-size:0.65rem; color:#a0aec0;">{{ fmt.template_file_size|filesizeformat }}</span>
+                            {% endif %}
+                        </div>
                         <div class="actions">
+                            <!-- Lock Toggle Button -->
+                            <button type="button" class="lock-btn {% if fmt.is_locked %}locked{% endif %}" 
+                                    onclick="toggleFormatLock('{{ fmt.pk }}')" 
+                                    title="{% if fmt.is_locked %}Click to unlock (allows deletion){% else %}Click to lock (prevents deletion){% endif %}">
+                                <i class="bi {% if fmt.is_locked %}bi-lock-fill{% else %}bi-unlock{% endif %}"></i>
+                            </button>
                             <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
-                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" data-confirm="Delete?" data-confirm-title="Delete Format">
+                            <button type="button" class="edit" onclick="window.location.href='{% url 'self_formatted_edit_format' fmt.pk %}'">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            {% if fmt.is_locked %}
+                            <!-- Locked: Show disabled delete with unlock hint -->
+                            <button type="button" class="del disabled" onclick="alert('Format is locked. Click the lock icon to unlock before deleting.')" title="Unlock first to delete">
+                                <i class="bi bi-x"></i>
+                            </button>
+                            {% else %}
+                            <!-- Unlocked: Allow delete with confirmation -->
+                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" 
+                                  onsubmit="return confirm('Are you sure you want to permanently delete this format?');">
                                 {% csrf_token %}
-                                <button type="submit" class="del"><i class="bi bi-x"></i></button>
+                                <input type="hidden" name="confirm_delete" value="yes">
+                                <button type="submit" class="del" title="Delete format"><i class="bi bi-x"></i></button>
                             </form>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -891,6 +958,60 @@ window.toggleHelpPopup = function() {
             }
         });
     }
+
+    // Toggle format lock via AJAX
+    window.toggleFormatLock = async function(formatPk) {
+        const chip = document.querySelector(`.sf-format-chip[data-format-id="${formatPk}"]`);
+        const lockBtn = chip ? chip.querySelector('.lock-btn') : null;
+        const lockIcon = lockBtn ? lockBtn.querySelector('i') : null;
+        
+        if (lockBtn) lockBtn.disabled = true;
+        
+        try {
+{% endverbatim %}
+            const response = await fetch(`{% url 'self_formatted_toggle_lock' pk=0 %}`.replace('0', formatPk), {
+{% verbatim %}
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name="csrfmiddlewaretoken"]').value,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                const isLocked = data.is_locked;
+                
+                // Update the chip's data attribute
+                if (chip) chip.dataset.locked = isLocked ? 'true' : 'false';
+                
+                // Update lock button appearance
+                if (lockBtn) {
+                    lockBtn.classList.toggle('locked', isLocked);
+                    lockBtn.title = isLocked ? 'Click to unlock (allows deletion)' : 'Click to lock (prevents deletion)';
+                }
+                if (lockIcon) {
+                    lockIcon.className = isLocked ? 'bi bi-lock-fill' : 'bi bi-unlock';
+                }
+                
+                // Update delete button - need to refresh the page for the form change
+                // For now, just show a message
+                const statusText = isLocked ? 'locked' : 'unlocked';
+                console.log(`Format ${formatPk} is now ${statusText}`);
+                
+                // Reload page to update delete button state properly
+                window.location.reload();
+            } else {
+                alert('Failed to toggle lock: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('Error toggling lock: ' + error.message);
+        } finally {
+            if (lockBtn) lockBtn.disabled = false;
+        }
+    };
 })();
 {% endverbatim %}
 </script>
