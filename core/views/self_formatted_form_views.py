@@ -50,11 +50,14 @@ def self_formatted_form_page(request):
     Optimized: Limited query with only necessary fields for faster load.
     """
     # Only fetch the current user's formats (not other users')
-    saved_formats = SelfFormattedTemplate.objects.filter(
-        user=request.user
-    ).only(
-        'id', 'name', 'created_at', 'is_locked', 'template_file_size'
-    ).order_by("-created_at")[:20]
+    # Use defer() instead of only() to be backwards compatible with older DB schemas
+    try:
+        saved_formats = SelfFormattedTemplate.objects.filter(
+            user=request.user
+        ).order_by("-created_at")[:20]
+    except Exception:
+        saved_formats = []
+    
     error_message = request.GET.get("error")  # optional error via redirect
     success_message = request.GET.get("success")  # optional success message
 
@@ -171,11 +174,17 @@ def self_formatted_save_format(request):
         custom_placeholders=raw_custom,
         user=request.user,
         organization=request.organization,
-        is_locked=True,  # New formats are locked by default
-        template_file_backup=template_content,
-        template_file_name=template_file.name,
-        template_file_size=len(template_content),
     )
+    
+    # Set new fields if they exist (backwards compatible with older DB schemas)
+    try:
+        fmt.is_locked = True
+        fmt.template_file_backup = template_content
+        fmt.template_file_name = template_file.name
+        fmt.template_file_size = len(template_content)
+    except Exception:
+        pass  # Fields don't exist yet in DB schema
+    
     fmt.save()
 
     return redirect("self_formatted_form_page")
@@ -240,8 +249,9 @@ def self_formatted_delete_format(request, pk):
 
     fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
     
-    # Check if format is locked
-    if fmt.is_locked:
+    # Check if format is locked (backwards compatible - default to True if field missing)
+    is_locked = getattr(fmt, 'is_locked', True)
+    if is_locked:
         # Check for unlock confirmation in request
         confirm_delete = request.POST.get('confirm_delete', '').lower()
         if confirm_delete != 'yes':
@@ -375,14 +385,28 @@ def self_formatted_toggle_lock(request, pk):
     Returns JSON response for AJAX calls.
     """
     fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
-    fmt.is_locked = not fmt.is_locked
-    fmt.save(update_fields=['is_locked'])
     
-    return JsonResponse({
-        'success': True,
-        'is_locked': fmt.is_locked,
-        'message': f"Format {'locked' if fmt.is_locked else 'unlocked'} successfully"
-    })
+    # Check if is_locked field exists (backwards compatible)
+    if not hasattr(fmt, 'is_locked'):
+        return JsonResponse({
+            'success': False,
+            'message': 'Lock feature not available. Please run database migrations.'
+        }, status=400)
+    
+    try:
+        fmt.is_locked = not fmt.is_locked
+        fmt.save(update_fields=['is_locked'])
+        
+        return JsonResponse({
+            'success': True,
+            'is_locked': fmt.is_locked,
+            'message': f"Format {'locked' if fmt.is_locked else 'unlocked'} successfully"
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Failed to toggle lock: {str(e)}'
+        }, status=500)
 
 
 @org_required
@@ -394,23 +418,31 @@ def self_formatted_restore_backup(request, pk):
     """
     fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
     
-    if not fmt.template_file_backup:
+    # Check if backup field exists (backwards compatible)
+    template_file_backup = getattr(fmt, 'template_file_backup', None)
+    if not template_file_backup:
         return JsonResponse({
             'success': False,
             'message': 'No backup available for this format'
         }, status=400)
     
-    success = fmt.restore_from_backup()
-    
-    if success:
-        return JsonResponse({
-            'success': True,
-            'message': 'Template restored from backup successfully'
-        })
-    else:
+    try:
+        success = fmt.restore_from_backup()
+        
+        if success:
+            return JsonResponse({
+                'success': True,
+                'message': 'Template restored from backup successfully'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to restore template from backup'
+            }, status=500)
+    except Exception as e:
         return JsonResponse({
             'success': False,
-            'message': 'Failed to restore template from backup'
+            'message': f'Restore failed: {str(e)}'
         }, status=500)
 
 

@@ -346,28 +346,30 @@ class SelfFormattedTemplate(models.Model):
         """Override save to automatically backup template file to database"""
         # If template_file is provided and we don't have a backup yet (or file changed)
         if self.template_file and self.pk is None:
-            # New record - backup the file
+            # New record - backup the file (only if new fields exist)
             try:
-                self.template_file.seek(0)
-                self.template_file_backup = self.template_file.read()
-                self.template_file_name = self.template_file.name
-                self.template_file_size = len(self.template_file_backup)
-                self.template_file.seek(0)  # Reset for normal save
+                if hasattr(self, 'template_file_backup'):
+                    self.template_file.seek(0)
+                    self.template_file_backup = self.template_file.read()
+                    self.template_file_name = self.template_file.name
+                    self.template_file_size = len(self.template_file_backup)
+                    self.template_file.seek(0)  # Reset for normal save
             except Exception:
                 pass  # If backup fails, still save normally
         super().save(*args, **kwargs)
     
     def restore_from_backup(self):
         """Restore the template file from database backup if file storage fails"""
-        if not self.template_file_backup:
+        template_file_backup = getattr(self, 'template_file_backup', None)
+        if not template_file_backup:
             return False
         try:
             from django.core.files.base import ContentFile
             import os
-            filename = self.template_file_name or f"template_{self.pk}.docx"
+            filename = getattr(self, 'template_file_name', None) or f"template_{self.pk}.docx"
             # Get just the filename without path
             filename = os.path.basename(filename)
-            self.template_file.save(filename, ContentFile(self.template_file_backup), save=True)
+            self.template_file.save(filename, ContentFile(template_file_backup), save=True)
             return True
         except Exception as e:
             import logging
@@ -387,9 +389,10 @@ class SelfFormattedTemplate(models.Model):
         except Exception:
             pass
         
-        # Fall back to database backup
-        if self.template_file_backup:
-            return bytes(self.template_file_backup)
+        # Fall back to database backup (backwards compatible)
+        template_file_backup = getattr(self, 'template_file_backup', None)
+        if template_file_backup:
+            return bytes(template_file_backup)
         return None
 
 
