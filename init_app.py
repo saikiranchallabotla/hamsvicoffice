@@ -28,13 +28,14 @@ def run_migrations():
         print('[INIT] ✅ Migrations completed successfully')
     except Exception as e:
         print(f'[INIT] ⚠️  Migrations failed: {str(e)}')
-        # Try running just the subscriptions migration explicitly
-        try:
-            print('[INIT] Retrying subscriptions migrations...')
-            call_command('migrate', 'subscriptions', verbosity=1, interactive=False)
-            print('[INIT] ✅ Subscriptions migrations applied')
-        except Exception as e2:
-            print(f'[INIT] ⚠️  Subscriptions migrations also failed: {str(e2)}')
+        # Retry each app individually to apply as many as possible
+        for app_label in ['core', 'accounts', 'subscriptions', 'datasets', 'support']:
+            try:
+                print(f'[INIT] Retrying {app_label} migrations...')
+                call_command('migrate', app_label, verbosity=1, interactive=False)
+                print(f'[INIT] ✅ {app_label} migrations applied')
+            except Exception as e2:
+                print(f'[INIT] ⚠️  {app_label} migrations failed: {str(e2)}')
         print('[INIT] Continuing with initialization...')
 
 

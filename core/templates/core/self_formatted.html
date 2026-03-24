@@ -575,25 +575,22 @@
                 {% if saved_formats %}
                 <div class="sf-formats-grid">
                     {% for fmt in saved_formats %}
-                    <div class="sf-format-chip" data-format-id="{{ fmt.pk }}" data-locked="{{ fmt.is_locked|default:True|yesno:'true,false' }}">
+                    <div class="sf-format-chip" data-format-id="{{ fmt.pk }}" data-locked="{{ fmt.safe_is_locked|yesno:'true,false' }}">
                         <div class="format-info">
                             <span class="name">{{ fmt.name }}</span>
-                            {% if fmt.template_file_size %}
-                            <span class="size" style="font-size:0.65rem; color:#a0aec0;">{{ fmt.template_file_size|filesizeformat }}</span>
-                            {% endif %}
                         </div>
                         <div class="actions">
                             <!-- Lock Toggle Button -->
-                            <button type="button" class="lock-btn {% if fmt.is_locked|default:True %}locked{% endif %}" 
+                            <button type="button" class="lock-btn {% if fmt.safe_is_locked %}locked{% endif %}" 
                                     onclick="toggleFormatLock('{{ fmt.pk }}')" 
-                                    title="{% if fmt.is_locked|default:True %}Click to unlock (allows deletion){% else %}Click to lock (prevents deletion){% endif %}">
-                                <i class="bi {% if fmt.is_locked|default:True %}bi-lock-fill{% else %}bi-unlock{% endif %}"></i>
+                                    title="{% if fmt.safe_is_locked %}Click to unlock (allows deletion){% else %}Click to lock (prevents deletion){% endif %}">
+                                <i class="bi {% if fmt.safe_is_locked %}bi-lock-fill{% else %}bi-unlock{% endif %}"></i>
                             </button>
                             <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
                             <button type="button" class="edit" onclick="window.location.href='{% url 'self_formatted_edit_format' fmt.pk %}'">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            {% if fmt.is_locked|default:True %}
+                            {% if fmt.safe_is_locked %}
                             <!-- Locked: Show disabled delete with unlock hint -->
                             <button type="button" class="del disabled" onclick="alert('Format is locked. Click the lock icon to unlock before deleting.')" title="Unlock first to delete">
                                 <i class="bi bi-x"></i>

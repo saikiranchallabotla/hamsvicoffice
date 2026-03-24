@@ -14,7 +14,7 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.contrib.auth.decorators import login_required
 
 from django.conf import settings
-from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed
+from django.http import Http404, HttpResponse, JsonResponse, HttpResponseNotAllowed
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -40,6 +40,29 @@ from .self_formatted_views import (_extract_labels_from_source_file,
     _build_placeholder_map, _fill_template_file,
     _replace_placeholders_in_docx_xml)
 
+# Pre-migration-safe columns for SelfFormattedTemplate queries.
+# Fields from migration 0022 (is_locked, template_file_backup, etc.) may not
+# exist yet, so use only() with these safe columns to avoid ProgrammingError.
+_SAFE_TEMPLATE_FIELDS = (
+    'id', 'name', 'description', 'template_file',
+    'custom_placeholders', 'is_shared', 'user_id',
+    'organization_id', 'created_at', 'updated_at',
+)
+
+
+def _safe_get_template(pk, user):
+    """Get a SelfFormattedTemplate by pk/user, safe even if migration 0022 hasn't run."""
+    try:
+        return SelfFormattedTemplate.objects.get(pk=pk, user=user)
+    except SelfFormattedTemplate.DoesNotExist:
+        return None
+    except Exception:
+        # Column missing - fall back to safe fields only
+        try:
+            return SelfFormattedTemplate.objects.only(*_SAFE_TEMPLATE_FIELDS).get(pk=pk, user=user)
+        except SelfFormattedTemplate.DoesNotExist:
+            return None
+
 @login_required(login_url='login')
 def self_formatted_form_page(request):
     """
@@ -50,11 +73,19 @@ def self_formatted_form_page(request):
     Optimized: Limited query with only necessary fields for faster load.
     """
     # Only fetch the current user's formats (not other users')
-    # Use defer() instead of only() to be backwards compatible with older DB schemas
+    # Use only() to select known-safe columns, avoiding new fields that may
+    # not yet exist in the DB (migration 0022 may not have run).
+    # list() forces evaluation inside the try/except so DB errors are caught.
     try:
-        saved_formats = SelfFormattedTemplate.objects.filter(
-            user=request.user
-        ).order_by("-created_at")[:20]
+        saved_formats = list(
+            SelfFormattedTemplate.objects.filter(
+                user=request.user
+            ).only(
+                'id', 'name', 'description', 'template_file',
+                'custom_placeholders', 'is_shared', 'user_id',
+                'organization_id', 'created_at', 'updated_at'
+            ).order_by("-created_at")[:20]
+        )
     except Exception:
         saved_formats = []
     
@@ -184,15 +215,11 @@ def self_formatted_save_format(request):
         organization=request.organization,
     )
     
-    # Set new fields if they exist (backwards compatible with older DB schemas)
-    try:
-        fmt.is_locked = True
-        fmt.template_file_backup = template_content
-        fmt.template_file_name = template_file.name
-        fmt.template_file_size = len(template_content)
-    except Exception:
-        pass  # Fields don't exist yet in DB schema
-    
+    # Set persistence fields (from migration 0022)
+    fmt.is_locked = True
+    fmt.template_file_backup = template_content
+    fmt.template_file_name = template_file.name
+    fmt.template_file_size = len(template_content)
     fmt.save()
 
     return redirect("self_formatted_form_page")
@@ -205,7 +232,9 @@ def self_formatted_use_format(request, pk):
       GET  -> show page asking only for source_file upload.
       POST -> generate document using saved template + placeholders.
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    fmt = _safe_get_template(pk, request.user)
+    if fmt is None:
+        raise Http404
 
     if request.method == "GET":
         return render(request, "core/self_formatted_use.html", {
@@ -277,7 +306,9 @@ def self_formatted_delete_format(request, pk):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    fmt = _safe_get_template(pk, request.user)
+    if fmt is None:
+        raise Http404
     
     # Check if format is locked (backwards compatible - default to True if field missing)
     is_locked = getattr(fmt, 'is_locked', True)
@@ -308,7 +339,9 @@ def self_formatted_edit_format(request, pk):
     GET: show edit form
     POST: apply updates (name, description, optional new template file, custom placeholders)
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    fmt = _safe_get_template(pk, request.user)
+    if fmt is None:
+        raise Http404
 
     if request.method == "GET":
         preview_text = None
@@ -418,7 +451,9 @@ def self_formatted_toggle_lock(request, pk):
     Locked formats require extra confirmation to delete.
     Returns JSON response for AJAX calls.
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    fmt = _safe_get_template(pk, request.user)
+    if fmt is None:
+        raise Http404
     
     # Check if is_locked field exists (backwards compatible)
     if not hasattr(fmt, 'is_locked'):
@@ -450,7 +485,9 @@ def self_formatted_restore_backup(request, pk):
     Restore a format's template file from database backup.
     Used when file storage fails but backup exists.
     """
-    fmt = get_object_or_404(SelfFormattedTemplate, pk=pk, user=request.user)
+    fmt = _safe_get_template(pk, request.user)
+    if fmt is None:
+        raise Http404
     
     # Check if backup field exists (backwards compatible)
     template_file_backup = getattr(fmt, 'template_file_backup', None)
