@@ -86,8 +86,12 @@ def self_formatted_generate(request):
     if not source_file or not template_file:
         return redirect(f"{reverse('self_formatted_form_page')}?error=Please+upload+both+source+file+and+template+file")
 
-    labels, lines = _extract_labels_from_source_file(source_file)
-    
+    try:
+        labels, lines = _extract_labels_from_source_file(source_file)
+    except Exception as e:
+        logger.error(f"Source file extraction failed: {e}")
+        return redirect(f"{reverse('self_formatted_form_page')}?error=Failed+to+read+source+file.+Please+check+the+file+format.")
+
     # Check if no text was extracted (likely scanned PDF)
     if not lines:
         filename = source_file.name or ""
@@ -96,10 +100,14 @@ def self_formatted_generate(request):
         else:
             error_msg = "No+text+could+be+extracted+from+the+source+file."
         return redirect(f"{reverse('self_formatted_form_page')}?error={error_msg}")
-    
+
     placeholder_map = _build_placeholder_map(labels, lines, custom_text)
 
-    return _fill_template_file(template_file, placeholder_map)
+    try:
+        return _fill_template_file(template_file, placeholder_map)
+    except Exception as e:
+        logger.error(f"Template fill failed: {e}")
+        return redirect(f"{reverse('self_formatted_form_page')}?error=Failed+to+fill+template.+Please+check+the+template+file+format.")
 
 
 @login_required(login_url='login')
@@ -209,13 +217,21 @@ def self_formatted_use_format(request, pk):
         if not source_file:
             return HttpResponse("Please upload a source file.", status=400)
 
-        labels, lines = _extract_labels_from_source_file(source_file)
+        try:
+            labels, lines = _extract_labels_from_source_file(source_file)
+        except Exception as e:
+            logger.error(f"Source file extraction failed in use_format: {e}")
+            return HttpResponse("Failed to read source file. Please check the file format.", status=400)
+
+        if not lines:
+            return HttpResponse("No text could be extracted from the source file.", status=400)
+
         placeholder_source = fmt.custom_placeholders or ""
         placeholder_map = _build_placeholder_map(labels, lines, placeholder_source)
 
         # Use the new get_template_content method which falls back to backup
         data = fmt.get_template_content()
-        
+
         if not data:
             # Template file was not found in file storage OR database backup
             return redirect(
@@ -224,16 +240,30 @@ def self_formatted_use_format(request, pk):
                 "Please re-create this format."
             )
 
+        # Determine filename safely - use backup name or fallback
+        template_name = ""
+        try:
+            template_name = fmt.template_file.name if fmt.template_file else ""
+        except Exception:
+            pass
+        if not template_name:
+            template_name = getattr(fmt, 'template_file_name', '') or f"template_{fmt.pk}.docx"
+        template_name = os.path.basename(template_name)
+
         mem = io.BytesIO(data)
         uploaded = InMemoryUploadedFile(
             mem,
             field_name="template_file",
-            name=os.path.basename(fmt.template_file.name),
+            name=template_name,
             content_type="application/octet-stream",
             size=len(data),
             charset=None,
         )
-        return _fill_template_file(uploaded, placeholder_map)
+        try:
+            return _fill_template_file(uploaded, placeholder_map)
+        except Exception as e:
+            logger.error(f"Template fill failed in use_format: {e}")
+            return HttpResponse("Failed to fill template. Please check the template file.", status=500)
 
     return HttpResponseNotAllowed(["GET", "POST"])
 
@@ -354,12 +384,16 @@ def self_formatted_edit_format(request, pk):
             old_name = fmt.template_file.name
             storage = fmt.template_file.storage
         fmt.template_file = new_template
-        # Update backup with new template content
-        new_template.seek(0)
-        fmt.template_file_backup = new_template.read()
-        fmt.template_file_name = new_template.name
-        fmt.template_file_size = len(fmt.template_file_backup)
-        new_template.seek(0)
+        # Update backup with new template content (backwards compatible)
+        try:
+            new_template.seek(0)
+            backup_content = new_template.read()
+            fmt.template_file_backup = backup_content
+            fmt.template_file_name = new_template.name
+            fmt.template_file_size = len(backup_content)
+            new_template.seek(0)
+        except Exception:
+            pass  # Fields don't exist yet in DB schema
 
     fmt.name = name
     fmt.description = description
