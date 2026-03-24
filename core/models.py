@@ -341,6 +341,14 @@ class SelfFormattedTemplate(models.Model):
     def __str__(self):
         org = self.organization.name if self.organization else "Shared"
         return f"{self.name} ({org})"
+
+    @property
+    def safe_is_locked(self):
+        """Return is_locked, defaulting to True if the column doesn't exist yet."""
+        try:
+            return self.is_locked
+        except Exception:
+            return True
     
     def save(self, *args, **kwargs):
         """Override save to automatically backup template file to database"""
