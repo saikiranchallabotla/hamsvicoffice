@@ -270,7 +270,7 @@
         </div>
         
         <div class="conflict-actions">
-            <form method="post">
+            <form method="post" action="{% url 'confirm_device_login' %}">
                 {% csrf_token %}
                 <input type="hidden" name="form_action" value="logout_all_and_login">
                 <button type="submit" class="btn-logout-all">
@@ -282,7 +282,7 @@
                     Log Out All Devices &amp; Continue
                 </button>
             </form>
-            <form method="post">
+            <form method="post" action="{% url 'confirm_device_login' %}">
                 {% csrf_token %}
                 <input type="hidden" name="form_action" value="cancel">
                 <button type="submit" class="btn-cancel-login">Cancel Login</button>
