@@ -313,27 +313,38 @@ otpInputs.forEach((input, index) => {
     });
 });
 
+let formSubmitted = false;  // Prevent double submission
+
 function updateOtpFull() {
     let otp = '';
     otpInputs.forEach(input => otp += input.value);
     otpFull.value = otp;
     
-    // Auto-submit when complete
-    if (otp.length === 6) {
+    // Auto-submit when complete (only if not already submitted)
+    if (otp.length === 6 && !formSubmitted) {
+        formSubmitted = true;
         document.getElementById('otpForm').requestSubmit();
     }
 }
 
 // Form submit
 document.getElementById('otpForm').addEventListener('submit', function(e) {
+    // Prevent double submission
+    if (formSubmitted && this.classList.contains('submitting')) {
+        e.preventDefault();
+        return;
+    }
+    
     updateOtpFull();
     
     if (otpFull.value.length !== 6) {
         e.preventDefault();
+        formSubmitted = false;  // Reset if validation fails
         alert('Please enter complete 6-digit OTP');
         return;
     }
     
+    this.classList.add('submitting');
     const btn = this.querySelector('button[type="submit"]');
     btn.querySelector('.btn-text').style.display = 'none';
     btn.querySelector('.btn-loading').style.display = 'inline-flex';
