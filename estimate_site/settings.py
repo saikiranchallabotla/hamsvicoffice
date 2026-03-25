@@ -22,8 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 _dev_secret_key = 'django-insecure-dev-only-key-not-for-production'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 
-# Debug mode - defaults to False for safety (must explicitly enable)
-DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+# Debug mode - defaults to True for local development convenience
+# Set DEBUG=False explicitly in production
+DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 # Validate SECRET_KEY in production
 if not SECRET_KEY:
