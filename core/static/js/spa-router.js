@@ -89,14 +89,17 @@
             'position: fixed',
             'top: 0',
             'left: 0',
-            'width: 0%',
+            'width: 100%',
             'height: 3px',
             'background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)',
             'z-index: 99999',
-            'transition: width 0.3s ease',
+            'transform: scaleX(0)',
+            'transform-origin: left',
+            'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease',
             'opacity: 0',
             'box-shadow: 0 0 10px rgba(99, 102, 241, 0.5)',
-            'pointer-events: none'
+            'pointer-events: none',
+            'will-change: transform, opacity'
         ].join(';');
         document.body.appendChild(bar);
         return bar;
@@ -104,22 +107,29 @@
 
     function showLoading() {
         var bar = createLoadingBar();
+        bar.style.transition = 'none';
+        bar.style.transform = 'scaleX(0)';
         bar.style.opacity = '1';
-        bar.style.width = '0%';
         requestAnimationFrame(function() {
-            bar.style.width = '30%';
-            setTimeout(function() { bar.style.width = '60%'; }, 200);
-            setTimeout(function() { bar.style.width = '80%'; }, 600);
+            requestAnimationFrame(function() {
+                bar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease';
+                bar.style.transform = 'scaleX(0.3)';
+                setTimeout(function() { bar.style.transform = 'scaleX(0.6)'; }, 200);
+                setTimeout(function() { bar.style.transform = 'scaleX(0.8)'; }, 600);
+            });
         });
     }
 
     function hideLoading() {
         var bar = createLoadingBar();
-        bar.style.width = '100%';
+        bar.style.transform = 'scaleX(1)';
         setTimeout(function() {
             bar.style.opacity = '0';
-            setTimeout(function() { bar.style.width = '0%'; }, 300);
-        }, 200);
+            setTimeout(function() {
+                bar.style.transition = 'none';
+                bar.style.transform = 'scaleX(0)';
+            }, 200);
+        }, 150);
     }
 
     // =========================================================================
