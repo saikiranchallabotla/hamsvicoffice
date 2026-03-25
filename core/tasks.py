@@ -777,7 +777,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         if grand_total is not None and grand_total > 0:
             ws_est.cell(row=gt_row, column=8, value=grand_total)
         
-        for r in range(ecv_row, gt_row + 1):
+        format_start_row = deduct_row if deduct_row is not None else ecv_row
+        for r in range(format_start_row, gt_row + 1):
             for c in range(1, 9):
                 ws_est.cell(row=r, column=c).border = border_all
                 if c == 4:
