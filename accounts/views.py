@@ -86,17 +86,12 @@ def login_view(request):
             dev_mode = result.get('data', {}).get('dev_mode', False)
 
             if dev_mode and otp:
-                # Store OTP in session for display on verify page too
+                # Store OTP in session for display on verify page
                 request.session['show_otp'] = otp
                 messages.success(request, f'OTP sent! Use the code shown below.')
-                # Show OTP popup on login page before redirecting to verify
-                return render(request, 'accounts/login.html', {
-                    'identifier': identifier,
-                    'show_otp': otp,
-                    'otp_sent': True,
-                })
             else:
                 messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
+            # Always redirect to verify_otp page
             return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])

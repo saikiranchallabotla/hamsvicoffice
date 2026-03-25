@@ -124,7 +124,7 @@
         <p>Enter the 6-digit code sent to<br><strong>{{ identifier }}</strong></p>
     </div>
     
-    <form method="post" id="otpForm" class="auth-form no-spa">
+    <form method="post" action="{% url 'verify_otp' %}" id="otpForm" class="auth-form no-spa">
         {% csrf_token %}
         
         <div class="otp-input-container">
