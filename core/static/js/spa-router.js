@@ -146,10 +146,10 @@
         var contentArea = document.querySelector('.content-area');
         if (!contentArea) return fullPageSwitch(data);
 
-        // Update page title in header
+        // Update page title in header (use innerHTML to render icons)
         if (data.pageTitle !== undefined) {
             var titleEl = document.querySelector('.page-title h1');
-            if (titleEl) titleEl.textContent = data.pageTitle;
+            if (titleEl) titleEl.innerHTML = data.pageTitle;
         }
 
         // Clear previous dynamic styles

@@ -37,8 +37,6 @@ def login_view(request):
     """
     Login page - enter phone/email to request OTP.
     """
-    print(f"\n[LOGIN_VIEW] Method: {request.method}, POST data: {dict(request.POST)}")
-    
     if request.user.is_authenticated:
         return redirect('dashboard')
     
@@ -59,7 +57,6 @@ def login_view(request):
     
     if request.method == 'POST':
         identifier = request.POST.get('identifier', '').strip()
-        print(f"[LOGIN_VIEW] identifier from POST: '{identifier}'")
         
         if not identifier:
             messages.error(request, 'Please enter your phone number or email.')
@@ -67,7 +64,6 @@ def login_view(request):
         
         # Check if user exists
         user = _find_user(identifier)
-        print(f"[LOGIN_VIEW] User found: {user}")
         if not user:
             messages.error(request, 'No account found with this phone/email. Please register.')
             return render(request, 'accounts/login.html', {'identifier': identifier})
@@ -105,21 +101,13 @@ def verify_otp_view(request):
     """
     OTP verification page.
     """
-    print(f"\n[VERIFY_OTP_VIEW] Method: {request.method}")
-    print(f"[VERIFY_OTP_VIEW] Session keys: {list(request.session.keys())}")
-    print(f"[VERIFY_OTP_VIEW] Session ID: {request.session.session_key}")
-    
     if request.user.is_authenticated:
-        print(f"[VERIFY_OTP_VIEW] User authenticated, redirecting to dashboard")
         return redirect('dashboard')
     
     identifier = request.session.get('otp_identifier')
     purpose = request.session.get('otp_purpose', 'login')
     
-    print(f"[VERIFY_OTP_VIEW] identifier: {identifier}, purpose: {purpose}")
-    
     if not identifier:
-        print(f"[VERIFY_OTP_VIEW] No identifier in session, redirecting to login")
         messages.warning(request, 'Please enter your phone/email first.')
         return redirect('login')
     
@@ -129,7 +117,6 @@ def verify_otp_view(request):
     
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
-        print(f"[VERIFY_OTP_VIEW] POST - otp: {otp}")
         
         if not otp or len(otp) != 6:
             messages.error(request, 'Please enter a valid 6-digit OTP.')
@@ -138,12 +125,9 @@ def verify_otp_view(request):
             })
         
         # Verify OTP
-        print(f"[VERIFY_OTP_VIEW] Calling OTPService.verify_otp")
         result = OTPService.verify_otp(identifier, otp)
-        print(f"[VERIFY_OTP_VIEW] OTPService result: {result}")
         
         if result['ok']:
-            print(f"[VERIFY_OTP_VIEW] OTP verified, clearing session and handling success")
             # Clear session data
             del request.session['otp_identifier']
             del request.session['otp_purpose']
@@ -156,7 +140,6 @@ def verify_otp_view(request):
                 messages.success(request, 'Phone verified successfully!')
                 return redirect('dashboard')
         else:
-            print(f"[VERIFY_OTP_VIEW] OTP verification failed: {result['reason']}")
             messages.error(request, result['reason'])
             return render(request, 'accounts/verify_otp.html', {
                 'identifier': _mask_identifier(identifier),
@@ -692,22 +675,16 @@ def _create_user(identifier: str, data: dict):
 
 def _handle_login_success(request, identifier):
     """Handle successful login - check for existing sessions first."""
-    print(f"\n[HANDLE_LOGIN_SUCCESS] Starting for identifier: {identifier}")
     user = _find_user(identifier)
     if not user:
-        print(f"[HANDLE_LOGIN_SUCCESS] User not found")
         messages.error(request, 'Account not found.')
         return redirect('login')
-    
-    print(f"[HANDLE_LOGIN_SUCCESS] User found: {user.username} (id={user.id})")
     
     # Check for active sessions on other devices
     active_sessions = UserSession.objects.filter(
         user=user,
         is_active=True
     ).order_by('-last_activity')
-    
-    print(f"[HANDLE_LOGIN_SUCCESS] Active sessions count: {active_sessions.count()}")
     
     if active_sessions.exists():
         # Store pending login info in session for confirmation
@@ -727,8 +704,6 @@ def _handle_login_success(request, identifier):
             })
         request.session['pending_login_sessions'] = session_info
         request.session.save()  # Ensure session is saved before redirect
-        print(f"[HANDLE_LOGIN_SUCCESS] Stored pending login data, redirecting to confirm_device_login")
-        print(f"[HANDLE_LOGIN_SUCCESS] Session keys: {list(request.session.keys())}")
         
         return redirect('confirm_device_login')
     
@@ -769,17 +744,11 @@ def confirm_device_login_view(request):
     Hotstar-style device conflict page.
     Shows active sessions and asks user to confirm logging out other devices.
     """
-    print(f"\n[CONFIRM_DEVICE_LOGIN] Method: {request.method}")
-    print(f"[CONFIRM_DEVICE_LOGIN] Session keys: {list(request.session.keys())}")
-    
     pending_user_id = request.session.get('pending_login_user_id')
     pending_identifier = request.session.get('pending_login_identifier')
     session_info = request.session.get('pending_login_sessions', [])
     
-    print(f"[CONFIRM_DEVICE_LOGIN] pending_user_id: {pending_user_id}, pending_identifier: {pending_identifier}")
-    
     if not pending_user_id or not pending_identifier:
-        print(f"[CONFIRM_DEVICE_LOGIN] Missing pending data, redirecting to login")
         return redirect('login')
     
     if request.method == 'POST':

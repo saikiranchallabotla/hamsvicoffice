@@ -88,13 +88,7 @@ class OTPService:
         # Store in cache
         import time
         cache_key = cls._key_otp(identifier)
-        print(f"[OTP_DEBUG] Storing OTP for {identifier}")
-        print(f"[OTP_DEBUG] Cache key: {cache_key}")
-        print(f"[OTP_DEBUG] OTP hash: {otp_hash[:20]}...")
         cache.set(cache_key, otp_hash, cls.OTP_TTL)
-        # Verify it was stored
-        stored = cache.get(cache_key)
-        print(f"[OTP_DEBUG] Verified stored: {stored[:20] if stored else 'NONE'}...")
         cache.set(cls._key_cooldown(identifier), {'expires_at': time.time() + cls.RESEND_COOLDOWN}, cls.RESEND_COOLDOWN)
         cls._increment_hourly(identifier)
         
@@ -166,12 +160,8 @@ class OTPService:
         
         # Get stored OTP hash
         cache_key = cls._key_otp(identifier)
-        print(f"[OTP_DEBUG] Verifying OTP for {identifier}")
-        print(f"[OTP_DEBUG] Cache key: {cache_key}")
         stored_hash = cache.get(cache_key)
-        print(f"[OTP_DEBUG] Stored hash: {stored_hash[:20] if stored_hash else 'NONE'}...")
         if not stored_hash:
-            print(f"[OTP_DEBUG] No stored hash found - OTP expired or not found!")
             return cls._fail("OTP expired or not found. Request a new one.", code="NOT_FOUND")
         
         # Verify
