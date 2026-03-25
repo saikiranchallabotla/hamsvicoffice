@@ -659,7 +659,7 @@
             <button type="button" class="btn btn-amber" onclick="showCoveringLetterModal()">
                 <i class="bi bi-envelope"></i> Covering Letter
             </button>
-            <button type="button" class="btn btn-outline" onclick="history.back()">
+            <button type="button" class="btn btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
         </div>

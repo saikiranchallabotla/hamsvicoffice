@@ -31,6 +31,12 @@ MARKERS = {
         'styles': ('/* SPA:AUTH:STYLES_START */', '/* SPA:AUTH:STYLES_END */'),
         'scripts': ('<!-- SPA:AUTH:SCRIPTS_START -->', '<!-- SPA:AUTH:SCRIPTS_END -->'),
     },
+    'classic': {
+        'content': ('<!-- SPA:CLASSIC:CONTENT_START -->', '<!-- SPA:CLASSIC:CONTENT_END -->'),
+        'styles': ('/* SPA:CLASSIC:STYLES_START */', '/* SPA:CLASSIC:STYLES_END */'),
+        'scripts': ('<!-- SPA:CLASSIC:SCRIPTS_START -->', '<!-- SPA:CLASSIC:SCRIPTS_END -->'),
+        'head': ('<!-- SPA:CLASSIC:HEAD_START -->', '<!-- SPA:CLASSIC:HEAD_END -->'),
+    },
 }
 
 # URLs that should never be SPA-intercepted (file downloads, API endpoints, etc.)
@@ -171,6 +177,23 @@ class SPAMiddleware(MiddlewareMixin):
                 'content': auth_content,
                 'styles': styles,
                 'scripts': scripts,
+                'title': _extract_title_from_html(html),
+            })
+
+        # Check for classic layout (core/base.html, base.html)
+        classic_content = _extract_between(html, *MARKERS['classic']['content'])
+        if classic_content is not None:
+            styles = _extract_between(html, *MARKERS['classic']['styles']) or ''
+            scripts = _extract_between(html, *MARKERS['classic']['scripts']) or ''
+            head = _extract_between(html, *MARKERS['classic']['head']) or ''
+
+            return JsonResponse({
+                'type': 'content',
+                'layout': 'classic',
+                'content': classic_content,
+                'styles': styles,
+                'scripts': scripts,
+                'head': head,
                 'title': _extract_title_from_html(html),
             })
 

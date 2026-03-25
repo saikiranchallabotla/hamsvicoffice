@@ -917,7 +917,7 @@
         <!-- Header -->
         <header class="top-header">
             <div class="page-title">
-                <a href="javascript:void(0)" class="back-to-dashboard" title="Go Back" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='{% url 'dashboard' %}'; }">
+                <a href="{% url 'dashboard' %}" class="back-to-dashboard" title="Go Back" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');">
                     <i class="bi bi-arrow-left"></i>
                 </a>
                 <h1><!-- SPA:APP:TITLE_START -->{% block page_title %}Dashboard{% endblock %}<!-- SPA:APP:TITLE_END --></h1>

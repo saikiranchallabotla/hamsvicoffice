@@ -91,8 +91,9 @@
             background: linear-gradient(135deg, #2980b9 0%, #1f6dad 100%);
         }
         
-        {% block extra_css %}{% endblock %}
+        /* SPA:CLASSIC:STYLES_START */{% block extra_css %}{% endblock %}/* SPA:CLASSIC:STYLES_END */
     </style>
+    <!-- SPA:CLASSIC:HEAD_START -->{% block extra_head %}{% endblock %}<!-- SPA:CLASSIC:HEAD_END -->
 </head>
 <body>
 
@@ -101,7 +102,7 @@
 </header>
 
 <nav>
-    <a href="javascript:void(0)" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='{% url 'dashboard' %}'; }"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a href="{% url 'dashboard' %}" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');"><i class="bi bi-arrow-left me-1"></i>Back</a>
     <a href="{% url 'bill' %}"><i class="bi bi-receipt me-1"></i>Bill Generator</a>
     <a href="{% url 'template_list' %}"><i class="bi bi-file-earmark-text me-1"></i>My Templates</a>
 </nav>
@@ -117,8 +118,7 @@
         {% endfor %}
     {% endif %}
     
-    {% block content %}
-    {% endblock %}
+    <!-- SPA:CLASSIC:CONTENT_START -->{% block content %}{% endblock %}<!-- SPA:CLASSIC:CONTENT_END -->
 </div>
 
 <footer>
@@ -153,7 +153,7 @@
 })();
 </script>
 {% include "includes/app_modal.html" %}
-{% block extra_js %}{% endblock %}
+<!-- SPA:CLASSIC:SCRIPTS_START -->{% block extra_js %}{% endblock %}<!-- SPA:CLASSIC:SCRIPTS_END -->
 
     <script src="{% static 'js/spa-router.js' %}"></script>
 
