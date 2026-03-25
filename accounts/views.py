@@ -87,6 +87,8 @@ def login_view(request):
                 messages.success(request, f'OTP sent! Use the code shown below.')
             else:
                 messages.success(request, f'OTP sent to {_mask_identifier(identifier)}')
+            # Ensure session is saved before redirect
+            request.session.save()
             # Always redirect to verify_otp page
             return redirect('verify_otp')
         else:
@@ -257,6 +259,8 @@ def register_view(request):
                 messages.success(request, f'OTP sent! Use the code shown below.')
             else:
                 messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
+            # Ensure session is saved before redirect
+            request.session.save()
             return redirect('verify_otp')
         else:
             messages.error(request, result['reason'])
