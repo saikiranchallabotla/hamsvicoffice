@@ -37,6 +37,8 @@ def login_view(request):
     """
     Login page - enter phone/email to request OTP.
     """
+    print(f"\n[LOGIN_VIEW] Method: {request.method}, POST data: {dict(request.POST)}")
+    
     if request.user.is_authenticated:
         return redirect('dashboard')
     
@@ -57,6 +59,7 @@ def login_view(request):
     
     if request.method == 'POST':
         identifier = request.POST.get('identifier', '').strip()
+        print(f"[LOGIN_VIEW] identifier from POST: '{identifier}'")
         
         if not identifier:
             messages.error(request, 'Please enter your phone number or email.')
@@ -64,6 +67,7 @@ def login_view(request):
         
         # Check if user exists
         user = _find_user(identifier)
+        print(f"[LOGIN_VIEW] User found: {user}")
         if not user:
             messages.error(request, 'No account found with this phone/email. Please register.')
             return render(request, 'accounts/login.html', {'identifier': identifier})
@@ -106,13 +110,21 @@ def verify_otp_view(request):
     """
     OTP verification page.
     """
+    print(f"\n[VERIFY_OTP_VIEW] Method: {request.method}")
+    print(f"[VERIFY_OTP_VIEW] Session keys: {list(request.session.keys())}")
+    print(f"[VERIFY_OTP_VIEW] Session ID: {request.session.session_key}")
+    
     if request.user.is_authenticated:
+        print(f"[VERIFY_OTP_VIEW] User authenticated, redirecting to dashboard")
         return redirect('dashboard')
     
     identifier = request.session.get('otp_identifier')
     purpose = request.session.get('otp_purpose', 'login')
     
+    print(f"[VERIFY_OTP_VIEW] identifier: {identifier}, purpose: {purpose}")
+    
     if not identifier:
+        print(f"[VERIFY_OTP_VIEW] No identifier in session, redirecting to login")
         messages.warning(request, 'Please enter your phone/email first.')
         return redirect('login')
     
@@ -122,6 +134,7 @@ def verify_otp_view(request):
     
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
+        print(f"[VERIFY_OTP_VIEW] POST - otp: {otp}")
         
         if not otp or len(otp) != 6:
             messages.error(request, 'Please enter a valid 6-digit OTP.')
@@ -130,9 +143,12 @@ def verify_otp_view(request):
             })
         
         # Verify OTP
+        print(f"[VERIFY_OTP_VIEW] Calling OTPService.verify_otp")
         result = OTPService.verify_otp(identifier, otp)
+        print(f"[VERIFY_OTP_VIEW] OTPService result: {result}")
         
         if result['ok']:
+            print(f"[VERIFY_OTP_VIEW] OTP verified, clearing session and handling success")
             # Clear session data
             del request.session['otp_identifier']
             del request.session['otp_purpose']
@@ -145,6 +161,7 @@ def verify_otp_view(request):
                 messages.success(request, 'Phone verified successfully!')
                 return redirect('dashboard')
         else:
+            print(f"[VERIFY_OTP_VIEW] OTP verification failed: {result['reason']}")
             messages.error(request, result['reason'])
             return render(request, 'accounts/verify_otp.html', {
                 'identifier': _mask_identifier(identifier),
