@@ -112,24 +112,25 @@
         bar.style.opacity = '1';
         requestAnimationFrame(function() {
             requestAnimationFrame(function() {
-                bar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease';
-                bar.style.transform = 'scaleX(0.3)';
-                setTimeout(function() { bar.style.transform = 'scaleX(0.6)'; }, 200);
-                setTimeout(function() { bar.style.transform = 'scaleX(0.8)'; }, 600);
+                bar.style.transition = 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.1s ease';
+                bar.style.transform = 'scaleX(0.4)';
+                setTimeout(function() { bar.style.transform = 'scaleX(0.7)'; }, 100);
+                setTimeout(function() { bar.style.transform = 'scaleX(0.85)'; }, 250);
             });
         });
     }
 
     function hideLoading() {
         var bar = createLoadingBar();
+        bar.style.transition = 'transform 0.08s ease-out, opacity 0.1s ease';
         bar.style.transform = 'scaleX(1)';
         setTimeout(function() {
             bar.style.opacity = '0';
             setTimeout(function() {
                 bar.style.transition = 'none';
                 bar.style.transform = 'scaleX(0)';
-            }, 200);
-        }, 150);
+            }, 100);
+        }, 80);
     }
 
     // =========================================================================
@@ -138,16 +139,16 @@
 
     function fadeOut(el) {
         return new Promise(function(resolve) {
-            el.style.transition = 'opacity 0.15s ease';
+            el.style.transition = 'opacity 30ms ease-out';
             el.style.opacity = '0';
-            setTimeout(resolve, 150);
+            setTimeout(resolve, 30);
         });
     }
 
     function fadeIn(el) {
         el.style.opacity = '0';
         requestAnimationFrame(function() {
-            el.style.transition = 'opacity 0.2s ease';
+            el.style.transition = 'opacity 50ms ease-in';
             el.style.opacity = '1';
         });
     }
@@ -222,25 +223,24 @@
      * classic → auth), we cannot simply swap the content area because the
      * page shell (sidebar, header, footer) is completely different.
      *
-     * Strategy: fetch the full HTML of the target page (without X-SPA-Request),
-     * parse it, and replace the entire document body + head styles.
-     * The URL stays the same via replaceState.
+     * Strategy: If we already have full HTML (from prefetch or fallback),
+     * use it directly. Otherwise do a fast native navigation.
      */
     function fullPageSwitch(data) {
         var targetUrl = data._url || window.location.pathname;
 
-        showLoading();
-        return fetch(targetUrl, { credentials: 'same-origin' })
-            .then(function(response) { return response.text(); })
-            .then(function(html) {
-                replaceDocument(html);
-                hideLoading();
-            })
-            .catch(function() {
-                // Absolute fallback
-                hideLoading();
-                window.location.replace(targetUrl);
-            });
+        // If we have full HTML from prefetch, use it directly
+        if (data._fullHtml) {
+            replaceDocument(data._fullHtml);
+            hideLoading();
+            return Promise.resolve();
+        }
+
+        // For layout switches, do a fast native navigation instead of double-fetch
+        // This is actually faster than fetch + parse + replace for most pages
+        hideLoading();
+        window.location.replace(targetUrl);
+        return Promise.resolve();
     }
 
     /**
@@ -682,6 +682,132 @@
 
     // Export navigate function for programmatic use
     window.spaNavigate = navigate;
+
+    // =========================================================================
+    // LINK PREFETCHING
+    // =========================================================================
+
+    var prefetchCache = {};
+    var prefetchTimeout = null;
+
+    function prefetchUrl(url) {
+        // Skip if already prefetched or currently navigating
+        if (prefetchCache[url] || isNavigating) return;
+        if (shouldBypass(url) || isDownloadUrl(url) || isExternalUrl(url)) return;
+        if (url === currentLogicalUrl) return;
+
+        // Mark as prefetching
+        prefetchCache[url] = 'pending';
+
+        // Use low-priority fetch
+        var fetchOptions = {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-SPA-Request': 'true' },
+            priority: 'low'
+        };
+
+        fetch(url, fetchOptions)
+            .then(function(response) {
+                if (response.ok) {
+                    var contentType = response.headers.get('Content-Type') || '';
+                    if (contentType.indexOf('application/json') !== -1) {
+                        return response.json();
+                    }
+                }
+                return null;
+            })
+            .then(function(data) {
+                if (data && data.type === 'content') {
+                    prefetchCache[url] = data;
+                } else {
+                    delete prefetchCache[url];
+                }
+            })
+            .catch(function() {
+                delete prefetchCache[url];
+            });
+    }
+
+    // Prefetch on hover with small delay
+    document.addEventListener('mouseover', function(e) {
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+
+        var href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+        // Delay prefetch to avoid unnecessary requests on fast mouse movements
+        clearTimeout(prefetchTimeout);
+        prefetchTimeout = setTimeout(function() {
+            prefetchUrl(href);
+        }, 65);
+    });
+
+    // Also prefetch on touchstart for mobile
+    document.addEventListener('touchstart', function(e) {
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+
+        var href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+        prefetchUrl(href);
+    }, { passive: true });
+
+    // Use prefetched data when navigating
+    var originalNavigate = navigate;
+    navigate = function(url, options) {
+        options = options || {};
+        var method = (options.method || 'GET').toUpperCase();
+
+        // Only use prefetch cache for GET requests
+        if (method === 'GET' && prefetchCache[url] && prefetchCache[url] !== 'pending') {
+            var data = prefetchCache[url];
+            delete prefetchCache[url];
+
+            // Skip if same page
+            if (url === currentLogicalUrl) return;
+
+            isNavigating = true;
+            showLoading();
+
+            // Simulate minimal async for consistent behavior
+            setTimeout(function() {
+                hideLoading();
+                isNavigating = false;
+
+                data._url = url;
+                var targetLayout = data.layout;
+
+                if (targetLayout === currentLayout) {
+                    if (targetLayout === 'app') {
+                        injectAppContent(data);
+                    } else if (targetLayout === 'auth') {
+                        injectAuthContent(data);
+                    } else if (targetLayout === 'classic') {
+                        injectClassicContent(data);
+                    } else {
+                        fullPageSwitch(data);
+                    }
+                } else {
+                    fullPageSwitch(data);
+                    return;
+                }
+
+                document.title = FIXED_TITLE;
+                history.replaceState({ spa: true }, '', INITIAL_URL);
+                updateActiveNavLink(url);
+                currentLogicalUrl = url;
+                document.dispatchEvent(new CustomEvent('spa:navigation', {
+                    detail: { url: url, layout: targetLayout }
+                }));
+            }, 5);
+            return;
+        }
+
+        return originalNavigate(url, options);
+    };
 
     console.log('[SPA] Router initialized, layout:', currentLayout, ', URL locked to:', INITIAL_URL);
 
