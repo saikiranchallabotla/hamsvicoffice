@@ -293,17 +293,14 @@ CELERY_TASK_ROUTES = {
 # Use local memory cache for development (no Redis required)
 # Switch to Redis in production by setting REDIS_URL environment variable
 # 
-# IMPORTANT: In production, REDIS_URL MUST be set!
-# Without Redis, OTPs are stored in local memory and will be LOST on:
-#   - Server restart/redeployment
-#   - Worker process recycle
-#   - Load balancer switching to different instance
+# IMPORTANT: In production, REDIS_URL MUST be set for best performance!
+# Without Redis, OTPs are stored in database cache (slower but reliable)
 #
 # For AWS deployment, set up ElastiCache Redis or use a managed Redis service
 REDIS_URL = os.getenv('REDIS_URL', '')
 
 if REDIS_URL:
-    # Production: Use Redis - OTPs persist across restarts
+    # Production with Redis: Use Redis - OTPs persist across restarts, fast
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
@@ -316,8 +313,15 @@ if REDIS_URL:
             }
         }
     }
-    # Use database sessions for persistence across redeploys
-    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+elif not DEBUG:
+    # Production without Redis: Use database cache (slower but reliable)
+    # OTPs will be stored in django_cache table
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache',
+        }
+    }
 else:
     # Development: Use local memory cache (OK for single-instance dev)
     CACHES = {
@@ -326,17 +330,9 @@ else:
             'LOCATION': 'unique-snowflake',
         }
     }
-    # Use database sessions for development
-    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-    
-    # Warn if running in production without Redis
-    if not DEBUG:
-        import warnings
-        warnings.warn(
-            "PRODUCTION WARNING: REDIS_URL is not set! OTPs will be lost on restart. "
-            "Set REDIS_URL environment variable for production deployment.",
-            RuntimeWarning
-        )
+
+# Use database sessions for persistence across redeploys
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 # Session settings - keep users logged in
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days
