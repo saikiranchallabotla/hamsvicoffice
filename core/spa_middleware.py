@@ -120,19 +120,25 @@ class SPAMiddleware(MiddlewareMixin):
         # Handle redirects - return redirect URL for the SPA router to follow
         if response.status_code in (301, 302, 303, 307, 308):
             redirect_url = response.get('Location', '/')
-            return JsonResponse({
+            resp = JsonResponse({
                 'type': 'redirect',
                 'url': redirect_url,
             })
+            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp['Vary'] = 'X-SPA-Request'
+            return resp
 
         # Skip non-HTML responses (file downloads, JSON APIs, etc.)
         content_type = response.get('Content-Type', '')
         if any(ct in content_type for ct in NON_HTML_TYPES):
             # Tell the SPA router to do a normal navigation for this URL
-            return JsonResponse({
+            resp = JsonResponse({
                 'type': 'download',
                 'url': path,
             })
+            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp['Vary'] = 'X-SPA-Request'
+            return resp
 
         # Skip non-200 responses
         if response.status_code != 200:
@@ -154,7 +160,7 @@ class SPAMiddleware(MiddlewareMixin):
             scripts = _extract_between(html, *MARKERS['app']['scripts']) or ''
             head = _extract_between(html, *MARKERS['app']['head']) or ''
 
-            return JsonResponse({
+            resp = JsonResponse({
                 'type': 'content',
                 'layout': 'app',
                 'content': app_content,
@@ -164,6 +170,9 @@ class SPAMiddleware(MiddlewareMixin):
                 'head': head,
                 'title': _extract_title_from_html(html),
             })
+            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp['Vary'] = 'X-SPA-Request'
+            return resp
 
         # Check for auth layout (auth_base.html)
         auth_content = _extract_between(html, *MARKERS['auth']['content'])
@@ -171,7 +180,7 @@ class SPAMiddleware(MiddlewareMixin):
             styles = _extract_between(html, *MARKERS['auth']['styles']) or ''
             scripts = _extract_between(html, *MARKERS['auth']['scripts']) or ''
 
-            return JsonResponse({
+            resp = JsonResponse({
                 'type': 'content',
                 'layout': 'auth',
                 'content': auth_content,
@@ -179,6 +188,9 @@ class SPAMiddleware(MiddlewareMixin):
                 'scripts': scripts,
                 'title': _extract_title_from_html(html),
             })
+            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp['Vary'] = 'X-SPA-Request'
+            return resp
 
         # Check for classic layout (core/base.html, base.html)
         classic_content = _extract_between(html, *MARKERS['classic']['content'])
@@ -187,7 +199,7 @@ class SPAMiddleware(MiddlewareMixin):
             scripts = _extract_between(html, *MARKERS['classic']['scripts']) or ''
             head = _extract_between(html, *MARKERS['classic']['head']) or ''
 
-            return JsonResponse({
+            resp = JsonResponse({
                 'type': 'content',
                 'layout': 'classic',
                 'content': classic_content,
@@ -196,15 +208,21 @@ class SPAMiddleware(MiddlewareMixin):
                 'head': head,
                 'title': _extract_title_from_html(html),
             })
+            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp['Vary'] = 'X-SPA-Request'
+            return resp
 
         # Standalone page - extract body content
         body = _extract_body_content(html)
         head_styles = _extract_head_extras(html)
 
-        return JsonResponse({
+        resp = JsonResponse({
             'type': 'content',
             'layout': 'standalone',
             'content': body,
             'styles': head_styles,
             'title': _extract_title_from_html(html),
         })
+        resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp['Vary'] = 'X-SPA-Request'
+        return resp
