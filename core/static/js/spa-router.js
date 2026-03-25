@@ -7,9 +7,14 @@
  * Works with the SPAMiddleware on the backend which extracts partial content
  * from rendered Django templates and returns JSON responses.
  *
- * Supports three layout modes:
+ * Key behaviour: The browser URL never changes — all navigation uses
+ * history.replaceState so the address bar always shows the initial URL
+ * and the Chrome tab always says "Hamsvic".
+ *
+ * Supports four layout modes:
  * - 'app': Pages with sidebar + header (base_modern.html)
  * - 'auth': Centered auth pages (auth_base.html)
+ * - 'classic': Pages with header/nav/footer (core/base.html, base.html)
  * - 'standalone': Full page content (custom layouts)
  */
 (function() {
@@ -18,6 +23,27 @@
     // =========================================================================
     // CONFIGURATION
     // =========================================================================
+
+    // The canonical URL the user first landed on — persists across page reloads.
+    // sessionStorage ensures that even if window.location.href causes a full
+    // reload, the address bar snaps back to the original entry URL.
+    var INITIAL_URL = (function() {
+        var stored = sessionStorage.getItem('spa_initial_url');
+        if (stored) return stored;
+        var url = window.location.pathname + window.location.search;
+        sessionStorage.setItem('spa_initial_url', url);
+        return url;
+    })();
+
+    // Clear stored URL on auth pages so a fresh session starts clean
+    var AUTH_PATHS = ['/accounts/login/', '/accounts/register/', '/login/', '/register/'];
+    if (AUTH_PATHS.indexOf(window.location.pathname) !== -1) {
+        sessionStorage.removeItem('spa_initial_url');
+        INITIAL_URL = window.location.pathname + window.location.search;
+    }
+
+    // Fixed document title so Chrome tab never changes
+    var FIXED_TITLE = 'Hamsvic';
 
     // URL prefixes that should bypass SPA navigation entirely
     var BYPASS_PREFIXES = ['/admin/', '/admin-panel/', '/health/', '/api/', '/static/', '/media/'];
@@ -46,7 +72,7 @@
         if (document.querySelector('.auth-container')) {
             return 'auth';
         }
-        return 'standalone';
+        return 'classic';
     }
 
     // =========================================================================
@@ -80,7 +106,6 @@
         var bar = createLoadingBar();
         bar.style.opacity = '1';
         bar.style.width = '0%';
-        // Animate to 70% quickly, then slow down
         requestAnimationFrame(function() {
             bar.style.width = '30%';
             setTimeout(function() { bar.style.width = '60%'; }, 200);
@@ -98,7 +123,7 @@
     }
 
     // =========================================================================
-    // CONTENT INJECTION
+    // CONTENT INJECTION (same-layout)
     // =========================================================================
 
     function fadeOut(el) {
@@ -119,7 +144,7 @@
 
     function injectAppContent(data) {
         var contentArea = document.querySelector('.content-area');
-        if (!contentArea) return fullPageLoad(data);
+        if (!contentArea) return fullPageSwitch(data);
 
         // Update page title in header
         if (data.pageTitle !== undefined) {
@@ -127,40 +152,17 @@
             if (titleEl) titleEl.textContent = data.pageTitle;
         }
 
-        // Update document title
-        if (data.title) {
-            document.title = data.title;
-        }
-
         // Clear previous dynamic styles
         removeDynamicStyles();
 
-        // Inject extra styles
-        if (data.styles) {
-            injectStyles(data.styles, 'spa-dynamic-styles');
-        }
+        if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
+        if (data.head) injectHead(data.head);
 
-        // Inject head extras
-        if (data.head) {
-            injectHead(data.head);
-        }
-
-        // Fade out, swap content, fade in
         return fadeOut(contentArea).then(function() {
-            // Clear messages and inject content
             contentArea.innerHTML = data.content;
-
-            // Execute scripts
-            if (data.scripts) {
-                executeScripts(data.scripts, contentArea);
-            }
-
-            // Execute inline scripts in content
+            if (data.scripts) executeScripts(data.scripts, contentArea);
             executeInlineScripts(contentArea);
-
             fadeIn(contentArea);
-
-            // Scroll to top of content
             contentArea.scrollTop = 0;
             window.scrollTo(0, 0);
         });
@@ -168,71 +170,107 @@
 
     function injectAuthContent(data) {
         var authContainer = document.querySelector('.auth-container > div');
-        if (!authContainer) {
-            // We're in app layout, need to switch to auth layout
-            return switchToAuthLayout(data);
-        }
+        if (!authContainer) return fullPageSwitch(data);
 
-        // Update document title
-        if (data.title) {
-            document.title = data.title;
-        }
-
-        // Clear previous dynamic styles
         removeDynamicStyles();
+        if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
 
-        // Inject extra styles
-        if (data.styles) {
-            injectStyles(data.styles, 'spa-dynamic-styles');
-        }
-
-        // Find or create the auth content area (after the logo and back-to-dashboard link)
         return fadeOut(authContainer).then(function() {
-            // Rebuild auth container content - keep logo, update the rest
             var logoHtml = '<div class="logo"><div class="logo-icon">H</div><span class="logo-text">HAMSVIC</span></div>';
             authContainer.innerHTML = logoHtml + data.content;
-
-            // Execute scripts
-            if (data.scripts) {
-                executeScripts(data.scripts, authContainer);
-            }
-
+            if (data.scripts) executeScripts(data.scripts, authContainer);
             executeInlineScripts(authContainer);
             fadeIn(authContainer);
             window.scrollTo(0, 0);
         });
     }
 
-    function switchToAppLayout(data) {
-        // Full page reload when switching from auth/standalone to app layout
-        // This is the simplest and most reliable approach for layout switches
-        window.location.href = data._url || window.location.href;
-    }
-
-    function switchToAuthLayout(data) {
-        // Full page reload when switching from app to auth layout
-        window.location.href = data._url || window.location.href;
-    }
-
-    function fullPageLoad(data) {
-        // For standalone pages, replace entire body
-        var body = document.body;
+    function injectClassicContent(data) {
+        var container = document.querySelector('.container-fluid') || document.querySelector('main.container');
+        if (!container) return fullPageSwitch(data);
 
         removeDynamicStyles();
-        if (data.styles) {
-            injectStyles(data.styles, 'spa-dynamic-styles');
-        }
+        if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
+        if (data.head) injectHead(data.head);
 
-        if (data.title) {
-            document.title = data.title;
-        }
-
-        return fadeOut(body).then(function() {
-            body.innerHTML = data.content;
-            executeInlineScripts(body);
-            fadeIn(body);
+        return fadeOut(container).then(function() {
+            container.innerHTML = data.content;
+            if (data.scripts) executeScripts(data.scripts, container);
+            executeInlineScripts(container);
+            fadeIn(container);
+            container.scrollTop = 0;
             window.scrollTo(0, 0);
         });
+    }
+
+    // =========================================================================
+    // CROSS-LAYOUT TRANSITION (full page replacement)
+    // =========================================================================
+
+    /**
+     * When the target page uses a different layout (e.g. app → classic,
+     * classic → auth), we cannot simply swap the content area because the
+     * page shell (sidebar, header, footer) is completely different.
+     *
+     * Strategy: fetch the full HTML of the target page (without X-SPA-Request),
+     * parse it, and replace the entire document body + head styles.
+     * The URL stays the same via replaceState.
+     */
+    function fullPageSwitch(data) {
+        var targetUrl = data._url || window.location.pathname;
+
+        showLoading();
+        return fetch(targetUrl, { credentials: 'same-origin' })
+            .then(function(response) { return response.text(); })
+            .then(function(html) {
+                replaceDocument(html);
+                hideLoading();
+            })
+            .catch(function() {
+                // Absolute fallback
+                hideLoading();
+                window.location.replace(targetUrl);
+            });
+    }
+
+    /**
+     * Replace the current document's content with parsed HTML from a full-page response.
+     * This preserves the SPA router (it re-initialises itself).
+     */
+    function replaceDocument(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+
+        // Replace all stylesheets and style tags in <head>
+        var oldHeadEls = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+        var newHeadEls = doc.querySelectorAll('head style, head link[rel="stylesheet"]');
+
+        oldHeadEls.forEach(function(el) { el.remove(); });
+        newHeadEls.forEach(function(el) {
+            document.head.appendChild(el.cloneNode(true));
+        });
+
+        // Copy any other head elements (meta viewport, fonts, etc.)
+        var newMeta = doc.querySelectorAll('head meta[name="viewport"], head link[rel="preconnect"], head link[href*="fonts"]');
+        newMeta.forEach(function(el) {
+            if (!document.querySelector('head ' + el.tagName.toLowerCase() + '[href="' + el.getAttribute('href') + '"]')) {
+                document.head.appendChild(el.cloneNode(true));
+            }
+        });
+
+        // Replace body
+        document.body.innerHTML = doc.body.innerHTML;
+
+        // Execute all scripts in the new body
+        executeInlineScripts(document.body);
+
+        // Keep URL & title fixed
+        document.title = FIXED_TITLE;
+        history.replaceState({ spa: true }, '', INITIAL_URL);
+
+        // Re-detect layout
+        currentLayout = detectCurrentLayout();
+
+        window.scrollTo(0, 0);
     }
 
     // =========================================================================
@@ -269,14 +307,12 @@
     function executeScripts(scriptsHtml, container) {
         if (!scriptsHtml.trim()) return;
 
-        // Create a temporary container to parse script tags
         var temp = document.createElement('div');
         temp.innerHTML = scriptsHtml;
         var scripts = temp.querySelectorAll('script');
 
         scripts.forEach(function(oldScript) {
             var newScript = document.createElement('script');
-            // Copy attributes
             for (var i = 0; i < oldScript.attributes.length; i++) {
                 var attr = oldScript.attributes[i];
                 newScript.setAttribute(attr.name, attr.value);
@@ -289,7 +325,6 @@
             (container || document.body).appendChild(newScript);
         });
 
-        // Also execute non-script content (inline event handlers etc.)
         var nonScripts = temp.innerHTML.replace(/<script[\s\S]*?<\/script>/gi, '').trim();
         if (nonScripts && container) {
             container.insertAdjacentHTML('beforeend', nonScripts);
@@ -297,9 +332,11 @@
     }
 
     function executeInlineScripts(container) {
-        // Re-execute script tags that were injected via innerHTML
         var scripts = container.querySelectorAll('script');
         scripts.forEach(function(oldScript) {
+            // Skip the SPA router script itself to avoid double-init
+            if (oldScript.src && oldScript.src.indexOf('spa-router.js') !== -1) return;
+
             var newScript = document.createElement('script');
             for (var i = 0; i < oldScript.attributes.length; i++) {
                 var attr = oldScript.attributes[i];
@@ -319,11 +356,9 @@
     // =========================================================================
 
     function shouldBypass(url) {
-        // Check if URL should bypass SPA navigation
         for (var i = 0; i < BYPASS_PREFIXES.length; i++) {
             if (url.startsWith(BYPASS_PREFIXES[i])) return true;
         }
-        // Check exact URL matches
         for (var i = 0; i < BYPASS_EXACT.length; i++) {
             if (url === BYPASS_EXACT[i]) return true;
         }
@@ -348,45 +383,43 @@
 
     function navigate(url, options) {
         options = options || {};
-        var pushHistory = options.pushHistory !== false;
         var method = (options.method || 'GET').toUpperCase();
         var body = options.body || null;
-        var isFormSubmit = options.isFormSubmit || false;
 
         // Normalize URL
         if (!url.startsWith('/') && !url.startsWith('http')) {
             url = '/' + url;
         }
 
-        // Check bypass conditions
+        // Bypass conditions
         if (shouldBypass(url)) {
-            window.location.href = url;
+            window.location.replace(url);
             return;
         }
 
-        // Check download URLs
+        // Download URLs
         if (isDownloadUrl(url) && method === 'GET') {
-            window.location.href = url;
+            // For downloads, open in hidden iframe so URL doesn't change
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            setTimeout(function() { iframe.remove(); }, 60000);
             return;
         }
 
         // Prevent double navigation
-        if (isNavigating) {
-            if (abortController) {
-                abortController.abort();
-            }
+        if (isNavigating && abortController) {
+            abortController.abort();
         }
 
         isNavigating = true;
         showLoading();
 
-        // Abort previous request
-        if (abortController) {
-            abortController.abort();
-        }
+        if (abortController) abortController.abort();
         abortController = new AbortController();
 
-        // Get CSRF token from cookie for POST requests
+        // CSRF token
         var csrfToken = '';
         var match = document.cookie.match(/csrftoken=([^;]+)/);
         if (match) csrfToken = match[1];
@@ -400,105 +433,110 @@
             }
         };
 
-        // Add CSRF token header for non-GET requests
         if (method !== 'GET' && csrfToken) {
             fetchOptions.headers['X-CSRFToken'] = csrfToken;
         }
 
         if (body) {
             fetchOptions.body = body;
-            // Don't set Content-Type for FormData (browser sets it with boundary)
         }
 
         fetch(url, fetchOptions)
             .then(function(response) {
-                // Check if response is JSON (SPA response)
                 var contentType = response.headers.get('Content-Type') || '';
                 if (contentType.indexOf('application/json') === -1) {
-                    // Non-JSON response - might be a file download or error
+                    // Non-JSON response — file download or unsupported page
                     if (response.ok && contentType.indexOf('text/html') !== -1) {
-                        // Full HTML page - do a normal navigation
-                        window.location.href = url;
-                        return null;
+                        // Full HTML page — the middleware didn't process it;
+                        // fetch the full page again without SPA header and replace document
+                        return response.text().then(function(html) {
+                            return { _fullHtml: html };
+                        });
                     }
-                    // File download or other binary response
-                    window.location.href = url;
+                    // Binary / file download — trigger natively via hidden iframe
+                    var iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = url;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() { iframe.remove(); }, 60000);
                     return null;
                 }
                 return response.json();
             })
             .then(function(data) {
-                if (!data) return;
+                if (!data) {
+                    hideLoading();
+                    isNavigating = false;
+                    return;
+                }
 
                 hideLoading();
                 isNavigating = false;
 
-                // Handle different response types
+                // Full HTML fallback (middleware didn't intercept)
+                if (data._fullHtml) {
+                    replaceDocument(data._fullHtml);
+                    return;
+                }
+
+                // Handle redirect
                 if (data.type === 'redirect') {
-                    // Follow the redirect via SPA
-                    navigate(data.url, { pushHistory: false });
-                    if (pushHistory) {
-                        history.replaceState({ spaUrl: data.url }, '', data.url);
-                    }
+                    navigate(data.url);
                     return;
                 }
 
+                // Handle download
                 if (data.type === 'download') {
-                    // Trigger a normal download
-                    window.location.href = data.url;
+                    var iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = data.url;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() { iframe.remove(); }, 60000);
                     return;
                 }
 
-                // Store URL on data for layout switch fallback
+                // Store URL for layout-switch fallback
                 data._url = url;
 
-                // Handle content based on layout
                 var targetLayout = data.layout;
 
+                // Same layout — swap content in place
                 if (targetLayout === currentLayout) {
-                    // Same layout - just swap content
                     if (targetLayout === 'app') {
                         injectAppContent(data);
                     } else if (targetLayout === 'auth') {
                         injectAuthContent(data);
+                    } else if (targetLayout === 'classic') {
+                        injectClassicContent(data);
                     } else {
-                        fullPageLoad(data);
+                        fullPageSwitch(data);
                     }
-                } else if (targetLayout === 'app' && currentLayout !== 'app') {
-                    // Switching TO app layout - need full page structure
-                    switchToAppLayout(data);
-                    return; // Will do full page load
-                } else if (targetLayout === 'auth' && currentLayout !== 'auth') {
-                    // Switching TO auth layout - need full page structure
-                    switchToAuthLayout(data);
-                    return; // Will do full page load
                 } else {
-                    // Standalone or other - full page load
-                    fullPageLoad(data);
-                    currentLayout = targetLayout;
+                    // Different layout — full page replacement
+                    fullPageSwitch(data);
+                    return;
                 }
 
-                // Update browser history
-                if (pushHistory) {
-                    history.pushState({ spaUrl: url }, '', url);
-                }
+                // Keep URL & title fixed
+                document.title = FIXED_TITLE;
+                history.replaceState({ spa: true }, '', INITIAL_URL);
 
                 // Update active nav link
                 updateActiveNavLink(url);
 
-                // Dispatch custom event for other scripts to hook into
+                // Dispatch event for other scripts
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
                     detail: { url: url, layout: targetLayout }
                 }));
             })
             .catch(function(error) {
                 if (error.name === 'AbortError') return;
-                console.error('SPA navigation error:', error);
+                console.error('[SPA] Navigation error:', error);
                 hideLoading();
                 isNavigating = false;
-                // Fallback to normal navigation on error
+                // Fallback: use location.replace so no new history entry
                 if (method === 'GET') {
-                    window.location.href = url;
+                    window.location.replace(url);
                 } else {
                     showToast && showToast('Navigation failed. Please try again.', 'error');
                 }
@@ -534,18 +572,23 @@
             anchor.target === '_blank' ||
             anchor.hasAttribute('download') ||
             anchor.classList.contains('no-spa') ||
-            anchor.dataset.bsToggle ||  // Bootstrap dropdown/collapse
+            anchor.dataset.bsToggle ||
             e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
             return;
         }
 
-        // Skip external links
         if (isExternalUrl(href)) return;
+        if (isDownloadUrl(href)) {
+            // Trigger download without changing URL
+            e.preventDefault();
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = href;
+            document.body.appendChild(iframe);
+            setTimeout(function() { iframe.remove(); }, 60000);
+            return;
+        }
 
-        // Skip download URLs
-        if (isDownloadUrl(href)) return;
-
-        // Intercept the navigation
         e.preventDefault();
         navigate(href);
     });
@@ -553,7 +596,7 @@
     // Intercept form submissions
     document.addEventListener('submit', function(e) {
         var form = e.target;
-        var action = form.getAttribute('action') || window.location.href;
+        var action = form.getAttribute('action') || window.location.pathname;
 
         // Skip forms with special handling
         if (form.classList.contains('no-spa') ||
@@ -562,9 +605,8 @@
             return;
         }
 
-        // Skip forms with file uploads (they need native handling for progress)
+        // Skip forms with actual file uploads
         if (form.querySelector('input[type=file]')) {
-            // But still handle them via SPA for non-download forms
             var hasFiles = false;
             var fileInputs = form.querySelectorAll('input[type=file]');
             for (var i = 0; i < fileInputs.length; i++) {
@@ -573,17 +615,11 @@
                     break;
                 }
             }
-            // If files are actually selected, let native behavior handle it
             if (hasFiles) return;
         }
 
-        // Skip download actions
         if (isDownloadUrl(action)) return;
-
-        // Skip external actions
         if (isExternalUrl(action)) return;
-
-        // Skip bypass paths
         if (shouldBypass(action)) return;
 
         e.preventDefault();
@@ -598,40 +634,34 @@
         } else {
             navigate(action, {
                 method: method,
-                body: formData,
-                isFormSubmit: true
+                body: formData
             });
         }
     });
 
-    // Handle browser back/forward buttons
+    // Handle browser back/forward — since we only use replaceState,
+    // pressing Back should leave the site entirely (expected SPA behaviour)
     window.addEventListener('popstate', function(e) {
-        var url = window.location.pathname + window.location.search;
-        navigate(url, { pushHistory: false });
+        // If the user presses Back, they intend to leave the app.
+        // Allow the browser's default behaviour.
     });
 
     // =========================================================================
     // INITIALIZATION
     // =========================================================================
 
-    // Set initial history state
-    history.replaceState(
-        { spaUrl: window.location.pathname + window.location.search },
-        '',
-        window.location.pathname + window.location.search
-    );
+    // Fix URL & title on initial load
+    document.title = FIXED_TITLE;
+    history.replaceState({ spa: true }, '', INITIAL_URL);
 
-    // Create loading bar on init
     createLoadingBar();
 
-    // Mark the current page as SPA-ready
     document.documentElement.setAttribute('data-spa', 'true');
     document.documentElement.setAttribute('data-spa-layout', currentLayout);
 
     // Export navigate function for programmatic use
     window.spaNavigate = navigate;
 
-    // Log SPA initialization
-    console.log('[SPA] Router initialized, layout:', currentLayout);
+    console.log('[SPA] Router initialized, layout:', currentLayout, ', URL locked to:', INITIAL_URL);
 
 })();

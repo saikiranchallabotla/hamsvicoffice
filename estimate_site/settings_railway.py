@@ -74,6 +74,7 @@ MIDDLEWARE = [
     'subscriptions.middleware.SubscriptionCacheMiddleware',
     'subscriptions.middleware.ModuleAccessMiddleware',
     'subscriptions.middleware.UsageTrackingMiddleware',
+    'core.spa_middleware.SPAMiddleware',  # SPA content extraction (must be last)
 ]
 
 # Maximum concurrent sessions per user

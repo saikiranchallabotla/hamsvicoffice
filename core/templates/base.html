@@ -67,7 +67,7 @@
             to { transform: translateX(100%); opacity: 0; }
         }
     </style>
-    {% block head %}{% endblock %}
+    <!-- SPA:CLASSIC:HEAD_START -->{% block head %}{% endblock %}<!-- SPA:CLASSIC:HEAD_END -->
 </head>
 <body>
     <!-- Toast Container -->
@@ -75,14 +75,14 @@
     
     <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
         <div class="container-fluid">
-            <a href="javascript:void(0)" class="btn btn-primary me-3" style="border-radius: 10px;" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='{% url 'dashboard' %}'; }">
+            <a href="{% url 'dashboard' %}" class="btn btn-primary me-3" style="border-radius: 10px;" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');">
                 <i class="bi bi-arrow-left me-1"></i> Back
             </a>
             <a class="navbar-brand" href="/dashboard/">Hamsvic</a>
         </div>
     </nav>
     <main class="container">
-        {% block content %}{% endblock %}
+        <!-- SPA:CLASSIC:CONTENT_START -->{% block content %}{% endblock %}<!-- SPA:CLASSIC:CONTENT_END -->
     </main>
     
     <!-- Global Toast Function -->
@@ -214,7 +214,7 @@
     {% endif %}
     </script>
     {% include "includes/app_modal.html" %}
-    {% block scripts %}{% endblock %}
+    <!-- SPA:CLASSIC:SCRIPTS_START -->{% block scripts %}{% endblock %}<!-- SPA:CLASSIC:SCRIPTS_END -->
 
     <script src="{% static 'js/spa-router.js' %}"></script>
 </body>
