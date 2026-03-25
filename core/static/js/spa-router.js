@@ -381,6 +381,9 @@
         }
     }
 
+    // Track current logical URL (the page we're actually viewing)
+    var currentLogicalUrl = window.location.pathname + window.location.search;
+
     function navigate(url, options) {
         options = options || {};
         var method = (options.method || 'GET').toUpperCase();
@@ -389,6 +392,11 @@
         // Normalize URL
         if (!url.startsWith('/') && !url.startsWith('http')) {
             url = '/' + url;
+        }
+
+        // Skip navigation if already on same page (GET requests only)
+        if (method === 'GET' && url === currentLogicalUrl) {
+            return;
         }
 
         // Bypass conditions
@@ -523,6 +531,9 @@
 
                 // Update active nav link
                 updateActiveNavLink(url);
+
+                // Track current logical URL for same-page detection
+                currentLogicalUrl = url;
 
                 // Dispatch event for other scripts
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
