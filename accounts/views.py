@@ -692,16 +692,22 @@ def _create_user(identifier: str, data: dict):
 
 def _handle_login_success(request, identifier):
     """Handle successful login - check for existing sessions first."""
+    print(f"\n[HANDLE_LOGIN_SUCCESS] Starting for identifier: {identifier}")
     user = _find_user(identifier)
     if not user:
+        print(f"[HANDLE_LOGIN_SUCCESS] User not found")
         messages.error(request, 'Account not found.')
         return redirect('login')
+    
+    print(f"[HANDLE_LOGIN_SUCCESS] User found: {user.username} (id={user.id})")
     
     # Check for active sessions on other devices
     active_sessions = UserSession.objects.filter(
         user=user,
         is_active=True
     ).order_by('-last_activity')
+    
+    print(f"[HANDLE_LOGIN_SUCCESS] Active sessions count: {active_sessions.count()}")
     
     if active_sessions.exists():
         # Store pending login info in session for confirmation
@@ -720,6 +726,9 @@ def _handle_login_success(request, identifier):
                 'last_activity': s.last_activity.strftime('%d %b %Y, %I:%M %p') if s.last_activity else '',
             })
         request.session['pending_login_sessions'] = session_info
+        request.session.save()  # Ensure session is saved before redirect
+        print(f"[HANDLE_LOGIN_SUCCESS] Stored pending login data, redirecting to confirm_device_login")
+        print(f"[HANDLE_LOGIN_SUCCESS] Session keys: {list(request.session.keys())}")
         
         return redirect('confirm_device_login')
     
@@ -760,11 +769,17 @@ def confirm_device_login_view(request):
     Hotstar-style device conflict page.
     Shows active sessions and asks user to confirm logging out other devices.
     """
+    print(f"\n[CONFIRM_DEVICE_LOGIN] Method: {request.method}")
+    print(f"[CONFIRM_DEVICE_LOGIN] Session keys: {list(request.session.keys())}")
+    
     pending_user_id = request.session.get('pending_login_user_id')
     pending_identifier = request.session.get('pending_login_identifier')
     session_info = request.session.get('pending_login_sessions', [])
     
+    print(f"[CONFIRM_DEVICE_LOGIN] pending_user_id: {pending_user_id}, pending_identifier: {pending_identifier}")
+    
     if not pending_user_id or not pending_identifier:
+        print(f"[CONFIRM_DEVICE_LOGIN] Missing pending data, redirecting to login")
         return redirect('login')
     
     if request.method == 'POST':
