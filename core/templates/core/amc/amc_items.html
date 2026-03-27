@@ -1262,21 +1262,20 @@ document.addEventListener('click', function(e) {
         var qtyMap = buildQtyMap();
         var workInput = document.getElementById("work-name-input");
         var grandTotalInput = document.getElementById("grand-total-input");
-        
+
         var formData = new FormData();
         formData.append("qty_map", JSON.stringify(qtyMap));
         formData.append("work_name", workInput ? workInput.value : "");
         formData.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
         formData.append("csrfmiddlewaretoken", csrfToken);
-        
-        fetch(saveQtyMapUrl, {
-            method: "POST",
-            body: formData
-        }).then(function() {
-            window.location.href = targetUrl;
-        }).catch(function() {
-            window.location.href = targetUrl;
-        });
+
+        // Use sendBeacon to save in background without blocking navigation
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(saveQtyMapUrl, formData);
+        } else {
+            fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
+        }
+        window.location.href = targetUrl;
     }
     
     // --- Checkbox behaviour: queued AJAX toggle ---

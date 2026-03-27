@@ -1704,7 +1704,30 @@ document.addEventListener('click', function(e) {
     }
 
     async function saveAndNavigate(url) {
-      await saveState();
+      // Save state in background without blocking navigation (prevents blink)
+      var list = [];
+      document.querySelectorAll('#estimate-table tbody tr[data-entry-id]').forEach(function(row) {
+        var id = row.getAttribute('data-entry-id');
+        var name = row.getAttribute('data-item-name');
+        var qtyInput = row.querySelector('.qty-input');
+        var daysInput = row.querySelector('.days-input');
+        var qty = qtyInput ? parseFloat(qtyInput.value || '0') : 0;
+        var days = daysInput ? parseInt(daysInput.value || '1', 10) : 1;
+        list.push({ id: id, name: name, qty: qty, days: days });
+      });
+      var workName = (document.getElementById('work-name-input') || {}).value || '';
+      var grandTotal = (document.getElementById('grand-total-input') || {}).value || '';
+      var tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      var csrftoken = tokenInput ? tokenInput.value : getCookie('csrftoken');
+
+      // Use keepalive fetch so request survives page navigation
+      fetch('{% url "temp_save_state" category %}', {
+        method: 'POST',
+        keepalive: true,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify({ entries: list, work_name: workName, grand_total: grandTotal })
+      }).catch(function() {});
       window.location = url;
     }
 
