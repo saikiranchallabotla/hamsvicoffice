@@ -619,7 +619,7 @@ function switchBackend(backendId) {
         selector.disabled = true;
         selector.style.opacity = '0.6';
     }
-    window.location.href = currentUrl.toString();
+    window.location.replace(currentUrl.toString());
 }
 </script>
 {% endif %}
@@ -1275,7 +1275,7 @@ document.addEventListener('click', function(e) {
         } else {
             fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
         }
-        window.location.href = targetUrl;
+        window.location.replace(targetUrl);
     }
     
     // --- Checkbox behaviour: queued AJAX toggle ---

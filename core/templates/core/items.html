@@ -1170,7 +1170,7 @@ function switchBackend(backendId) {
     }
     
     // Redirect to reload with new backend
-    window.location.href = currentUrl.toString();
+    window.location.replace(currentUrl.toString());
 }
 
 // Toggle functions for additional options
@@ -1799,7 +1799,7 @@ document.addEventListener('keydown', function(e) {
             // Fallback: fire-and-forget fetch for older browsers
             fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
         }
-        window.location.href = targetUrl;
+        window.location.replace(targetUrl);
     }
     
     // --- Checkbox behaviour: queued AJAX toggle ---

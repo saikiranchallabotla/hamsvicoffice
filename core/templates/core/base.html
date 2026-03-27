@@ -102,7 +102,7 @@
 </header>
 
 <nav>
-    <a href="{% url 'dashboard' %}" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <a href="{% url 'dashboard' %}" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));"><i class="bi bi-arrow-left me-1"></i>Back</a>
     <a href="{% url 'bill' %}"><i class="bi bi-receipt me-1"></i>Bill Generator</a>
     <a href="{% url 'template_list' %}"><i class="bi bi-file-earmark-text me-1"></i>My Templates</a>
 </nav>

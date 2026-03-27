@@ -647,7 +647,7 @@
                 <i class="bi bi-download"></i> Download Bill
             </a>
             {% endif %}
-            <button type="button" class="btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');">
+            <button type="button" class="btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
         </div>
@@ -836,14 +836,11 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Update browser history without adding entry form page
-                history.replaceState(null, '', data.redirect_url);
-                
                 // Show success message and redirect after short delay
                 showNotification('Bill saved successfully!', 'success');
                 setTimeout(() => {
-                    // Use replace() to prevent entry form being added to browser history
-                    window.location.replace(data.redirect_url);
+                    // Use SPA navigate to avoid creating browser history entries
+                    window.safeNavigate ? window.safeNavigate(data.redirect_url) : window.location.replace(data.redirect_url);
                 }, 500);
             } else {
                 // Re-enable submit button

@@ -504,7 +504,7 @@
                     if (v.ok) {
                         payBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Success!';
                         payBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
-                        setTimeout(() => { window.location.href = '{% url "dashboard" %}'; }, 1000);
+                        setTimeout(() => { window.location.replace('{% url "dashboard" %}'; }, 1000));
                     } else {
                         showToast(v.reason || 'Payment verification failed', 'error', 'Payment Failed');
                         resetButton();
@@ -541,7 +541,7 @@
                         if (v.ok) {
                             payBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Success!';
                             payBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
-                            setTimeout(() => { window.location.href = '{% url "dashboard" %}'; }, 1000);
+                            setTimeout(() => { window.location.replace('{% url "dashboard" %}'; }, 1000));
                         } else {
                             showToast(v.reason || 'Payment verification failed', 'error', 'Payment Failed');
                             resetButton();
@@ -623,7 +623,7 @@
         function switchPlan(el, bundleId, planId) {
             document.querySelectorAll('.duration-option').forEach(o => o.classList.remove('active'));
             el.classList.add('active');
-            if (planUrls[planId]) window.location.href = planUrls[planId];
+            if (planUrls[planId]) window.location.replace(planUrls[planId]);
         }
     </script>
 

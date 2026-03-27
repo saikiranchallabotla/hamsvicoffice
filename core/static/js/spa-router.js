@@ -683,6 +683,16 @@
     // Export navigate function for programmatic use
     window.spaNavigate = navigate;
 
+    // Global safe navigation helper — always avoids creating new history entries.
+    // Use this everywhere instead of window.location.href = url
+    window.safeNavigate = function(url) {
+        if (window.spaNavigate) {
+            window.spaNavigate(url);
+        } else {
+            window.location.replace(url);
+        }
+    };
+
     // =========================================================================
     // LINK PREFETCHING
     // =========================================================================
