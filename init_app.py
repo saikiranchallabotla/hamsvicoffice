@@ -40,25 +40,40 @@ def run_migrations():
 
 
 def create_admin():
-    """Create or update admin user."""
-    email = 'saikiranchallabotla@gmail.com'
-    phone = '+916304911990'
-    phone_alt = '6304911990'
-    
+    """Create admin user from environment variables (if configured)."""
+    email = os.environ.get('ADMIN_EMAIL', '')
+    phone = os.environ.get('ADMIN_PHONE', '')
+    password = os.environ.get('ADMIN_PASSWORD', '')
+    first_name = os.environ.get('ADMIN_FIRST_NAME', 'Admin')
+    last_name = os.environ.get('ADMIN_LAST_NAME', '')
+
+    if not email or not password:
+        print('[INIT] ⚠️  ADMIN_EMAIL and ADMIN_PASSWORD not set - skipping admin creation')
+        print('[INIT]    Set these environment variables to create an admin user:')
+        print('[INIT]      ADMIN_EMAIL=admin@example.com')
+        print('[INIT]      ADMIN_PASSWORD=your-secure-password')
+        print('[INIT]      ADMIN_PHONE=+1234567890 (optional)')
+        print('[INIT]      ADMIN_FIRST_NAME=Admin (optional)')
+        print('[INIT]      ADMIN_LAST_NAME=User (optional)')
+        return
+
     user = None
-    
+
     # Find by email
     if User.objects.filter(email=email).exists():
         user = User.objects.get(email=email)
         print(f'[INIT] Found user by email: {email}')
-    
+
     # Find by phone
-    if not user:
-        profile = UserProfile.objects.filter(phone__in=[phone, phone_alt]).first()
+    if not user and phone:
+        phone_variants = [phone]
+        if phone.startswith('+'):
+            phone_variants.append(phone.lstrip('+').lstrip('0'))
+        profile = UserProfile.objects.filter(phone__in=phone_variants).first()
         if profile:
             user = profile.user
             print(f'[INIT] Found user by phone: {profile.phone}')
-    
+
     if user:
         user.is_staff = True
         user.is_superuser = True
@@ -70,18 +85,19 @@ def create_admin():
         user = User.objects.create_superuser(
             username='admin',
             email=email,
-            password='Admin@123456',
-            first_name='Saikiran',
-            last_name='Challabotla',
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
         )
         print(f'[INIT] Superuser created: {email}')
-    
+
     # Update profile
     profile, _ = UserProfile.objects.get_or_create(user=user)
-    profile.phone = phone
-    profile.phone_verified = True
-    profile.save()
-    print(f'[INIT] Admin ready: {email} / {phone}')
+    if phone:
+        profile.phone = phone
+        profile.phone_verified = True
+        profile.save()
+    print(f'[INIT] Admin ready: {email}')
 
 
 def seed_modules():
