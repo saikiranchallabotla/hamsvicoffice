@@ -334,7 +334,7 @@
                 {% endif %}
             </button>
             {% else %}
-            <button class="ewb-btn ewb-btn-e" style="opacity:0.5;cursor:not-allowed;" title="Subscribe to access" onclick="window.location.href='{% url 'module_access' module_code=module_code %}'">
+            <button class="ewb-btn ewb-btn-e" style="opacity:0.5;cursor:not-allowed;" title="Subscribe to access" onclick="window.location.replace('{% url 'module_access' module_code=module_code %}')">
                 <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i>
             </button>
             {% endif %}
@@ -357,7 +357,7 @@
                     {% endif %}
                 </button>
                 {% else %}
-                <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.href='{% url 'module_access' module_code='workslip' %}'">
+                <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.replace('{% url 'module_access' module_code='workslip' %}')">
                     <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> W{{ ws.workslip_number }}
                 </button>
                 {% endif %}
@@ -366,12 +366,12 @@
                 {% if last_workslip.status == 'completed' and not is_orphan_workslip %}
                 {% if module_access.workslip %}
                 <button class="ewb-btn ewb-btn-w"
-                        onclick="window.location.href='/saved-works/{{ last_workslip.id }}/generate-next-workslip/'"
+                        onclick="window.location.replace('/saved-works/{{ last_workslip.id }}/generate-next-workslip/')"
                         title="Create WorkSlip {{ last_workslip.workslip_number|add:1 }}">
                     +W{{ last_workslip.workslip_number|add:1 }}
                 </button>
                 {% else %}
-                <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.href='{% url 'module_access' module_code='workslip' %}'">
+                <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.replace('{% url 'module_access' module_code='workslip' %}')">
                     <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +W
                 </button>
                 {% endif %}
@@ -384,7 +384,7 @@
                 +W1
             </button>
             {% else %}
-            <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.href='{% url 'module_access' module_code='workslip' %}'">
+            <button class="ewb-btn ewb-btn-w" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Workslips" onclick="window.location.replace('{% url 'module_access' module_code='workslip' %}')">
                 <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +W1
             </button>
             {% endif %}
@@ -407,7 +407,7 @@
                     {% endif %}
                 </button>
                 {% else %}
-                <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.replace('{% url 'module_access' module_code='bill' %}')">
                     <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> B{{ bill.bill_number }}
                 </button>
                 {% endif %}
@@ -422,7 +422,7 @@
                         +B{{ next_bill_num }}
                     </button>
                     {% else %}
-                    <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                    <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.replace('{% url 'module_access' module_code='bill' %}')">
                         <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B
                     </button>
                     {% endif %}
@@ -436,7 +436,7 @@
                         +B{{ next_bill_num }}
                     </button>
                     {% elif not module_access.bill %}
-                    <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+                    <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.replace('{% url 'module_access' module_code='bill' %}')">
                         <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B{{ next_bill_num }}
                     </button>
                     {% endif %}
@@ -450,7 +450,7 @@
                 +B1
             </button>
             {% else %}
-            <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.href='{% url 'module_access' module_code='bill' %}'">
+            <button class="ewb-btn ewb-btn-b" style="opacity:0.5;cursor:not-allowed;" title="Subscribe for Bills" onclick="window.location.replace('{% url 'module_access' module_code='bill' %}')">
                 <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i> +B1
             </button>
             {% endif %}
@@ -849,7 +849,7 @@
     // E — Edit / Resume Estimate
     // ========================================
     function handleE(estId) {
-        window.location.href = '/saved-works/' + estId + '/resume/';
+        window.location.replace('/saved-works/' + estId + '/resume/');
     }
 
     // ========================================
@@ -859,7 +859,7 @@
         try {
             if (wsStatus !== 'completed') {
                 // WIP workslip — navigate directly to resume/edit
-                window.location.href = '/saved-works/' + wsId + '/resume/';
+                window.location.replace('/saved-works/' + wsId + '/resume/');
                 return;
             }
             // Completed workslip — show options: view/edit or create next
@@ -875,7 +875,7 @@
             showPrompt('wsPromptModal', 'WorkSlip ' + wsNum + ' Actions', options);
         } catch (e) {
             console.error('handleWn error:', e);
-            window.location.href = '/saved-works/' + wsId + '/resume/';
+            window.location.replace('/saved-works/' + wsId + '/resume/');
         }
     }
 
@@ -884,7 +884,7 @@
         try {
             if (rootEstimateId) {
                 // New: Direct to workslip entry UI instead of file upload
-                window.location.href = '/workslip/entry/' + rootEstimateId + '/';
+                window.location.replace('/workslip/entry/' + rootEstimateId + '/');
             } else {
                 alert('Error: Could not find root estimate. Please go back and try again.');
             }
@@ -900,7 +900,7 @@
     function handleB(parentId, billNum, billStatus) {
         try {
             // Go to bill entry UI for editing with bill_number parameter
-            window.location.href = '/bill/entry/' + parentId + '/?bill_number=' + billNum;
+            window.location.replace('/bill/entry/' + parentId + '/?bill_number=' + billNum);
         } catch (e) {
             console.error('handleB error:', e);
             alert('Error: ' + e.message);
@@ -913,7 +913,7 @@
         try {
             {% if workslips|length > 0 %}
             // New: Direct to bill entry UI instead of file upload
-            window.location.href = '/bill/entry/' + {{ workslips.0.id }} + '/';
+            window.location.replace('/bill/entry/' + {{ workslips.0.id }} + '/');
             {% else %}
             alert('No workslips exist yet. Generate a WorkSlip first.');
             {% endif %}
@@ -928,7 +928,7 @@
         try {
             // Go to bill entry UI for editing with bill_number parameter
             // This allows editing any specific bill regardless of workslip number
-            window.location.href = '/bill/entry/' + parentId + '/?bill_number=' + billNum;
+            window.location.replace('/bill/entry/' + parentId + '/?bill_number=' + billNum);
         } catch (e) {
             console.error('handleBn error:', e);
             alert('Error: ' + e.message);
@@ -939,7 +939,7 @@
     function handleBCreate(workslipId) {
         try {
             // Go to bill entry UI with the workslip ID
-            window.location.href = '/bill/entry/' + workslipId + '/';
+            window.location.replace('/bill/entry/' + workslipId + '/');
         } catch (e) {
             console.error('handleBCreate error:', e);
             alert('Error: ' + e.message);
@@ -950,7 +950,7 @@
     function handleBCreateWithNum(workslipId, billNum) {
         try {
             // Go to bill entry UI with the workslip ID and bill_number parameter
-            window.location.href = '/bill/entry/' + workslipId + '/?bill_number=' + billNum;
+            window.location.replace('/bill/entry/' + workslipId + '/?bill_number=' + billNum);
         } catch (e) {
             console.error('handleBCreateWithNum error:', e);
             alert('Error: ' + e.message);
@@ -974,7 +974,7 @@
         .then(function(res) { return res.json(); })
         .then(function(data) {
             if (data.success && data.redirect_url) {
-                window.location.href = data.redirect_url;
+                window.location.replace(data.redirect_url);
             } else {
                 alert(data.error || 'Failed to generate bill.');
             }
@@ -989,7 +989,7 @@
         var modal = document.getElementById(modalId);
         if (!modal) {
             // Modal not found — fallback: navigate to first option
-            if (options.length > 0) window.location.href = options[0].go;
+            if (options.length > 0) window.location.replace(options[0].go);
             return;
         }
         modal.querySelector('.modal-title').textContent = title;
@@ -1003,7 +1003,7 @@
                 '<div class="option-desc">' + opt.desc + '</div>';
             btn.onclick = function() {
                 try { bootstrap.Modal.getInstance(modal).hide(); } catch(e) {}
-                window.location.href = opt.go;
+                window.location.replace(opt.go);
             };
             body.appendChild(btn);
         });
@@ -1036,7 +1036,7 @@
         })
         .then(function(res) { return res.json(); })
         .then(function(data) {
-            if (data.success) { window.location.href = '/saved-works/' + data.work_id + '/'; }
+            if (data.success) { window.location.replace('/saved-works/' + data.work_id + '/'); }
             else { alert(data.error || 'Failed to duplicate work'); }
         });
     }
@@ -1048,7 +1048,7 @@
         })
         .then(function(res) { return res.json(); })
         .then(function(data) {
-            if (data.success) { window.location.href = '{% url "saved_works_list" %}'; }
+            if (data.success) { window.location.replace('{% url "saved_works_list" %}'); }
             else { alert(data.error || 'Failed to delete work'); }
         });
     }

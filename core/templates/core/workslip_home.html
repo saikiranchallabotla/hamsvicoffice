@@ -400,7 +400,7 @@ function proceedToWorkslip() {
     
     // Build URL with parameters
     const url = `{% url 'workslip_main' %}?work_type=${selectedWorkType}&work_mode=${selectedWorkMode}&category=${selectedCategory}`;
-    window.spaNavigate ? spaNavigate(url) : (window.location.href = url);
+    window.spaNavigate ? spaNavigate(url) : (window.location.replace(url));
 }
 
 // Initialize - set step 1 as active

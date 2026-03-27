@@ -581,7 +581,7 @@
 
             <!-- Folders -->
             {% for folder in folders %}
-            <div class="work-card folder-card" ondblclick="window.location.href='{% url 'saved_works_list' %}?folder={{ folder.id }}'"
+            <div class="work-card folder-card" ondblclick="window.location.replace('{% url 'saved_works_list' %}?folder={{ folder.id }}')"
                  oncontextmenu="showFolderMenu(event, {{ folder.id }}, '{{ folder.name }}')">
                 <div class="wc-main">
                     <div class="wc-icon" style="background: {{ folder.color }}20; color: {{ folder.color }};">
@@ -1002,7 +1002,7 @@
 
     // Folder actions
     function openFolder() {
-        window.location.href = `/saved-works/?folder=${selectedFolderId}`;
+        window.location.replace(`/saved-works/?folder=${selectedFolderId}`);
     }
 
     function createSubfolder() {
@@ -1115,11 +1115,11 @@
 
     // Work actions
     function resumeWork() {
-        window.location.href = `/saved-works/${selectedWorkId}/resume/`;
+        window.location.replace(`/saved-works/${selectedWorkId}/resume/`);
     }
 
     function viewWorkDetail() {
-        window.location.href = `/saved-works/${selectedWorkId}/`;
+        window.location.replace(`/saved-works/${selectedWorkId}/`);
     }
 
     function moveWork() {

@@ -587,7 +587,7 @@
                                 <i class="bi {% if fmt.safe_is_locked %}bi-lock-fill{% else %}bi-unlock{% endif %}"></i>
                             </button>
                             <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
-                            <button type="button" class="edit" onclick="window.location.href='{% url 'self_formatted_edit_format' fmt.pk %}'">
+                            <button type="button" class="edit" onclick="window.location.replace('{% url 'self_formatted_edit_format' fmt.pk %}')">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             {% if fmt.safe_is_locked %}

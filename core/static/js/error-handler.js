@@ -105,7 +105,7 @@
                     case 401:
                         message = 'Your session has expired. Please log in again.';
                         if (!options.noRedirect) {
-                            setTimeout(() => window.location.href = '/login/', 2000);
+                            setTimeout(() => window.location.replace('/login/'), 2000);
                         }
                         break;
                     case 403:

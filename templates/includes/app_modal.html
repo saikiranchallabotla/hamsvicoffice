@@ -166,7 +166,7 @@
             }
             // If it's a link
             if (btn.tagName === 'A' && btn.href) {
-                window.location.href = btn.href;
+                window.location.replace(btn.href);
                 return;
             }
         });

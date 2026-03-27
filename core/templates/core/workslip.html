@@ -1625,7 +1625,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Redirect to reload with new backend
-        window.location.href = currentUrl.toString();
+        window.location.replace(currentUrl.toString());
     }
 
     // --- Clear All button handler ---
@@ -1856,12 +1856,12 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(function() {
                 // Navigate to the group URL after saving
-                window.location.href = targetUrl;
+                window.location.replace(targetUrl);
             })
             .catch(function(err) {
                 console.error('Error saving quantities:', err);
                 // Navigate anyway even if save failed
-                window.location.href = targetUrl;
+                window.location.replace(targetUrl);
             });
         });
     });

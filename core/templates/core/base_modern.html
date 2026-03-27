@@ -917,7 +917,7 @@
         <!-- Header -->
         <header class="top-header">
             <div class="page-title">
-                <a href="{% url 'dashboard' %}" class="back-to-dashboard" title="Go Back" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.href='/dashboard/');">
+                <a href="{% url 'dashboard' %}" class="back-to-dashboard" title="Go Back" onclick="event.preventDefault(); window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));">
                     <i class="bi bi-arrow-left"></i>
                 </a>
                 <h1><!-- SPA:APP:TITLE_START -->{% block page_title %}Dashboard{% endblock %}<!-- SPA:APP:TITLE_END --></h1>
@@ -1177,7 +1177,7 @@
             } else if (!data.valid) {
                 // Other reasons (expired, not found) - just redirect
                 isSessionInvalid = true;
-                window.location.href = '/accounts/login/';
+                window.location.replace('/accounts/login/');
             }
         })
         .catch(err => {
@@ -1237,7 +1237,7 @@
                 <i class="bi bi-info-circle me-1"></i>
                 Only one device can be logged in at a time.
             </p>
-            <button onclick="window.location.href='/accounts/login/';" style="
+            <button onclick="window.location.replace('/accounts/login/');" style="
                 width: 100%;
                 padding: 14px 24px;
                 background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
