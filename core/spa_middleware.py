@@ -47,6 +47,8 @@ BYPASS_PREFIXES = (
     '/api/',
     '/static/',
     '/media/',
+    '/self-formatted/generate/',
+    '/self-formatted/use/',
 )
 
 # Content types that indicate non-HTML responses (downloads, API, etc.)
