@@ -76,82 +76,32 @@
     }
 
     // =========================================================================
-    // LOADING INDICATOR
+    // TRANSITION HELPERS
     // =========================================================================
 
-    function createLoadingBar() {
-        var bar = document.getElementById('spa-loading-bar');
-        if (bar) return bar;
-
-        bar = document.createElement('div');
-        bar.id = 'spa-loading-bar';
-        bar.style.cssText = [
-            'position: fixed',
-            'top: 0',
-            'left: 0',
-            'width: 100%',
-            'height: 3px',
-            'background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)',
-            'z-index: 99999',
-            'transform: scaleX(0)',
-            'transform-origin: left',
-            'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease',
-            'opacity: 0',
-            'box-shadow: 0 0 10px rgba(99, 102, 241, 0.5)',
-            'pointer-events: none',
-            'will-change: transform, opacity'
-        ].join(';');
-        document.body.appendChild(bar);
-        return bar;
-    }
-
-    function showLoading() {
-        var bar = createLoadingBar();
-        bar.style.transition = 'none';
-        bar.style.transform = 'scaleX(0)';
-        bar.style.opacity = '1';
-        requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-                bar.style.transition = 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.1s ease';
-                bar.style.transform = 'scaleX(0.4)';
-                setTimeout(function() { bar.style.transform = 'scaleX(0.7)'; }, 100);
-                setTimeout(function() { bar.style.transform = 'scaleX(0.85)'; }, 250);
-            });
+    function fadeOut(el, duration) {
+        duration = duration || 60;
+        return new Promise(function(resolve) {
+            el.style.transition = 'opacity ' + duration + 'ms ease-out';
+            el.style.opacity = '0';
+            setTimeout(resolve, duration);
         });
     }
 
-    function hideLoading() {
-        var bar = createLoadingBar();
-        bar.style.transition = 'transform 0.08s ease-out, opacity 0.1s ease';
-        bar.style.transform = 'scaleX(1)';
-        setTimeout(function() {
-            bar.style.opacity = '0';
-            setTimeout(function() {
-                bar.style.transition = 'none';
-                bar.style.transform = 'scaleX(0)';
-            }, 100);
-        }, 80);
+    function fadeIn(el, duration) {
+        duration = duration || 100;
+        el.style.opacity = '0';
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                el.style.transition = 'opacity ' + duration + 'ms ease-in';
+                el.style.opacity = '1';
+            });
+        });
     }
 
     // =========================================================================
     // CONTENT INJECTION (same-layout)
     // =========================================================================
-
-    function fadeOut(el) {
-        return new Promise(function(resolve) {
-            el.style.transition = 'opacity 30ms ease-out';
-            el.style.opacity = '0';
-            setTimeout(resolve, 30);
-        });
-    }
-
-    function fadeIn(el) {
-        el.style.opacity = '0';
-        requestAnimationFrame(function() {
-            el.style.transition = 'opacity 50ms ease-in';
-            el.style.opacity = '1';
-        });
-    }
 
     function injectAppContent(data) {
         var contentArea = document.querySelector('.content-area');
@@ -215,7 +165,7 @@
     }
 
     // =========================================================================
-    // CROSS-LAYOUT TRANSITION (full page replacement)
+    // CROSS-LAYOUT TRANSITION (full page replacement, no browser navigation)
     // =========================================================================
 
     /**
@@ -223,24 +173,36 @@
      * classic → auth), we cannot simply swap the content area because the
      * page shell (sidebar, header, footer) is completely different.
      *
-     * Strategy: If we already have full HTML (from prefetch or fallback),
-     * use it directly. Otherwise do a fast native navigation.
+     * Strategy: Always fetch full HTML and replace the document client-side
+     * so the browser tab never shows a loading state.
      */
     function fullPageSwitch(data) {
         var targetUrl = data._url || window.location.pathname;
 
-        // If we have full HTML from prefetch, use it directly
+        // If we already have full HTML (from prefetch or fallback), use it directly
         if (data._fullHtml) {
-            replaceDocument(data._fullHtml);
-            hideLoading();
-            return Promise.resolve();
+            return fadeOut(document.body, 80).then(function() {
+                replaceDocument(data._fullHtml);
+            });
         }
 
-        // For layout switches, do a fast native navigation instead of double-fetch
-        // This is actually faster than fetch + parse + replace for most pages
-        hideLoading();
-        window.location.replace(targetUrl);
-        return Promise.resolve();
+        // Fetch full HTML without SPA header so the server returns the complete page
+        return fetch(targetUrl, {
+            method: 'GET',
+            credentials: 'same-origin'
+        })
+        .then(function(response) {
+            return response.text();
+        })
+        .then(function(html) {
+            return fadeOut(document.body, 80).then(function() {
+                replaceDocument(html);
+            });
+        })
+        .catch(function() {
+            // Last resort: native navigation (only on network error)
+            window.location.replace(targetUrl);
+        });
     }
 
     /**
@@ -268,6 +230,7 @@
         });
 
         // Replace body
+        document.body.style.opacity = '0';
         document.body.innerHTML = doc.body.innerHTML;
 
         // Execute all scripts in the new body
@@ -279,6 +242,14 @@
 
         // Re-detect layout
         currentLayout = detectCurrentLayout();
+
+        // Fade in new content
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                document.body.style.transition = 'opacity 120ms ease-in';
+                document.body.style.opacity = '1';
+            });
+        });
 
         window.scrollTo(0, 0);
     }
@@ -432,7 +403,6 @@
         }
 
         isNavigating = true;
-        showLoading();
 
         if (abortController) abortController.abort();
         abortController = new AbortController();
@@ -465,8 +435,7 @@
                 if (contentType.indexOf('application/json') === -1) {
                     // Non-JSON response — file download or unsupported page
                     if (response.ok && contentType.indexOf('text/html') !== -1) {
-                        // Full HTML page — the middleware didn't process it;
-                        // fetch the full page again without SPA header and replace document
+                        // Full HTML page — the middleware didn't process it
                         return response.text().then(function(html) {
                             return { _fullHtml: html };
                         });
@@ -483,18 +452,17 @@
             })
             .then(function(data) {
                 if (!data) {
-                    hideLoading();
                     isNavigating = false;
                     return;
                 }
 
-                hideLoading();
                 isNavigating = false;
 
                 // Full HTML fallback (middleware didn't intercept)
                 if (data._fullHtml) {
-                    replaceDocument(data._fullHtml);
-                    return;
+                    return fadeOut(document.body, 80).then(function() {
+                        replaceDocument(data._fullHtml);
+                    });
                 }
 
                 // Handle redirect
@@ -517,22 +485,24 @@
                 data._url = url;
 
                 var targetLayout = data.layout;
+                var injectionPromise;
 
                 // Same layout — swap content in place
                 if (targetLayout === currentLayout) {
                     if (targetLayout === 'app') {
-                        injectAppContent(data);
+                        injectionPromise = injectAppContent(data);
                     } else if (targetLayout === 'auth') {
-                        injectAuthContent(data);
+                        injectionPromise = injectAuthContent(data);
                     } else if (targetLayout === 'classic') {
-                        injectClassicContent(data);
+                        injectionPromise = injectClassicContent(data);
                     } else {
-                        fullPageSwitch(data);
+                        injectionPromise = fullPageSwitch(data);
                     }
                 } else {
-                    // Different layout — full page replacement
-                    fullPageSwitch(data);
-                    return;
+                    // Different layout — full client-side page replacement (no browser nav)
+                    injectionPromise = fullPageSwitch(data);
+                    // After fullPageSwitch, further state updates happen inside replaceDocument
+                    return injectionPromise;
                 }
 
                 // Keep URL & title fixed
@@ -553,7 +523,6 @@
             .catch(function(error) {
                 if (error.name === 'AbortError') return;
                 console.error('[SPA] Navigation error:', error);
-                hideLoading();
                 isNavigating = false;
                 // Fallback: use location.replace so no new history entry
                 if (method === 'GET') {
@@ -675,8 +644,6 @@
     document.title = FIXED_TITLE;
     history.replaceState({ spa: true }, '', INITIAL_URL);
 
-    createLoadingBar();
-
     document.documentElement.setAttribute('data-spa', 'true');
     document.documentElement.setAttribute('data-spa-layout', currentLayout);
 
@@ -780,25 +747,24 @@
             if (url === currentLogicalUrl) return;
 
             isNavigating = true;
-            showLoading();
 
-            // Simulate minimal async for consistent behavior
+            // Use a minimal timeout for consistent behavior
             setTimeout(function() {
-                hideLoading();
                 isNavigating = false;
 
                 data._url = url;
                 var targetLayout = data.layout;
+                var injectionPromise;
 
                 if (targetLayout === currentLayout) {
                     if (targetLayout === 'app') {
-                        injectAppContent(data);
+                        injectionPromise = injectAppContent(data);
                     } else if (targetLayout === 'auth') {
-                        injectAuthContent(data);
+                        injectionPromise = injectAuthContent(data);
                     } else if (targetLayout === 'classic') {
-                        injectClassicContent(data);
+                        injectionPromise = injectClassicContent(data);
                     } else {
-                        fullPageSwitch(data);
+                        injectionPromise = fullPageSwitch(data);
                     }
                 } else {
                     fullPageSwitch(data);
