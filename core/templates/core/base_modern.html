@@ -1146,8 +1146,10 @@
     // Load notifications on page load
     document.addEventListener('DOMContentLoaded', function() {
         loadNotifications();
-        // Refresh every 30 seconds
-        setInterval(loadNotifications, 30000);
+        // Refresh every 30 seconds (guard against duplicate intervals on SPA layout switch)
+        if (!window._notificationInterval) {
+            window._notificationInterval = setInterval(loadNotifications, 30000);
+        }
     });
     
     // =========================================================================
@@ -1277,6 +1279,6 @@
     
     {% include "includes/app_modal.html" %}
     <!-- SPA:APP:SCRIPTS_START -->{% block extra_scripts %}{% endblock %}<!-- SPA:APP:SCRIPTS_END -->
-    <script src="{% static 'js/spa-router.js' %}?v=20260325d"></script>
+    <script src="{% static 'js/spa-router.js' %}?v=20260401a"></script>
 </body>
 </html>

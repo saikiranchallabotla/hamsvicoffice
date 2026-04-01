@@ -52,7 +52,7 @@
     var BYPASS_EXACT = ['/accounts/logout/', '/logout/'];
 
     // URL patterns that indicate file downloads
-    var DOWNLOAD_PATTERNS = ['/download/', '/export/', '/specification-report/', '/forwarding-letter/'];
+    var DOWNLOAD_PATTERNS = ['/download/', '/export/', '/specification-report/', '/forwarding-letter/', '/bill-generate/', '/bill/document/', '/self-formatted/generate/'];
 
     // Current layout mode
     var currentLayout = detectCurrentLayout();
@@ -80,32 +80,37 @@
     // =========================================================================
 
     function fadeOut(el, duration) {
-        duration = duration || 60;
-        return new Promise(function(resolve) {
-            el.style.transition = 'opacity ' + duration + 'ms ease-out';
-            el.style.opacity = '0';
-            setTimeout(resolve, duration);
-        });
+        return Promise.resolve();
     }
 
     function fadeIn(el, duration) {
-        duration = duration || 100;
-        el.style.opacity = '0';
-        requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-                el.style.transition = 'opacity ' + duration + 'ms ease-in';
-                el.style.opacity = '1';
-            });
-        });
+        el.style.opacity = '1';
     }
 
     // =========================================================================
     // CONTENT INJECTION (same-layout)
     // =========================================================================
 
+    // Clean up Bootstrap modals and body scroll locks before content swap
+    function cleanupBeforeSwap() {
+        var modals = document.querySelectorAll('.modal.show');
+        modals.forEach(function(modal) {
+            var instance = typeof bootstrap !== 'undefined' && bootstrap.Modal && bootstrap.Modal.getInstance(modal);
+            if (instance) {
+                try { instance.dispose(); } catch(e) {}
+            }
+        });
+        document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+
     function injectAppContent(data) {
         var contentArea = document.querySelector('.content-area');
         if (!contentArea) return fullPageSwitch(data);
+
+        cleanupBeforeSwap();
 
         // Update page title in header (use innerHTML to render icons)
         if (data.pageTitle !== undefined) {
@@ -133,6 +138,8 @@
         var authContainer = document.querySelector('.auth-container > div');
         if (!authContainer) return fullPageSwitch(data);
 
+        cleanupBeforeSwap();
+
         removeDynamicStyles();
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
 
@@ -149,6 +156,8 @@
     function injectClassicContent(data) {
         var container = document.querySelector('.container-fluid') || document.querySelector('main.container');
         if (!container) return fullPageSwitch(data);
+
+        cleanupBeforeSwap();
 
         removeDynamicStyles();
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
@@ -230,7 +239,6 @@
         });
 
         // Replace body
-        document.body.style.opacity = '0';
         document.body.innerHTML = doc.body.innerHTML;
 
         // Execute all scripts in the new body
@@ -242,14 +250,6 @@
 
         // Re-detect layout
         currentLayout = detectCurrentLayout();
-
-        // Fade in new content
-        requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-                document.body.style.transition = 'opacity 120ms ease-in';
-                document.body.style.opacity = '1';
-            });
-        });
 
         window.scrollTo(0, 0);
     }
@@ -314,6 +314,19 @@
 
     function executeInlineScripts(container) {
         var scripts = container.querySelectorAll('script');
+
+        // Patch addEventListener to capture DOMContentLoaded callbacks registered
+        // by the new inline scripts, since the real event already fired.
+        var pendingCallbacks = [];
+        var origAddEventListener = document.addEventListener;
+        document.addEventListener = function(type, fn, opts) {
+            if (type === 'DOMContentLoaded') {
+                pendingCallbacks.push(fn);
+            } else {
+                origAddEventListener.call(document, type, fn, opts);
+            }
+        };
+
         scripts.forEach(function(oldScript) {
             // Skip the SPA router script itself to avoid double-init
             if (oldScript.src && oldScript.src.indexOf('spa-router.js') !== -1) return;
@@ -329,6 +342,14 @@
                 newScript.textContent = oldScript.textContent;
             }
             oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+
+        // Restore original addEventListener
+        document.addEventListener = origAddEventListener;
+
+        // Execute captured DOMContentLoaded callbacks
+        pendingCallbacks.forEach(function(fn) {
+            try { fn(); } catch (e) { console.error('[SPA] DOMContentLoaded callback error:', e); }
         });
     }
 
@@ -649,6 +670,11 @@
 
     // Export navigate function for programmatic use
     window.spaNavigate = navigate;
+
+    // Expose the current logical URL (the actual page being viewed)
+    Object.defineProperty(window, 'spaCurrentUrl', {
+        get: function() { return currentLogicalUrl; }
+    });
 
     // Global safe navigation helper — always avoids creating new history entries.
     // Use this everywhere instead of window.location.href = url
