@@ -607,7 +607,7 @@
     // Intercept form submissions
     document.addEventListener('submit', function(e) {
         var form = e.target;
-        var action = form.getAttribute('action') || window.location.pathname;
+        var action = form.getAttribute('action') || currentLogicalUrl;
 
         // Skip forms with special handling
         if (form.classList.contains('no-spa') ||
@@ -626,10 +626,20 @@
                     break;
                 }
             }
-            if (hasFiles) return;
+            if (hasFiles) {
+                // Fix action for forms without explicit action — browser would use
+                // the locked SPA URL instead of the actual page URL
+                if (!form.getAttribute('action')) {
+                    form.setAttribute('action', currentLogicalUrl);
+                }
+                return;
+            }
         }
 
-        if (isDownloadUrl(action)) return;
+        if (isDownloadUrl(action)) {
+            if (!form.getAttribute('action')) form.setAttribute('action', currentLogicalUrl);
+            return;
+        }
         if (isExternalUrl(action)) return;
         if (shouldBypass(action)) return;
 
