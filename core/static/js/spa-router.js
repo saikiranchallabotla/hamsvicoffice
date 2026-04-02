@@ -819,9 +819,9 @@
             var entry = getPrefetchEntry(url);
 
             if (entry && entry.status === 'pending' && entry.promise) {
-                return entry.promise.finally(function() {
-                    navigate(url, options);
-                });
+                // Do not block user click on an in-flight prefetch.
+                // Fire normal navigation immediately for snappier group switching.
+                return originalNavigate(url, options);
             }
 
             if (entry && entry.status === 'ready' && entry.data) {
