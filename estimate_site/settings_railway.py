@@ -221,7 +221,7 @@ if _use_s3:
             }
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+            "BACKEND": "whitenoise.storage.ManifestStaticFilesStorage",
         },
     }
     # For signed URLs (private files)
@@ -238,7 +238,7 @@ else:
     # 2. Attach a Railway Volume at /app/media
     STORAGES = {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.ManifestStaticFilesStorage"},
     }
     
     if os.environ.get('RAILWAY_ENVIRONMENT'):
