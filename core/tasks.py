@@ -591,6 +591,9 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         ws_est.column_dimensions["F"].width = 8
         ws_est.column_dimensions["G"].width = 10
         ws_est.column_dimensions["H"].width = 15
+
+        fmt_qty = '#,##0.##'
+        fmt_money = '#,##0.###'
         
         # Fill estimate rows
         row_est = 4
@@ -672,6 +675,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             
             ws_est.cell(row=row_est, column=2, value=qty_val).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=2).border = border_all
+            ws_est.cell(row=row_est, column=2).number_format = fmt_qty
             
             ws_est.cell(row=row_est, column=3, value=unit_plural).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=3).border = border_all
@@ -681,6 +685,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             
             ws_est.cell(row=row_est, column=5, value=rate_formula).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=5).border = border_all
+            ws_est.cell(row=row_est, column=5).number_format = fmt_money
             
             ws_est.cell(row=row_est, column=6, value=1).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=6).border = border_all
@@ -690,6 +695,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             
             ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}").alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=8).border = border_all
+            ws_est.cell(row=row_est, column=8).number_format = fmt_money
+
+            # Keep long item descriptions readable in Excel output.
+            estimated_lines = max(1, (len(desc) // 55) + 1)
+            ws_est.row_dimensions[row_est].height = min(120, max(20, 15 * estimated_lines))
             
             row_est += 1
             slno += 1
@@ -703,6 +713,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             deduct_row = current_row
             ws_est.cell(row=deduct_row, column=4, value="Deduct Old Material Cost")
             ws_est.cell(row=deduct_row, column=8, value=-deduct_old_material)  # Negative value for deduction
+            ws_est.cell(row=deduct_row, column=8).number_format = fmt_money
             current_row += 1
         
         # Add ECV row (finalized amount after deduction)
@@ -784,6 +795,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     ws_est.cell(row=r, column=c).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
                 else:
                     ws_est.cell(row=r, column=c).alignment = Alignment(horizontal="center", vertical="top")
+                    if c == 8:
+                        ws_est.cell(row=r, column=c).number_format = fmt_money
             ws_est.cell(row=r, column=4).font = Font(bold=True)
             ws_est.cell(row=r, column=8).font = Font(bold=True)
         
