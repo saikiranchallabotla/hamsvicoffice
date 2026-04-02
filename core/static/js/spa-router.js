@@ -383,6 +383,19 @@
         }
     }
 
+    function normalizeUrl(url) {
+        if (!url) return null;
+        if (url.startsWith('#') || url.startsWith('javascript:')) return null;
+
+        try {
+            var parsed = new URL(url, window.location.origin);
+            if (parsed.origin !== window.location.origin) return null;
+            return parsed.pathname + parsed.search;
+        } catch (e) {
+            return null;
+        }
+    }
+
     // Track current logical URL (the page we're actually viewing)
     var currentLogicalUrl = window.location.pathname + window.location.search;
 
@@ -391,9 +404,10 @@
         var method = (options.method || 'GET').toUpperCase();
         var body = options.body || null;
 
-        // Normalize URL
-        if (!url.startsWith('/') && !url.startsWith('http')) {
-            url = '/' + url;
+        url = normalizeUrl(url) || url;
+        if (!url || isExternalUrl(url)) {
+            if (url) window.location.replace(url);
+            return;
         }
 
         // Skip navigation if already on same page (GET requests only)
@@ -702,15 +716,27 @@
 
     var prefetchCache = {};
     var prefetchTimeout = null;
+    var PREFETCH_TTL_MS = 15000;
+
+    function getPrefetchEntry(url) {
+        var entry = prefetchCache[url];
+        if (!entry) return null;
+        if (entry.status === 'ready' && Date.now() - entry.timestamp > PREFETCH_TTL_MS) {
+            delete prefetchCache[url];
+            return null;
+        }
+        return entry;
+    }
 
     function prefetchUrl(url) {
+        url = normalizeUrl(url);
+        if (!url) return;
+
         // Skip if already prefetched or currently navigating
-        if (prefetchCache[url] || isNavigating) return;
+        var existingEntry = getPrefetchEntry(url);
+        if (existingEntry || isNavigating) return;
         if (shouldBypass(url) || isDownloadUrl(url) || isExternalUrl(url)) return;
         if (url === currentLogicalUrl) return;
-
-        // Mark as prefetching
-        prefetchCache[url] = 'pending';
 
         // Use low-priority fetch
         var fetchOptions = {
@@ -720,7 +746,7 @@
             priority: 'low'
         };
 
-        fetch(url, fetchOptions)
+        var prefetchPromise = fetch(url, fetchOptions)
             .then(function(response) {
                 if (response.ok) {
                     var contentType = response.headers.get('Content-Type') || '';
@@ -732,7 +758,11 @@
             })
             .then(function(data) {
                 if (data && data.type === 'content') {
-                    prefetchCache[url] = data;
+                    prefetchCache[url] = {
+                        status: 'ready',
+                        data: data,
+                        timestamp: Date.now()
+                    };
                 } else {
                     delete prefetchCache[url];
                 }
@@ -740,6 +770,12 @@
             .catch(function() {
                 delete prefetchCache[url];
             });
+
+        prefetchCache[url] = {
+            status: 'pending',
+            promise: prefetchPromise,
+            timestamp: Date.now()
+        };
     }
 
     // Prefetch on hover with small delay
@@ -773,19 +809,28 @@
     navigate = function(url, options) {
         options = options || {};
         var method = (options.method || 'GET').toUpperCase();
+        var normalizedUrl = normalizeUrl(url);
+        if (normalizedUrl) {
+            url = normalizedUrl;
+        }
 
         // Only use prefetch cache for GET requests
-        if (method === 'GET' && prefetchCache[url] && prefetchCache[url] !== 'pending') {
-            var data = prefetchCache[url];
-            delete prefetchCache[url];
+        if (method === 'GET') {
+            var entry = getPrefetchEntry(url);
 
-            // Skip if same page
-            if (url === currentLogicalUrl) return;
+            if (entry && entry.status === 'pending' && entry.promise) {
+                return entry.promise.finally(function() {
+                    navigate(url, options);
+                });
+            }
 
-            isNavigating = true;
+            if (entry && entry.status === 'ready' && entry.data) {
+                var data = entry.data;
 
-            // Use a minimal timeout for consistent behavior
-            setTimeout(function() {
+                // Skip if same page
+                if (url === currentLogicalUrl) return;
+
+                isNavigating = true;
                 isNavigating = false;
 
                 data._url = url;
@@ -814,8 +859,8 @@
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
                     detail: { url: url, layout: targetLayout }
                 }));
-            }, 5);
-            return;
+                return;
+            }
         }
 
         return originalNavigate(url, options);

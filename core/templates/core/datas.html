@@ -127,7 +127,13 @@ function goToCategory(anchor, cat) {
 
     const baseUrl = anchor.getAttribute("data-url");
     const url = baseUrl + "?work_type=" + encodeURIComponent(selectedWorkType);
-    window.location.replace(url);
+    if (window.safeNavigate) {
+        window.safeNavigate(url);
+    } else if (window.spaNavigate) {
+        window.spaNavigate(url);
+    } else {
+        window.location.replace(url);
+    }
     return false;
 }
 </script>
