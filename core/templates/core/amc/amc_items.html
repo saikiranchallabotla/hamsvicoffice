@@ -619,7 +619,13 @@ function switchBackend(backendId) {
         selector.disabled = true;
         selector.style.opacity = '0.6';
     }
-    window.location.replace(currentUrl.toString());
+    if (window.safeNavigate) {
+        window.safeNavigate(currentUrl.pathname + currentUrl.search);
+    } else if (window.spaNavigate) {
+        window.spaNavigate(currentUrl.pathname + currentUrl.search);
+    } else {
+        window.location.replace(currentUrl.toString());
+    }
 }
 </script>
 {% endif %}
@@ -1275,7 +1281,13 @@ document.addEventListener('click', function(e) {
         } else {
             fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
         }
-        window.location.replace(targetUrl);
+        if (window.safeNavigate) {
+            window.safeNavigate(targetUrl);
+        } else if (window.spaNavigate) {
+            window.spaNavigate(targetUrl);
+        } else {
+            window.location.replace(targetUrl);
+        }
     }
     
     // --- Checkbox behaviour: queued AJAX toggle ---

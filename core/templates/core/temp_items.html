@@ -951,8 +951,14 @@ function switchBackend(backendId) {
         selector.style.opacity = '0.6';
     }
     
-    // Redirect to reload with new backend
-    window.location.replace(currentUrl.toString());
+    // Navigate via SPA router when available to avoid full-tab buffering
+    if (window.safeNavigate) {
+        window.safeNavigate(currentUrl.pathname + currentUrl.search);
+    } else if (window.spaNavigate) {
+        window.spaNavigate(currentUrl.pathname + currentUrl.search);
+    } else {
+        window.location.replace(currentUrl.toString());
+    }
 }
 </script>
 
@@ -1728,7 +1734,13 @@ document.addEventListener('click', function(e) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         body: JSON.stringify({ entries: list, work_name: workName, grand_total: grandTotal })
       }).catch(function() {});
-      window.location = url;
+            if (window.safeNavigate) {
+                window.safeNavigate(url);
+            } else if (window.spaNavigate) {
+                window.spaNavigate(url);
+            } else {
+                window.location = url;
+            }
     }
 
     // Expose helpers for inline onclick handlers

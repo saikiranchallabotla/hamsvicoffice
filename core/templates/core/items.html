@@ -1169,8 +1169,14 @@ function switchBackend(backendId) {
         selector.style.opacity = '0.6';
     }
     
-    // Redirect to reload with new backend
-    window.location.replace(currentUrl.toString());
+    // Navigate via SPA router when available to avoid full-tab buffering
+    if (window.safeNavigate) {
+        window.safeNavigate(currentUrl.pathname + currentUrl.search);
+    } else if (window.spaNavigate) {
+        window.spaNavigate(currentUrl.pathname + currentUrl.search);
+    } else {
+        window.location.replace(currentUrl.toString());
+    }
 }
 
 // Toggle functions for additional options
@@ -1799,7 +1805,13 @@ document.addEventListener('keydown', function(e) {
             // Fallback: fire-and-forget fetch for older browsers
             fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
         }
-        window.location.replace(targetUrl);
+        if (window.safeNavigate) {
+            window.safeNavigate(targetUrl);
+        } else if (window.spaNavigate) {
+            window.spaNavigate(targetUrl);
+        } else {
+            window.location.replace(targetUrl);
+        }
     }
     
     // --- Checkbox behaviour: queued AJAX toggle ---
