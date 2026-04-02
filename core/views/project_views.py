@@ -799,15 +799,16 @@ def download_output(request, category):
                 try:
                     output_file = OutputFile.objects.get(id=job.result['output_file_id'])
                     from django.http import FileResponse
-                    import os
-                    
-                    if output_file.file and os.path.exists(output_file.file.path):
-                        response = FileResponse(
-                            open(output_file.file.path, 'rb'),
-                            as_attachment=True,
-                            filename=output_file.filename or f"{category}_output.xlsx",
-                        )
-                        return response
+                    if output_file.file:
+                        try:
+                            response = FileResponse(
+                                output_file.file.open('rb'),
+                                as_attachment=True,
+                                filename=output_file.filename or f"{category}_output.xlsx",
+                            )
+                            return response
+                        except Exception:
+                            pass
                 except OutputFile.DoesNotExist:
                     pass
             

@@ -576,29 +576,28 @@ class UserDocumentTemplate(models.Model):
 
         # If we have DB-stored data, use that (authoritative source)
         if self.file_data:
-            # Also restore disk file if missing (for backward compat / local dev)
-            if self.file and not os.path.exists(self.file.path if self.file else ''):
+            # Best-effort: restore local disk copy for local-storage deployments only
+            if self.file:
                 try:
-                    self.file.save(self.file_name or 'template.docx', ContentFile(self.file_data), save=False)
-                    # Save without triggering full save() to avoid recursion
-                    UserDocumentTemplate.objects.filter(pk=self.pk).update(file=self.file)
+                    path = self.file.path  # raises NotImplementedError on S3 — caught below
+                    if not os.path.exists(path):
+                        self.file.save(self.file_name or 'template.docx', ContentFile(self.file_data), save=False)
+                        UserDocumentTemplate.objects.filter(pk=self.pk).update(file=self.file)
                 except Exception:
-                    pass  # Disk restore is best-effort
+                    pass  # S3 or any other non-local storage — skip disk restore silently
             return bytes(self.file_data)
 
-        # Fallback: read from disk file (legacy templates before DB storage)
+        # Fallback: read from storage backend (local disk or S3) and backfill DB
         if self.file:
             try:
-                path = self.file.path
-                if os.path.exists(path):
-                    with open(path, 'rb') as f:
-                        data = f.read()
-                    # Backfill DB storage for next time
-                    UserDocumentTemplate.objects.filter(pk=self.pk).update(
-                        file_data=data,
-                        file_name=os.path.basename(path)
-                    )
-                    return data
+                with self.file.open('rb') as f:
+                    data = f.read()
+                # Backfill DB so next call is fast
+                UserDocumentTemplate.objects.filter(pk=self.pk).update(
+                    file_data=data,
+                    file_name=os.path.basename(self.file.name)
+                )
+                return data
             except Exception:
                 pass
 

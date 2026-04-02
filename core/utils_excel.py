@@ -187,29 +187,39 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     elif category_key.startswith('amc_'):
         base_category = category_key.replace('amc_', '')
     
-    # Helper to resolve backend file path (with DB fallback)
+    # Helper to resolve backend file path (supports local disk, S3, and any storage backend)
     def _resolve_backend_path(backend_obj):
-        """Try disk path first, then restore from DB if needed."""
+        """
+        Return a local filesystem path for the backend Excel file.
+        For local storage, returns the file path directly.
+        For S3/cloud storage, downloads to a temporary file and returns that path.
+        """
         if not backend_obj or not backend_obj.file:
             return None
+        # 1. Try local disk path (fast path for local storage)
         try:
             fpath = backend_obj.file.path
             if os.path.exists(fpath):
                 return fpath
         except Exception:
-            pass
-        # Try restoring from DB via get_file_bytes()
+            pass  # S3 or cloud storage raises NotImplementedError for .path
+        # 2. Get file bytes (from DB cache or by reading from S3/cloud storage)
+        file_bytes = None
         if hasattr(backend_obj, 'get_file_bytes'):
             try:
-                data = backend_obj.get_file_bytes()
-                if data and backend_obj.file:
-                    # After get_file_bytes restores the file, verify it exists
-                    try:
-                        fpath = backend_obj.file.path
-                        if os.path.exists(fpath):
-                            return fpath
-                    except Exception:
-                        pass
+                file_bytes = backend_obj.get_file_bytes()
+            except Exception:
+                pass
+        if file_bytes:
+            # Write to a temp file so openpyxl can open it by path
+            import tempfile
+            suffix = os.path.splitext(backend_obj.file.name)[1] if backend_obj.file.name else '.xlsx'
+            try:
+                tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+                tmp.write(file_bytes)
+                tmp.flush()
+                tmp.close()
+                return tmp.name
             except Exception:
                 pass
         return None

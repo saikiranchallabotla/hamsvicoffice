@@ -251,31 +251,28 @@ class ModuleBackend(models.Model):
         
         super().save(*args, **kwargs)
         
-        # After save, backup file to file_data for persistence on ephemeral filesystems
-        # This runs after save so the file is already written to disk
+        # After save, backup file to file_data for persistence (works with local and S3 storage)
         if self.file and not self.file_data:
             try:
-                file_path = self.file.path
-                if os.path.exists(file_path):
-                    with open(file_path, 'rb') as f:
-                        data = f.read()
-                    # Use update() to avoid triggering save() again
-                    ModuleBackend.objects.filter(pk=self.pk).update(
-                        file_data=data,
-                        file_name=os.path.basename(file_path)
-                    )
+                with self.file.open('rb') as f:
+                    data = f.read()
+                # Use update() to avoid triggering save() again
+                ModuleBackend.objects.filter(pk=self.pk).update(
+                    file_data=data,
+                    file_name=os.path.basename(self.file.name)
+                )
             except Exception:
                 pass
     
     def get_file_bytes(self):
         """
-        Get the backend file content, preferring DB storage over disk.
-        Restores disk file from DB if missing (for local/ephemeral storage).
+        Get the backend file content, preferring DB storage over storage backend.
+        DB (file_data) is authoritative; falls back to reading from local disk or S3.
         """
         import os
-        # 1. If DB has file_data, use it (authoritative)
+        # 1. If DB has file_data, use it (authoritative - works on S3 too)
         if self.file_data:
-            # Also restore disk file if missing
+            # Best-effort: restore local disk copy if this is a local-storage deployment
             if self.file:
                 try:
                     file_path = self.file.path
@@ -284,22 +281,20 @@ class ModuleBackend(models.Model):
                         with open(file_path, 'wb') as f:
                             f.write(bytes(self.file_data))
                 except Exception:
-                    pass
+                    pass  # Non-local storage (e.g. S3) — skip disk restore silently
             return bytes(self.file_data)
 
-        # 2. Fallback: read from disk file and backfill DB
+        # 2. Fallback: read from storage backend (local disk or S3) and backfill DB
         if self.file:
             try:
-                file_path = self.file.path
-                if os.path.exists(file_path):
-                    with open(file_path, 'rb') as f:
-                        data = f.read()
-                    # Backfill DB storage
-                    ModuleBackend.objects.filter(pk=self.pk).update(
-                        file_data=data,
-                        file_name=os.path.basename(file_path)
-                    )
-                    return data
+                with self.file.open('rb') as f:
+                    data = f.read()
+                # Backfill DB so next call is fast
+                ModuleBackend.objects.filter(pk=self.pk).update(
+                    file_data=data,
+                    file_name=os.path.basename(self.file.name)
+                )
+                return data
             except Exception:
                 pass
 
