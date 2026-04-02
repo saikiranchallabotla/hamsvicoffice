@@ -7,9 +7,9 @@
  * Works with the SPAMiddleware on the backend which extracts partial content
  * from rendered Django templates and returns JSON responses.
  *
- * Key behaviour: The browser URL never changes — all navigation uses
- * history.replaceState so the address bar always shows the initial URL
- * and the Chrome tab always says "Hamsvic".
+ * Keeps in-app navigation smooth while preserving the real current URL
+ * so refresh and direct actions (like SOR/backend switching) stay on the
+ * expected page.
  *
  * Supports four layout modes:
  * - 'app': Pages with sidebar + header (base_modern.html)
@@ -23,24 +23,6 @@
     // =========================================================================
     // CONFIGURATION
     // =========================================================================
-
-    // The canonical URL the user first landed on — persists across page reloads.
-    // sessionStorage ensures that even if window.location.href causes a full
-    // reload, the address bar snaps back to the original entry URL.
-    var INITIAL_URL = (function() {
-        var stored = sessionStorage.getItem('spa_initial_url');
-        if (stored) return stored;
-        var url = window.location.pathname + window.location.search;
-        sessionStorage.setItem('spa_initial_url', url);
-        return url;
-    })();
-
-    // Clear stored URL on auth pages so a fresh session starts clean
-    var AUTH_PATHS = ['/accounts/login/', '/accounts/register/', '/login/', '/register/'];
-    if (AUTH_PATHS.indexOf(window.location.pathname) !== -1) {
-        sessionStorage.removeItem('spa_initial_url');
-        INITIAL_URL = window.location.pathname + window.location.search;
-    }
 
     // Fixed document title so Chrome tab never changes
     var FIXED_TITLE = 'Hamsvic';
@@ -191,7 +173,7 @@
         // If we already have full HTML (from prefetch or fallback), use it directly
         if (data._fullHtml) {
             return fadeOut(document.body, 80).then(function() {
-                replaceDocument(data._fullHtml);
+                replaceDocument(data._fullHtml, targetUrl);
             });
         }
 
@@ -205,7 +187,7 @@
         })
         .then(function(html) {
             return fadeOut(document.body, 80).then(function() {
-                replaceDocument(html);
+                replaceDocument(html, targetUrl);
             });
         })
         .catch(function() {
@@ -218,7 +200,7 @@
      * Replace the current document's content with parsed HTML from a full-page response.
      * This preserves the SPA router (it re-initialises itself).
      */
-    function replaceDocument(html) {
+    function replaceDocument(html, targetUrl) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
 
         // Replace all stylesheets and style tags in <head>
@@ -244,9 +226,13 @@
         // Execute all scripts in the new body
         executeInlineScripts(document.body);
 
-        // Keep URL & title fixed
+        // Keep title fixed and URL synced to the actual current page
+        var normalizedTarget = normalizeUrl(targetUrl || '');
+        if (normalizedTarget) {
+            currentLogicalUrl = normalizedTarget;
+        }
         document.title = FIXED_TITLE;
-        history.replaceState({ spa: true }, '', INITIAL_URL);
+        history.replaceState({ spa: true }, '', currentLogicalUrl);
 
         // Re-detect layout
         currentLayout = detectCurrentLayout();
@@ -496,7 +482,7 @@
                 // Full HTML fallback (middleware didn't intercept)
                 if (data._fullHtml) {
                     return fadeOut(document.body, 80).then(function() {
-                        replaceDocument(data._fullHtml);
+                        replaceDocument(data._fullHtml, url);
                     });
                 }
 
@@ -540,15 +526,14 @@
                     return injectionPromise;
                 }
 
-                // Keep URL & title fixed
+                // Keep title fixed and URL synced to current page
                 document.title = FIXED_TITLE;
-                history.replaceState({ spa: true }, '', INITIAL_URL);
+                // Track current logical URL for same-page detection
+                currentLogicalUrl = url;
+                history.replaceState({ spa: true }, '', currentLogicalUrl);
 
                 // Update active nav link
                 updateActiveNavLink(url);
-
-                // Track current logical URL for same-page detection
-                currentLogicalUrl = url;
 
                 // Dispatch event for other scripts
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
@@ -685,9 +670,9 @@
     // INITIALIZATION
     // =========================================================================
 
-    // Fix URL & title on initial load
+    // Keep title fixed and preserve the current URL on initial load
     document.title = FIXED_TITLE;
-    history.replaceState({ spa: true }, '', INITIAL_URL);
+    history.replaceState({ spa: true }, '', currentLogicalUrl);
 
     document.documentElement.setAttribute('data-spa', 'true');
     document.documentElement.setAttribute('data-spa-layout', currentLayout);
@@ -853,9 +838,9 @@
                 }
 
                 document.title = FIXED_TITLE;
-                history.replaceState({ spa: true }, '', INITIAL_URL);
-                updateActiveNavLink(url);
                 currentLogicalUrl = url;
+                history.replaceState({ spa: true }, '', currentLogicalUrl);
+                updateActiveNavLink(url);
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
                     detail: { url: url, layout: targetLayout }
                 }));
@@ -866,6 +851,6 @@
         return originalNavigate(url, options);
     };
 
-    console.log('[SPA] Router initialized, layout:', currentLayout, ', URL locked to:', INITIAL_URL);
+    console.log('[SPA] Router initialized, layout:', currentLayout, ', URL:', currentLogicalUrl);
 
 })();
