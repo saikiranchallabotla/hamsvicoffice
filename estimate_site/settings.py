@@ -43,6 +43,16 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# CSRF trusted origins - required for Django 4.0+ with HTTPS
+# Auto-derived from ALLOWED_HOSTS; extend via CSRF_TRUSTED_ORIGINS env var (comma-separated)
+_csrf_extra = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [
+    f'https://{host}' for host in ALLOWED_HOSTS
+    if host not in ('*', 'localhost', '127.0.0.1')
+]
+if _csrf_extra:
+    CSRF_TRUSTED_ORIGINS += [o.strip() for o in _csrf_extra.split(',') if o.strip()]
+
 # ==============================================================================
 # HTTPS/SSL SECURITY (Production only)
 # ==============================================================================
@@ -196,44 +206,61 @@ else:
 
 STORAGE_TYPE = os.getenv('STORAGE_TYPE', 'local')
 
+# These are always required: collectstatic needs STATIC_ROOT as a local staging dir,
+# and MEDIA_ROOT is the fallback for any local file operations.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 if STORAGE_TYPE in ('s3', 'r2'):
     # AWS S3, Cloudflare R2, or DigitalOcean Spaces (all S3-compatible)
+    _s3_key = os.getenv('AWS_ACCESS_KEY_ID', '')
+    _s3_secret = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+    _s3_bucket = os.getenv('AWS_STORAGE_BUCKET_NAME', 'hamsvic')
+    _s3_region = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
+    _s3_endpoint = os.getenv('AWS_S3_ENDPOINT_URL', None)
+
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
-                "access_key": os.getenv('AWS_ACCESS_KEY_ID', ''),
-                "secret_key": os.getenv('AWS_SECRET_ACCESS_KEY', ''),
-                "bucket_name": os.getenv('AWS_STORAGE_BUCKET_NAME', 'hamsvic'),
-                "region_name": os.getenv('AWS_S3_REGION_NAME', 'us-east-1'),
-                # For DO Spaces or custom S3 endpoint:
-                "endpoint_url": os.getenv('AWS_S3_ENDPOINT_URL', None),
-                "default_acl": "private",  # Files are private by default
+                "access_key": _s3_key,
+                "secret_key": _s3_secret,
+                "bucket_name": _s3_bucket,
+                "region_name": _s3_region,
+                "endpoint_url": _s3_endpoint,
+                "default_acl": "private",  # Media files are private - use signed URLs
                 "file_overwrite": False,
+                "querystring_auth": True,   # Signed URLs for private media files
+                "querystring_expire": 3600,  # URLs valid for 1 hour
             }
         },
         "staticfiles": {
             "BACKEND": "storages.backends.s3boto3.S3StaticStorage",
             "OPTIONS": {
-                "access_key": os.getenv('AWS_ACCESS_KEY_ID', ''),
-                "secret_key": os.getenv('AWS_SECRET_ACCESS_KEY', ''),
-                "bucket_name": os.getenv('AWS_STORAGE_BUCKET_NAME', 'hamsvic'),
-                "region_name": os.getenv('AWS_S3_REGION_NAME', 'us-east-1'),
-                "endpoint_url": os.getenv('AWS_S3_ENDPOINT_URL', None),
+                "access_key": _s3_key,
+                "secret_key": _s3_secret,
+                "bucket_name": _s3_bucket,
+                "region_name": _s3_region,
+                "endpoint_url": _s3_endpoint,
                 "default_acl": "public-read",
+                "querystring_auth": False,  # Static files are public - no signed URLs
             }
         },
     }
     AWS_S3_SIGNATURE_VERSION = 's3v4'
-    AWS_QUERYSTRING_AUTH = True  # Signed URLs for private files
-    AWS_QUERYSTRING_EXPIRE = 3600  # URLs valid for 1 hour
+    # Derive STATIC_URL and MEDIA_URL from bucket config so {% static %} tags work
+    if _s3_endpoint:
+        # R2 / DO Spaces / custom endpoint
+        STATIC_URL = f'{_s3_endpoint}/{_s3_bucket}/static/'
+        MEDIA_URL = f'{_s3_endpoint}/{_s3_bucket}/media/'
+    else:
+        STATIC_URL = f'https://{_s3_bucket}.s3.{_s3_region}.amazonaws.com/static/'
+        MEDIA_URL = f'https://{_s3_bucket}.s3.{_s3_region}.amazonaws.com/media/'
 else:
     # Local file storage (development) + WhiteNoise for production
     MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
     STATIC_URL = 'static/'
-    STATIC_ROOT = BASE_DIR / 'staticfiles'
-    
+
     # Use simple static files storage in development, WhiteNoise in production
     if DEBUG:
         STORAGES = {
@@ -473,6 +500,9 @@ MODULE_PROTECTED_URLS = {
     ],
     'self_formatted': [
         r'^/self-formatted/',
+    ],
+    'amc': [
+        r'^/amc/',
     ],
 }
 

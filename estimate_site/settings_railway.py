@@ -325,7 +325,8 @@ LOGGING = {
 
 # Security for production
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-CSRF_TRUSTED_ORIGINS = ['https://*.railway.app', 'https://*.up.railway.app']
+# NOTE: CSRF_TRUSTED_ORIGINS is already configured at the top of this file
+# (including CUSTOM_DOMAIN support). Do not redefine it here.
 
 # ==============================================================================
 # AUTHENTICATION SETTINGS
