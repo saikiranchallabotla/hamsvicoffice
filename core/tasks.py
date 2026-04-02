@@ -593,7 +593,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         ws_est.column_dimensions["H"].width = 15
 
         fmt_qty = '#,##0.##'
-        fmt_money = '#,##0.###'
+        fmt_money = '#,##0.00'
         
         # Fill estimate rows
         row_est = 4
@@ -693,7 +693,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             ws_est.cell(row=row_est, column=7, value=unit_singular).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=7).border = border_all
             
-            ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}").alignment = Alignment(horizontal="center", vertical="top")
+            ws_est.cell(row=row_est, column=8, value=f"=ROUND(B{row_est}*E{row_est},2)").alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=8).border = border_all
             ws_est.cell(row=row_est, column=8).number_format = fmt_money
 
@@ -712,7 +712,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         if deduct_old_material is not None and deduct_old_material > 0:
             deduct_row = current_row
             ws_est.cell(row=deduct_row, column=4, value="Deduct Old Material Cost")
-            ws_est.cell(row=deduct_row, column=8, value=-deduct_old_material)  # Negative value for deduction
+            ws_est.cell(row=deduct_row, column=8, value=round(-deduct_old_material, 2))  # Negative value for deduction
             ws_est.cell(row=deduct_row, column=8).number_format = fmt_money
             current_row += 1
         
@@ -721,9 +721,9 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         ws_est.cell(row=ecv_row, column=4, value="ECV")
         # ECV = SUM of items - Deduct Old Material (if any)
         if deduct_row:
-            ws_est.cell(row=ecv_row, column=8, value=f"=SUM(H4:H{deduct_row-1})+H{deduct_row}")
+            ws_est.cell(row=ecv_row, column=8, value=f"=ROUND(SUM(H4:H{deduct_row-1})+H{deduct_row},2)")
         else:
-            ws_est.cell(row=ecv_row, column=8, value=f"=SUM(H4:H{ecv_row-1})")
+            ws_est.cell(row=ecv_row, column=8, value=f"=ROUND(SUM(H4:H{ecv_row-1}),2)")
         
         # Add Excess T.P row if enabled (after ECV)
         excess_tp_row = None
@@ -732,7 +732,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             excess_tp_row = current_row
             # Calculate Excess T.P based on finalized ECV
             ws_est.cell(row=excess_tp_row, column=4, value=f"Add Excess T.P @ {excess_tp_percent} %")
-            ws_est.cell(row=excess_tp_row, column=8, value=f"=H{ecv_row}*{excess_tp_percent/100}")
+            ws_est.cell(row=excess_tp_row, column=8, value=f"=ROUND(H{ecv_row}*{excess_tp_percent/100},2)")
         
         # LC, QC, NAC rows - calculations based on finalized ECV only
         lc_row = current_row + 1
@@ -752,13 +752,13 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         
         # LC, QC, NAC are calculated based on ECV only (not including Excess T.P)
         ws_est.cell(row=lc_row, column=4, value="Add LC @ 1 %")
-        ws_est.cell(row=lc_row, column=8, value=f"=H{ecv_row}*0.01")
+        ws_est.cell(row=lc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
         
         ws_est.cell(row=qc_row, column=4, value="Add QC @ 1 %")
-        ws_est.cell(row=qc_row, column=8, value=f"=H{ecv_row}*0.01")
+        ws_est.cell(row=qc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
         
         ws_est.cell(row=nac_row, column=4, value="Add NAC @ 0.1 %")
-        ws_est.cell(row=nac_row, column=8, value=f"=H{ecv_row}*0.001")
+        ws_est.cell(row=nac_row, column=8, value=f"=ROUND(H{ecv_row}*0.001,2)")
         
         ws_est.cell(row=sub_row, column=4, value="Sub Total")
         # Sub Total = ECV + Excess T.P (if any) + LC + QC + NAC
@@ -766,27 +766,27 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         if excess_tp_row:
             sub_total_parts.append(f"H{excess_tp_row}")
         sub_total_parts.extend([f"H{lc_row}", f"H{qc_row}", f"H{nac_row}"])
-        ws_est.cell(row=sub_row, column=8, value=f"={'+'.join(sub_total_parts)}")
+        ws_est.cell(row=sub_row, column=8, value=f"=ROUND({'+'.join(sub_total_parts)},2)")
         
         ws_est.cell(row=gst_row, column=4, value="Add GST@18 %")
-        ws_est.cell(row=gst_row, column=8, value=f"=H{sub_row}*0.18")
+        ws_est.cell(row=gst_row, column=8, value=f"=ROUND(H{sub_row}*0.18,2)")
         
         ws_est.cell(row=ls_row, column=4, value="L.S Provision towards unforeseen items")
         # Calculate L.S as difference between Grand Total and (Sub Total + GST + Special Items if any)
         if ls_special_row:
-            ws_est.cell(row=ls_row, column=8, value=f"=H{gt_row}-H{gst_row}-H{sub_row}-H{ls_special_row}")
+            ws_est.cell(row=ls_row, column=8, value=f"=ROUND(H{gt_row}-H{gst_row}-H{sub_row}-H{ls_special_row},2)")
         else:
-            ws_est.cell(row=ls_row, column=8, value=f"=H{gt_row}-H{gst_row}-H{sub_row}")
+            ws_est.cell(row=ls_row, column=8, value=f"=ROUND(H{gt_row}-H{gst_row}-H{sub_row},2)")
         
         # Add L.S Provision towards Special Items row (if enabled)
         if ls_special_row:
             ws_est.cell(row=ls_special_row, column=4, value=f"L.S Provision towards {ls_special_name}")
-            ws_est.cell(row=ls_special_row, column=8, value=ls_special_amount)
+            ws_est.cell(row=ls_special_row, column=8, value=round(ls_special_amount, 2))
         
         ws_est.cell(row=gt_row, column=4, value="Grand Total")
         # Set Grand Total value if provided by user, otherwise leave empty
         if grand_total is not None and grand_total > 0:
-            ws_est.cell(row=gt_row, column=8, value=grand_total)
+            ws_est.cell(row=gt_row, column=8, value=round(grand_total, 2))
         
         for r in range(ecv_row, gt_row + 1):
             for c in range(1, 9):

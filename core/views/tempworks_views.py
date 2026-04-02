@@ -863,7 +863,7 @@ def temp_download_output(request, category):
         g.alignment = Alignment(horizontal="center", vertical="center")
         g.border = border_all
 
-        h = ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}")
+        h = ws_est.cell(row=row_est, column=8, value=f"=ROUND(B{row_est}*E{row_est},2)")
         h.alignment = Alignment(horizontal="center", vertical="center")
         h.border = border_all
         h.number_format = '#,##0.00'
@@ -874,7 +874,7 @@ def temp_download_output(request, category):
     # ---- Totals (same style as your main estimate) ----
     ecv_row = row_est
     ws_est.cell(row=ecv_row, column=4, value="ECV")
-    ws_est.cell(row=ecv_row, column=8, value=f"=SUM(H4:H{ecv_row-1})")
+    ws_est.cell(row=ecv_row, column=8, value=f"=ROUND(SUM(H4:H{ecv_row-1}),2)")
 
     lc_row = ecv_row + 1
     qc_row = ecv_row + 2
@@ -885,22 +885,22 @@ def temp_download_output(request, category):
     gt_row = ecv_row + 7
 
     ws_est.cell(row=lc_row, column=4, value="Add LC @ 1 %")
-    ws_est.cell(row=lc_row, column=8, value=f"=H{ecv_row}*0.01")
+    ws_est.cell(row=lc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
 
     ws_est.cell(row=qc_row, column=4, value="Add QC @ 1 %")
-    ws_est.cell(row=qc_row, column=8, value=f"=H{ecv_row}*0.01")
+    ws_est.cell(row=qc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
 
     ws_est.cell(row=nac_row, column=4, value="Add NAC @ 0.1 %")
-    ws_est.cell(row=nac_row, column=8, value=f"=H{ecv_row}*0.001")
+    ws_est.cell(row=nac_row, column=8, value=f"=ROUND(H{ecv_row}*0.001,2)")
 
     ws_est.cell(row=sub_row, column=4, value="Sub Total")
-    ws_est.cell(row=sub_row, column=8, value=f"=H{ecv_row}+H{lc_row}+H{qc_row}+H{nac_row}")
+    ws_est.cell(row=sub_row, column=8, value=f"=ROUND(H{ecv_row}+H{lc_row}+H{qc_row}+H{nac_row},2)")
 
     ws_est.cell(row=gst_row, column=4, value="Add GST@18 %")
-    ws_est.cell(row=gst_row, column=8, value=f"=H{sub_row}*0.18")
+    ws_est.cell(row=gst_row, column=8, value=f"=ROUND(H{sub_row}*0.18,2)")
 
     ws_est.cell(row=ls_row, column=4, value="L.S Provision towards unforeseen items")
-    ws_est.cell(row=ls_row, column=8, value=f"=H{gt_row}-H{gst_row}-H{sub_row}")
+    ws_est.cell(row=ls_row, column=8, value=f"=ROUND(H{gt_row}-H{gst_row}-H{sub_row},2)")
 
     ws_est.cell(row=gt_row, column=4, value="Grand Total")
     # Set Grand Total value if provided by user, otherwise leave empty
@@ -909,7 +909,7 @@ def temp_download_output(request, category):
         try:
             grand_total_val = float(grand_total_str)
             if grand_total_val > 0:
-                ws_est.cell(row=gt_row, column=8, value=grand_total_val)
+                ws_est.cell(row=gt_row, column=8, value=round(grand_total_val, 2))
         except ValueError:
             pass
 
