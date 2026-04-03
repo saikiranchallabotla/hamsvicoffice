@@ -57,18 +57,20 @@ if _csrf_extra:
 # HTTPS/SSL SECURITY (Production only)
 # ==============================================================================
 if not DEBUG:
-    # Force HTTPS
+    # Force HTTPS - set SECURE_SSL_REDIRECT=False when behind ALB/nginx that terminates SSL
     SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True') == 'True'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    
-    # Secure cookies
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    
-    # HSTS (HTTP Strict Transport Security)
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+
+    # Secure cookies - enable by default in production
+    _use_https = os.getenv('USE_HTTPS', 'True') == 'True'
+    SESSION_COOKIE_SECURE = _use_https
+    CSRF_COOKIE_SECURE = _use_https
+
+    # HSTS - only enable when using HTTPS
+    if _use_https:
+        SECURE_HSTS_SECONDS = 31536000  # 1 year
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
     
     # Additional security headers
     SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -182,7 +184,7 @@ elif DB_ENGINE == 'postgresql':
             'ATOMIC_REQUESTS': True,  # Each request is a transaction
             'CONN_MAX_AGE': 600,  # Connection pooling
             'OPTIONS': {
-                'sslmode': 'require',  # Required for Neon and cloud PostgreSQL
+                'sslmode': os.getenv('DB_SSL_MODE', 'prefer'),
             },
         }
     }
@@ -208,7 +210,9 @@ STORAGE_TYPE = os.getenv('STORAGE_TYPE', 'local')
 
 # These are always required: collectstatic needs STATIC_ROOT as a local staging dir,
 # and MEDIA_ROOT is the fallback for any local file operations.
+STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 if STORAGE_TYPE in ('s3', 'r2'):
@@ -258,9 +262,6 @@ if STORAGE_TYPE in ('s3', 'r2'):
         MEDIA_URL = f'https://{_s3_bucket}.s3.{_s3_region}.amazonaws.com/media/'
 else:
     # Local file storage (development) + WhiteNoise for production
-    MEDIA_URL = '/media/'
-    STATIC_URL = 'static/'
-
     # Use simple static files storage in development, WhiteNoise in production
     if DEBUG:
         STORAGES = {
@@ -421,37 +422,39 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG',
-            'filters': ['require_debug_true'],
+            'level': 'INFO' if not DEBUG else 'DEBUG',
             'class': 'logging.StreamHandler',
-            'formatter': 'simple'
-        },
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
-            'formatter': 'verbose',
+            'formatter': 'verbose' if not DEBUG else 'simple',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
         },
         'celery': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
         },
         'core': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
         },
     },
 }
 
-# Ensure logs directory exists
-LOGS_DIR = BASE_DIR / 'logs'
-LOGS_DIR.mkdir(exist_ok=True)
+# Add file logging only in development (EB uses CloudWatch via stdout)
+if DEBUG:
+    LOGS_DIR = BASE_DIR / 'logs'
+    LOGS_DIR.mkdir(exist_ok=True)
+    LOGGING['handlers']['file'] = {
+        'level': 'INFO',
+        'class': 'logging.FileHandler',
+        'filename': LOGS_DIR / 'django.log',
+        'formatter': 'verbose',
+    }
+    for logger_name in LOGGING['loggers']:
+        LOGGING['loggers'][logger_name]['handlers'].append('file')
 
 
 # ==============================================================================

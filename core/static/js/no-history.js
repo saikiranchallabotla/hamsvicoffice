@@ -6,6 +6,8 @@
 (function(){
     // Intercept internal link clicks
     document.addEventListener('click', function(e){
+        // If another handler already called preventDefault(), do not interfere
+        if (e.defaultPrevented) return;
         var a = e.target.closest('a');
         if (!a) return;
         var h = a.getAttribute('href');
@@ -23,6 +25,8 @@
 
     // Intercept form submissions
     document.addEventListener('submit', function(e){
+        // If another handler already called preventDefault(), do not interfere
+        if (e.defaultPrevented) return;
         var f = e.target;
         // Use getAttribute to avoid name collision with inputs named 'action'
         var action = f.getAttribute('action') || location.href;

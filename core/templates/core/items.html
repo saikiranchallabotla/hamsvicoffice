@@ -1784,7 +1784,13 @@ document.addEventListener('keydown', function(e) {
     }
     
     // Save quantities and units to session via AJAX, then navigate
+    var _isNavigating = false;
     function saveAndNavigate(targetUrl) {
+        if (_isNavigating) return;  // Prevent double navigation
+        _isNavigating = true;
+        // Cancel any pending auto-save since we're saving now
+        if (_autoSaveTimer) { clearTimeout(_autoSaveTimer); _autoSaveTimer = null; }
+        _autoSaveDirty = false;
         var qtyMap = buildQtyMapForSave();
         var unitMap = buildUnitMapForSave();
         var workInput = document.getElementById("work-name-input");
@@ -1813,6 +1819,68 @@ document.addEventListener('keydown', function(e) {
             window.location.replace(targetUrl);
         }
     }
+
+    // --- Auto-save: persist quantities to session on every change ---
+    var _autoSaveTimer = null;
+    var _autoSaveDirty = false;
+
+    function saveToSession() {
+        var qtyMap = buildQtyMapForSave();
+        var unitMap = buildUnitMapForSave();
+        var workInput = document.getElementById("work-name-input");
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var excessTpInput = document.getElementById("excess-tp-percent-input");
+        var lsNameInput = document.getElementById("ls-special-name-input");
+        var lsAmountInput = document.getElementById("ls-special-amount-input");
+        var deductInput = document.getElementById("deduct-old-material-input");
+
+        var formData = new FormData();
+        formData.append("qty_map", JSON.stringify(qtyMap));
+        formData.append("unit_map", JSON.stringify(unitMap));
+        formData.append("work_name", workInput ? workInput.value : "");
+        formData.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+        formData.append("excess_tp_percent", excessTpInput ? excessTpInput.value : "");
+        formData.append("ls_special_name", lsNameInput ? lsNameInput.value : "");
+        formData.append("ls_special_amount", lsAmountInput ? lsAmountInput.value : "");
+        formData.append("deduct_old_material", deductInput ? deductInput.value : "");
+        formData.append("csrfmiddlewaretoken", csrfToken);
+
+        fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
+        _autoSaveDirty = false;
+    }
+
+    function debouncedAutoSave() {
+        _autoSaveDirty = true;
+        if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = setTimeout(saveToSession, 2000);
+    }
+
+    // Auto-save on any input change in the estimate table and option fields
+    document.addEventListener("input", function(e) {
+        if (e.target.closest("#estimate-table") || e.target.closest(".options-section") ||
+            e.target.id === "work-name-input" || e.target.id === "grand-total-input") {
+            debouncedAutoSave();
+        }
+    });
+
+    // Save on page unload (refresh, close, navigate away)
+    window.addEventListener("beforeunload", function() {
+        // Skip if saveAndNavigate already handled the save
+        if (_isNavigating) return;
+        if (_autoSaveDirty || document.querySelectorAll("#estimate-table tbody tr[data-item-name]").length > 0) {
+            var qtyMap = buildQtyMapForSave();
+            var unitMap = buildUnitMapForSave();
+            var workInput = document.getElementById("work-name-input");
+            var grandTotalInput = document.getElementById("grand-total-input");
+            var data = new FormData();
+            data.append("qty_map", JSON.stringify(qtyMap));
+            data.append("unit_map", JSON.stringify(unitMap));
+            data.append("work_name", workInput ? workInput.value : "");
+            data.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+            data.append("csrfmiddlewaretoken", csrfToken);
+            navigator.sendBeacon(saveQtyMapUrl, data);
+        }
+    });
     
     // --- Checkbox behaviour: queued AJAX toggle ---
     var checkboxes = document.querySelectorAll(".item-checkbox");

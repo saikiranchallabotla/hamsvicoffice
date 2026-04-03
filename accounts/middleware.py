@@ -13,8 +13,8 @@ from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
 
-# SINGLE DEVICE LOGIN: Set to 1 to allow only one device at a time
-MAX_CONCURRENT_SESSIONS = getattr(settings, 'MAX_CONCURRENT_SESSIONS', 1)
+# Set to 1 to allow only one device at a time, or higher for multiple devices
+MAX_CONCURRENT_SESSIONS = getattr(settings, 'MAX_CONCURRENT_SESSIONS', 3)
 
 
 class SessionTrackingMiddleware:

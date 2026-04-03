@@ -1161,8 +1161,9 @@
     let isSessionInvalid = false;
     
     function checkSessionValidity() {
-        // Don't check if already invalid or modal is showing
+        // Don't check if already invalid or a Bootstrap modal is open
         if (isSessionInvalid) return;
+        if (document.querySelector('.modal.show')) return;
         
         fetch('/accounts/api/auth/check-session/', {
             method: 'GET',

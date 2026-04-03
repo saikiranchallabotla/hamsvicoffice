@@ -1054,6 +1054,14 @@ def generate_bill_document_task(self, job_id):
         doc_kind = metadata.get('doc_kind', '')
         action = metadata.get('action', '')
         nth_number_str = metadata.get('nth_number', '')
+
+        # For LS forms: if action is empty, derive action from doc_kind for CC header resolution
+        if not action and doc_kind in ("ls_part", "ls_final"):
+            if not nth_number_str or nth_number_str == "1":
+                action = "estimate_first_part" if doc_kind == "ls_part" else "estimate_first_final"
+            else:
+                action = "nth_nth_part" if doc_kind == "ls_part" else "nth_nth_final"
+
         mb_measure_no = metadata.get('mb_measure_no', '')
         mb_measure_p_from = metadata.get('mb_measure_p_from', '')
         mb_measure_p_to = metadata.get('mb_measure_p_to', '')
@@ -1357,7 +1365,7 @@ def generate_bill_document_task(self, job_id):
                                 text = text.replace(ph, val or "")
                                 changed = True
                         if "dd.mm.yyyy" in text:
-                            text = text.replace("dd.mm.yyyy", f"dd.{mm_yyyy}")
+                            text = text.replace("dd.mm.yyyy", f"  .{mm_yyyy}")
                             changed = True
                         if changed:
                             run.text = text
