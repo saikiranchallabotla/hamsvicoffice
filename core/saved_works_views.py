@@ -1181,7 +1181,11 @@ def restore_work_data(request, saved_work):
         if work_data.get('selected_backend_id'):
             request.session['ws_selected_backend_id'] = work_data['selected_backend_id']
         request.session['ws_source_estimate_id'] = work_data.get('ws_source_estimate_id')
-        request.session['ws_work_mode'] = work_data.get('ws_work_mode', 'original')
+        # Restore work_mode (original/repair) — fall back to parent estimate's work_type
+        ws_work_mode = work_data.get('ws_work_mode')
+        if not ws_work_mode and saved_work.parent and saved_work.parent.work_data:
+            ws_work_mode = saved_work.parent.work_data.get('work_type', 'original')
+        request.session['ws_work_mode'] = ws_work_mode or 'original'
         request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
         request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
         request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
@@ -1577,6 +1581,11 @@ def generate_workslip_from_saved(request, work_id):
     if saved_work.work_type not in ['new_estimate', 'temporary_works', 'amc']:
         messages.error(request, 'Only estimates, temporary works, or AMC can be used to generate workslips.')
         return redirect('saved_works_list')
+
+    # Check if estimate is finalized (completed) before allowing workslip generation
+    if saved_work.status != 'completed':
+        messages.warning(request, 'Please finalize the estimate before generating a workslip. Edit the estimate and mark it as complete first.')
+        return redirect('saved_work_detail', work_id=saved_work.id)
     
     # Load estimate data into workslip session
     work_data = saved_work.work_data or {}
@@ -1814,7 +1823,15 @@ def generate_next_workslip_from_saved(request, work_id):
     if saved_work.work_type != 'workslip':
         messages.error(request, 'Only saved workslips can generate next workslips.')
         return redirect('saved_works_list')
-    
+
+    # Check if root estimate is finalized before allowing next workslip generation
+    root_est = saved_work.parent
+    while root_est and root_est.work_type != 'new_estimate':
+        root_est = root_est.parent
+    if root_est and root_est.status != 'completed':
+        messages.warning(request, 'Please finalize the estimate before generating workslips.')
+        return redirect('saved_work_detail', work_id=root_est.id)
+
     # Load workslip data
     work_data = saved_work.work_data or {}
     
@@ -1910,7 +1927,17 @@ def generate_next_workslip_from_saved(request, work_id):
     request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0)
 
     # Propagate work_mode (original/repair) from previous workslip
-    request.session['ws_work_mode'] = work_data.get('ws_work_mode', 'original')
+    # Fall back to parent estimate's work_type if ws_work_mode is not in work_data
+    ws_work_mode = work_data.get('ws_work_mode')
+    if not ws_work_mode:
+        # Walk up to root estimate to get work_type
+        root = saved_work.parent
+        while root:
+            if root.work_type == 'new_estimate' and root.work_data:
+                ws_work_mode = root.work_data.get('work_type', 'original')
+                break
+            root = root.parent
+    request.session['ws_work_mode'] = ws_work_mode or 'original'
 
     # Carry over metadata from previous workslip (Name of work, Agency, Sanctions, Agreement, etc.)
     prev_metadata = work_data.get('ws_metadata', {})

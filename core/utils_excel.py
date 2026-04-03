@@ -187,29 +187,43 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     elif category_key.startswith('amc_'):
         base_category = category_key.replace('amc_', '')
     
-    # Helper to resolve backend file path (with DB fallback)
+    # Helper to resolve backend file path (with DB and S3 fallback)
     def _resolve_backend_path(backend_obj):
-        """Try disk path first, then restore from DB if needed."""
+        """Try disk path first, then S3 download, then restore from DB."""
         if not backend_obj or not backend_obj.file:
             return None
+        # Try local disk path first
         try:
             fpath = backend_obj.file.path
             if os.path.exists(fpath):
                 return fpath
+        except (NotImplementedError, Exception):
+            # NotImplementedError is raised by S3 storage for .path
+            pass
+        # For S3/cloud storage: download to a temp file
+        try:
+            import tempfile
+            data = backend_obj.file.read()
+            backend_obj.file.seek(0)
+            if data:
+                ext = os.path.splitext(backend_obj.file.name)[1] or '.xlsx'
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                tmp.write(data)
+                tmp.close()
+                return tmp.name
         except Exception:
             pass
         # Try restoring from DB via get_file_bytes()
         if hasattr(backend_obj, 'get_file_bytes'):
             try:
                 data = backend_obj.get_file_bytes()
-                if data and backend_obj.file:
-                    # After get_file_bytes restores the file, verify it exists
-                    try:
-                        fpath = backend_obj.file.path
-                        if os.path.exists(fpath):
-                            return fpath
-                    except Exception:
-                        pass
+                if data:
+                    import tempfile
+                    ext = os.path.splitext(backend_obj.file.name)[1] or '.xlsx'
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                    tmp.write(data)
+                    tmp.close()
+                    return tmp.name
             except Exception:
                 pass
         return None

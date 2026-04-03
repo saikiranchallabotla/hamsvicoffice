@@ -5,7 +5,7 @@ All views are organization-scoped.
 """
 
 import json
-from django.http import JsonResponse, FileResponse, Http404
+from django.http import JsonResponse, FileResponse, Http404, HttpResponseRedirect
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -122,23 +122,24 @@ def download_output_file(request, file_id):
     from django.db.models import F
     OutputFile.objects.filter(id=file_id).update(download_count=F('download_count') + 1)
     
-    # For S3/DO Spaces, generate signed URL
+    # For S3/DO Spaces, generate signed URL and redirect to it
     if hasattr(default_storage, 'url'):
         file_url = default_storage.url(output_file.file.name)
-        
-        # If using signed URLs (django-storages), redirect to it
+
+        # If using signed URLs (django-storages), redirect browser to S3 signed URL
         if 'Signature=' in file_url or 'X-Amz-Signature=' in file_url:
-            return JsonResponse({'download_url': file_url})
+            # Check if caller wants JSON (AJAX) or a redirect (browser click)
+            if request.headers.get('Accept', '').startswith('application/json') or request.GET.get('format') == 'json':
+                return JsonResponse({'download_url': file_url})
+            return HttpResponseRedirect(file_url)
     
     # Fallback: serve file directly (for local storage)
     try:
-        file_content = output_file.file.read()
         response = FileResponse(
-            file_content,
+            output_file.file.open('rb'),
             as_attachment=True,
             filename=output_file.filename
         )
-        response['Content-Type'] = 'application/octet-stream'
         return response
     except Exception:
         return JsonResponse(

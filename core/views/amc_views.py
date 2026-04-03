@@ -1104,9 +1104,16 @@ def amc_download_output(request, category):
                     from django.http import FileResponse
                     import os
                     
-                    if output_file.file and os.path.exists(output_file.file.path):
+                    if output_file.file:
+                        # Support both local and S3 storage
+                        from django.core.files.storage import default_storage
+                        if hasattr(default_storage, 'url'):
+                            file_url = default_storage.url(output_file.file.name)
+                            if 'Signature=' in file_url or 'X-Amz-Signature=' in file_url:
+                                from django.http import HttpResponseRedirect
+                                return HttpResponseRedirect(file_url)
                         response = FileResponse(
-                            open(output_file.file.path, 'rb'),
+                            output_file.file.open('rb'),
                             as_attachment=True,
                             filename=output_file.filename or f"amc_{category}_output.xlsx",
                         )

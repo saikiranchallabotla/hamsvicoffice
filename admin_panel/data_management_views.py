@@ -735,9 +735,7 @@ def delete_module_backend(request, backend_id):
     # Delete file
     if backend.file:
         try:
-            file_path = Path(backend.file.path)
-            if file_path.exists():
-                file_path.unlink()
+            backend.file.delete(save=False)
         except:
             pass
     
@@ -772,13 +770,25 @@ def preview_module_backend(request, backend_id):
         return redirect('admin_data_management')
     
     try:
-        filepath = Path(backend.file.path)
-        if not filepath.exists():
-            messages.error(request, 'Backend file not found.')
-            return redirect('admin_data_management')
-        
+        # Read file content to support both local and S3 storage
+        import tempfile
+        file_data = backend.file.read()
+        backend.file.seek(0)
+
+        # Write to temp file for preview utilities
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        tmp.write(file_data)
+        tmp.close()
+        filepath = Path(tmp.name)
+
         preview = get_excel_preview(filepath, max_rows=20)
         file_info = get_file_info(filepath)
+
+        # Clean up temp file
+        try:
+            filepath.unlink()
+        except:
+            pass
         
         context = {
             'category': backend.name,
@@ -805,17 +815,12 @@ def download_module_backend(request, backend_id):
         return redirect('admin_data_management')
     
     try:
-        filepath = Path(backend.file.path)
-        if not filepath.exists():
-            messages.error(request, 'Backend file not found.')
-            return redirect('admin_data_management')
-        
         # Generate download filename
         safe_name = backend.name.replace(' ', '_').replace('/', '-')
         download_name = f'{safe_name}_{backend.category}.xlsx'
-        
+
         return FileResponse(
-            open(filepath, 'rb'),
+            backend.file.open('rb'),
             as_attachment=True,
             filename=download_name
         )

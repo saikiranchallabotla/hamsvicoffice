@@ -850,6 +850,11 @@ def workslip_entry(request, work_id):
     if source_estimate.work_type != 'new_estimate':
         messages.error(request, 'Only estimates can generate workslips.')
         return redirect('saved_work_detail', work_id=work_id)
+
+    # Check if estimate is finalized before allowing workslip generation
+    if source_estimate.status != 'completed':
+        messages.warning(request, 'Please finalize the estimate before generating a workslip. Edit the estimate and mark it as complete first.')
+        return redirect('saved_work_detail', work_id=work_id)
     
     work_data = source_estimate.work_data or {}
     

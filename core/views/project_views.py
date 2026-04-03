@@ -375,6 +375,16 @@ def datas_items(request, category, group):
 
     fetched = request.session.get("fetched_items", [])
 
+    # Normalize fetched_items: may contain dicts (from workslip session) or strings
+    # Extract item name strings for the estimate view
+    fetched_names = []
+    for item in fetched:
+        if isinstance(item, dict):
+            fetched_names.append(item.get('item_name') or item.get('display_name') or item.get('name') or str(item))
+        else:
+            fetched_names.append(item)
+    fetched = fetched_names
+
     qty_map = request.session.get("qty_map", {}) or {}
     unit_map = request.session.get("unit_map", {}) or {}
     work_name = request.session.get("work_name", "") or ""

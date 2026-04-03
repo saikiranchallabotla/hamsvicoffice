@@ -788,7 +788,9 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         if grand_total is not None and grand_total > 0:
             ws_est.cell(row=gt_row, column=8, value=round(grand_total, 2))
         
-        for r in range(ecv_row, gt_row + 1):
+        # Start formatting from deduct_row if present, otherwise ecv_row
+        format_start_row = deduct_row if deduct_row else ecv_row
+        for r in range(format_start_row, gt_row + 1):
             for c in range(1, 9):
                 ws_est.cell(row=r, column=c).border = border_all
                 if c == 4:
@@ -1072,8 +1074,11 @@ def generate_bill_document_task(self, job_id):
         logger.info(f"Generating {doc_kind} document for job {job_id}")
         
         # Load the uploaded Excel file
+        # Use file.open() instead of file.path to support S3/cloud storage
         try:
-            wb_in = load_workbook(upload.file.path, data_only=True)
+            file_data = upload.file.read()
+            upload.file.seek(0)
+            wb_in = load_workbook(io.BytesIO(file_data), data_only=True)
         except Exception as e:
             raise ValueError(f"Failed to read Excel file: {e}")
         

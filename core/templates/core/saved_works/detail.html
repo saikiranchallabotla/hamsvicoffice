@@ -366,7 +366,7 @@
                 {% if last_workslip.status == 'completed' and not is_orphan_workslip %}
                 {% if module_access.workslip %}
                 <button class="ewb-btn ewb-btn-w"
-                        onclick="window.location.replace('/saved-works/{{ last_workslip.id }}/generate-next-workslip/')"
+                        onclick="handleWNext({{ last_workslip.id }}, {{ last_workslip.workslip_number|add:1 }})"
                         title="Create WorkSlip {{ last_workslip.workslip_number|add:1 }}">
                     +W{{ last_workslip.workslip_number|add:1 }}
                 </button>
@@ -842,6 +842,7 @@
 <script>
     const csrfToken = '{{ csrf_token }}';
     const rootEstimateId = {{ root_estimate.id|default:"null" }};
+    const rootEstimateStatus = '{{ root_estimate.status|default:"" }}';
     const isOrphanWorkslip = {{ is_orphan_workslip|yesno:"true,false" }};
     let pendingBillWorkslipId = null;
 
@@ -890,6 +891,11 @@
     // W button when NO workslips exist → generate W1
     function handleWNew() {
         try {
+            // Check if the estimate is finalized before allowing workslip generation
+            if (rootEstimateStatus !== 'completed') {
+                alert('Please finalize the estimate first before generating a workslip. Go back to edit the estimate and mark it as complete.');
+                return;
+            }
             if (rootEstimateId) {
                 // New: Direct to workslip entry UI instead of file upload
                 window.location.replace('/workslip/entry/' + rootEstimateId + '/');
@@ -899,6 +905,20 @@
         } catch (e) {
             console.error('handleWNew error:', e);
             alert('Error generating workslip: ' + e.message);
+        }
+    }
+
+    // +W(next) button → generate next workslip from previous
+    function handleWNext(wsId, nextNum) {
+        try {
+            if (rootEstimateStatus !== 'completed') {
+                alert('Please finalize the estimate first before generating a workslip.');
+                return;
+            }
+            window.location.replace('/saved-works/' + wsId + '/generate-next-workslip/');
+        } catch (e) {
+            console.error('handleWNext error:', e);
+            alert('Error: ' + e.message);
         }
     }
 
