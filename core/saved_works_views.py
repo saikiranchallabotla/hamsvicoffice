@@ -2368,6 +2368,54 @@ def bill_generate(request, work_id):
         except Exception:
             backend_descs = {}
 
+    # Load prefix mapping for repair works
+    # When work_mode is "repair", prefixes from the backend Groups sheet
+    # are prepended to item descriptions in the bill Excel output.
+    work_mode = work_data.get('ws_work_mode', 'original')
+    # Also check the bill draft record for work_mode (set by bill_entry_save)
+    if draft_bill_record and draft_bill_record.work_data:
+        work_mode = draft_bill_record.work_data.get('work_mode', work_mode)
+    is_repair = (work_mode == 'repair')
+
+    item_to_prefix = {}
+    if is_repair:
+        try:
+            import os
+            from django.conf import settings
+            from openpyxl import load_workbook as _load_wb
+            from core.utils_excel import load_backend
+            category = workslip.category or 'electrical'
+            saved_backend_id = work_data.get('selected_backend_id')
+            backend_base_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
+            filepath, _ = load_backend(category, backend_base_dir,
+                                       backend_id=saved_backend_id,
+                                       user=request.user,
+                                       module_code='new_estimate')
+            if filepath and os.path.exists(filepath):
+                backend_wb = _load_wb(filepath, data_only=False)
+                ws_groups = backend_wb["Groups"]
+                header_row_g = None
+                col_item_g = None
+                col_prefix_g = None
+                for r in range(1, ws_groups.max_row + 1):
+                    for c in range(1, ws_groups.max_column + 1):
+                        val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
+                        if val == "item name":
+                            header_row_g = r
+                            col_item_g = c
+                        elif val == "prefix":
+                            col_prefix_g = c
+                    if header_row_g:
+                        break
+                if header_row_g and col_item_g and col_prefix_g:
+                    for r in range(header_row_g + 1, ws_groups.max_row + 1):
+                        nm = ws_groups.cell(r, col_item_g).value
+                        px = ws_groups.cell(r, col_prefix_g).value
+                        if nm and px not in (None, ""):
+                            item_to_prefix[str(nm).strip()] = str(px).strip()
+        except Exception:
+            pass  # Continue without prefixes
+
     items = []
     total_amount = 0.0
     for idx, row in enumerate(ws_rows):
@@ -2416,7 +2464,13 @@ def bill_generate(request, work_id):
             if candidate and candidate.strip() and candidate != item_name:
                 desc = candidate.strip()
                 break
-        
+
+        # Apply repair prefix if work_mode is "repair"
+        if is_repair and item_to_prefix:
+            prefix = item_to_prefix.get(item_name, '')
+            if prefix:
+                desc = f"{prefix} {desc}" if desc else prefix
+
         unit = row.get('unit', 'Nos')
         is_ae = str(desc).lower().startswith('ae')
         amount = exec_qty * rate
@@ -2457,6 +2511,11 @@ def bill_generate(request, work_id):
         total_amount += amount
         # Use description from row+2 (stored in 'desc'), fallback to item name
         supp_desc = supp.get('desc', supp_name) or supp_name
+        # Apply repair prefix
+        if is_repair and item_to_prefix:
+            prefix = item_to_prefix.get(supp_name, '')
+            if prefix:
+                supp_desc = f"{prefix} {supp_desc}" if supp_desc else prefix
         items.append({
             'sl': len(items) + 1,
             'qty': exec_qty,
@@ -2496,6 +2555,11 @@ def bill_generate(request, work_id):
             total_amount += amount
             # Use description from backend row+2, fallback to item name
             supp_desc = supp_info.get('desc', supp_name) or supp_name
+            # Apply repair prefix
+            if is_repair and item_to_prefix:
+                prefix = item_to_prefix.get(supp_name, '')
+                if prefix:
+                    supp_desc = f"{prefix} {supp_desc}" if supp_desc else prefix
             items.append({
                 'sl': len(items) + 1,
                 'qty': exec_qty,
