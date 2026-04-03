@@ -898,6 +898,7 @@ def collect_work_data(request, work_type):
             'selected_backend_id': request.session.get('selected_backend_id'),
             'item_rates': request.session.get('item_rates', {}),
             'item_units': request.session.get('item_units', {}),
+            'item_descs': request.session.get('item_descs', {}),
             # Estimate-level metadata: header fields unique to each work
             'estimate_metadata': request.session.get('estimate_metadata', {
                 'admin_sanction': '',
@@ -1124,6 +1125,8 @@ def restore_work_data(request, saved_work):
             request.session['item_rates'] = work_data['item_rates']
         if work_data.get('item_units'):
             request.session['item_units'] = work_data['item_units']
+        if work_data.get('item_descs'):
+            request.session['item_descs'] = work_data['item_descs']
         # Restore estimate-level metadata (admin sanction, tech sanction, etc.)
         request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
         # Force session save
@@ -1574,9 +1577,10 @@ def generate_workslip_from_saved(request, work_id):
     else:
         ws_module_code = 'new_estimate'
     
-    # Saved rates / units from the estimate session (exact values the user saw)
+    # Saved rates / units / descriptions from the estimate session (exact values the user saw)
     saved_item_rates = work_data.get('item_rates', {})
     saved_item_units = work_data.get('item_units', {})
+    saved_item_descs = work_data.get('item_descs', {})
     
     logger.info(f"[GEN_WORKSLIP DEBUG] saved_item_rates keys={list(saved_item_rates.keys())[:10]}")
     
@@ -1607,6 +1611,9 @@ def generate_workslip_from_saved(request, work_id):
             # Get backend info (always has description from row+2)
             info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
             backend_desc = str(info.get('desc', item_name) or item_name)
+            # If backend returned header name as desc, prefer saved item_descs
+            if backend_desc == item_name and item_name in saved_item_descs:
+                backend_desc = saved_item_descs[item_name]
             
             # Priority for rate: 1) saved rates from estimate, 2) backend re-fetch
             if item_name in saved_item_rates and saved_item_rates[item_name]:
@@ -1644,7 +1651,12 @@ def generate_workslip_from_saved(request, work_id):
                 # UI display: use display_name (yellow header)
                 ui_name = str(item.get('display_name') or item.get('item_name') or item.get('name', ''))
                 # Download description: use item_desc (row+2 content) preferentially
-                download_desc = str(item.get('item_desc') or item.get('desc') or item.get('description') or ui_name)
+                download_desc = str(item.get('item_desc') or item.get('desc') or item.get('description') or '')
+                # If no desc stored in item dict, check saved_item_descs map
+                if (not download_desc or download_desc == ui_name) and ui_name in saved_item_descs:
+                    download_desc = saved_item_descs[ui_name]
+                if not download_desc:
+                    download_desc = ui_name
                 
                 ws_estimate_rows.append({
                     'key': f"saved_{idx}",

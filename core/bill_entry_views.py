@@ -84,6 +84,7 @@ def bill_entry(request, work_id):
         _item_rates = work_data.get('item_rates', {})
         _item_units = work_data.get('item_units', {})
         _unit_map = work_data.get('unit_map', {})
+        _item_descs = work_data.get('item_descs', {})
         bill_number = 1
         item_type = 'estimate'
         ae_qty_map = work_data.get('qty_map', {})
@@ -91,9 +92,13 @@ def bill_entry(request, work_id):
         ws_rows = []
         for _i, _r in enumerate(ws_rows_raw):
             if isinstance(_r, str):
+                _desc = _item_descs.get(_r, _r)
                 ws_rows.append({
                     'key': _r,
                     'item_name': _r,
+                    'display_name': _r,
+                    'item_desc': _desc,
+                    'desc': _desc,
                     'unit': _unit_map.get(_r, _item_units.get(_r, 'Nos')),
                     'rate': float(_item_rates.get(_r, 0) or 0),
                 })
@@ -852,6 +857,7 @@ def workslip_entry(request, work_id):
     item_rates = work_data.get('item_rates', {})
     item_units = work_data.get('item_units', {})
     unit_map = work_data.get('unit_map', {})
+    item_descs = work_data.get('item_descs', {})
 
     if not estimate_items:
         messages.error(request, 'Estimate has no items.')
@@ -881,12 +887,14 @@ def workslip_entry(request, work_id):
             key = item_name
             unit = unit_map.get(item_name, item_units.get(item_name, 'Nos'))
             rate = float(item_rates.get(item_name, 0) or 0)
+            desc = item_descs.get(item_name, item_name)
         else:
             # New format: item is a dict with item_name, unit, rate, etc.
             key = item.get('key') or item.get('item_name') or f'item_{idx}'
             item_name = item.get('display_name') or item.get('item_name') or item.get('desc') or 'Item'
             unit = item.get('unit') or unit_map.get(item_name, 'Nos')
             rate = float(item.get('rate', 0) or 0)
+            desc = item.get('item_desc') or item.get('desc') or item_descs.get(item_name, item_name)
 
         # Get estimate quantity from qty_map (using various key formats)
         est_qty = qty_map.get(key, qty_map.get(item_name, 0))
@@ -900,6 +908,9 @@ def workslip_entry(request, work_id):
         workslip_items.append({
             'key': key,
             'item_name': item_name,
+            'display_name': item_name,
+            'item_desc': desc,
+            'desc': desc,
             'unit': unit,
             'rate': rate,
             'est_qty': est_qty,  # Estimate quantity for display
@@ -1051,26 +1062,32 @@ def workslip_entry_save(request, work_id):
     _est_item_rates = estimate_data.get('item_rates', {})
     _est_item_units = estimate_data.get('item_units', {})
     _est_unit_map = estimate_data.get('unit_map', {})
+    _est_item_descs = estimate_data.get('item_descs', {})
     ws_rows = []
     for item in estimate_items:
         if isinstance(item, str):
             key = item
+            desc = _est_item_descs.get(item, item)
             ws_rows.append({
                 'key': key,
                 'item_name': item,
                 'display_name': item,
-                'desc': item,
+                'item_desc': desc,
+                'desc': desc,
                 'unit': _est_unit_map.get(item, _est_item_units.get(item, 'Nos')),
                 'qty_est': float(estimate_qty_map.get(item, 0) or 0),
                 'rate': float(_est_item_rates.get(item, 0) or 0),
             })
         else:
             key = item.get('key', f'item_{len(ws_rows)}')
+            item_name = item.get('item_name', '')
+            desc = item.get('item_desc') or item.get('desc') or _est_item_descs.get(item_name, item_name)
             ws_rows.append({
                 'key': key,
-                'item_name': item.get('item_name', ''),
+                'item_name': item_name,
                 'display_name': item.get('display_name', ''),
-                'desc': item.get('desc', ''),
+                'item_desc': desc,
+                'desc': desc,
                 'unit': item.get('unit', 'Nos'),
                 'qty_est': float(item.get('qty_est', 0) or 0),
                 'rate': float(item.get('rate', 0) or 0),

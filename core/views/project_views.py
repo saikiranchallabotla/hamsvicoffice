@@ -281,6 +281,7 @@ def datas_items(request, category, group):
     ws_vals = wb_vals["Master Datas"]
 
     item_rates = {}
+    item_descs = {}
     for info in items_list:
         name = info["name"]
         start_row = info["start_row"]
@@ -292,6 +293,12 @@ def datas_items(request, category, group):
                 rate = val
                 break
         item_rates[name] = rate
+        # Row+2 description (detailed text below the header)
+        desc_cell = ws_vals.cell(row=start_row + 2, column=4).value
+        if desc_cell and str(desc_cell).strip():
+            item_descs[name] = str(desc_cell).strip()
+        else:
+            item_descs[name] = name
 
     item_to_group = {}
     for grp_name, item_list_in_grp in groups_map.items():
@@ -399,9 +406,10 @@ def datas_items(request, category, group):
             session_item_rates[name] = 0.0
         session_item_units[name] = display_unit
 
-    # Persist rates & units so saved-works → workslip gets exact values
+    # Persist rates, units & descriptions so saved-works → workslip gets exact values
     request.session["item_rates"] = session_item_rates
     request.session["item_units"] = session_item_units
+    request.session["item_descs"] = item_descs
     request.session.modified = True
 
     work_type = request.session.get("work_type", "original") or "original"
@@ -801,9 +809,16 @@ def download_output(request, category):
                     from django.http import FileResponse
                     import os
                     
-                    if output_file.file and os.path.exists(output_file.file.path):
+                    if output_file.file:
+                        # Support both local and S3 storage
+                        from django.core.files.storage import default_storage
+                        if hasattr(default_storage, 'url'):
+                            file_url = default_storage.url(output_file.file.name)
+                            if 'Signature=' in file_url or 'X-Amz-Signature=' in file_url:
+                                from django.http import HttpResponseRedirect
+                                return HttpResponseRedirect(file_url)
                         response = FileResponse(
-                            open(output_file.file.path, 'rb'),
+                            output_file.file.open('rb'),
                             as_attachment=True,
                             filename=output_file.filename or f"{category}_output.xlsx",
                         )
