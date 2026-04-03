@@ -1115,22 +1115,22 @@ def workslip_entry_save(request, work_id):
         'ws_source_estimate_id': source_estimate.id,
     }
     
-    # Create SavedWork for workslip
+    # Create or update SavedWork for workslip (prevents duplicates)
     workslip_name = f"Workslip-{workslip_number} from {source_estimate.name}"
-    
-    saved_workslip = SavedWork.objects.create(
+
+    saved_workslip, ws_created = SavedWork.objects.update_or_create(
         organization=org,
         user=user,
         parent=source_estimate,
-        name=workslip_name,
         work_type='workslip',
-        work_data=workslip_data,
-        category=source_estimate.category,
         workslip_number=workslip_number,
-        status='in_progress',
+        defaults={
+            'name': workslip_name,
+            'work_data': workslip_data,
+            'category': source_estimate.category,
+            'status': 'in_progress',
+        },
     )
-    
-    messages.success(request, f'Workslip-{workslip_number} created successfully!')
     
     return JsonResponse({
         'success': True,

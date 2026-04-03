@@ -816,13 +816,29 @@ class SavedWork(models.Model):
         return f'Bill-{n}'
 
     def get_all_workslips(self):
-        """Get all workslips in this workflow chain, ordered by workslip_number"""
+        """Get all workslips in this workflow chain, ordered by workslip_number.
+        Deduplicates by workslip_number (keeps the most recently updated one)."""
         root = self.get_root_estimate()
         if not root:
             return []
         workslips = []
         self._collect_workslips(root, workslips)
-        return sorted(workslips, key=lambda w: w.workslip_number)
+        # Deduplicate by workslip_number — keep the one with the most data
+        by_num = {}
+        for ws in workslips:
+            num = ws.workslip_number or 0
+            existing = by_num.get(num)
+            if existing is None:
+                by_num[num] = ws
+            else:
+                # Prefer the one with actual work_data
+                existing_has_data = bool(existing.work_data)
+                ws_has_data = bool(ws.work_data)
+                if ws_has_data and not existing_has_data:
+                    by_num[num] = ws
+                elif ws.updated_at and existing.updated_at and ws.updated_at > existing.updated_at:
+                    by_num[num] = ws
+        return sorted(by_num.values(), key=lambda w: w.workslip_number)
 
     def _collect_workslips(self, node, result):
         """Recursively collect workslips from the workflow tree"""

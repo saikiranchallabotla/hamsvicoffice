@@ -845,6 +845,14 @@
     const isOrphanWorkslip = {{ is_orphan_workslip|yesno:"true,false" }};
     let pendingBillWorkslipId = null;
 
+    // Build a map of workslip_number → workslip id for bill linking
+    // B1 uses W1, B2 uses W2, B3 uses W3
+    const workslipIdByNumber = {
+        {% for ws in workslips %}
+        {{ ws.workslip_number|default:1 }}: {{ ws.id }},
+        {% endfor %}
+    };
+
     // ========================================
     // E — Edit / Resume Estimate
     // ========================================
@@ -895,25 +903,26 @@
     }
 
     // ========================================
-    // B — Bill 1 (main B button) — uses resume for existing bills
+    // B — Bill 1 (main B button) — maps B(N) to W(N)
     // ========================================
     function handleB(parentId, billNum, billStatus) {
         try {
-            // Go to bill entry UI for editing with bill_number parameter
-            window.location.replace('/bill/entry/' + parentId + '/?bill_number=' + billNum);
+            // Find the workslip matching this bill number; fall back to parentId
+            var wsId = workslipIdByNumber[billNum] || parentId;
+            window.location.replace('/bill/entry/' + wsId + '/?bill_number=' + billNum);
         } catch (e) {
             console.error('handleB error:', e);
             alert('Error: ' + e.message);
         }
     }
 
-    // B button when NO bills exist → generate B1 (choose type)
-    // Uses the latest completed workslip, not always the first one
+    // B button when NO bills exist → generate B1 from W1
     function handleBNew() {
         try {
             {% if workslips|length > 0 %}
-            // New: Direct to bill entry UI instead of file upload
-            window.location.replace('/bill/entry/' + {{ workslips.0.id }} + '/');
+            // B1 uses W1 (workslip_number=1)
+            var wsId = workslipIdByNumber[1] || {{ workslips.0.id }};
+            window.location.replace('/bill/entry/' + wsId + '/?bill_number=1');
             {% else %}
             alert('No workslips exist yet. Generate a WorkSlip first.');
             {% endif %}
@@ -923,12 +932,13 @@
         }
     }
 
-    // B2, B3, … additional bill buttons — uses resume for existing bills
+    // B2, B3, … additional bill buttons — uses correct workslip for each bill
+    // B(N) maps to W(N)
     function handleBn(parentId, billNum, billStatus) {
         try {
-            // Go to bill entry UI for editing with bill_number parameter
-            // This allows editing any specific bill regardless of workslip number
-            window.location.replace('/bill/entry/' + parentId + '/?bill_number=' + billNum);
+            // Find the workslip matching this bill number; fall back to parentId
+            var wsId = workslipIdByNumber[billNum] || parentId;
+            window.location.replace('/bill/entry/' + wsId + '/?bill_number=' + billNum);
         } catch (e) {
             console.error('handleBn error:', e);
             alert('Error: ' + e.message);
@@ -947,10 +957,12 @@
     }
 
     // Create new bill from workslip with specific bill number
-    function handleBCreateWithNum(workslipId, billNum) {
+    // B(N) uses W(N) — look up the correct workslip by number
+    function handleBCreateWithNum(fallbackWorkslipId, billNum) {
         try {
-            // Go to bill entry UI with the workslip ID and bill_number parameter
-            window.location.replace('/bill/entry/' + workslipId + '/?bill_number=' + billNum);
+            // Find the workslip whose number matches the bill number
+            var wsId = workslipIdByNumber[billNum] || fallbackWorkslipId;
+            window.location.replace('/bill/entry/' + wsId + '/?bill_number=' + billNum);
         } catch (e) {
             console.error('handleBCreateWithNum error:', e);
             alert('Error: ' + e.message);

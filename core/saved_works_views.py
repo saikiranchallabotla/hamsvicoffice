@@ -267,13 +267,38 @@ def saved_works_list(request):
             return None
         if est.id in _chain_cache:
             return _chain_cache[est.id]
+        # Direct workslip children
         ws_list = list(
             SavedWork.objects.filter(
                 organization=org, user=user,
                 work_type='workslip', parent=est,
             ).order_by('workslip_number')
         )
-        ws_ids = [ws.id for ws in ws_list]
+        # Also find workslips chained to other workslips (W2→W1, W3→W2)
+        # and re-parent them to the root estimate
+        ws_ids = {ws.id for ws in ws_list}
+        depth = 0
+        search_ids = set(ws_ids)
+        while depth < 10:
+            chained = list(
+                SavedWork.objects.filter(
+                    organization=org, user=user,
+                    work_type='workslip', parent_id__in=search_ids,
+                ).exclude(id__in=ws_ids)
+            )
+            if not chained:
+                break
+            new_ids = set()
+            for cw in chained:
+                cw.parent = est
+                cw.save(update_fields=['parent'])
+                ws_list.append(cw)
+                ws_ids.add(cw.id)
+                new_ids.add(cw.id)
+            search_ids = new_ids
+            depth += 1
+        ws_list.sort(key=lambda w: w.workslip_number or 0)
+
         bill_list = list(
             SavedWork.objects.filter(
                 organization=org, user=user, work_type='bill',
@@ -1089,9 +1114,7 @@ def resume_saved_work(request, work_id):
     
     # Redirect to appropriate module
     redirect_url = get_module_url(saved_work)
-    
-    messages.success(request, f'Resumed work: "{saved_work.name}"')
-    
+
     return redirect(redirect_url)
 
 
@@ -1727,29 +1750,30 @@ def generate_workslip_from_saved(request, work_id):
     
     # ── Pre-create the SavedWork record for Workslip-1 so
     #    quickSaveWorkslip() finds it and auto-updates without asking
-    #    for a name. ──
+    #    for a name. Use get_or_create to prevent duplicates. ──
     new_ws_name = f"{saved_work.name} - W1"
 
-    new_ws = SavedWork.objects.create(
+    new_ws, ws_created = SavedWork.objects.get_or_create(
         organization=org,
         user=user,
-        folder=saved_work.folder,
         parent=saved_work,
-        name=new_ws_name,
         work_type='workslip',
-        work_data={},  # will be filled on first quickSave
-        category=category,
-        notes='',
-        progress_percent=0,
-        last_step='workslip',
         workslip_number=1,
+        defaults={
+            'folder': saved_work.folder,
+            'name': new_ws_name,
+            'work_data': {},  # will be filled on first quickSave
+            'category': category,
+            'notes': '',
+            'progress_percent': 0,
+            'last_step': 'workslip',
+        },
     )
 
     request.session['current_saved_work_id'] = new_ws.id
     request.session['current_saved_work_name'] = new_ws_name
     request.session.modified = True
-    
-    messages.success(request, f'Loaded estimate "{saved_work.name}" for workslip generation.')
+
     return redirect(reverse('workslip_main') + '?preserve=1')
 
 
@@ -1915,37 +1939,42 @@ def generate_next_workslip_from_saved(request, work_id):
     # ── Pre-create the SavedWork record for the new workslip so
     #    quickSaveWorkslip() finds it and auto-updates without asking
     #    for a name.  Derive name from parent workslip / root estimate. ─
-    # Walk up to root estimate for the base name
-    base_name = saved_work.name
-    root = saved_work.parent
-    while root:
-        if root.work_type == 'new_estimate':
-            base_name = root.name
+    # Walk up to root estimate — ALL workslips should be direct children
+    # of the root estimate so queries like parent=root_estimate find them.
+    root_estimate = saved_work.parent
+    while root_estimate:
+        if root_estimate.work_type == 'new_estimate':
             break
-        root = root.parent
+        root_estimate = root_estimate.parent
+    # Fallback: if no root estimate found, parent to the current workslip
+    parent_for_new_ws = root_estimate if root_estimate else saved_work
+
+    base_name = root_estimate.name if root_estimate else saved_work.name
 
     new_ws_name = f"{base_name} - W{next_workslip_number}"
 
-    new_ws = SavedWork.objects.create(
+    # Use get_or_create to prevent duplicate workslip records on repeat visits
+    new_ws, ws_created = SavedWork.objects.get_or_create(
         organization=org,
         user=user,
-        folder=saved_work.folder,
-        parent=saved_work,
-        name=new_ws_name,
+        parent=parent_for_new_ws,
         work_type='workslip',
-        work_data={},  # will be filled on first quickSave
-        category=saved_work.category or 'electrical',
-        notes='',
-        progress_percent=0,
-        last_step='workslip',
         workslip_number=next_workslip_number,
+        defaults={
+            'folder': saved_work.folder,
+            'name': new_ws_name,
+            'work_data': {},  # will be filled on first quickSave
+            'category': saved_work.category or 'electrical',
+            'notes': '',
+            'progress_percent': 0,
+            'last_step': 'workslip',
+        },
     )
 
     request.session['current_saved_work_id'] = new_ws.id
     request.session['current_saved_work_name'] = new_ws_name
     request.session.modified = True
-    
-    messages.success(request, f'Ready to generate Workslip-{next_workslip_number} from "{saved_work.name}".')
+
     return redirect(reverse('workslip_main') + '?preserve=1')
 
 
@@ -3005,7 +3034,6 @@ def generate_bill_from_saved(request, work_id):
         request.session['bill_ws_supp_items'] = work_data.get('ws_supp_items', [])
 
         logger.info(f"[GEN_BILL] Generating Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
-        messages.success(request, f'Ready to generate Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} "{saved_work.name}".')
     else:
         # Bill from estimate (fallback)
         request.session['bill_target_number'] = 1
@@ -3017,7 +3045,6 @@ def generate_bill_from_saved(request, work_id):
         request.session['bill_qty_map'] = work_data.get('qty_map', {})
 
         logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
-        messages.success(request, f'Ready to generate bill from "{saved_work.name}".')
 
     # For workslip source: redirect directly to bill_entry so the user enters
     # quantities for this billing period via the new bill_entry → bill_generate flow.
@@ -3092,6 +3119,7 @@ def saved_work_detail(request, work_id):
     workslips = []
     bills = []
     if root_estimate:
+        # Find direct child workslips of root estimate
         workslips = list(
             SavedWork.objects.filter(
                 organization=org, user=user,
@@ -3099,6 +3127,38 @@ def saved_work_detail(request, work_id):
                 parent=root_estimate,
             ).order_by('workslip_number')
         )
+
+        # Also find workslips chained to other workslips (W2→W1, W3→W2)
+        # These were created before the fix that makes all workslips direct children
+        existing_ws_ids = {ws.id for ws in workslips}
+        chained_ws = SavedWork.objects.filter(
+            organization=org, user=user,
+            work_type='workslip',
+            parent_id__in=existing_ws_ids,
+        )
+        for cw in chained_ws:
+            if cw.id not in existing_ws_ids:
+                # Fix: re-parent to root estimate
+                cw.parent = root_estimate
+                cw.save(update_fields=['parent'])
+                workslips.append(cw)
+                existing_ws_ids.add(cw.id)
+        # Recursively find deeper chains (W3→W2→W1)
+        depth = 0
+        while depth < 10:
+            deeper = SavedWork.objects.filter(
+                organization=org, user=user,
+                work_type='workslip',
+                parent_id__in=existing_ws_ids,
+            ).exclude(id__in=existing_ws_ids)
+            if not deeper.exists():
+                break
+            for dw in deeper:
+                dw.parent = root_estimate
+                dw.save(update_fields=['parent'])
+                workslips.append(dw)
+                existing_ws_ids.add(dw.id)
+            depth += 1
 
         # Also find orphan workslips (parent not set) that reference this estimate
         # via ws_source_estimate_id in their work_data — fix their parent and include them
