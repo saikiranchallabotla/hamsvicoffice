@@ -955,6 +955,7 @@ def collect_work_data(request, work_type):
             'ws_metadata': request.session.get('ws_metadata', {}),
             'selected_backend_id': request.session.get('ws_selected_backend_id'),
             'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
+            'ws_work_mode': request.session.get('ws_work_mode', 'original'),
         }
     
     elif work_type == 'temporary_works':
@@ -1180,6 +1181,7 @@ def restore_work_data(request, saved_work):
         if work_data.get('selected_backend_id'):
             request.session['ws_selected_backend_id'] = work_data['selected_backend_id']
         request.session['ws_source_estimate_id'] = work_data.get('ws_source_estimate_id')
+        request.session['ws_work_mode'] = work_data.get('ws_work_mode', 'original')
         request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
         request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
         request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
@@ -1747,7 +1749,12 @@ def generate_workslip_from_saved(request, work_id):
     else:
         request.session['ws_work_type'] = 'new_estimate'
     request.session['ws_category'] = category
-    
+
+    # Propagate original/repair work mode from estimate to workslip session
+    # This ensures prefixes from the backend Groups sheet are applied in Excel output
+    estimate_work_mode = work_data.get('work_type', 'original')
+    request.session['ws_work_mode'] = estimate_work_mode
+
     # ── Pre-create the SavedWork record for Workslip-1 so
     #    quickSaveWorkslip() finds it and auto-updates without asking
     #    for a name. Use get_or_create to prevent duplicates. ──
@@ -1901,7 +1908,10 @@ def generate_next_workslip_from_saved(request, work_id):
     request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0)
     request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0)
     request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0)
-    
+
+    # Propagate work_mode (original/repair) from previous workslip
+    request.session['ws_work_mode'] = work_data.get('ws_work_mode', 'original')
+
     # Carry over metadata from previous workslip (Name of work, Agency, Sanctions, Agreement, etc.)
     prev_metadata = work_data.get('ws_metadata', {})
     # Ensure all metadata fields are preserved
@@ -3032,6 +3042,8 @@ def generate_bill_from_saved(request, work_id):
         }
         # Pass supplemental items if any
         request.session['bill_ws_supp_items'] = work_data.get('ws_supp_items', [])
+        # Propagate work_mode (original/repair) so bill Excel gets prefix
+        request.session['work_type'] = work_data.get('ws_work_mode', 'original')
 
         logger.info(f"[GEN_BILL] Generating Bill-{bill_number} from WorkSlip-{saved_work.workslip_number} '{saved_work.name}' (ID: {work_id})")
     else:
@@ -3043,6 +3055,8 @@ def generate_bill_from_saved(request, work_id):
         request.session['bill_from_workslip'] = False
         request.session['bill_estimate_items'] = work_data.get('fetched_items', [])
         request.session['bill_qty_map'] = work_data.get('qty_map', {})
+        # Propagate work_mode (original/repair) so bill Excel gets prefix
+        request.session['work_type'] = work_data.get('work_type', 'original')
 
         logger.info(f"[GEN_BILL] Generating Bill-1 from estimate '{saved_work.name}' (ID: {work_id})")
 

@@ -629,6 +629,8 @@ def _bill_entry_save_logic(request, work_id):
             'bill_ws_tp_type': work_data.get('ws_tp_type', 'Excess'),
             'bill_ws_metadata': work_data.get('ws_metadata', {}),
             'source_workslip_id': source_work.id if source_work.work_type == 'workslip' else None,
+            # Propagate work_mode so bill Excel generation applies prefix for repair works
+            'work_mode': work_data.get('ws_work_mode', 'original') if source_work.work_type == 'workslip' else work_data.get('work_type', 'original'),
         }
         
         # Use update_or_create to avoid duplicate bill records
@@ -1113,6 +1115,8 @@ def workslip_entry_save(request, work_id):
         'mb_to_page': request.POST.get('mb_to_page', ''),
         # Store parent estimate reference
         'ws_source_estimate_id': source_estimate.id,
+        # Propagate work_mode (original/repair) from estimate
+        'ws_work_mode': estimate_data.get('work_type', 'original'),
     }
     
     # Create or update SavedWork for workslip (prevents duplicates)
