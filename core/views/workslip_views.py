@@ -1493,6 +1493,7 @@ def workslip(request):
                                 "excel_row": r,
                                 "item_name": backend_item_name,
                                 "display_name": display_name,
+                                "item_desc": item_name_to_desc.get(display_name, '') or item_name_to_desc.get(backend_item_name, '') or desc_str,
                                 "desc": desc_str,
                                 "qty_est": qty_num,
                                 "unit": str(unit or "").strip(),
@@ -1728,6 +1729,7 @@ def workslip(request):
                         "excel_row": r,
                         "item_name": desc,
                         "display_name": desc,
+                        "item_desc": item_name_to_desc.get(desc, '') or desc,
                         "desc": desc,
                         "qty_est": est_qty,
                         "unit": str(unit).strip(),
@@ -2163,6 +2165,10 @@ def workslip(request):
                 original_rate = float(row.get("rate", 0) or 0)
                 rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
                 desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
+                # If desc_est is just the header name, try to get the real row+2 description from backend
+                _display = row.get("display_name") or row.get("item_name") or ""
+                if desc_est == _display and _display in item_name_to_desc:
+                    desc_est = item_name_to_desc[_display]
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
