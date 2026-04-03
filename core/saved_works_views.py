@@ -870,8 +870,20 @@ def collect_work_data(request, work_type):
                 return val
             return request.session.get(session_key, default)
 
+        # ---- fetched_items: prefer direct POST JSON over session ----
+        fetched_items = request.session.get('fetched_items', [])
+        fetched_items_json = request.POST.get('fetched_items_json', '')
+        if fetched_items_json:
+            try:
+                parsed = _json.loads(fetched_items_json)
+                if isinstance(parsed, list) and parsed:
+                    fetched_items = parsed
+                    request.session['fetched_items'] = fetched_items
+            except (ValueError, TypeError):
+                pass
+
         work_data = {
-            'fetched_items': request.session.get('fetched_items', []),
+            'fetched_items': fetched_items,
             'current_project_name': request.session.get('current_project_name'),
             'work_type': _post_or_session('work_type_value', 'work_type', 'original'),
             'qty_map': qty_map,

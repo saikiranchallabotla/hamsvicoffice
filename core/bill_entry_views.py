@@ -79,11 +79,26 @@ def bill_entry(request, work_id):
                 bill_number = max_bill + 1
     else:
         # From estimate
-        ws_rows = work_data.get('fetched_items', [])
+        ws_rows_raw = work_data.get('fetched_items', [])
         ws_exec = work_data.get('qty_map', {})
+        _item_rates = work_data.get('item_rates', {})
+        _item_units = work_data.get('item_units', {})
+        _unit_map = work_data.get('unit_map', {})
         bill_number = 1
         item_type = 'estimate'
         ae_qty_map = work_data.get('qty_map', {})
+        # Normalize: convert string items to dicts
+        ws_rows = []
+        for _i, _r in enumerate(ws_rows_raw):
+            if isinstance(_r, str):
+                ws_rows.append({
+                    'key': _r,
+                    'item_name': _r,
+                    'unit': _unit_map.get(_r, _item_units.get(_r, 'Nos')),
+                    'rate': float(_item_rates.get(_r, 0) or 0),
+                })
+            else:
+                ws_rows.append(_r)
     
     # Allow bill_number override via query parameter (used by generate_next_bill, resume)
     bill_number_override = request.GET.get('bill_number')
@@ -834,11 +849,14 @@ def workslip_entry(request, work_id):
     # Get items from estimate
     estimate_items = work_data.get('fetched_items', [])
     qty_map = work_data.get('qty_map', {})  # Estimate quantities
-    
+    item_rates = work_data.get('item_rates', {})
+    item_units = work_data.get('item_units', {})
+    unit_map = work_data.get('unit_map', {})
+
     if not estimate_items:
         messages.error(request, 'Estimate has no items.')
         return redirect('saved_work_detail', work_id=work_id)
-    
+
     # Determine workslip number
     # Find the highest workslip number for this estimate
     existing_workslips = SavedWork.objects.filter(
@@ -847,27 +865,38 @@ def workslip_entry(request, work_id):
         work_type='workslip',
         parent=source_estimate
     ).order_by('-workslip_number')
-    
+
     if existing_workslips.exists():
         workslip_number = existing_workslips.first().workslip_number + 1
     else:
         workslip_number = 1
-    
+
     # Build workslip items from estimate (include estimate qty)
+    # Handle both old format (list of strings) and new format (list of dicts)
     workslip_items = []
     for idx, item in enumerate(estimate_items):
-        key = item.get('key') or item.get('item_name') or f'item_{idx}'
-        item_name = item.get('display_name') or item.get('item_name') or item.get('desc') or 'Item'
-        unit = item.get('unit') or 'Nos'
-        rate = float(item.get('rate', 0) or 0)
-        
+        if isinstance(item, str):
+            # Old format: item is just a name string
+            item_name = item
+            key = item_name
+            unit = unit_map.get(item_name, item_units.get(item_name, 'Nos'))
+            rate = float(item_rates.get(item_name, 0) or 0)
+        else:
+            # New format: item is a dict with item_name, unit, rate, etc.
+            key = item.get('key') or item.get('item_name') or f'item_{idx}'
+            item_name = item.get('display_name') or item.get('item_name') or item.get('desc') or 'Item'
+            unit = item.get('unit') or unit_map.get(item_name, 'Nos')
+            rate = float(item.get('rate', 0) or 0)
+
         # Get estimate quantity from qty_map (using various key formats)
-        est_qty = qty_map.get(key, qty_map.get(item_name, item.get('qty', item.get('qty_est', 0))))
+        est_qty = qty_map.get(key, qty_map.get(item_name, 0))
+        if isinstance(item, dict):
+            est_qty = est_qty or item.get('qty', item.get('qty_est', 0))
         try:
             est_qty = float(est_qty) if est_qty else 0.0
         except (ValueError, TypeError):
             est_qty = 0.0
-        
+
         workslip_items.append({
             'key': key,
             'item_name': item_name,
@@ -1017,18 +1046,35 @@ def workslip_entry_save(request, work_id):
     
     # Build workslip data to save
     # Store estimate items with key preservation
+    # Handle both old format (list of strings) and new format (list of dicts)
+    estimate_qty_map = estimate_data.get('qty_map', {})
+    _est_item_rates = estimate_data.get('item_rates', {})
+    _est_item_units = estimate_data.get('item_units', {})
+    _est_unit_map = estimate_data.get('unit_map', {})
     ws_rows = []
     for item in estimate_items:
-        key = item.get('key', f'item_{len(ws_rows)}')
-        ws_rows.append({
-            'key': key,
-            'item_name': item.get('item_name', ''),
-            'display_name': item.get('display_name', ''),
-            'desc': item.get('desc', ''),
-            'unit': item.get('unit', 'Nos'),
-            'qty_est': float(item.get('qty_est', 0) or 0),
-            'rate': float(item.get('rate', 0) or 0),
-        })
+        if isinstance(item, str):
+            key = item
+            ws_rows.append({
+                'key': key,
+                'item_name': item,
+                'display_name': item,
+                'desc': item,
+                'unit': _est_unit_map.get(item, _est_item_units.get(item, 'Nos')),
+                'qty_est': float(estimate_qty_map.get(item, 0) or 0),
+                'rate': float(_est_item_rates.get(item, 0) or 0),
+            })
+        else:
+            key = item.get('key', f'item_{len(ws_rows)}')
+            ws_rows.append({
+                'key': key,
+                'item_name': item.get('item_name', ''),
+                'display_name': item.get('display_name', ''),
+                'desc': item.get('desc', ''),
+                'unit': item.get('unit', 'Nos'),
+                'qty_est': float(item.get('qty_est', 0) or 0),
+                'rate': float(item.get('rate', 0) or 0),
+            })
     
     workslip_data = {
         'workslip_number': workslip_number,

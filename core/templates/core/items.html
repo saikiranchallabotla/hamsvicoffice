@@ -2712,6 +2712,19 @@ function saveCurrentWork() {
     formData.append('deduct_old_material_value', deductOldMaterial);
     formData.append('work_type_value', workType);
 
+    // Include fetched_items as rich objects (name, unit, rate) so the server
+    // does not depend on the session which may have been cleared.
+    const fetchedItemsList = [];
+    document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+        const name = row.getAttribute('data-item-name');
+        if (!name) return;
+        const unit = row.getAttribute('data-unit') || row.querySelector('.unit-select')?.value || 'Nos';
+        const rateEl = row.querySelector('.qty-input');
+        const rate = rateEl ? (rateEl.getAttribute('data-rate') || '0') : '0';
+        fetchedItemsList.push({item_name: name, unit: unit, rate: parseFloat(rate) || 0});
+    });
+    formData.append('fetched_items_json', JSON.stringify(fetchedItemsList));
+
     // Also save quantities to session (for group navigation, etc.)
     const saveQtyData = new FormData();
     saveQtyData.append('csrfmiddlewaretoken', csrfToken);
