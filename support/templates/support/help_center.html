@@ -633,7 +633,7 @@
                     <div class="accordion-body">
                         <h6 class="text-primary"><i class="bi bi-play-circle me-2"></i>How It Works</h6>
                         <ol>
-                            <li>Create a Word/Excel file with placeholders like <code>{{ "{{NAME}}" }}</code></li>
+                            <li>Create a Word/Excel file with placeholders like <code>{% templatetag openvariable %}NAME{% templatetag closevariable %}</code></li>
                             <li>Upload and name your template</li>
                             <li>Select template, fill in values</li>
                             <li>Download filled document</li>
