@@ -14,9 +14,10 @@ from django.db.models import Q
 from support.models import FAQCategory, FAQItem, HelpGuide, SupportTicket, TicketMessage
 
 
+@login_required
 def help_center_view(request):
     """
-    Public help center with FAQs and guides.
+    Help center with FAQs and guides.
     """
     # Get FAQ categories with items
     categories = FAQCategory.objects.filter(is_active=True).prefetch_related(
