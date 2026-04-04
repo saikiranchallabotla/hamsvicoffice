@@ -109,12 +109,14 @@ class OTPService:
         email_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
         email_configured = all([email_host, email_user, email_pass])
         
-        # FORCE dev_mode = True for testing until SMS/Email is properly configured
-        # TODO: Remove this line when going to production with real SMS/Email
-        dev_mode = True  # Force OTP to show on screen
-        
-        # Log for debugging
-        logger.info(f"[OTP_DEV_MODE] FORCED dev_mode=True for testing")
+        # Determine dev_mode based on whether the delivery channel is configured
+        if channel == 'sms':
+            dev_mode = not sms_configured
+        else:
+            dev_mode = not email_configured
+
+        if dev_mode:
+            logger.info(f"[OTP_DEV_MODE] No {channel} provider configured, showing OTP on screen")
         
         # Build response data
         response_data = {

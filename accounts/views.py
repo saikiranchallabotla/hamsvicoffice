@@ -23,9 +23,11 @@ from django.utils import timezone
 from accounts.services import OTPService
 from accounts.models import UserProfile, UserSession
 from accounts.forms import (
-    ProfileForm, ChangePhoneForm, ChangeEmailForm, 
+    ProfileForm, ChangePhoneForm, ChangeEmailForm,
     DeleteAccountForm, NotificationPrefsForm
 )
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 
 # =============================================================================
@@ -218,6 +220,11 @@ def register_view(request):
             errors.append('First name is required.')
         if not phone:
             errors.append('Phone number is required.')
+        if email:
+            try:
+                validate_email(email)
+            except DjangoValidationError:
+                errors.append('Please enter a valid email address.')
         if email and User.objects.filter(email=email).exists():
             errors.append('Email already registered.')
         if phone and UserProfile.objects.filter(phone=phone).exists():
