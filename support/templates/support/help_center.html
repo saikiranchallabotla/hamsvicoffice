@@ -418,7 +418,7 @@
                 <i class="bi bi-{% if category.icon %}{{ category.icon }}{% else %}folder{% endif %}"></i>
             </div>
             <h5>{{ category.name }}</h5>
-            <span class="hc-cat-count">{{ category.faq_items.count }} articles</span>
+            <span class="hc-cat-count">{{ category.faqs.count }} articles</span>
         </a>
         {% empty %}
         <a href="#" class="hc-cat-card">
