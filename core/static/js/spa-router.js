@@ -530,7 +530,7 @@
                 document.title = FIXED_TITLE;
                 // Track current logical URL for same-page detection
                 currentLogicalUrl = url;
-                history.replaceState({ spa: true }, '', currentLogicalUrl);
+                history.pushState({ spa: true, url: url }, '', currentLogicalUrl);
 
                 // Update active nav link
                 updateActiveNavLink(url);
@@ -659,11 +659,18 @@
         }
     });
 
-    // Handle browser back/forward — since we only use replaceState,
-    // pressing Back should leave the site entirely (expected SPA behaviour)
+    // Handle browser back/forward — navigate to the previous URL
     window.addEventListener('popstate', function(e) {
-        // If the user presses Back, they intend to leave the app.
-        // Allow the browser's default behaviour.
+        var url = window.location.pathname + window.location.search;
+        if (url !== currentLogicalUrl) {
+            currentLogicalUrl = url;
+            // Use the navigate function (which may be overridden by prefetch)
+            if (window.spaNavigate) {
+                window.spaNavigate(url);
+            } else {
+                navigate(url);
+            }
+        }
     });
 
     // =========================================================================
@@ -839,7 +846,7 @@
 
                 document.title = FIXED_TITLE;
                 currentLogicalUrl = url;
-                history.replaceState({ spa: true }, '', currentLogicalUrl);
+                history.pushState({ spa: true, url: url }, '', currentLogicalUrl);
                 updateActiveNavLink(url);
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
                     detail: { url: url, layout: targetLayout }
