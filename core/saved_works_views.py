@@ -1552,6 +1552,68 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
         return {name: {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name} for name in item_names}
 
 
+def load_prefix_map(category, backend_id=None, user=None, module_code='new_estimate'):
+    """
+    Load {item_name: prefix} mapping from the backend Excel's Groups sheet.
+    Returns empty dict on error or if no prefixes found.
+    """
+    import os
+    import logging
+    from django.conf import settings
+    logger = logging.getLogger(__name__)
+
+    try:
+        from openpyxl import load_workbook as _load_wb
+        from core.utils_excel import load_backend
+
+        _items_list, _groups_map, _units_map, _ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=backend_id,
+            user=user,
+            module_code=module_code,
+        )
+        if not filepath or not os.path.exists(filepath):
+            return {}
+
+        backend_wb = _load_wb(filepath, data_only=False)
+        ws_groups = backend_wb["Groups"]
+        header_row_g = None
+        col_item_g = None
+        col_prefix_g = None
+        for r in range(1, ws_groups.max_row + 1):
+            for c in range(1, ws_groups.max_column + 1):
+                val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
+                if val == "item name":
+                    header_row_g = r
+                    col_item_g = c
+                elif val == "prefix":
+                    col_prefix_g = c
+            if header_row_g:
+                break
+        if not (header_row_g and col_item_g and col_prefix_g):
+            return {}
+        prefix_map = {}
+        for r in range(header_row_g + 1, ws_groups.max_row + 1):
+            nm = ws_groups.cell(r, col_item_g).value
+            px = ws_groups.cell(r, col_prefix_g).value
+            if nm and px not in (None, ""):
+                prefix_map[str(nm).strip()] = str(px).strip()
+        return prefix_map
+    except Exception:
+        logger.debug("[LOAD_PREFIX_MAP] Error loading prefix map", exc_info=True)
+        return {}
+
+
+def apply_prefix_to_desc(desc, item_name, prefix_map):
+    """Apply prefix from prefix_map to a description string. Returns modified desc."""
+    if not prefix_map:
+        return desc
+    prefix = prefix_map.get(item_name, '')
+    if prefix:
+        return f"{prefix} {desc}" if desc else prefix
+    return desc
+
+
 @login_required(login_url='login')
 def generate_workslip_from_saved(request, work_id):
     """
@@ -2406,42 +2468,9 @@ def bill_generate(request, work_id):
 
     item_to_prefix = {}
     if is_repair:
-        try:
-            import os
-            from django.conf import settings
-            from openpyxl import load_workbook as _load_wb
-            from core.utils_excel import load_backend
-            category = workslip.category or 'electrical'
-            saved_backend_id = work_data.get('selected_backend_id')
-            backend_base_dir = os.path.join(settings.BASE_DIR, 'core', 'data')
-            filepath, _ = load_backend(category, backend_base_dir,
-                                       backend_id=saved_backend_id,
-                                       user=request.user,
-                                       module_code='new_estimate')
-            if filepath and os.path.exists(filepath):
-                backend_wb = _load_wb(filepath, data_only=False)
-                ws_groups = backend_wb["Groups"]
-                header_row_g = None
-                col_item_g = None
-                col_prefix_g = None
-                for r in range(1, ws_groups.max_row + 1):
-                    for c in range(1, ws_groups.max_column + 1):
-                        val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
-                        if val == "item name":
-                            header_row_g = r
-                            col_item_g = c
-                        elif val == "prefix":
-                            col_prefix_g = c
-                    if header_row_g:
-                        break
-                if header_row_g and col_item_g and col_prefix_g:
-                    for r in range(header_row_g + 1, ws_groups.max_row + 1):
-                        nm = ws_groups.cell(r, col_item_g).value
-                        px = ws_groups.cell(r, col_prefix_g).value
-                        if nm and px not in (None, ""):
-                            item_to_prefix[str(nm).strip()] = str(px).strip()
-        except Exception:
-            pass  # Continue without prefixes
+        category = workslip.category or 'electrical'
+        saved_backend_id = work_data.get('selected_backend_id')
+        item_to_prefix = load_prefix_map(category, backend_id=saved_backend_id, user=request.user)
 
     items = []
     total_amount = 0.0
@@ -3379,6 +3408,14 @@ def saved_work_detail(request, work_id):
         ws_exec = work_data.get('ws_exec_map', {}) or {}
         bill_preview_number = saved_work.workslip_number or 1
 
+        # Load prefix map for repair mode
+        _ws_work_mode = work_data.get('ws_work_mode', 'original')
+        _prefix_map = {}
+        if _ws_work_mode == 'repair':
+            _category = saved_work.category or 'electrical'
+            _backend_id = work_data.get('selected_backend_id')
+            _prefix_map = load_prefix_map(_category, backend_id=_backend_id, user=user)
+
         for idx, row in enumerate(ws_rows):
             key = row.get('key', f'saved_{idx}')
             exec_qty = ws_exec.get(key, 0)
@@ -3391,10 +3428,13 @@ def saved_work_detail(request, work_id):
             rate = float(row.get('rate', 0) or 0)
             amount = exec_qty * rate
             bill_preview_total += amount
+            _item_name = row.get('item_name') or row.get('display_name') or ''
+            _raw_name = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+            _raw_desc = row.get('desc', '')
             bill_preview_rows.append({
                 'sl': len(bill_preview_rows) + 1,
-                'name': row.get('desc') or row.get('display_name') or row.get('item_name', ''),
-                'desc': row.get('desc', ''),
+                'name': apply_prefix_to_desc(_raw_name, _item_name, _prefix_map),
+                'desc': apply_prefix_to_desc(_raw_desc, _item_name, _prefix_map),
                 'unit': row.get('unit', 'Nos'),
                 'qty': exec_qty,
                 'rate': rate,
@@ -3445,6 +3485,14 @@ def saved_work_detail(request, work_id):
         ws_exec = work_data.get('bill_ws_exec_map', work_data.get('ws_exec_map', {})) or {}
         bill_preview_number = saved_work.bill_number or 1
 
+        # Load prefix map for repair mode
+        _bill_work_mode = work_data.get('work_mode', 'original')
+        _prefix_map = {}
+        if _bill_work_mode == 'repair':
+            _category = saved_work.category or 'electrical'
+            _backend_id = work_data.get('selected_backend_id')
+            _prefix_map = load_prefix_map(_category, backend_id=_backend_id, user=user)
+
         for idx, row in enumerate(ws_rows):
             key = row.get('key', f'saved_{idx}')
             exec_qty = ws_exec.get(key, 0)
@@ -3457,10 +3505,13 @@ def saved_work_detail(request, work_id):
             rate = float(row.get('rate', 0) or 0)
             amount = exec_qty * rate
             bill_preview_total += amount
+            _item_name = row.get('item_name') or row.get('display_name') or ''
+            _raw_name = row.get('desc') or row.get('display_name') or row.get('item_name', '')
+            _raw_desc = row.get('desc', '')
             bill_preview_rows.append({
                 'sl': len(bill_preview_rows) + 1,
-                'name': row.get('desc') or row.get('display_name') or row.get('item_name', ''),
-                'desc': row.get('desc', ''),
+                'name': apply_prefix_to_desc(_raw_name, _item_name, _prefix_map),
+                'desc': apply_prefix_to_desc(_raw_desc, _item_name, _prefix_map),
                 'unit': row.get('unit', 'Nos'),
                 'qty': exec_qty,
                 'rate': rate,

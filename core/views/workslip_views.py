@@ -1914,31 +1914,11 @@ def workslip(request):
 
             # Load prefix mapping for repair mode (used in both ItemBlocks and WorkSlip sheets)
             item_to_prefix_ws = {}
-            if ws_work_mode == 'repair' and filepath and os.path.exists(filepath):
-                try:
-                    wb_groups_for_prefix = load_workbook(filepath, data_only=False)
-                    ws_groups_for_prefix = wb_groups_for_prefix["Groups"]
-                    header_row_p = None
-                    col_item_p = None
-                    col_prefix_p = None
-                    for r in range(1, ws_groups_for_prefix.max_row + 1):
-                        for c in range(1, ws_groups_for_prefix.max_column + 1):
-                            val = str(ws_groups_for_prefix.cell(row=r, column=c).value or "").strip().lower()
-                            if val == "item name":
-                                header_row_p = r
-                                col_item_p = c
-                            elif val == "prefix":
-                                col_prefix_p = c
-                        if header_row_p:
-                            break
-                    if header_row_p and col_item_p and col_prefix_p:
-                        for r in range(header_row_p + 1, ws_groups_for_prefix.max_row + 1):
-                            nm = ws_groups_for_prefix.cell(r, col_item_p).value
-                            px = ws_groups_for_prefix.cell(r, col_prefix_p).value
-                            if nm and px not in (None, ""):
-                                item_to_prefix_ws[str(nm).strip()] = str(px).strip()
-                except Exception:
-                    pass
+            if ws_work_mode == 'repair':
+                from core.saved_works_views import load_prefix_map
+                item_to_prefix_ws = load_prefix_map(
+                    ws_category, backend_id=ws_selected_backend_id, user=request.user
+                )
 
             # ---------- create workbook ----------
             wb_out = Workbook()
@@ -2169,6 +2149,12 @@ def workslip(request):
                 _display = row.get("display_name") or row.get("item_name") or ""
                 if desc_est == _display and _display in item_name_to_desc:
                     desc_est = item_name_to_desc[_display]
+                # Apply repair prefix to base estimate items
+                if ws_work_mode == 'repair' and item_to_prefix_ws:
+                    _item_name_for_prefix = row.get("item_name") or row.get("display_name") or ""
+                    _prefix = item_to_prefix_ws.get(_item_name_for_prefix, "")
+                    if _prefix:
+                        desc_est = f"{_prefix} {desc_est}" if desc_est else _prefix
                 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
