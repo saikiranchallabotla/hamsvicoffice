@@ -167,10 +167,10 @@ def create_first_bill_sheet(
     slno = 1
 
     for it in items:
-        qty = it.get("qty", 0)
+        qty = round(float(it.get("qty", 0) or 0), 2)
         unit_pl = str(it.get("unit") or "").strip()
         desc = it.get("desc") or ""
-        rate = it.get("rate", 0.0)
+        rate = round(float(it.get("rate", 0.0) or 0), 2)
         is_ae = bool(it.get("is_ae", False))
 
         if is_ae:
@@ -186,8 +186,9 @@ def create_first_bill_sheet(
         ws_bill.cell(row=row_idx, column=5, value=rate)
         ws_bill.cell(row=row_idx, column=6, value=1)
         ws_bill.cell(row=row_idx, column=7, value=singular_unit(unit_pl))
-        ws_bill.cell(row=row_idx, column=8, value=f"=B{row_idx}*E{row_idx}")
+        ws_bill.cell(row=row_idx, column=8, value=f"=ROUND(B{row_idx}*E{row_idx},2)")
 
+        fmt_money = '#,##0.00'
         for c_idx in range(1, 9):
             cell = ws_bill.cell(row=row_idx, column=c_idx)
             cell.border = border_all
@@ -195,6 +196,8 @@ def create_first_bill_sheet(
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+            if c_idx in (2, 5, 8):
+                cell.number_format = fmt_money
 
         if not is_ae:
             slno += 1
@@ -205,7 +208,8 @@ def create_first_bill_sheet(
 
     sub_row = row_idx
     ws_bill.cell(row=sub_row, column=4, value="Sub Total Amount")
-    ws_bill.cell(row=sub_row, column=8, value=f"=SUM(H{data_start}:H{last_item_row})")
+    ws_bill.cell(row=sub_row, column=8, value=f"=ROUND(SUM(H{data_start}:H{last_item_row}),2)")
+    ws_bill.cell(row=sub_row, column=8).number_format = '#,##0.00'
 
     for c_idx in range(1, 9):
         cell = ws_bill.cell(row=sub_row, column=c_idx)
@@ -225,7 +229,8 @@ def create_first_bill_sheet(
     label_prefix = "Deduct" if tp_type == "Less" else "Add"
     label_tp = f"{label_prefix} T.P @ {tp_percent} % {tp_type}"
     ws_bill.cell(row=tp_row, column=4, value=label_tp)
-    ws_bill.cell(row=tp_row, column=8, value=f"=H{sub_row}*{abs(tp_percent)}/100")
+    ws_bill.cell(row=tp_row, column=8, value=f"=ROUND(H{sub_row}*{abs(tp_percent)}/100,2)")
+    ws_bill.cell(row=tp_row, column=8).number_format = '#,##0.00'
 
     for c_idx in range(1, 9):
         cell = ws_bill.cell(row=tp_row, column=c_idx)
@@ -241,9 +246,10 @@ def create_first_bill_sheet(
     ws_bill.cell(row=total_row, column=4, value="Total")
 
     if tp_type == "Less":
-        ws_bill.cell(row=total_row, column=8, value=f"=H{sub_row}-H{tp_row}")
+        ws_bill.cell(row=total_row, column=8, value=f"=ROUND(H{sub_row}-H{tp_row},2)")
     else:
-        ws_bill.cell(row=total_row, column=8, value=f"=H{sub_row}+H{tp_row}")
+        ws_bill.cell(row=total_row, column=8, value=f"=ROUND(H{sub_row}+H{tp_row},2)")
+    ws_bill.cell(row=total_row, column=8).number_format = '#,##0.00'
 
     for c_idx in range(1, 9):
         cell = ws_bill.cell(row=total_row, column=c_idx)
@@ -437,9 +443,9 @@ def build_nth_bill_wb(items, header_data, title_text,
     for it in items:
         desc = it.get("desc") or ""
         unit = it.get("unit") or ""
-        rate = it.get("rate", 0.0)
-        prev_qty = it.get("prev_qty", 0.0)
-        prev_amount = it.get("prev_amount", 0.0)
+        rate = round(float(it.get("rate", 0.0) or 0), 2)
+        prev_qty = round(float(it.get("prev_qty", 0.0) or 0), 2)
+        prev_amount = round(float(it.get("prev_amount", 0.0) or 0), 2)
         is_ae = bool(it.get("is_ae", False))
 
         if is_ae:
@@ -453,13 +459,14 @@ def build_nth_bill_wb(items, header_data, title_text,
         ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
         ws.cell(row=r, column=4, value=unit)
         ws.cell(row=r, column=5, value=rate)
-        ws.cell(row=r, column=6, value=f"=C{r}*E{r}")
+        ws.cell(row=r, column=6, value=f"=ROUND(C{r}*E{r},2)")
         ws.cell(row=r, column=7, value=prev_qty)
         ws.cell(row=r, column=8, value=prev_amount)
-        ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
-        ws.cell(row=r, column=10, value=f"=F{r}-H{r}")
+        ws.cell(row=r, column=9, value=f"=ROUND(C{r}-G{r},2)")
+        ws.cell(row=r, column=10, value=f"=ROUND(F{r}-H{r},2)")
         ws.cell(row=r, column=11, value="")
 
+        fmt_money = '#,##0.00'
         for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
@@ -467,6 +474,8 @@ def build_nth_bill_wb(items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+            if col in (3, 5, 6, 7, 8, 9, 10):
+                cell.number_format = fmt_money
 
         r += 1
         if not is_ae:
@@ -476,9 +485,9 @@ def build_nth_bill_wb(items, header_data, title_text,
 
     sub_row = r
     ws.cell(row=sub_row, column=2, value="Sub Total")
-    ws.cell(row=sub_row, column=6, value=f"=SUM(F{data_start}:F{last_item_row})")
-    ws.cell(row=sub_row, column=8, value=f"=SUM(H{data_start}:H{last_item_row})")
-    ws.cell(row=sub_row, column=10, value=f"=SUM(J{data_start}:J{last_item_row})")
+    ws.cell(row=sub_row, column=6, value=f"=ROUND(SUM(F{data_start}:F{last_item_row}),2)")
+    ws.cell(row=sub_row, column=8, value=f"=ROUND(SUM(H{data_start}:H{last_item_row}),2)")
+    ws.cell(row=sub_row, column=10, value=f"=ROUND(SUM(J{data_start}:J{last_item_row}),2)")
 
     tp_row = sub_row + 1
     tp_percent = float(tp_percent or 0.0)
@@ -487,21 +496,21 @@ def build_nth_bill_wb(items, header_data, title_text,
     # Show Add or Deduct explicitly based on tp_type
     label_prefix = "Deduct" if tp_type == "Less" else "Add"
     ws.cell(row=tp_row, column=2, value=f"{label_prefix} T.P @ {tp_percent} % {tp_type}")
-    ws.cell(row=tp_row, column=6, value=f"=F{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=8, value=f"=H{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=10, value=f"=J{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=6, value=f"=ROUND(F{sub_row}*{abs(tp_percent)}/100,2)")
+    ws.cell(row=tp_row, column=8, value=f"=ROUND(H{sub_row}*{abs(tp_percent)}/100,2)")
+    ws.cell(row=tp_row, column=10, value=f"=ROUND(J{sub_row}*{abs(tp_percent)}/100,2)")
 
     total_row = tp_row + 1
     ws.cell(row=total_row, column=2, value="Total")
 
     if tp_type == "Less":
-        ws.cell(row=total_row, column=6, value=f"=F{sub_row}-F{tp_row}")
-        ws.cell(row=total_row, column=8, value=f"=H{sub_row}-H{tp_row}")
-        ws.cell(row=total_row, column=10, value=f"=J{sub_row}-J{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=ROUND(F{sub_row}-F{tp_row},2)")
+        ws.cell(row=total_row, column=8, value=f"=ROUND(H{sub_row}-H{tp_row},2)")
+        ws.cell(row=total_row, column=10, value=f"=ROUND(J{sub_row}-J{tp_row},2)")
     else:
-        ws.cell(row=total_row, column=6, value=f"=F{sub_row}+F{tp_row}")
-        ws.cell(row=total_row, column=8, value=f"=H{sub_row}+H{tp_row}")
-        ws.cell(row=total_row, column=10, value=f"=J{sub_row}+J{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=ROUND(F{sub_row}+F{tp_row},2)")
+        ws.cell(row=total_row, column=8, value=f"=ROUND(H{sub_row}+H{tp_row},2)")
+        ws.cell(row=total_row, column=10, value=f"=ROUND(J{sub_row}+J{tp_row},2)")
 
     for rr in [sub_row, tp_row, total_row]:
         for col in range(1, 12):
@@ -513,6 +522,8 @@ def build_nth_bill_wb(items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+            if col in (3, 5, 6, 7, 8, 9, 10):
+                cell.number_format = '#,##0.00'
 
     for rr in range(1, ws.max_row + 1):
         ws.row_dimensions[rr].height = None
@@ -665,9 +676,9 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
     for it in items:
         desc = it.get("desc") or ""
         unit = it.get("unit") or ""
-        rate = it.get("rate", 0.0)
-        prev_qty = it.get("prev_qty", 0.0)
-        prev_amount = it.get("prev_amount", 0.0)
+        rate = round(float(it.get("rate", 0.0) or 0), 2)
+        prev_qty = round(float(it.get("prev_qty", 0.0) or 0), 2)
+        prev_amount = round(float(it.get("prev_amount", 0.0) or 0), 2)
         is_ae = bool(it.get("is_ae", False))
 
         if is_ae:
@@ -681,13 +692,14 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
         ws.cell(row=r, column=3, value=None)  # Quantity Till Date (to be filled)
         ws.cell(row=r, column=4, value=unit)
         ws.cell(row=r, column=5, value=rate)
-        ws.cell(row=r, column=6, value=f"=C{r}*E{r}")
+        ws.cell(row=r, column=6, value=f"=ROUND(C{r}*E{r},2)")
         ws.cell(row=r, column=7, value=prev_qty)
         ws.cell(row=r, column=8, value=prev_amount)
-        ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
-        ws.cell(row=r, column=10, value=f"=F{r}-H{r}")
+        ws.cell(row=r, column=9, value=f"=ROUND(C{r}-G{r},2)")
+        ws.cell(row=r, column=10, value=f"=ROUND(F{r}-H{r},2)")
         ws.cell(row=r, column=11, value="")
 
+        fmt_money = '#,##0.00'
         for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
@@ -695,6 +707,8 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+            if col in (3, 5, 6, 7, 8, 9, 10):
+                cell.number_format = fmt_money
 
         r += 1
         if not is_ae:
@@ -704,9 +718,9 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
 
     sub_row = r
     ws.cell(row=sub_row, column=2, value="Sub Total")
-    ws.cell(row=sub_row, column=6, value=f"=SUM(F{data_start}:F{last_item_row})")
-    ws.cell(row=sub_row, column=8, value=f"=SUM(H{data_start}:H{last_item_row})")
-    ws.cell(row=sub_row, column=10, value=f"=SUM(J{data_start}:J{last_item_row})")
+    ws.cell(row=sub_row, column=6, value=f"=ROUND(SUM(F{data_start}:F{last_item_row}),2)")
+    ws.cell(row=sub_row, column=8, value=f"=ROUND(SUM(H{data_start}:H{last_item_row}),2)")
+    ws.cell(row=sub_row, column=10, value=f"=ROUND(SUM(J{data_start}:J{last_item_row}),2)")
 
     tp_row = sub_row + 1
     tp_percent = float(tp_percent or 0.0)
@@ -714,21 +728,21 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
 
     label_prefix = "Deduct" if tp_type == "Less" else "Add"
     ws.cell(row=tp_row, column=2, value=f"{label_prefix} T.P @ {tp_percent} % {tp_type}")
-    ws.cell(row=tp_row, column=6, value=f"=F{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=8, value=f"=H{sub_row}*{abs(tp_percent)}/100")
-    ws.cell(row=tp_row, column=10, value=f"=J{sub_row}*{abs(tp_percent)}/100")
+    ws.cell(row=tp_row, column=6, value=f"=ROUND(F{sub_row}*{abs(tp_percent)}/100,2)")
+    ws.cell(row=tp_row, column=8, value=f"=ROUND(H{sub_row}*{abs(tp_percent)}/100,2)")
+    ws.cell(row=tp_row, column=10, value=f"=ROUND(J{sub_row}*{abs(tp_percent)}/100,2)")
 
     total_row = tp_row + 1
     ws.cell(row=total_row, column=2, value="Total")
 
     if tp_type == "Less":
-        ws.cell(row=total_row, column=6, value=f"=F{sub_row}-F{tp_row}")
-        ws.cell(row=total_row, column=8, value=f"=H{sub_row}-H{tp_row}")
-        ws.cell(row=total_row, column=10, value=f"=J{sub_row}-J{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=ROUND(F{sub_row}-F{tp_row},2)")
+        ws.cell(row=total_row, column=8, value=f"=ROUND(H{sub_row}-H{tp_row},2)")
+        ws.cell(row=total_row, column=10, value=f"=ROUND(J{sub_row}-J{tp_row},2)")
     else:
-        ws.cell(row=total_row, column=6, value=f"=F{sub_row}+F{tp_row}")
-        ws.cell(row=total_row, column=8, value=f"=H{sub_row}+H{tp_row}")
-        ws.cell(row=total_row, column=10, value=f"=J{sub_row}+J{tp_row}")
+        ws.cell(row=total_row, column=6, value=f"=ROUND(F{sub_row}+F{tp_row},2)")
+        ws.cell(row=total_row, column=8, value=f"=ROUND(H{sub_row}+H{tp_row},2)")
+        ws.cell(row=total_row, column=10, value=f"=ROUND(J{sub_row}+J{tp_row},2)")
 
     for rr in [sub_row, tp_row, total_row]:
         for col in range(1, 12):
@@ -740,6 +754,8 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+            if col in (3, 5, 6, 7, 8, 9, 10):
+                cell.number_format = '#,##0.00'
 
     for rr in range(1, ws.max_row + 1):
         ws.row_dimensions[rr].height = None

@@ -1326,7 +1326,7 @@ def workslip(request):
                                         try:
                                             exec_amt = float(exec_amt)
                                             if exec_amt > 0:
-                                                supp_rate = exec_amt / exec_qty
+                                                supp_rate = round(exec_amt / exec_qty, 2)
                                         except:
                                             pass
                                     
@@ -2133,7 +2133,7 @@ def workslip(request):
             # ---- Base Estimate items with row-splitting ----
             for row in ws_estimate_rows:
                 row_key = row["key"]
-                qty_est = float(row.get("qty_est", 0) or 0)
+                qty_est = round(float(row.get("qty_est", 0) or 0), 2)
 
                 qty_exec = get_exec_qty_for_base(
                     row_key=row_key,
@@ -2142,8 +2142,8 @@ def workslip(request):
                 )
 
                 unit = row.get("unit") or ""
-                original_rate = float(row.get("rate", 0) or 0)
-                rate = get_rate_for_row(row_key, original_rate)  # Apply custom rate if user modified it
+                original_rate = round(float(row.get("rate", 0) or 0), 2)
+                rate = round(get_rate_for_row(row_key, original_rate), 2)  # Apply custom rate if user modified it
                 desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
                 # If desc_est is just the header name, try to get the real row+2 description from backend
                 _display = row.get("display_name") or row.get("item_name") or ""
@@ -2161,7 +2161,7 @@ def workslip(request):
                 for phase_map in ws_previous_phases:
                     prev_qty = phase_map.get(row_key, 0)
                     try:
-                        prev_qty = float(prev_qty)
+                        prev_qty = round(float(prev_qty), 2)
                     except:
                         prev_qty = 0.0
                     prev_phase_qtys.append(prev_qty)
@@ -2169,18 +2169,18 @@ def workslip(request):
                 # Calculate excess for each previous phase
                 prev_phase_excess = []
                 for p_qty in prev_phase_qtys:
-                    excess = max(0, p_qty - qty_est) if qty_est > 0 else 0
+                    excess = round(max(0, p_qty - qty_est), 2) if qty_est > 0 else 0
                     prev_phase_excess.append(excess)
                 
                 # Calculate base qty for each previous phase (capped at estimate)
                 prev_base_qtys = []
                 for p_qty in prev_phase_qtys:
-                    base_qty = min(p_qty, qty_est) if qty_est > 0 else p_qty
+                    base_qty = round(min(p_qty, qty_est), 2) if qty_est > 0 else round(p_qty, 2)
                     prev_base_qtys.append(base_qty)
                 
                 # Calculate current phase excess
-                current_excess = max(0, qty_exec - qty_est) if qty_est > 0 else 0
-                current_base_qty = min(qty_exec, qty_est) if qty_est > 0 else qty_exec
+                current_excess = round(max(0, qty_exec - qty_est), 2) if qty_est > 0 else 0
+                current_base_qty = round(min(qty_exec, qty_est), 2) if qty_est > 0 else round(qty_exec, 2)
                 
                 # Check if any phase (previous or current) has excess - if so, we need ONE AE row
                 has_any_excess = any(e > 0 for e in prev_phase_excess) or current_excess > 0
@@ -2299,19 +2299,19 @@ def workslip(request):
                     # Output each supplemental item from this phase
                     for supp in phase_supps:
                         supp_name = supp.get("name", "")
-                        supp_qty = float(supp.get("qty", 0) or 0)
+                        supp_qty = round(float(supp.get("qty", 0) or 0), 2)
                         # Use description from row+2 (stored in 'desc'), fallback to item name
                         supp_desc = supp.get("desc", supp_name) or supp_name
                         supp_unit = supp.get("unit", "-") or "-"
                         
                         # Apply custom rate if user modified it
                         prev_supp_key = f"prev_supp:{phase_num}:{supp_name}"
-                        original_supp_rate = float(supp.get("rate", 0) or 0)
-                        supp_rate = get_rate_for_row(prev_supp_key, original_supp_rate)
-                        supp_amount = supp.get("amount", supp_qty * supp_rate)
+                        original_supp_rate = round(float(supp.get("rate", 0) or 0), 2)
+                        supp_rate = round(get_rate_for_row(prev_supp_key, original_supp_rate), 2)
+                        supp_amount = round(supp.get("amount", supp_qty * supp_rate), 2)
                         # Recalculate amount if rate was modified
                         if prev_supp_key in ws_rate_map:
-                            supp_amount = supp_qty * supp_rate
+                            supp_amount = round(supp_qty * supp_rate, 2)
                         
                         ws_ws.cell(out_row, COL_SL, sl_counter)
                         # Use supp_desc (row+2 description) instead of supp_name
@@ -2337,10 +2337,10 @@ def workslip(request):
                         
                         # Check if user entered current workslip quantity for this previous supp item
                         # prev_supp_key is already defined above when getting rate
-                        prev_supp_curr_qty = float(ws_exec_map.get(prev_supp_key, 0) or 0)
-                        
+                        prev_supp_curr_qty = round(float(ws_exec_map.get(prev_supp_key, 0) or 0), 2)
+
                         if prev_supp_curr_qty > 0:
-                            prev_supp_curr_amt = prev_supp_curr_qty * supp_rate
+                            prev_supp_curr_amt = round(prev_supp_curr_qty * supp_rate, 2)
                             ws_ws.cell(out_row, COL_CURR_QTY, prev_supp_curr_qty)
                             ws_ws.cell(out_row, COL_CURR_AMT, prev_supp_curr_amt)
                             ws_ws.cell(out_row, COL_MORE, prev_supp_curr_amt)  # All extra work for prev supp items goes to More
@@ -2388,9 +2388,9 @@ def workslip(request):
                         if prefix:
                             desc_supp = f"{prefix} {desc_supp}" if desc_supp else prefix
                     unit_pl, _ = units_for(name)
-                    rate = float(supp_rate_map.get(name, 0.0) or 0.0)
+                    rate = round(float(supp_rate_map.get(name, 0.0) or 0.0), 2)
                     key = f"supp:{name}"
-                    qty_exec = float(ws_exec_map.get(key, 0) or 0)
+                    qty_exec = round(float(ws_exec_map.get(key, 0) or 0), 2)
 
                     ws_ws.cell(out_row, COL_SL, sl_counter)
                     ws_ws.cell(out_row, COL_DESC, desc_supp)
@@ -2484,13 +2484,13 @@ def workslip(request):
             # Add Deduct Old Material Cost row (if applicable)
             if deduct_row:
                 ws_ws.cell(deduct_row, COL_DESC, "Deduct Old Material Cost")
-                ws_ws.cell(deduct_row, COL_EST_AMT, -ws_deduct_old_material)  # Estimate - negative
+                ws_ws.cell(deduct_row, COL_EST_AMT, round(-ws_deduct_old_material, 2))  # Estimate - negative
                 # Previous phases - same deduction
                 for p_idx in range(num_previous_phases):
                     phase_amt_col = COL_PHASE_START + (p_idx * 2) + 1
-                    ws_ws.cell(deduct_row, phase_amt_col, -ws_deduct_old_material)
+                    ws_ws.cell(deduct_row, phase_amt_col, round(-ws_deduct_old_material, 2))
                     ws_ws.cell(deduct_row, phase_amt_col).fill = phase_fill
-                ws_ws.cell(deduct_row, COL_CURR_AMT, -ws_deduct_old_material)  # Execution - negative
+                ws_ws.cell(deduct_row, COL_CURR_AMT, round(-ws_deduct_old_material, 2))  # Execution - negative
                 ws_ws.cell(deduct_row, COL_MORE, "")  # More
                 ws_ws.cell(deduct_row, COL_LESS, "")  # Less
 
@@ -2635,7 +2635,7 @@ def workslip(request):
             ws_ws.cell(ls_row, COL_LESS, f"=IF({EST_AMT_COL}{ls_row}>{CURR_AMT_COL}{ls_row},{EST_AMT_COL}{ls_row}-{CURR_AMT_COL}{ls_row},\"\")")
 
             # x) Grand Total = Grand Total of uploaded Estimate (both Estimate & Execution same)
-            grand_total_val = float(request.session.get("ws_estimate_grand_total", 0.0) or 0.0)
+            grand_total_val = round(float(request.session.get("ws_estimate_grand_total", 0.0) or 0.0), 2)
             ws_ws.cell(grand_row, COL_DESC, "Grand Total")
             ws_ws.cell(grand_row, COL_EST_AMT, grand_total_val)
             for p_idx in range(num_previous_phases):
@@ -2666,6 +2666,17 @@ def workslip(request):
             # reset row heights auto
             for r in range(1, ws_ws.max_row + 1):
                 ws_ws.row_dimensions[r].height = None
+
+            # Apply number_format to all numeric columns for consistent 2-decimal display
+            fmt_money = '#,##0.00'
+            numeric_cols = {COL_EST_QTY, COL_EST_RATE, COL_EST_AMT, COL_CURR_QTY, COL_CURR_AMT, COL_MORE, COL_LESS}
+            # Add phase columns
+            for p_idx in range(num_previous_phases):
+                numeric_cols.add(COL_PHASE_START + (p_idx * 2))      # phase qty
+                numeric_cols.add(COL_PHASE_START + (p_idx * 2) + 1)  # phase amt
+            for r in range(data_start, ws_ws.max_row + 1):
+                for c in numeric_cols:
+                    ws_ws.cell(r, c).number_format = fmt_money
 
             # Reorder sheets: WorkSlip first, then ItemBlocks
             if "WorkSlip" in wb_out.sheetnames:

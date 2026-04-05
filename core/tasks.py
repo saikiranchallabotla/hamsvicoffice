@@ -678,6 +678,10 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     unit_plural, unit_singular = "Nos", "No"
             
             qty_val = qty_map.get(name)
+            try:
+                qty_val = round(float(qty_val), 2) if qty_val is not None else 0
+            except (ValueError, TypeError):
+                qty_val = 0
             
             ws_est.cell(row=row_est, column=1, value=slno).alignment = Alignment(horizontal="center", vertical="top")
             ws_est.cell(row=row_est, column=1).border = border_all
