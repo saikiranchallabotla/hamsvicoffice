@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.http import JsonResponse
 from core import views, auth_views, api_views, dashboard_views, template_views, saved_works_views, bill_entry_views
 
@@ -110,9 +110,9 @@ urlpatterns = [
     path('saved-works/folder/<int:folder_id>/delete/', saved_works_views.delete_folder, name='delete_folder'),
 
     # -------------------------
-    # Main pages - Redirect home to dashboard
+    # Main pages - Redirect authenticated users to dashboard, show landing for anonymous
     # -------------------------
-    path('', lambda request: redirect('dashboard'), name='home'),
+    path('', lambda request: redirect('dashboard') if request.user.is_authenticated else render(request, 'landing.html'), name='home'),
     path('estimate/', views.estimate, name='estimate'),
     path('estimate/specification-report/', views.generate_specification_report_from_file, name='generate_specification_report'),
     path('estimate/forwarding-letter/', views.generate_estimate_forwarding_letter, name='generate_forwarding_letter'),
