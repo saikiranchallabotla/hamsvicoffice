@@ -670,12 +670,12 @@
                                     {% endfor %}
                                     <!-- +W Next -->
                                     <a href="#" class="hub-btn hub-w-add" title="Create WorkSlip {{ work.next_ws_number }}"
-                                       onclick="event.preventDefault(); event.stopPropagation(); confirmWorkslip('{% url 'generate_next_workslip_from_saved' work.last_ws.id %}', '{% url 'resume_saved_work' work.id %}');">
+                                       onclick="event.preventDefault(); event.stopPropagation(); confirmWorkslip('{% url 'generate_next_workslip_from_saved' work.last_ws.id %}', '{% url 'resume_saved_work' work.last_ws.id %}', {{ work.next_ws_number }});">
                                         <i class="bi bi-plus"></i> W{{ work.next_ws_number }}
                                     </a>
                                 {% else %}
                                     <a href="#" class="hub-btn hub-w-add" title="Generate WorkSlip 1"
-                                       onclick="event.preventDefault(); event.stopPropagation(); confirmWorkslip('{% url 'generate_workslip_from_saved' work.id %}', '{% url 'resume_saved_work' work.id %}');">
+                                       onclick="event.preventDefault(); event.stopPropagation(); confirmWorkslip('{% url 'generate_workslip_from_saved' work.id %}', '{% url 'resume_saved_work' work.id %}', 1);">
                                         <i class="bi bi-plus"></i> W1
                                     </a>
                                 {% endif %}
@@ -705,8 +705,9 @@
                                     </a>
                                     {% endfor %}
                                 {% endif %}
-                                <a href="{% url 'bill_choice' work.id %}" class="hub-btn hub-b-add" title="Generate Bill">
-                                    <i class="bi bi-plus"></i> Bill
+                                <a href="#" class="hub-btn hub-b-add" title="Generate Bill"
+                                   onclick="event.preventDefault(); event.stopPropagation(); confirmBill('{% url 'bill_choice' work.id %}', {{ work.next_bill_number|default:1 }}, {{ work.next_bill_number|default:1 }}, '', '{% if work.last_ws %}{% url 'resume_saved_work' work.last_ws.id %}{% else %}#{% endif %}');">
+                                    <i class="bi bi-plus"></i> B{{ work.next_bill_number|default:1 }}
                                 </a>
                             {% else %}
                                 {% if work.bill_children %}
@@ -1210,19 +1211,59 @@
         });
     }
 
-    // Confirm workslip generation — ask user if estimate is finalized
-    function confirmWorkslip(generateUrl, editEstimateUrl) {
+    // Confirm workslip generation — ask user if prerequisite is finalized
+    function confirmWorkslip(generateUrl, editUrl, wsNumber) {
+        var msg, title, cancelText;
+        if (wsNumber <= 1) {
+            msg = 'Is the Estimate finalized? You need to complete the Estimate before generating Workslip-1.';
+            cancelText = 'No, edit Estimate';
+        } else {
+            msg = 'Is Workslip-' + (wsNumber - 1) + ' finalized? You need to complete Workslip-' + (wsNumber - 1) + ' before generating Workslip-' + wsNumber + '.';
+            cancelText = 'No, edit Workslip-' + (wsNumber - 1);
+        }
         appConfirm(
-            'Is the estimate finalized? You need to complete the estimate before generating a workslip.',
-            'Generate Workslip',
-            { type: 'info', okText: 'Yes, proceed', cancelText: 'No, edit estimate' }
+            msg,
+            'Generate Workslip-' + wsNumber,
+            { type: 'info', okText: 'Yes, proceed', cancelText: cancelText }
         ).then(function(yes) {
             if (yes) {
                 window.location.href = generateUrl;
             } else {
-                window.location.href = editEstimateUrl;
+                window.location.href = editUrl;
             }
         });
+    }
+
+    // Confirm bill generation — ask user if prerequisites are finalized
+    function confirmBill(billUrl, billNumber, linkedWsNumber, prevBillEditUrl, linkedWsEditUrl) {
+        var msg, title, cancelText;
+        if (billNumber <= 1) {
+            msg = 'Is Workslip-' + linkedWsNumber + ' finalized? You need to complete Workslip-' + linkedWsNumber + ' before generating Bill-' + billNumber + '.';
+            cancelText = 'No, edit Workslip-' + linkedWsNumber;
+            appConfirm(
+                msg,
+                'Generate Bill-' + billNumber,
+                { type: 'info', okText: 'Yes, proceed', cancelText: cancelText }
+            ).then(function(yes) {
+                if (yes) {
+                    window.location.href = billUrl;
+                } else {
+                    window.location.href = linkedWsEditUrl;
+                }
+            });
+        } else {
+            var prevBill = billNumber - 1;
+            msg = 'Are Workslip-' + linkedWsNumber + ' and Bill-' + prevBill + ' finalized? You need to complete both before generating Bill-' + billNumber + '.';
+            appConfirm(
+                msg,
+                'Generate Bill-' + billNumber,
+                { type: 'info', okText: 'Yes, proceed', cancelText: 'No, go back' }
+            ).then(function(yes) {
+                if (yes) {
+                    window.location.href = billUrl;
+                }
+            });
+        }
     }
 </script>
 

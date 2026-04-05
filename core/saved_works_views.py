@@ -339,11 +339,13 @@ def saved_works_list(request):
                 work.last_ws = all_ws[-1] if all_ws else None
                 # Attach bill children from wf_chain
                 work.bill_children = work.wf_chain.get('bills', []) if work.wf_chain else []
+                work.next_bill_number = (max(b.bill_number for b in work.bill_children) + 1) if work.bill_children else 1
             except Exception:
                 work.workslip_children = []
                 work.next_ws_number = 1
                 work.last_ws = None
                 work.bill_children = []
+                work.next_bill_number = 1
 
         # Attach subscription access flags for template gating
         work.module_code = work_type_to_module.get(work.work_type, work.work_type)
