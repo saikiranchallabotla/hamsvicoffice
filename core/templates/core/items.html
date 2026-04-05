@@ -2697,7 +2697,7 @@ function saveCurrentWork() {
     const lsSpecialAmount = lsSpecialAmountInput ? lsSpecialAmountInput.value : '';
     const deductOldMaterialInput = document.getElementById('deduct-old-material-input');
     const deductOldMaterial = deductOldMaterialInput ? deductOldMaterialInput.value : '';
-    const workTypeInput = document.querySelector('input[name="work_type"]:checked');
+    const workTypeInput = document.getElementById('work-type-field');
     const workType = workTypeInput ? workTypeInput.value : 'original';
     
     // Include qty data directly in the save-work POST so we don't rely
