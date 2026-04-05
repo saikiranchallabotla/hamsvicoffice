@@ -701,7 +701,8 @@
                             {% if module_access.can_generate_bill %}
                                 {% if work.bill_children %}
                                     {% for bill in work.bill_children %}
-                                    <a href="{% url 'resume_saved_work' bill.id %}" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }}">
+                                    <a href="#" class="hub-btn hub-b {% if bill.status == 'completed' %}hub-done{% endif %}" title="Bill {{ bill.bill_number }}"
+                                       onclick="event.preventDefault(); event.stopPropagation(); confirmEditBill('{% url 'resume_saved_work' bill.id %}', {{ bill.id }}, [{% for sb in bill.subsequent_bills %}'B{{ sb.bill_number }}'{% if not forloop.last %},{% endif %}{% endfor %}]);">
                                         <i class="bi bi-receipt"></i> B{{ bill.bill_number }}
                                         {% if bill.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
                                     </a>
@@ -766,7 +767,8 @@
                     <div class="hub-section">
                         <div class="hub-flow">
                             {% if module_access.bill %}
-                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-b" title="Edit Bill">
+                            <a href="#" class="hub-btn hub-b" title="Edit Bill"
+                               onclick="event.preventDefault(); event.stopPropagation(); confirmEditBill('{% url 'resume_saved_work' work.id %}', {{ work.id }}, [{% for sb in work.subsequent_bills %}'B{{ sb.bill_number }}'{% if not forloop.last %},{% endif %}{% endfor %}]);">
                                 <i class="bi bi-pencil-fill"></i> Edit Bill {{ work.bill_number }}
                             </a>
                             {% else %}
@@ -1258,6 +1260,30 @@
             .then(function(data) {
                 if (data.success) window.location.href = resumeUrl;
                 else alert(data.error || 'Failed to delete children');
+            });
+        });
+    }
+
+    // Confirm editing a bill that has subsequent bills depending on it
+    function confirmEditBill(resumeUrl, billId, subsequentBills) {
+        if (subsequentBills.length === 0) {
+            window.location.href = resumeUrl;
+            return;
+        }
+        var items = subsequentBills.join(', ');
+        var msg = 'You have already generated ' + items + ' which depend on this Bill. Editing will erase them. Do you want to proceed?';
+        appConfirm(msg, 'Edit Bill', {type: 'danger', danger: true, okText: 'Yes, erase & edit', cancelText: 'Cancel'})
+        .then(function(yes) {
+            if (!yes) return;
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch('/saved-works/' + billId + '/delete-subsequent-bills/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) window.location.href = resumeUrl;
+                else alert(data.error || 'Failed to delete subsequent bills');
             });
         });
     }

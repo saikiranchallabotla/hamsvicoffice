@@ -340,6 +340,10 @@ def saved_works_list(request):
                 # Attach bill children from wf_chain
                 work.bill_children = work.wf_chain.get('bills', []) if work.wf_chain else []
                 work.next_bill_number = (max(b.bill_number for b in work.bill_children) + 1) if work.bill_children else 1
+                # Attach subsequent_bills to each bill for edit-confirmation popups
+                all_bills = work.bill_children
+                for bill in all_bills:
+                    bill.subsequent_bills = [b for b in all_bills if b.bill_number > bill.bill_number]
                 # Attach bill_children_list to each workslip for edit-confirmation popups
                 for ws in all_ws:
                     ws.bill_children_list = list(ws.children.filter(work_type='bill').order_by('bill_number'))
@@ -381,6 +385,18 @@ def saved_works_list(request):
             except Exception:
                 work.sibling_workslips = []
                 work.root_estimate = None
+
+        # Attach subsequent bills for standalone bill cards
+        if work.work_type == 'bill':
+            try:
+                root = work.get_root_estimate() if hasattr(work, 'get_root_estimate') else None
+                if root:
+                    all_bills = root.get_all_bills() if hasattr(root, 'get_all_bills') else []
+                    work.subsequent_bills = [b for b in all_bills if b.bill_number > work.bill_number]
+                else:
+                    work.subsequent_bills = []
+            except Exception:
+                work.subsequent_bills = []
     
     context = {
         'works': works_list,
@@ -1379,6 +1395,35 @@ def delete_children(request, work_id):
     return JsonResponse({
         'success': True,
         'message': f'Deleted {count} child work(s).'
+    })
+
+
+@login_required(login_url='login')
+@require_POST
+def delete_subsequent_bills(request, work_id):
+    """Delete all bills with a higher bill_number in the same workflow."""
+    org = get_org_from_request(request)
+    user = request.user
+    bill = get_object_or_404(SavedWork, id=work_id, organization=org, user=user, work_type='bill')
+
+    # Find root estimate to locate all bills in the workflow
+    root = bill.get_root_estimate() if hasattr(bill, 'get_root_estimate') else None
+    if root:
+        all_bills = root.get_all_bills() if hasattr(root, 'get_all_bills') else []
+    else:
+        # Fallback: find sibling bills under same parent
+        all_bills = list(SavedWork.objects.filter(
+            parent=bill.parent, work_type='bill', organization=org, user=user
+        ))
+
+    to_delete = [b for b in all_bills if b.bill_number > bill.bill_number]
+    count = len(to_delete)
+    for b in to_delete:
+        b.delete()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Deleted {count} subsequent bill(s).'
     })
 
 
