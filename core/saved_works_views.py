@@ -1645,9 +1645,10 @@ def generate_workslip_from_saved(request, work_id):
         return redirect('saved_works_list')
 
     # Check if estimate is finalized (completed) before allowing workslip generation
+    # Auto-finalize if user confirmed via the list page popup
     if saved_work.status != 'completed':
-        messages.warning(request, 'Please finalize the estimate before generating a workslip. Edit the estimate and mark it as complete first.')
-        return redirect('saved_work_detail', work_id=saved_work.id)
+        saved_work.status = 'completed'
+        saved_work.save(update_fields=['status'])
     
     # Load estimate data into workslip session
     work_data = saved_work.work_data or {}
