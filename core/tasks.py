@@ -437,8 +437,35 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         job.current_step = "Loading prefix data..."
         job.save()
 
-        from core.saved_works_views import load_prefix_map
-        item_to_prefix = load_prefix_map(category, backend_id=backend_id, module_code=module_code) if is_repair else {}
+        item_to_prefix = {}
+        if is_repair:
+            try:
+                backend_wb = load_workbook(filepath, data_only=False)
+                ws_groups = backend_wb["Groups"]
+
+                header_row = None
+                col_item = None
+                col_prefix = None
+
+                for r in range(1, ws_groups.max_row + 1):
+                    for c in range(1, ws_groups.max_column + 1):
+                        val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
+                        if val == "item name":
+                            header_row = r
+                            col_item = c
+                        elif val == "prefix":
+                            col_prefix = c
+                    if header_row:
+                        break
+
+                if header_row and col_item and col_prefix:
+                    for r in range(header_row + 1, ws_groups.max_row + 1):
+                        nm = ws_groups.cell(r, col_item).value
+                        px = ws_groups.cell(r, col_prefix).value
+                        if nm and px not in (None, ""):
+                            item_to_prefix[str(nm).strip()] = str(px).strip()
+            except Exception:
+                pass  # Continue without prefixes
         
         # Assuming fetched_items is in job metadata or passed somehow
         # For now, we get it from the session-based workflow
