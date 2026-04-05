@@ -646,7 +646,8 @@
                         <div class="hub-flow">
                             <!-- E Button — gated by estimate module subscription -->
                             {% if work.has_estimate_access %}
-                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-e" title="Edit Estimate">
+                            <a href="#" class="hub-btn hub-e" title="Edit Estimate"
+                               onclick="event.preventDefault(); event.stopPropagation(); confirmEditEstimate('{% url 'resume_saved_work' work.id %}', {{ work.id }}, [{% for ws in work.workslip_children %}'W{{ ws.workslip_number }}'{% if not forloop.last %},{% endif %}{% endfor %}], [{% for b in work.bill_children %}'B{{ b.bill_number }}'{% if not forloop.last %},{% endif %}{% endfor %}]);">
                                 <i class="bi bi-pencil-fill"></i> Edit Estimate
                             </a>
                             {% else %}
@@ -663,7 +664,8 @@
                             {% if module_access.can_generate_workslip %}
                                 {% if work.workslip_children %}
                                     {% for ws in work.workslip_children %}
-                                    <a href="{% url 'resume_saved_work' ws.id %}" class="hub-btn hub-w {% if ws.status == 'completed' %}hub-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}">
+                                    <a href="#" class="hub-btn hub-w {% if ws.status == 'completed' %}hub-done{% endif %}" title="WorkSlip {{ ws.workslip_number }}"
+                                       onclick="event.preventDefault(); event.stopPropagation(); confirmEditWorkslip('{% url 'resume_saved_work' ws.id %}', {{ ws.id }}, [{% for b in ws.bill_children_list %}'B{{ b.bill_number }}'{% if not forloop.last %},{% endif %}{% endfor %}]);">
                                         <i class="bi bi-file-earmark-text"></i> W{{ ws.workslip_number }}
                                         {% if ws.status == 'completed' %}<i class="bi bi-check-circle-fill hub-check"></i>{% endif %}
                                     </a>
@@ -728,7 +730,8 @@
                     <div class="hub-section">
                         <div class="hub-flow">
                             {% if module_access.workslip %}
-                            <a href="{% url 'resume_saved_work' work.id %}" class="hub-btn hub-w" title="Edit Workslip">
+                            <a href="#" class="hub-btn hub-w" title="Edit Workslip"
+                               onclick="event.preventDefault(); event.stopPropagation(); confirmEditWorkslip('{% url 'resume_saved_work' work.id %}', {{ work.id }}, [{% for b in work.bill_children_list %}'B{{ b.bill_number }}'{% if not forloop.last %},{% endif %}{% endfor %}]);">
                                 <i class="bi bi-pencil-fill"></i> Edit W{{ work.workslip_number }}
                             </a>
                             {% if work.sibling_workslips %}
@@ -1208,6 +1211,54 @@
         .then(data => {
             if (data.success) location.reload();
             else alert(data.error || 'Failed to move');
+        });
+    }
+
+    // Confirm editing an estimate that already has child workslips/bills
+    function confirmEditEstimate(resumeUrl, workId, wsChildren, billChildren) {
+        if (wsChildren.length === 0 && billChildren.length === 0) {
+            window.location.href = resumeUrl;
+            return;
+        }
+        var items = wsChildren.concat(billChildren).join(', ');
+        var msg = 'You have already generated ' + items + '. Editing the Estimate will erase them. Do you want to proceed?';
+        appConfirm(msg, 'Edit Estimate', {type: 'danger', danger: true, okText: 'Yes, erase & edit', cancelText: 'Cancel'})
+        .then(function(yes) {
+            if (!yes) return;
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch('/saved-works/' + workId + '/delete-children/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) window.location.href = resumeUrl;
+                else alert(data.error || 'Failed to delete children');
+            });
+        });
+    }
+
+    // Confirm editing a workslip that already has child bills
+    function confirmEditWorkslip(resumeUrl, wsId, billChildren) {
+        if (billChildren.length === 0) {
+            window.location.href = resumeUrl;
+            return;
+        }
+        var items = billChildren.join(', ');
+        var msg = 'You have already generated ' + items + ' from this Workslip. Editing will erase them. Do you want to proceed?';
+        appConfirm(msg, 'Edit Workslip', {type: 'danger', danger: true, okText: 'Yes, erase & edit', cancelText: 'Cancel'})
+        .then(function(yes) {
+            if (!yes) return;
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch('/saved-works/' + wsId + '/delete-children/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) window.location.href = resumeUrl;
+                else alert(data.error || 'Failed to delete children');
+            });
         });
     }
 

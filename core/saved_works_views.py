@@ -340,6 +340,9 @@ def saved_works_list(request):
                 # Attach bill children from wf_chain
                 work.bill_children = work.wf_chain.get('bills', []) if work.wf_chain else []
                 work.next_bill_number = (max(b.bill_number for b in work.bill_children) + 1) if work.bill_children else 1
+                # Attach bill_children_list to each workslip for edit-confirmation popups
+                for ws in all_ws:
+                    ws.bill_children_list = list(ws.children.filter(work_type='bill').order_by('bill_number'))
             except Exception:
                 work.workslip_children = []
                 work.next_ws_number = 1
@@ -364,6 +367,8 @@ def saved_works_list(request):
 
         # Build sibling workslips for workslip cards
         if work.work_type == 'workslip':
+            # Attach bill children for edit-confirmation popup
+            work.bill_children_list = list(work.children.filter(work_type='bill').order_by('bill_number'))
             try:
                 root = work.get_root_estimate() if hasattr(work, 'get_root_estimate') else None
                 if root:
@@ -1348,6 +1353,32 @@ def delete_saved_work(request, work_id):
     return JsonResponse({
         'success': True,
         'message': f'Work "{work_name}" deleted successfully!'
+    })
+
+
+@login_required(login_url='login')
+@require_POST
+def delete_children(request, work_id):
+    """Delete all child works (workslips + bills) of a saved work."""
+    org = get_org_from_request(request)
+    user = request.user
+    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+
+    # Collect all descendants (BFS)
+    to_delete = []
+    queue = list(saved_work.children.all())
+    while queue:
+        child = queue.pop(0)
+        to_delete.append(child)
+        queue.extend(list(child.children.all()))
+
+    count = len(to_delete)
+    for child in to_delete:
+        child.delete()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Deleted {count} child work(s).'
     })
 
 

@@ -93,6 +93,7 @@ urlpatterns = [
     path('saved-works/<int:work_id>/resume/', saved_works_views.resume_saved_work, name='resume_saved_work'),
     path('saved-works/<int:work_id>/update/', saved_works_views.update_saved_work, name='update_saved_work'),
     path('saved-works/<int:work_id>/delete/', saved_works_views.delete_saved_work, name='delete_saved_work'),
+    path('saved-works/<int:work_id>/delete-children/', saved_works_views.delete_children, name='delete_children'),
     path('saved-works/<int:work_id>/move/', saved_works_views.move_to_folder, name='move_to_folder'),
     path('saved-works/<int:work_id>/duplicate/', saved_works_views.duplicate_saved_work, name='duplicate_saved_work'),
     path('saved-works/<int:work_id>/generate-workslip/', saved_works_views.generate_workslip_from_saved, name='generate_workslip_from_saved'),
