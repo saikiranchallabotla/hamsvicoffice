@@ -32,7 +32,7 @@ class ModuleBackendInline(admin.TabularInline):
 
 @admin.register(Module)
 class ModuleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'is_active', 'is_free', 'trial_days', 
+    list_display = ('name', 'code', 'is_active', 'is_free', 'payments_enabled', 'trial_days',
                     'free_tier_limit', 'backend_count', 'display_order')
     list_filter = ('is_active', 'is_free', 'is_addon')
     search_fields = ('name', 'code', 'description')
@@ -48,7 +48,7 @@ class ModuleAdmin(admin.ModelAdmin):
             'fields': ('icon', 'color', 'display_order', 'features')
         }),
         ('Settings', {
-            'fields': ('is_active', 'is_free', 'is_addon', 'trial_days', 'free_tier_limit')
+            'fields': ('is_active', 'is_free', 'is_addon', 'payments_enabled', 'trial_days', 'trial_hours', 'free_tier_limit')
         }),
         ('Dependencies', {
             'fields': ('requires_modules',),

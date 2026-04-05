@@ -48,12 +48,27 @@ def module_access_view(request, module_code):
     # Check current subscription status (for display)
     current_sub = existing_sub  # Already fetched above
     
-    # Check if trial available (never used trial before)
-    trial_available = not UserModuleSubscription.objects.filter(
+    # Check if trial available
+    # If admin extended trial_days, re-offer remaining time to users whose trial expired
+    existing_trial = UserModuleSubscription.objects.filter(
         user=request.user,
         module=module,
         status='trial'
-    ).exists()
+    ).first()
+
+    trial_available = False
+    trial_remaining_delta = None
+    if not existing_trial:
+        # Never used trial
+        trial_available = True
+        trial_remaining_delta = module.trial_duration_timedelta
+    elif existing_trial.expires_at and existing_trial.expires_at < timezone.now():
+        # Trial expired — check if admin extended the trial duration since then
+        time_used = existing_trial.expires_at - existing_trial.started_at
+        new_duration = module.trial_duration_timedelta
+        if new_duration > time_used:
+            trial_available = True
+            trial_remaining_delta = new_duration - time_used
     
     # Get pricing options
     plans = ModulePricing.objects.filter(
@@ -65,12 +80,24 @@ def module_access_view(request, module_code):
     reason = request.GET.get('reason', 'You need an active subscription to access this module.')
     
     # Build human-readable trial duration
-    trial_parts = []
-    if module.trial_days:
-        trial_parts.append(f'{module.trial_days} day{"s" if module.trial_days != 1 else ""}')
-    if module.trial_hours:
-        trial_parts.append(f'{module.trial_hours} hour{"s" if module.trial_hours != 1 else ""}')
-    trial_duration_str = ' and '.join(trial_parts) or '1 day'
+    if trial_remaining_delta and trial_remaining_delta != module.trial_duration_timedelta:
+        # Re-offered trial: show remaining time
+        total_secs = int(trial_remaining_delta.total_seconds())
+        rem_days = total_secs // 86400
+        rem_hours = (total_secs % 86400) // 3600
+        trial_parts = []
+        if rem_days:
+            trial_parts.append(f'{rem_days} day{"s" if rem_days != 1 else ""}')
+        if rem_hours:
+            trial_parts.append(f'{rem_hours} hour{"s" if rem_hours != 1 else ""}')
+        trial_duration_str = ' and '.join(trial_parts) or 'a few minutes'
+    else:
+        trial_parts = []
+        if module.trial_days:
+            trial_parts.append(f'{module.trial_days} day{"s" if module.trial_days != 1 else ""}')
+        if module.trial_hours:
+            trial_parts.append(f'{module.trial_hours} hour{"s" if module.trial_hours != 1 else ""}')
+        trial_duration_str = ' and '.join(trial_parts) or '1 day'
     
     context = {
         'module': module,
@@ -78,7 +105,8 @@ def module_access_view(request, module_code):
         'trial_days': module.trial_days,
         'trial_hours': module.trial_hours,
         'trial_duration_str': trial_duration_str,
-        'plans': plans,
+        'plans': plans if module.payments_enabled else [],
+        'payments_enabled': module.payments_enabled,
         'reason': reason,
         'current_subscription': current_sub,
     }
@@ -112,9 +140,31 @@ def start_trial_view(request, module_code):
         user=request.user,
         module=module,
         status='trial'
-    ).exists()
-    
+    ).first()
+
     if existing_trial:
+        # Check if admin extended trial duration — re-offer remaining time
+        if existing_trial.expires_at and existing_trial.expires_at < timezone.now():
+            time_used = existing_trial.expires_at - existing_trial.started_at
+            new_duration = module.trial_duration_timedelta
+            if new_duration > time_used:
+                remaining = new_duration - time_used
+                existing_trial.expires_at = timezone.now() + remaining
+                existing_trial.save(update_fields=['expires_at'])
+                total_secs = int(remaining.total_seconds())
+                rem_days = total_secs // 86400
+                rem_hours = (total_secs % 86400) // 3600
+                parts = []
+                if rem_days:
+                    parts.append(f'{rem_days} day{"s" if rem_days != 1 else ""}')
+                if rem_hours:
+                    parts.append(f'{rem_hours} hour{"s" if rem_hours != 1 else ""}')
+                duration_str = ' and '.join(parts) or 'a few minutes'
+                messages.success(request, f'Your free trial for {module.name} has been extended by {duration_str}!')
+                redirect_url = request.session.pop('subscription_redirect', None)
+                if redirect_url:
+                    return redirect(redirect_url)
+                return redirect('dashboard')
         messages.error(request, f'You have already used your free trial for {module.name}.')
         return redirect('module_access', module_code=module_code)
     

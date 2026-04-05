@@ -464,11 +464,16 @@
                     </button>
                 </form>
             </div>
+            {% if payments_enabled %}
             <div class="divider"><span>or subscribe for full access</span></div>
+            {% endif %}
             {% else %}
+            {% if payments_enabled %}
             <div class="section-title">Choose Your Plan</div>
             {% endif %}
-            
+            {% endif %}
+
+            {% if payments_enabled %}
             <form method="post" action="" id="subscribeForm">
                 {% csrf_token %}
                 <div class="pricing-options">
@@ -544,6 +549,7 @@
                     Get All Modules
                 </button>
             </div>
+            {% endif %}
             {% endif %}
 
             <div class="features">

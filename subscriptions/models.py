@@ -83,6 +83,12 @@ class Module(models.Model):
         default=0,
         help_text="Additional trial hours (added to trial_days)"
     )
+
+    # Payment visibility
+    payments_enabled = models.BooleanField(
+        default=False,
+        help_text="Show payment/subscription options to users. Uncheck to hide pricing and only show trials."
+    )
     
     # Limits for free tier
     free_tier_limit = models.PositiveIntegerField(
