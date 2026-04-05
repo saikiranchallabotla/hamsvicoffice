@@ -470,7 +470,15 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         # Assuming fetched_items is in job metadata or passed somehow
         # For now, we get it from the session-based workflow
         # In future, this should be stored in Job.result as input data
-        fetched = job.result.get('fetched_items', []) if job.result else []
+        fetched_raw = job.result.get('fetched_items', []) if job.result else []
+        # Normalize: fetched_items can be list of strings or list of dicts
+        fetched = []
+        for item in fetched_raw:
+            if isinstance(item, dict):
+                fetched.append(item.get('item_name') or item.get('name') or item.get('display_name') or '')
+            else:
+                fetched.append(str(item))
+        fetched = [n for n in fetched if n]
         
         # Log items found vs missing for debugging
         missing_items = [name for name in fetched if name not in name_to_info]
