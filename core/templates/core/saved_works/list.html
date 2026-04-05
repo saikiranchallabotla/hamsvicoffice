@@ -669,11 +669,13 @@
                                     </a>
                                     {% endfor %}
                                     <!-- +W Next -->
-                                    <a href="{% url 'generate_next_workslip_from_saved' work.last_ws.id %}" class="hub-btn hub-w-add" title="Create WorkSlip {{ work.next_ws_number }}">
+                                    <a href="#" class="hub-btn hub-w-add" title="Create WorkSlip {{ work.next_ws_number }}"
+                                       onclick="event.preventDefault(); event.stopPropagation(); confirmWorkslip('{% url 'generate_next_workslip_from_saved' work.last_ws.id %}', '{% url 'resume_saved_work' work.id %}');">
                                         <i class="bi bi-plus"></i> W{{ work.next_ws_number }}
                                     </a>
                                 {% else %}
-                                    <a href="{% url 'generate_workslip_from_saved' work.id %}" class="hub-btn hub-w-add" title="Generate WorkSlip 1">
+                                    <a href="#" class="hub-btn hub-w-add" title="Generate WorkSlip 1"
+                                       onclick="event.preventDefault(); event.stopPropagation(); confirmWorkslip('{% url 'generate_workslip_from_saved' work.id %}', '{% url 'resume_saved_work' work.id %}');">
                                         <i class="bi bi-plus"></i> W1
                                     </a>
                                 {% endif %}
@@ -1205,6 +1207,21 @@
         .then(data => {
             if (data.success) location.reload();
             else alert(data.error || 'Failed to move');
+        });
+    }
+
+    // Confirm workslip generation — ask user if estimate is finalized
+    function confirmWorkslip(generateUrl, editEstimateUrl) {
+        appConfirm(
+            'Is the estimate finalized? You need to complete the estimate before generating a workslip.',
+            'Generate Workslip',
+            { type: 'info', okText: 'Yes, proceed', cancelText: 'No, edit estimate' }
+        ).then(function(yes) {
+            if (yes) {
+                window.location.href = generateUrl;
+            } else {
+                window.location.href = editEstimateUrl;
+            }
         });
     }
 </script>
