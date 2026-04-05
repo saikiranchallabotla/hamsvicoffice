@@ -3409,14 +3409,6 @@ def saved_work_detail(request, work_id):
         ws_exec = work_data.get('ws_exec_map', {}) or {}
         bill_preview_number = saved_work.workslip_number or 1
 
-        # Load prefix map for repair mode
-        _ws_work_mode = work_data.get('ws_work_mode', 'original')
-        _prefix_map = {}
-        if _ws_work_mode == 'repair':
-            _category = saved_work.category or 'electrical'
-            _backend_id = work_data.get('selected_backend_id')
-            _prefix_map = load_prefix_map(_category, backend_id=_backend_id, user=user)
-
         for idx, row in enumerate(ws_rows):
             key = row.get('key', f'saved_{idx}')
             exec_qty = ws_exec.get(key, 0)
@@ -3429,13 +3421,12 @@ def saved_work_detail(request, work_id):
             rate = round(float(row.get('rate', 0) or 0), 2)
             amount = round(exec_qty * rate, 2)
             bill_preview_total += amount
-            _item_name = row.get('item_name') or row.get('display_name') or ''
             _raw_name = row.get('desc') or row.get('display_name') or row.get('item_name', '')
             _raw_desc = row.get('desc', '')
             bill_preview_rows.append({
                 'sl': len(bill_preview_rows) + 1,
-                'name': apply_prefix_to_desc(_raw_name, _item_name, _prefix_map),
-                'desc': apply_prefix_to_desc(_raw_desc, _item_name, _prefix_map),
+                'name': _raw_name,
+                'desc': _raw_desc,
                 'unit': row.get('unit', 'Nos'),
                 'qty': exec_qty,
                 'rate': rate,
@@ -3486,14 +3477,6 @@ def saved_work_detail(request, work_id):
         ws_exec = work_data.get('bill_ws_exec_map', work_data.get('ws_exec_map', {})) or {}
         bill_preview_number = saved_work.bill_number or 1
 
-        # Load prefix map for repair mode
-        _bill_work_mode = work_data.get('work_mode', 'original')
-        _prefix_map = {}
-        if _bill_work_mode == 'repair':
-            _category = saved_work.category or 'electrical'
-            _backend_id = work_data.get('selected_backend_id')
-            _prefix_map = load_prefix_map(_category, backend_id=_backend_id, user=user)
-
         for idx, row in enumerate(ws_rows):
             key = row.get('key', f'saved_{idx}')
             exec_qty = ws_exec.get(key, 0)
@@ -3506,13 +3489,12 @@ def saved_work_detail(request, work_id):
             rate = round(float(row.get('rate', 0) or 0), 2)
             amount = round(exec_qty * rate, 2)
             bill_preview_total += amount
-            _item_name = row.get('item_name') or row.get('display_name') or ''
             _raw_name = row.get('desc') or row.get('display_name') or row.get('item_name', '')
             _raw_desc = row.get('desc', '')
             bill_preview_rows.append({
                 'sl': len(bill_preview_rows) + 1,
-                'name': apply_prefix_to_desc(_raw_name, _item_name, _prefix_map),
-                'desc': apply_prefix_to_desc(_raw_desc, _item_name, _prefix_map),
+                'name': _raw_name,
+                'desc': _raw_desc,
                 'unit': row.get('unit', 'Nos'),
                 'qty': exec_qty,
                 'rate': rate,

@@ -211,17 +211,6 @@ def bill_entry(request, work_id):
                     'rate': supp_rate,
                 })
 
-    # Apply repair prefixes to all bill item names
-    _work_mode = work_data.get('ws_work_mode', 'original') if source_work.work_type == 'workslip' else work_data.get('work_type', 'original')
-    if _work_mode == 'repair':
-        _category = source_work.category or 'electrical'
-        _backend_id = work_data.get('selected_backend_id')
-        _prefix_map = load_prefix_map(_category, backend_id=_backend_id, user=request.user)
-        if _prefix_map:
-            for item in bill_items:
-                # item_name is the display name (e.g., "Fan Point") which matches prefix_map keys
-                item['item_name'] = apply_prefix_to_desc(item['item_name'], item['item_name'], _prefix_map)
-
     # Build AE (Additional Estimate) items for quantities exceeding the estimate
     # Pattern: if workslip qty > estimate qty, the excess is an AE item
     ae_items = []
