@@ -364,6 +364,7 @@ def module_edit(request, module_id=0):
         display_order = int(request.POST.get('display_order', 0))
         is_active = request.POST.get('is_active') == 'on'
         is_free = request.POST.get('is_free') == 'on'
+        payments_enabled = request.POST.get('payments_enabled') == 'on'
         trial_days = int(request.POST.get('trial_days', 1))
         trial_hours = int(request.POST.get('trial_hours', 0))
         free_tier_limit = int(request.POST.get('free_tier_limit', 5))
@@ -387,6 +388,7 @@ def module_edit(request, module_id=0):
             module.display_order = display_order
             module.is_active = is_active
             module.is_free = is_free
+            module.payments_enabled = payments_enabled
             module.trial_days = trial_days
             module.trial_hours = trial_hours
             module.free_tier_limit = free_tier_limit
@@ -411,6 +413,7 @@ def module_edit(request, module_id=0):
                 display_order=display_order,
                 is_active=is_active,
                 is_free=is_free,
+                payments_enabled=payments_enabled,
                 trial_days=trial_days,
                 trial_hours=trial_hours,
                 free_tier_limit=free_tier_limit,
