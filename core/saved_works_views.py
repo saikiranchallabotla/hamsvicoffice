@@ -2318,7 +2318,7 @@ def bill_entry(request, work_id):
         desc = row.get('item_desc') or row.get('desc') or row.get('display_name') or row.get('item_name', '')
         unit = row.get('unit', 'Nos')
         rate = round(float(row.get('rate', 0) or 0), 2)
-        qty_est = round(float(row.get('qty_est', 0) or 0), 2)
+        qty_est = float(row.get('qty_est', 0) or 0)
 
         # Previous bills' quantities per bill
         prev_qtys = []
@@ -2564,12 +2564,12 @@ def bill_generate(request, work_id):
                     exec_qty = ws_exec_map[alt_key]
                     break
         try:
-            exec_qty = round(float(exec_qty), 2) if exec_qty else 0.0
+            exec_qty = float(exec_qty) if exec_qty else 0.0
         except (ValueError, TypeError):
             exec_qty = 0.0
         if exec_qty <= 0 and not ws_exec_map:
             try:
-                exec_qty = round(float(row.get('qty_est', 0) or 0), 2)
+                exec_qty = float(row.get('qty_est', 0) or 0)
             except (ValueError, TypeError):
                 exec_qty = 0.0
         if exec_qty <= 0:
@@ -2634,7 +2634,7 @@ def bill_generate(request, work_id):
         seen_supp_keys.add(supp_key)
         exec_qty = ws_exec_map.get(supp_key, 0)
         try:
-            exec_qty = round(float(exec_qty), 2) if exec_qty else 0.0
+            exec_qty = float(exec_qty) if exec_qty else 0.0
         except (ValueError, TypeError):
             exec_qty = 0.0
         if exec_qty <= 0:
@@ -2677,7 +2677,7 @@ def bill_generate(request, work_id):
             supp_key = f"supp:{supp_name}"
             exec_qty = ws_exec_map.get(supp_key, 0)
             try:
-                exec_qty = round(float(exec_qty), 2) if exec_qty else 0.0
+                exec_qty = float(exec_qty) if exec_qty else 0.0
             except (ValueError, TypeError):
                 exec_qty = 0.0
             if exec_qty <= 0:
@@ -2749,8 +2749,8 @@ def bill_generate(request, work_id):
 
         if est_qty > 0 and (exec_qty > est_qty or ae_saved_qty > 0):
             # Cap main item at estimate qty
-            base_qty = round(min(exec_qty, est_qty), 2)
-            excess_qty = round(ae_saved_qty if ae_saved_qty > 0 else (exec_qty - est_qty), 2)
+            base_qty = min(exec_qty, est_qty)
+            excess_qty = ae_saved_qty if ae_saved_qty > 0 else (exec_qty - est_qty)
             if excess_qty < 0:
                 excess_qty = 0
 
@@ -2919,7 +2919,7 @@ def bill_generate(request, work_id):
                 # Fill in Quantity Till Date (column C) from cumulative data
                 data_start = 12
                 for i, nit in enumerate(nth_items):
-                    ws_out.cell(row=data_start + i, column=3, value=round(float(nit['qty_till_date'] or 0), 2))
+                    ws_out.cell(row=data_start + i, column=3, value=float(nit['qty_till_date'] or 0))
 
             _apply_print_settings(wb_out)
             resp = HttpResponse(
@@ -3491,7 +3491,7 @@ def saved_work_detail(request, work_id):
             key = row.get('key', f'saved_{idx}')
             exec_qty = ws_exec.get(key, 0)
             try:
-                exec_qty = round(float(exec_qty), 2) if exec_qty else 0.0
+                exec_qty = float(exec_qty) if exec_qty else 0.0
             except (ValueError, TypeError):
                 exec_qty = 0.0
             if exec_qty <= 0:
@@ -3559,7 +3559,7 @@ def saved_work_detail(request, work_id):
             key = row.get('key', f'saved_{idx}')
             exec_qty = ws_exec.get(key, 0)
             try:
-                exec_qty = round(float(exec_qty), 2) if exec_qty else 0.0
+                exec_qty = float(exec_qty) if exec_qty else 0.0
             except (ValueError, TypeError):
                 exec_qty = 0.0
             if exec_qty <= 0:

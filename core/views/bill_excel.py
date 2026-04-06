@@ -167,7 +167,7 @@ def create_first_bill_sheet(
     slno = 1
 
     for it in items:
-        qty = round(float(it.get("qty", 0) or 0), 2)
+        qty = float(it.get("qty", 0) or 0)
         unit_pl = str(it.get("unit") or "").strip()
         desc = it.get("desc") or ""
         rate = round(float(it.get("rate", 0.0) or 0), 2)
@@ -189,6 +189,7 @@ def create_first_bill_sheet(
         ws_bill.cell(row=row_idx, column=8, value=f"=ROUND(B{row_idx}*E{row_idx},2)")
 
         fmt_money = '#,##0.00'
+        fmt_qty = '#,##0.##'
         for c_idx in range(1, 9):
             cell = ws_bill.cell(row=row_idx, column=c_idx)
             cell.border = border_all
@@ -196,8 +197,10 @@ def create_first_bill_sheet(
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-            if c_idx in (2, 5, 8):
+            if c_idx in (5, 8):
                 cell.number_format = fmt_money
+            elif c_idx == 2:
+                cell.number_format = fmt_qty
 
         if not is_ae:
             slno += 1
@@ -444,7 +447,7 @@ def build_nth_bill_wb(items, header_data, title_text,
         desc = it.get("desc") or ""
         unit = it.get("unit") or ""
         rate = round(float(it.get("rate", 0.0) or 0), 2)
-        prev_qty = round(float(it.get("prev_qty", 0.0) or 0), 2)
+        prev_qty = float(it.get("prev_qty", 0.0) or 0)
         prev_amount = round(float(it.get("prev_amount", 0.0) or 0), 2)
         is_ae = bool(it.get("is_ae", False))
 
@@ -462,11 +465,12 @@ def build_nth_bill_wb(items, header_data, title_text,
         ws.cell(row=r, column=6, value=f"=ROUND(C{r}*E{r},2)")
         ws.cell(row=r, column=7, value=prev_qty)
         ws.cell(row=r, column=8, value=prev_amount)
-        ws.cell(row=r, column=9, value=f"=ROUND(C{r}-G{r},2)")
+        ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
         ws.cell(row=r, column=10, value=f"=ROUND(F{r}-H{r},2)")
         ws.cell(row=r, column=11, value="")
 
         fmt_money = '#,##0.00'
+        fmt_qty = '#,##0.##'
         for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
@@ -474,8 +478,10 @@ def build_nth_bill_wb(items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-            if col in (3, 5, 6, 7, 8, 9, 10):
+            if col in (5, 6, 8, 10):
                 cell.number_format = fmt_money
+            elif col in (3, 7, 9):
+                cell.number_format = fmt_qty
 
         r += 1
         if not is_ae:
@@ -522,8 +528,10 @@ def build_nth_bill_wb(items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-            if col in (3, 5, 6, 7, 8, 9, 10):
+            if col in (5, 6, 8, 10):
                 cell.number_format = '#,##0.00'
+            elif col in (3, 7, 9):
+                cell.number_format = '#,##0.##'
 
     for rr in range(1, ws.max_row + 1):
         ws.row_dimensions[rr].height = None
@@ -677,7 +685,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
         desc = it.get("desc") or ""
         unit = it.get("unit") or ""
         rate = round(float(it.get("rate", 0.0) or 0), 2)
-        prev_qty = round(float(it.get("prev_qty", 0.0) or 0), 2)
+        prev_qty = float(it.get("prev_qty", 0.0) or 0)
         prev_amount = round(float(it.get("prev_amount", 0.0) or 0), 2)
         is_ae = bool(it.get("is_ae", False))
 
@@ -695,11 +703,12 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
         ws.cell(row=r, column=6, value=f"=ROUND(C{r}*E{r},2)")
         ws.cell(row=r, column=7, value=prev_qty)
         ws.cell(row=r, column=8, value=prev_amount)
-        ws.cell(row=r, column=9, value=f"=ROUND(C{r}-G{r},2)")
+        ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
         ws.cell(row=r, column=10, value=f"=ROUND(F{r}-H{r},2)")
         ws.cell(row=r, column=11, value="")
 
         fmt_money = '#,##0.00'
+        fmt_qty = '#,##0.##'
         for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
@@ -707,8 +716,10 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-            if col in (3, 5, 6, 7, 8, 9, 10):
+            if col in (5, 6, 8, 10):
                 cell.number_format = fmt_money
+            elif col in (3, 7, 9):
+                cell.number_format = fmt_qty
 
         r += 1
         if not is_ae:
@@ -754,8 +765,10 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-            if col in (3, 5, 6, 7, 8, 9, 10):
+            if col in (5, 6, 8, 10):
                 cell.number_format = '#,##0.00'
+            elif col in (3, 7, 9):
+                cell.number_format = '#,##0.##'
 
     for rr in range(1, ws.max_row + 1):
         ws.row_dimensions[rr].height = None

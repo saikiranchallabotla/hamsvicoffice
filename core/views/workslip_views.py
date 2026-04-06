@@ -2302,8 +2302,13 @@ def workslip(request):
                         supp_qty = round(float(supp.get("qty", 0) or 0), 2)
                         # Use description from row+2 (stored in 'desc'), fallback to item name
                         supp_desc = supp.get("desc", supp_name) or supp_name
+                        # Apply repair prefix to previous phase supplemental items
+                        if ws_work_mode == 'repair' and item_to_prefix_ws:
+                            prefix = item_to_prefix_ws.get(supp_name, "")
+                            if prefix:
+                                supp_desc = f"{prefix} {supp_desc}" if supp_desc else prefix
                         supp_unit = supp.get("unit", "-") or "-"
-                        
+
                         # Apply custom rate if user modified it
                         prev_supp_key = f"prev_supp:{phase_num}:{supp_name}"
                         original_supp_rate = round(float(supp.get("rate", 0) or 0), 2)
@@ -2667,16 +2672,20 @@ def workslip(request):
             for r in range(1, ws_ws.max_row + 1):
                 ws_ws.row_dimensions[r].height = None
 
-            # Apply number_format to all numeric columns for consistent 2-decimal display
+            # Apply number_format to numeric columns - use #,##0.00 for amounts/rates, #,##0.## for quantities
             fmt_money = '#,##0.00'
-            numeric_cols = {COL_EST_QTY, COL_EST_RATE, COL_EST_AMT, COL_CURR_QTY, COL_CURR_AMT, COL_MORE, COL_LESS}
+            fmt_qty = '#,##0.##'
+            amt_cols = {COL_EST_RATE, COL_EST_AMT, COL_CURR_AMT, COL_MORE, COL_LESS}
+            qty_cols = {COL_EST_QTY, COL_CURR_QTY}
             # Add phase columns
             for p_idx in range(num_previous_phases):
-                numeric_cols.add(COL_PHASE_START + (p_idx * 2))      # phase qty
-                numeric_cols.add(COL_PHASE_START + (p_idx * 2) + 1)  # phase amt
+                qty_cols.add(COL_PHASE_START + (p_idx * 2))      # phase qty
+                amt_cols.add(COL_PHASE_START + (p_idx * 2) + 1)  # phase amt
             for r in range(data_start, ws_ws.max_row + 1):
-                for c in numeric_cols:
+                for c in amt_cols:
                     ws_ws.cell(r, c).number_format = fmt_money
+                for c in qty_cols:
+                    ws_ws.cell(r, c).number_format = fmt_qty
 
             # Reorder sheets: WorkSlip first, then ItemBlocks
             if "WorkSlip" in wb_out.sheetnames:
