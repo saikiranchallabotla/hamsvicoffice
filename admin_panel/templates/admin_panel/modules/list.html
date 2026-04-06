@@ -431,6 +431,9 @@
                 {% for m in bundle.modules.all %}{{ m.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
             </div>
             <div class="module-actions">
+                <a href="{% url 'admin_bundle_pricing_edit' bundle.id %}" class="action-btn edit" title="Edit Bundle">
+                    <i class="bi bi-pencil"></i>
+                </a>
                 <a href="{% url 'admin_bundle_pricing_edit' bundle.id %}" class="action-btn pricing" title="Edit Bundle Pricing">
                     <i class="bi bi-currency-rupee"></i>
                 </a>
