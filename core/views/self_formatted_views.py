@@ -610,6 +610,23 @@ def _extract_labels_from_lines(lines):
                     labels["date_of_completion"] = val
                     continue
 
+        # DOI / DOC / DOMR / DOBR (from bill header line like "DOI : 01.01.2025    DOC : ...")
+        if not labels["doi"] or not labels["doc"] or not labels["domr"] or not labels["dobr"]:
+            if "doi" in low and "doc" in low:
+                doi_m = re.search(r'DOI\s*:\s*([\d\.\/\-]+)', s, re.I)
+                doc_m = re.search(r'DOC\s*:\s*([\d\.\/\-]+)', s, re.I)
+                domr_m = re.search(r'DOMR\s*:\s*([\d\.\/\-]+)', s, re.I)
+                dobr_m = re.search(r'DOBR\s*:\s*([\d\.\/\-]+)', s, re.I)
+                if doi_m:
+                    labels["doi"] = doi_m.group(1).strip()
+                if doc_m:
+                    labels["doc"] = doc_m.group(1).strip()
+                if domr_m:
+                    labels["domr"] = domr_m.group(1).strip()
+                if dobr_m:
+                    labels["dobr"] = dobr_m.group(1).strip()
+                continue
+
         # Total / Amount (with Rs. prefix) - must be a significant amount
         # Prefer bill amounts (1,10,000) over estimate amounts (102820)
         if not labels["amount"]:
