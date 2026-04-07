@@ -589,7 +589,7 @@ def self_formatted_progress_report(request):
         "Name of Agency",
         "Administrative Sanction",
         "Technical Sanction",
-        "Agreement D.O.C",
+        "Agreement Number",
         "Estimate Amount",
         "Amount Paid",
         "M.B No Details",
