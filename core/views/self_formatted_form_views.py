@@ -519,6 +519,52 @@ def self_formatted_restore_backup(request, pk):
         }, status=500)
 
 
+def _round_numeric_value(val):
+    """Round numeric strings to 2 decimal places. Handles Rs. prefix, commas, /- suffix."""
+    if not val or not isinstance(val, str):
+        return val
+    s = val.strip()
+    # Extract number part, preserving prefix/suffix
+    prefix = ""
+    suffix = ""
+    # Check for Rs. prefix
+    m = re.match(r'^(Rs\.?\s*)', s, re.I)
+    if m:
+        prefix = m.group(1)
+        s = s[m.end():]
+    # Check for /- suffix
+    if s.endswith('/-'):
+        suffix = '/-'
+        s = s[:-2]
+    s = s.strip()
+    # Remove commas for parsing
+    cleaned = s.replace(',', '')
+    if not cleaned:
+        return val
+    try:
+        num = float(cleaned)
+        # Only round if it has more than 2 decimal places
+        rounded = round(num, 2)
+        if ',' in s:
+            # Preserve comma formatting (Indian style)
+            int_part = int(rounded)
+            dec_part = rounded - int_part
+            # Format with commas
+            int_str = f"{int_part:,}"
+            if dec_part:
+                result = f"{int_str}.{str(round(dec_part, 2))[2:]:0<2}"
+            else:
+                result = int_str
+        else:
+            if rounded == int(rounded):
+                result = str(int(rounded))
+            else:
+                result = f"{rounded:.2f}"
+        return f"{prefix}{result}{suffix}"
+    except (ValueError, TypeError):
+        return val
+
+
 @login_required(login_url='login')
 def self_formatted_progress_report(request):
     """
@@ -613,7 +659,10 @@ def self_formatted_progress_report(request):
 
             # Data columns (columns 2..13)
             for col_offset, key in enumerate(LABEL_KEYS):
-                cell = ws.cell(row=row_num, column=col_offset + 2, value=labels.get(key, ""))
+                raw_val = labels.get(key, "")
+                # Round numeric values to 2 decimals
+                cell_val = _round_numeric_value(raw_val)
+                cell = ws.cell(row=row_num, column=col_offset + 2, value=cell_val)
                 cell.font = cell_font
                 cell.border = border_all
                 cell.alignment = wrap_align

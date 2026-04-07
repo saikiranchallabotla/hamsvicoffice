@@ -216,16 +216,20 @@ def _extract_labels_from_lines(lines):
         # Bond No / Agreement (from header like "Suppl.Agreement Bond No. 30/2024-2025")
         if not labels["agreement"]:
             if "bond no" in low or "agreement bond" in low or "agreement" in low:
-                # Try to extract the number pattern like "30/2024-2025"
-                match = re.search(r'(\d+\s*[\/\-]\s*\d{4}\s*[\/\-]?\s*\d*)', s)
-                if match:
-                    labels["agreement"] = match.group(1).strip()
+                # Always prefer full text after colon (most reliable)
+                val = _extract_value_part_from_line(s)
+                if val:
+                    labels["agreement"] = val
+                    if len(val) < 20 and idx + 1 < len(lines):
+                        next_val = _collect_multiline_value(lines, idx + 1, max_lines=2)
+                        if next_val:
+                            labels["agreement"] = val + " " + next_val
                     continue
-                # Also check for Agreement.No pattern
-                match = re.search(r'Agreement\.?No\.?\s*[:\.]?\s*([^\s,]+)', s, re.I)
-                if match:
-                    labels["agreement"] = match.group(1).strip()
-                    continue
+                elif idx + 1 < len(lines):
+                    next_val = _collect_multiline_value(lines, idx + 1, max_lines=3)
+                    if next_val:
+                        labels["agreement"] = next_val
+                        continue
 
         # Admin Sanction / Sanctioned Estimate (TA.No pattern or Ref. to Administrative sanction)
         if not labels["admin_sanction"]:
@@ -1544,7 +1548,12 @@ def _extract_bill_specific_fields(ws, labels, max_r, max_c):
                 try:
                     num_val = float(cleaned)
                     if num_val > 0:
-                        amount_paid = sv
+                        # Round to 2 decimals
+                        num_val = round(num_val, 2)
+                        if num_val == int(num_val):
+                            amount_paid = str(int(num_val))
+                        else:
+                            amount_paid = f"{num_val:.2f}"
                         break
                 except (ValueError, TypeError):
                     continue
