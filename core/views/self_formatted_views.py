@@ -107,6 +107,11 @@ def _extract_labels_from_lines(lines):
         "work_order_date": "",
         "date_of_commencement": "",
         "date_of_completion": "",
+        "doi": "",
+        "doc": "",
+        "domr": "",
+        "dobr": "",
+        "amount_paid": "",
     }
 
     for idx, raw in enumerate(lines):
@@ -224,21 +229,23 @@ def _extract_labels_from_lines(lines):
 
         # Admin Sanction / Sanctioned Estimate (TA.No pattern or Ref. to Administrative sanction)
         if not labels["admin_sanction"]:
-            if "administrative sanction" in low or "admin sanction" in low or ("a)" in low and "sanction" in low):
-                # Try Memo.No pattern first (capture full reference with date)
-                memo_match = re.search(r'(Memo\.?\s*No\.?\s*[A-Za-z0-9\/\-\.\s]+(?:dt[:\.\s]*[\d\.\-\/]+)?)', s, re.I)
-                if memo_match:
-                    labels["admin_sanction"] = memo_match.group(1).strip()
-                else:
-                    # Try to extract value after colon
-                    val = _extract_value_part_from_line(s)
-                    if val:
-                        labels["admin_sanction"] = val
-                        # If value seems incomplete, collect from next lines
-                        if len(val) < 20 and idx + 1 < len(lines):
-                            next_val = _collect_multiline_value(lines, idx + 1, max_lines=2)
-                            if next_val:
-                                labels["admin_sanction"] = val + " " + next_val
+            if ("administrative sanction" in low or "admin sanction" in low or
+                ("a)" in low and "sanction" in low) or
+                ("ref" in low and "admin" in low)):
+                # Always prefer full text after colon (most reliable)
+                val = _extract_value_part_from_line(s)
+                if val:
+                    labels["admin_sanction"] = val
+                    # If value seems incomplete, collect from next lines
+                    if len(val) < 20 and idx + 1 < len(lines):
+                        next_val = _collect_multiline_value(lines, idx + 1, max_lines=2)
+                        if next_val:
+                            labels["admin_sanction"] = val + " " + next_val
+                elif idx + 1 < len(lines):
+                    # No colon on this line — value is on next line
+                    next_val = _collect_multiline_value(lines, idx + 1, max_lines=3)
+                    if next_val:
+                        labels["admin_sanction"] = next_val
                 # Also try to get amount if present on this or next line
                 amount_match = re.findall(r'Rs\.?\s*([\d,]+(?:\.\d+)?)', s, re.I)
                 if amount_match and not labels["admin_sanction_amount"]:
@@ -278,22 +285,18 @@ def _extract_labels_from_lines(lines):
         # Tech Sanction - handle DR.NO pattern and value on next line
         if not labels["tech_sanction"]:
             if ("tech" in low and "sanc" in low) or "b)technical" in low or "technical sanction" in low:
-                # Try DR.NO pattern first
-                dr_match = re.search(r'(DR\.?\s*NO\.?\s*[\d\/\-]+(?:\s*,?\s*(?:Dt|dt)[:\.]?\s*[\d\.\/\-]+)?)', s, re.I)
-                if dr_match:
-                    labels["tech_sanction"] = dr_match.group(1).strip()
-                else:
-                    val = _extract_value_part_from_line(s)
-                    if val:
-                        labels["tech_sanction"] = val
-                    elif idx + 1 < len(lines):
-                        # Value might be on next line
-                        next_line = str(lines[idx + 1]).strip()
-                        dr_match = re.search(r'(DR\.?\s*NO\.?\s*[\d\/\-]+(?:\s*,?\s*(?:Dt|dt)[:\.]?\s*[\d\.\/\-]+)?)', next_line, re.I)
-                        if dr_match:
-                            labels["tech_sanction"] = dr_match.group(1).strip()
-                        elif next_line and len(next_line) > 3:
-                            labels["tech_sanction"] = next_line
+                # Always prefer full text after colon
+                val = _extract_value_part_from_line(s)
+                if val:
+                    labels["tech_sanction"] = val
+                    if len(val) < 20 and idx + 1 < len(lines):
+                        next_val = _collect_multiline_value(lines, idx + 1, max_lines=2)
+                        if next_val:
+                            labels["tech_sanction"] = val + " " + next_val
+                elif idx + 1 < len(lines):
+                    next_val = _collect_multiline_value(lines, idx + 1, max_lines=3)
+                    if next_val:
+                        labels["tech_sanction"] = next_val
                 # Get amount if present
                 amount_match = re.findall(r'Rs\.?\s*([\d,]+(?:\.\d+)?)', s, re.I)
                 if amount_match and not labels["tech_sanction_amount"]:
@@ -1453,6 +1456,12 @@ def _extract_labels_per_work(uploaded_file):
     For Excel files with multiple sheets, each sheet is treated as a separate
     work.  For all other file types, returns a single-element list.
 
+    Also extracts bill-specific fields for Progress Report:
+      - amount_paid: rightmost column, bottommost numeric value
+      - cc_header: bill type from the title row (for Remarks)
+      - doi, doc, domr, dobr: dates from header row 9
+      - mb_details: from header row 8
+
     Returns: list of (source_name, labels) tuples
     """
     filename = uploaded_file.name or ""
@@ -1484,12 +1493,105 @@ def _extract_labels_per_work(uploaded_file):
             if lines:
                 labels = _extract_labels_from_lines(lines)
                 source_name = f"{filename} — {ws.title}"
+
+                # --- Bill-specific extraction from structured header rows ---
+                _extract_bill_specific_fields(ws, labels, max_r, max_c)
+
                 results.append((source_name, labels))
         return results if results else [(filename, {})]
     else:
         # Non-Excel: delegate to existing function (one work per file)
         labels, lines = _extract_labels_from_source_file(uploaded_file)
         return [(filename, labels)]
+
+
+def _extract_bill_specific_fields(ws, labels, max_r, max_c):
+    """
+    Extract bill-specific fields directly from the worksheet structure:
+    - amount_paid: bottommost numeric value in the rightmost data column
+    - cc_header: bill type from the title (row 1 typically)
+    - doi, doc, domr, dobr: from the "DOI : ... DOC : ..." row
+    - mb_details: from the "M.B.No Details" row
+    """
+    # --- Amount Paid: scan rightmost column bottom-up for last number ---
+    amount_paid = ""
+    # Find the actual rightmost column with data (typically column H=8 for bills)
+    for r in range(max_r, 0, -1):
+        for c in range(max_c, 0, -1):
+            v = ws.cell(row=r, column=c).value
+            if v is not None:
+                sv = str(v).strip()
+                # Check if it's a number (remove commas, Rs., /- etc.)
+                cleaned = re.sub(r'^Rs\.?\s*', '', sv, flags=re.I)
+                cleaned = cleaned.replace(',', '').rstrip('/-').strip()
+                try:
+                    num_val = float(cleaned)
+                    if num_val > 0:
+                        amount_paid = sv
+                        break
+                except (ValueError, TypeError):
+                    continue
+        if amount_paid:
+            break
+    labels["amount_paid"] = amount_paid
+
+    # --- Scan first ~15 rows for structured bill header fields ---
+    scan_rows = min(max_r, 15)
+    for r in range(1, scan_rows + 1):
+        cell_val = ws.cell(row=r, column=1).value
+        if cell_val is None:
+            continue
+        s = str(cell_val).strip()
+        low = s.lower()
+
+        # cc_header / bill type from title row (row 1 typically)
+        if not labels.get("cc_header"):
+            if ("bill" in low or "workslip" in low or "work slip" in low or
+                "work-slip" in low or "estimate" in low):
+                # Extract the bill type
+                if "workslip" in low or "work slip" in low or "work-slip" in low:
+                    labels["cc_header"] = "Workslip"
+                elif "final" in low and "bill" in low:
+                    labels["cc_header"] = "Final Bill"
+                else:
+                    part_match = re.search(r'(\d+(?:st|nd|rd|th)?\s*(?:&\s*)?\w*\s*(?:part\s*)?bill)', low, re.I)
+                    if part_match:
+                        labels["cc_header"] = part_match.group(1).strip().title()
+                    elif "bill" in low:
+                        labels["cc_header"] = s.strip()
+
+        # DOI / DOC / DOMR / DOBR row (format: "DOI : xx   DOC : xx   DOMR : xx   DOBR : xx")
+        if "doi" in low and "doc" in low:
+            doi_match = re.search(r'DOI\s*:\s*([^\s]+(?:\s*[^\s]+)?)', s, re.I)
+            doc_match = re.search(r'DOC\s*:\s*([^\s]+(?:\s*[^\s]+)?)', s, re.I)
+            domr_match = re.search(r'DOMR\s*:\s*([^\s]+(?:\s*[^\s]+)?)', s, re.I)
+            dobr_match = re.search(r'DOBR\s*:\s*([^\s]+(?:\s*[^\s]+)?)', s, re.I)
+
+            if doi_match:
+                # Clean: stop at next label keyword
+                val = doi_match.group(1).strip()
+                val = re.split(r'\s{2,}|DOC|DOMR|DOBR', val, flags=re.I)[0].strip()
+                labels["doi"] = val
+            if doc_match:
+                val = doc_match.group(1).strip()
+                val = re.split(r'\s{2,}|DOMR|DOBR', val, flags=re.I)[0].strip()
+                labels["doc"] = val
+            if domr_match:
+                val = domr_match.group(1).strip()
+                val = re.split(r'\s{2,}|DOBR', val, flags=re.I)[0].strip()
+                labels["domr"] = val
+            if dobr_match:
+                labels["dobr"] = dobr_match.group(1).strip()
+
+        # M.B.No Details row
+        if "m.b" in low or "mb" in low and ("no" in low or "detail" in low):
+            if not labels.get("mb_details"):
+                # Use the entire cell value (it's the full MB details line)
+                mb_val = s.strip()
+                # Remove the label prefix if present
+                mb_val = re.sub(r'^M\.?B\.?\s*(?:No\.?)?\s*Details?\s*:?\s*', '', mb_val, flags=re.I).strip()
+                if mb_val:
+                    labels["mb_details"] = mb_val
 
 
 # -------------------------------------------

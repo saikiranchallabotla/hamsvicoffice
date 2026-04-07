@@ -8,6 +8,7 @@ from copy import copy
 import inflect
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
 from django.utils import timezone
 from django.urls import reverse
 from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -522,9 +523,8 @@ def self_formatted_restore_backup(request, pk):
 def self_formatted_progress_report(request):
     """
     Progress Report: accept multiple source files, extract labels from each,
-    and produce a single Excel workbook with one row per file.
-    Columns: Sr.No, Name of Work, Administrative Sanction, Technical Sanction,
-             Agreement D.O.C, Estimate Amount, Name of Agency.
+    and produce a single Excel workbook with one row per work.
+    Excel files with multiple sheets produce one row per sheet.
     """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
@@ -540,19 +540,32 @@ def self_formatted_progress_report(request):
     COLUMNS = [
         "Sr.No",
         "Name of Work",
+        "Name of Agency",
         "Administrative Sanction",
         "Technical Sanction",
         "Agreement D.O.C",
         "Estimate Amount",
-        "Name of Agency",
+        "Amount Paid",
+        "M.B No Details",
+        "DOI",
+        "DOC",
+        "DOMR",
+        "DOBR",
+        "Remarks",
     ]
     LABEL_KEYS = [
         "name_of_work",
+        "agency",
         "admin_sanction",
         "tech_sanction",
         "agreement",
         "estimate_amount",
-        "agency",
+        "amount_paid",
+        "mb_details",
+        "doi",
+        "doc",
+        "domr",
+        "dobr",
     ]
 
     wb = Workbook()
@@ -598,20 +611,36 @@ def self_formatted_progress_report(request):
             ws.cell(row=row_num, column=1).border = border_all
             ws.cell(row=row_num, column=1).alignment = center_align
 
-            # Data columns
+            # Data columns (columns 2..13)
             for col_offset, key in enumerate(LABEL_KEYS):
                 cell = ws.cell(row=row_num, column=col_offset + 2, value=labels.get(key, ""))
                 cell.font = cell_font
                 cell.border = border_all
                 cell.alignment = wrap_align
 
+            # Remarks column (last column = 14) — based on cc_header
+            remarks = ""
+            cc = (labels.get("cc_header") or "").strip()
+            if cc:
+                cc_low = cc.lower()
+                if "workslip" in cc_low or "work slip" in cc_low:
+                    remarks = "Workslip was submitted"
+                elif "final" in cc_low:
+                    remarks = "Final Bill submitted"
+                else:
+                    remarks = f"{cc} submitted"
+            remarks_cell = ws.cell(row=row_num, column=len(COLUMNS), value=remarks)
+            remarks_cell.font = cell_font
+            remarks_cell.border = border_all
+            remarks_cell.alignment = wrap_align
+
             row_num += 1
             sr_no += 1
 
     # Column widths
-    col_widths = [6, 40, 25, 25, 20, 18, 25]
+    col_widths = [6, 40, 25, 25, 25, 18, 16, 16, 25, 12, 12, 12, 12, 28]
     for i, w in enumerate(col_widths, start=1):
-        ws.column_dimensions[chr(64 + i)].width = w
+        ws.column_dimensions[get_column_letter(i)].width = w
 
     _apply_print_settings(wb, landscape=True)
 
