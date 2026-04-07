@@ -191,6 +191,7 @@ urlpatterns = [
     path("self-formatted/delete/<int:pk>/", views.self_formatted_delete_format, name="self_formatted_delete_format"),
     path("self-formatted/toggle-lock/<int:pk>/", views.self_formatted_toggle_lock, name="self_formatted_toggle_lock"),
     path("self-formatted/restore-backup/<int:pk>/", views.self_formatted_restore_backup, name="self_formatted_restore_backup"),
+    path("self-formatted/progress-report/", views.self_formatted_progress_report, name="self_formatted_progress_report"),
 
     # =========================
     # TEMPORARY WORKS (separate module)

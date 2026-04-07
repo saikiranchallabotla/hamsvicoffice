@@ -1447,6 +1447,51 @@ def _extract_labels_from_source_file(uploaded_file):
     return labels, lines
 
 
+def _extract_labels_per_work(uploaded_file):
+    """
+    Like _extract_labels_from_source_file but returns a *list* of works.
+    For Excel files with multiple sheets, each sheet is treated as a separate
+    work.  For all other file types, returns a single-element list.
+
+    Returns: list of (source_name, labels) tuples
+    """
+    filename = uploaded_file.name or ""
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+
+    if ext in ("xlsx", "xlsm"):
+        wb = load_workbook(uploaded_file, data_only=True)
+        results = []
+        for ws in wb.worksheets:
+            lines = []
+            max_r = min(ws.max_row or 0, 150)
+            max_c = min(ws.max_column or 0, 20)
+            for r in range(1, max_r + 1):
+                vals = []
+                for c in range(1, max_c + 1):
+                    v = ws.cell(row=r, column=c).value
+                    if v is not None:
+                        vals.append(str(v).strip())
+                if vals:
+                    if len(vals) == 2:
+                        label = vals[0].lower().strip()
+                        if any(x in label for x in ['name', 'work', 'sanction', 'amount', 'contractor',
+                                                      'nit', 'estimate', 'period', 'address', 'premium']):
+                            lines.append(f"{vals[0]}: {vals[1]}")
+                        else:
+                            lines.append(" ".join(vals))
+                    else:
+                        lines.append(" ".join(vals))
+            if lines:
+                labels = _extract_labels_from_lines(lines)
+                source_name = f"{filename} — {ws.title}"
+                results.append((source_name, labels))
+        return results if results else [(filename, {})]
+    else:
+        # Non-Excel: delegate to existing function (one work per file)
+        labels, lines = _extract_labels_from_source_file(uploaded_file)
+        return [(filename, labels)]
+
+
 # -------------------------------------------
 #  SELF FORMATTED MODULE  -  HELPERS
 # -------------------------------------------

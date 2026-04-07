@@ -38,7 +38,8 @@ _inflect_engine = inflect.engine()
 from .utils import get_org_from_request
 from .self_formatted_views import (_extract_labels_from_source_file,
     _build_placeholder_map, _fill_template_file,
-    _replace_placeholders_in_docx_xml)
+    _replace_placeholders_in_docx_xml,
+    _extract_labels_per_work)
 
 # Pre-migration-safe columns for SelfFormattedTemplate queries.
 # Fields from migration 0022 (is_locked, template_file_backup, etc.) may not
@@ -515,6 +516,112 @@ def self_formatted_restore_backup(request, pk):
             'success': False,
             'message': f'Restore failed: {str(e)}'
         }, status=500)
+
+
+@login_required(login_url='login')
+def self_formatted_progress_report(request):
+    """
+    Progress Report: accept multiple source files, extract labels from each,
+    and produce a single Excel workbook with one row per file.
+    Columns: Sr.No, Name of Work, Administrative Sanction, Technical Sanction,
+             Agreement D.O.C, Estimate Amount, Name of Agency.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    files = request.FILES.getlist("source_files")
+    if not files:
+        return redirect(
+            f"{reverse('self_formatted_form_page')}?error=Please+upload+at+least+one+source+file"
+        )
+
+    from .utils import _apply_print_settings
+
+    COLUMNS = [
+        "Sr.No",
+        "Name of Work",
+        "Administrative Sanction",
+        "Technical Sanction",
+        "Agreement D.O.C",
+        "Estimate Amount",
+        "Name of Agency",
+    ]
+    LABEL_KEYS = [
+        "name_of_work",
+        "admin_sanction",
+        "tech_sanction",
+        "agreement",
+        "estimate_amount",
+        "agency",
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Progress Report"
+
+    # Styles
+    thin = Side(border_style="thin", color="000000")
+    border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_fill = PatternFill("solid", fgColor="FFC8C8C8")
+    header_font = Font(bold=True, size=11)
+    cell_font = Font(size=10)
+    wrap_align = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    center_align = Alignment(horizontal="center", vertical="center")
+
+    # Header row
+    for col_idx, col_name in enumerate(COLUMNS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = border_all
+        cell.alignment = center_align
+
+    # Data rows — each file may yield multiple works (Excel with multiple sheets)
+    row_num = 2
+    sr_no = 1
+    errors = []
+    for f in files:
+        try:
+            works = _extract_labels_per_work(f)
+        except Exception as e:
+            logger.error(f"Progress report: failed to extract from {f.name}: {e}")
+            errors.append(f.name)
+            continue
+
+        for source_name, labels in works:
+            # Skip entries with no useful data
+            if not any(labels.get(k) for k in LABEL_KEYS):
+                continue
+
+            # Sr.No
+            ws.cell(row=row_num, column=1, value=sr_no).font = cell_font
+            ws.cell(row=row_num, column=1).border = border_all
+            ws.cell(row=row_num, column=1).alignment = center_align
+
+            # Data columns
+            for col_offset, key in enumerate(LABEL_KEYS):
+                cell = ws.cell(row=row_num, column=col_offset + 2, value=labels.get(key, ""))
+                cell.font = cell_font
+                cell.border = border_all
+                cell.alignment = wrap_align
+
+            row_num += 1
+            sr_no += 1
+
+    # Column widths
+    col_widths = [6, 40, 25, 25, 20, 18, 25]
+    for i, w in enumerate(col_widths, start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    _apply_print_settings(wb, landscape=True)
+
+    # Build response
+    resp = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    resp["Content-Disposition"] = 'attachment; filename="Progress_Report.xlsx"'
+    wb.save(resp)
+    return resp
 
 
 # ==========================

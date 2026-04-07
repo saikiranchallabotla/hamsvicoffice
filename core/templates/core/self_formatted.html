@@ -727,6 +727,37 @@ dialog::backdrop {
     </div>
 </div>
 
+<!-- Progress Report Section -->
+<div class="sf-card" style="margin-top:0.75rem;">
+    <div class="sf-card-header" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <i class="bi bi-table"></i>
+        Progress Report
+    </div>
+    <div class="sf-card-body">
+        <form id="progress-report-form" method="POST" action="{% url 'self_formatted_progress_report' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="sf-row">
+                <div class="sf-row-title"><span class="num">1</span> Upload Source Files</div>
+                <p class="sf-hint">Select multiple files (Forwarding Slips, Estimates, etc.) — Excel files with multiple sheets will create one row per sheet</p>
+                <input type="file" name="source_files" class="sf-input" id="progress-source-files" multiple
+                       accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
+                <p class="sf-hint" style="margin-top:0.3rem; color:#718096;" id="progress-file-count"></p>
+            </div>
+
+            <div class="sf-row" style="background:#f0fff4; padding:0.4rem 0.6rem;">
+                <div class="sf-row-title" style="margin-bottom:0.15rem;"><i class="bi bi-columns-gap" style="color:#38a169;"></i> Output Columns</div>
+                <p style="font-size:0.68rem; color:#4a5568; margin:0;">
+                    Sr.No &bull; Name of Work &bull; Administrative Sanction &bull; Technical Sanction &bull; Agreement D.O.C &bull; Estimate Amount &bull; Name of Agency
+                </p>
+            </div>
+
+            <button type="submit" class="sf-btn sf-btn-purple" id="progress-generate-btn">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Generate Report
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- Help Popup -->
 <div class="help-overlay" id="help-overlay" onclick="toggleHelpPopup()"></div>
 <div class="help-popup" id="help-popup">
@@ -1011,6 +1042,18 @@ window.toggleHelpPopup = function() {
     };
 })();
 {% endverbatim %}
+
+// Progress Report file count display
+(function(){
+    var pf = document.getElementById('progress-source-files');
+    var pc = document.getElementById('progress-file-count');
+    if (pf && pc) {
+        pf.addEventListener('change', function(){
+            var n = pf.files.length;
+            pc.textContent = n ? n + ' file' + (n > 1 ? 's' : '') + ' selected' : '';
+        });
+    }
+})();
 </script>
 
 {% endblock %}
