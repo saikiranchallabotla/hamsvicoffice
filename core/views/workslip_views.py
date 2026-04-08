@@ -1961,7 +1961,8 @@ def workslip(request):
                                 desc_cell_block = ws_blocks.cell(row=current_row + 2, column=4)
                                 base_val = desc_cell_block.value
                                 base_str = str(base_val).strip() if base_val not in (None, "") else ""
-                                desc_cell_block.value = f"{prefix} {base_str}" if base_str else prefix
+                                if not base_str.startswith(prefix):
+                                    desc_cell_block.value = f"{prefix} {base_str}" if base_str else prefix
                         current_row += (end_row - start_row + 1)  # No blank row between blocks
             else:
                 # no supplemental items â†’ remove default sheet so only WorkSlip will exist
@@ -2149,6 +2150,13 @@ def workslip(request):
                 _display = row.get("display_name") or row.get("item_name") or ""
                 if desc_est == _display and _display in item_name_to_desc:
                     desc_est = item_name_to_desc[_display]
+                # Apply repair prefix to base estimate items, but skip if already prefixed
+                # (uploaded estimates may already contain the prefix)
+                if ws_work_mode == 'repair' and item_to_prefix_ws:
+                    _item_name_for_prefix = row.get("item_name") or row.get("display_name") or ""
+                    _prefix = item_to_prefix_ws.get(_item_name_for_prefix, "")
+                    if _prefix and not desc_est.startswith(_prefix):
+                        desc_est = f"{_prefix} {desc_est}" if desc_est else _prefix
 
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
@@ -2299,7 +2307,7 @@ def workslip(request):
                         # Apply repair prefix to previous phase supplemental items
                         if ws_work_mode == 'repair' and item_to_prefix_ws:
                             prefix = item_to_prefix_ws.get(supp_name, "")
-                            if prefix:
+                            if prefix and not supp_desc.startswith(prefix):
                                 supp_desc = f"{prefix} {supp_desc}" if supp_desc else prefix
                         supp_unit = supp.get("unit", "-") or "-"
 
@@ -2384,7 +2392,7 @@ def workslip(request):
                     desc_supp = supp_desc_map.get(name, name)
                     if ws_work_mode == 'repair' and item_to_prefix_ws:
                         prefix = item_to_prefix_ws.get(name, "")
-                        if prefix:
+                        if prefix and not desc_supp.startswith(prefix):
                             desc_supp = f"{prefix} {desc_supp}" if desc_supp else prefix
                     unit_pl, _ = units_for(name)
                     rate = round(float(supp_rate_map.get(name, 0.0) or 0.0), 2)
