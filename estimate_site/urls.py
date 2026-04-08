@@ -97,6 +97,8 @@ urlpatterns = [
     path('saved-works/<int:work_id>/delete-subsequent-bills/', saved_works_views.delete_subsequent_bills, name='delete_subsequent_bills'),
     path('saved-works/<int:work_id>/move/', saved_works_views.move_to_folder, name='move_to_folder'),
     path('saved-works/<int:work_id>/duplicate/', saved_works_views.duplicate_saved_work, name='duplicate_saved_work'),
+    path('saved-works/<int:work_id>/copy-to-folder/', saved_works_views.copy_to_folder, name='copy_to_folder'),
+    path('saved-works/batch-action/', saved_works_views.batch_action, name='batch_action'),
     path('saved-works/<int:work_id>/generate-workslip/', saved_works_views.generate_workslip_from_saved, name='generate_workslip_from_saved'),
     path('saved-works/<int:work_id>/generate-next-workslip/', saved_works_views.generate_next_workslip_from_saved, name='generate_next_workslip_from_saved'),
     path('saved-works/<int:work_id>/generate-bill/', saved_works_views.generate_bill_from_saved, name='generate_bill_from_saved'),
@@ -108,6 +110,7 @@ urlpatterns = [
     path('saved-works/folder/create/', saved_works_views.create_folder, name='create_folder'),
     path('saved-works/folder/<int:folder_id>/rename/', saved_works_views.rename_folder, name='rename_folder'),
     path('saved-works/folder/<int:folder_id>/delete/', saved_works_views.delete_folder, name='delete_folder'),
+    path('saved-works/folder/<int:folder_id>/move/', saved_works_views.move_folder_to, name='move_folder_to'),
 
     # -------------------------
     # Main pages - Redirect authenticated users to dashboard, show landing for anonymous

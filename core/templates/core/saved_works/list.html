@@ -501,6 +501,55 @@
         margin: 4px 0;
     }
 
+    /* Checkbox on work cards */
+    .wc-checkbox {
+        display: flex;
+        align-items: center;
+        margin-right: 8px;
+    }
+    .wc-checkbox input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #6366f1;
+    }
+    .work-card.selected {
+        background: #eef2ff;
+        border-color: #6366f1;
+    }
+
+    /* Batch toolbar */
+    .batch-toolbar {
+        padding: 8px 16px;
+        background: #eef2ff;
+        border-bottom: 1px solid #c7d2fe;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .batch-count {
+        font-weight: 600;
+        color: #4338ca;
+        font-size: 0.9rem;
+        margin-right: 6px;
+    }
+    .batch-btn {
+        padding: 4px 12px;
+        border: 1px solid #c7d2fe;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #333;
+    }
+    .batch-btn:hover { background: #f0f0ff; }
+    .batch-btn-danger { color: #dc2626; border-color: #fca5a5; }
+    .batch-btn-danger:hover { background: #fef2f2; }
+
     /* Status bar */
     .explorer-statusbar {
         padding: 8px 16px;
@@ -563,6 +612,15 @@
             </button>
         </div>
 
+        <!-- Batch Action Toolbar (hidden by default) -->
+        <div class="batch-toolbar" id="batchToolbar" style="display: none;">
+            <span class="batch-count" id="batchCount">0 selected</span>
+            <button class="batch-btn" onclick="batchMove()"><i class="bi bi-folder-symlink"></i> Move</button>
+            <button class="batch-btn" onclick="batchCopy()"><i class="bi bi-files"></i> Copy</button>
+            <button class="batch-btn batch-btn-danger" onclick="batchDelete()"><i class="bi bi-trash"></i> Delete</button>
+            <button class="batch-btn" onclick="clearSelection()"><i class="bi bi-x-lg"></i> Clear</button>
+        </div>
+
         <!-- Status Filter Bar -->
         <div class="filter-bar">
             <span class="filter-label">Status:</span>
@@ -604,8 +662,12 @@
             {% for work in works %}
             <div class="work-card {% if work.work_type == 'new_estimate' %}wc-estimate{% elif work.work_type == 'workslip' %}wc-workslip{% elif work.work_type == 'bill' %}wc-bill{% elif work.work_type == 'temporary_works' %}wc-temp{% else %}wc-amc{% endif %}"
                  onclick="toggleHub({{ work.id }})"
-                 oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name|escapejs }}')">
+                 oncontextmenu="showWorkMenu(event, {{ work.id }}, '{{ work.name|escapejs }}')"
+                 data-work-id="{{ work.id }}">
                 <div class="wc-main">
+                    <div class="wc-checkbox" onclick="event.stopPropagation();">
+                        <input type="checkbox" class="work-select-cb" value="{{ work.id }}" onchange="toggleWorkSelection({{ work.id }}, event)">
+                    </div>
                     <div class="wc-icon">
                         <i class="bi {% if work.work_type == 'new_estimate' %}bi-file-earmark-bar-graph{% elif work.work_type == 'workslip' %}bi-file-earmark-text{% elif work.work_type == 'bill' %}bi-receipt{% elif work.work_type == 'temporary_works' %}bi-tools{% else %}bi-wrench-adjustable{% endif %}"></i>
                     </div>
@@ -832,6 +894,9 @@
     <div class="context-menu-item" onclick="createSubfolder()">
         <i class="bi bi-folder-plus"></i> Create Subfolder
     </div>
+    <div class="context-menu-item" onclick="moveFolderToFolder()">
+        <i class="bi bi-folder-symlink"></i> Move to Folder
+    </div>
     <div class="context-menu-divider"></div>
     <div class="context-menu-item" onclick="renameSelectedFolder()">
         <i class="bi bi-pencil"></i> Rename
@@ -853,6 +918,9 @@
     <div class="context-menu-divider"></div>
     <div class="context-menu-item" onclick="moveWork()">
         <i class="bi bi-folder-symlink"></i> Move to Folder
+    </div>
+    <div class="context-menu-item" onclick="copyWorkToFolder()">
+        <i class="bi bi-files"></i> Copy to Folder
     </div>
     <div class="context-menu-item" onclick="duplicateSelectedWork()">
         <i class="bi bi-copy"></i> Duplicate
@@ -931,24 +999,29 @@
     }
 </style>
 
-<!-- Move to Folder Modal -->
-<div class="modal fade" id="moveFolderModal" tabindex="-1">
+<!-- Unified Move/Copy Modal -->
+<div class="modal fade" id="actionFolderModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-folder-symlink me-2"></i>Move to Folder</h5>
+                <h5 class="modal-title" id="actionModalTitle">
+                    <i class="bi bi-folder-symlink me-2"></i>Move to Folder
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="moveFolderForm">
+                <form id="actionFolderForm">
                     {% csrf_token %}
-                    <input type="hidden" name="work_id" id="moveWorkId">
+                    <input type="hidden" id="actionMode" value="">
+                    <input type="hidden" id="actionItemId" value="">
                     <div class="mb-3">
                         <label class="form-label">Select destination folder:</label>
-                        <select class="form-select" name="folder_id" id="targetFolder">
-                            <option value="none">Root (Unfiled)</option>
-                            {% for folder in all_folders %}
-                            <option value="{{ folder.id }}">{{ folder.name }}</option>
+                        <select class="form-select" id="targetFolder">
+                            <option value="none">📁 Root (Unfiled)</option>
+                            {% for f in all_folders_tree %}
+                            <option value="{{ f.id }}" data-depth="{{ f.depth }}">
+                                {{ f.name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -956,7 +1029,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="moveToFolder()">Move</button>
+                <button type="button" class="btn btn-primary" id="actionConfirmBtn" onclick="executeAction()">Move</button>
             </div>
         </div>
     </div>
@@ -967,6 +1040,8 @@
     let selectedFolderName = null;
     let selectedWorkId = null;
     let selectedWorkName = null;
+    const selectedWorkIds = new Set();
+    let lastCheckedIndex = -1;
 
     // Toggle workflow hub on card click
     function toggleHub(workId) {
@@ -1131,8 +1206,15 @@
     }
 
     function moveWork() {
-        document.getElementById('moveWorkId').value = selectedWorkId;
-        new bootstrap.Modal(document.getElementById('moveFolderModal')).show();
+        openActionModal('move_work', selectedWorkId, 'Move to Folder', 'Move');
+    }
+
+    function copyWorkToFolder() {
+        openActionModal('copy_work', selectedWorkId, 'Copy to Folder', 'Copy');
+    }
+
+    function moveFolderToFolder() {
+        openActionModal('move_folder', selectedFolderId, 'Move Folder', 'Move');
     }
 
     function duplicateSelectedWork() {
@@ -1195,13 +1277,104 @@
         });
     }
 
-    // Move to folder
-    function moveToFolder() {
-        const workId = document.getElementById('moveWorkId').value;
+    // Move/Copy/Batch unified action
+    function openActionModal(mode, itemId, title, btnText) {
+        document.getElementById('actionMode').value = mode;
+        document.getElementById('actionItemId').value = itemId;
+        document.getElementById('actionModalTitle').innerHTML =
+            '<i class="bi bi-folder-symlink me-2"></i>' + title;
+        document.getElementById('actionConfirmBtn').textContent = btnText;
+
+        const excludeId = (mode === 'move_folder') ? itemId : null;
+        formatFolderSelect(excludeId);
+
+        new bootstrap.Modal(document.getElementById('actionFolderModal')).show();
+    }
+
+    function formatFolderSelect(excludeId) {
+        const sel = document.getElementById('targetFolder');
+        const excludeSet = new Set();
+        if (excludeId) {
+            excludeSet.add(String(excludeId));
+            getDescendantIds(excludeId).forEach(id => excludeSet.add(String(id)));
+        }
+        Array.from(sel.options).forEach(opt => {
+            if (opt.value === 'none') return;
+            const depth = parseInt(opt.dataset.depth || 0);
+            const indent = '\u00A0\u00A0\u00A0\u00A0'.repeat(depth);
+            const prefix = depth > 0 ? indent + '└─ ' : '';
+            if (!opt.dataset.originalName) opt.dataset.originalName = opt.textContent.trim();
+            opt.textContent = prefix + opt.dataset.originalName;
+            opt.hidden = excludeSet.has(opt.value);
+            opt.disabled = excludeSet.has(opt.value);
+        });
+        // Reset to root
+        sel.value = 'none';
+    }
+
+    function getDescendantIds(folderId) {
+        const descendants = new Set();
+        const opts = document.getElementById('targetFolder').options;
+        let collecting = false;
+        let collectDepth = -1;
+        for (let i = 0; i < opts.length; i++) {
+            const opt = opts[i];
+            if (opt.value === 'none') continue;
+            const depth = parseInt(opt.dataset.depth || 0);
+            if (opt.value == folderId) {
+                collecting = true;
+                collectDepth = depth;
+                continue;
+            }
+            if (collecting) {
+                if (depth > collectDepth) {
+                    descendants.add(opt.value);
+                } else {
+                    break;
+                }
+            }
+        }
+        return descendants;
+    }
+
+    function executeAction() {
+        const mode = document.getElementById('actionMode').value;
+        const itemId = document.getElementById('actionItemId').value;
         const folderId = document.getElementById('targetFolder').value;
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-        fetch(`/saved-works/${workId}/move/`, {
+        if (mode === 'batch_move' || mode === 'batch_copy') {
+            const action = mode === 'batch_move' ? 'move' : 'copy';
+            fetch('/saved-works/batch-action/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: action,
+                    work_ids: Array.from(selectedWorkIds),
+                    folder_id: folderId
+                }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Operation failed');
+            });
+            return;
+        }
+
+        let url;
+        if (mode === 'move_work') {
+            url = `/saved-works/${itemId}/move/`;
+        } else if (mode === 'copy_work') {
+            url = `/saved-works/${itemId}/copy-to-folder/`;
+        } else if (mode === 'move_folder') {
+            url = `/saved-works/folder/${itemId}/move/`;
+        }
+
+        fetch(url, {
             method: 'POST',
             body: new URLSearchParams({ folder_id: folderId }),
             headers: {
@@ -1212,7 +1385,88 @@
         .then(res => res.json())
         .then(data => {
             if (data.success) location.reload();
-            else alert(data.error || 'Failed to move');
+            else alert(data.error || 'Operation failed');
+        });
+    }
+
+    // Multi-select functions
+    function toggleWorkSelection(workId, event) {
+        const cb = event.target;
+        const allCbs = Array.from(document.querySelectorAll('.work-select-cb'));
+        const currentIndex = allCbs.findIndex(c => c.value == workId);
+
+        if (event.shiftKey && lastCheckedIndex >= 0 && lastCheckedIndex !== currentIndex) {
+            const start = Math.min(lastCheckedIndex, currentIndex);
+            const end = Math.max(lastCheckedIndex, currentIndex);
+            for (let i = start; i <= end; i++) {
+                allCbs[i].checked = true;
+                selectedWorkIds.add(parseInt(allCbs[i].value));
+            }
+        } else {
+            if (cb.checked) {
+                selectedWorkIds.add(workId);
+            } else {
+                selectedWorkIds.delete(workId);
+            }
+        }
+        lastCheckedIndex = currentIndex;
+        updateBatchToolbar();
+    }
+
+    function updateBatchToolbar() {
+        const toolbar = document.getElementById('batchToolbar');
+        const count = selectedWorkIds.size;
+        if (count > 0) {
+            toolbar.style.display = 'flex';
+            document.getElementById('batchCount').textContent = count + ' selected';
+        } else {
+            toolbar.style.display = 'none';
+        }
+        // Update card highlight
+        document.querySelectorAll('.work-card[data-work-id]').forEach(card => {
+            const wid = parseInt(card.dataset.workId);
+            card.classList.toggle('selected', selectedWorkIds.has(wid));
+        });
+    }
+
+    function clearSelection() {
+        selectedWorkIds.clear();
+        document.querySelectorAll('.work-select-cb').forEach(cb => cb.checked = false);
+        lastCheckedIndex = -1;
+        updateBatchToolbar();
+    }
+
+    function batchMove() {
+        if (selectedWorkIds.size === 0) return;
+        openActionModal('batch_move', '', 'Move ' + selectedWorkIds.size + ' Work(s) to Folder', 'Move');
+    }
+
+    function batchCopy() {
+        if (selectedWorkIds.size === 0) return;
+        openActionModal('batch_copy', '', 'Copy ' + selectedWorkIds.size + ' Work(s) to Folder', 'Copy');
+    }
+
+    function batchDelete() {
+        if (selectedWorkIds.size === 0) return;
+        appConfirm('Delete ' + selectedWorkIds.size + ' selected work(s)? This cannot be undone.', 'Delete Selected', {type: 'danger', danger: true, okText: 'Delete All'}).then(function(ok) {
+            if (!ok) return;
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch('/saved-works/batch-action/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'delete',
+                    work_ids: Array.from(selectedWorkIds)
+                }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to delete');
+            });
         });
     }
 

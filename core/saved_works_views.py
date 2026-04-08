@@ -116,6 +116,49 @@ def get_org_from_request(request):
 
 
 # ==============================================================================
+# HELPER FUNCTIONS
+# ==============================================================================
+
+def build_folder_tree_flat(all_folders):
+    """
+    Build a flat list of folders in DFS order with depth info for indented <select>.
+    Returns: [{'id': ..., 'name': ..., 'depth': 0, 'color': ..., 'parent_id': ...}, ...]
+    """
+    folders_by_parent = {}
+    for f in all_folders:
+        folders_by_parent.setdefault(f.parent_id, []).append(f)
+
+    result = []
+    def walk(parent_id, depth):
+        for f in sorted(folders_by_parent.get(parent_id, []), key=lambda x: x.name):
+            result.append({
+                'id': f.id,
+                'name': f.name,
+                'depth': depth,
+                'color': f.color,
+                'parent_id': f.parent_id,
+            })
+            walk(f.id, depth + 1)
+    walk(None, 0)
+    return result
+
+
+def get_descendant_folder_ids(folder_id, all_folders):
+    """Return set of all descendant folder IDs for the given folder_id."""
+    children_map = {}
+    for f in all_folders:
+        children_map.setdefault(f.parent_id, []).append(f.id)
+
+    result = set()
+    stack = list(children_map.get(folder_id, []))
+    while stack:
+        fid = stack.pop()
+        result.add(fid)
+        stack.extend(children_map.get(fid, []))
+    return result
+
+
+# ==============================================================================
 # SAVED WORKS LIST & MANAGEMENT
 # ==============================================================================
 
@@ -223,6 +266,7 @@ def saved_works_list(request):
     
     # Get all folders for the dropdown/tree
     all_folders = WorkFolder.objects.filter(organization=org, user=user)
+    all_folders_tree = build_folder_tree_flat(all_folders)
     
     # Check module access for each work type
     # Mapping: work_type -> module_code
@@ -402,6 +446,7 @@ def saved_works_list(request):
         'works': works_list,
         'folders': folders,
         'all_folders': all_folders,
+        'all_folders_tree': all_folders_tree,
         'current_folder': current_folder,
         'breadcrumb_path': breadcrumb_path,
         'work_type_filter': work_type_filter,
@@ -530,6 +575,49 @@ def delete_folder(request, folder_id):
     return JsonResponse({
         'success': True,
         'message': f'Folder "{folder_name}" deleted successfully!'
+    })
+
+
+@login_required(login_url='login')
+@require_POST
+def move_folder_to(request, folder_id):
+    """Move a folder into another folder (or to root)."""
+    org = get_org_from_request(request)
+    user = request.user
+
+    folder = get_object_or_404(WorkFolder, id=folder_id, organization=org, user=user)
+    target_id = request.POST.get('folder_id')
+
+    if target_id and target_id != 'none':
+        target_folder = get_object_or_404(WorkFolder, id=target_id, organization=org, user=user)
+
+        # Prevent circular move: can't move into self or any descendant
+        all_user_folders = WorkFolder.objects.filter(organization=org, user=user)
+        descendants = get_descendant_folder_ids(folder.id, all_user_folders)
+        if target_folder.id == folder.id or target_folder.id in descendants:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot move a folder into itself or one of its subfolders.'
+            })
+
+        folder.parent = target_folder
+    else:
+        folder.parent = None
+
+    # Check for duplicate name in target location
+    if WorkFolder.objects.filter(
+        organization=org, user=user, name=folder.name, parent=folder.parent
+    ).exclude(id=folder.id).exists():
+        return JsonResponse({
+            'success': False,
+            'error': f'A folder named "{folder.name}" already exists in the destination.'
+        })
+
+    folder.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Folder "{folder.name}" moved successfully!'
     })
 
 
@@ -1477,6 +1565,96 @@ def duplicate_saved_work(request, work_id):
         'work_id': new_work.id,
         'message': f'Work duplicated as "{new_work.name}"!'
     })
+
+
+@login_required(login_url='login')
+@require_POST
+def copy_to_folder(request, work_id):
+    """Copy a saved work to a specific folder."""
+    org = get_org_from_request(request)
+    user = request.user
+
+    saved_work = get_object_or_404(SavedWork, id=work_id, organization=org, user=user)
+    folder_id = request.POST.get('folder_id')
+
+    target_folder = None
+    if folder_id and folder_id != 'none':
+        target_folder = get_object_or_404(WorkFolder, id=folder_id, organization=org, user=user)
+
+    new_work = SavedWork.objects.create(
+        organization=org,
+        user=user,
+        folder=target_folder,
+        name=f"{saved_work.name} (Copy)",
+        work_type=saved_work.work_type,
+        work_data=saved_work.work_data.copy() if saved_work.work_data else {},
+        category=saved_work.category,
+        notes=saved_work.notes,
+        progress_percent=saved_work.progress_percent,
+        last_step=saved_work.last_step,
+    )
+
+    return JsonResponse({
+        'success': True,
+        'work_id': new_work.id,
+        'message': f'Work copied as "{new_work.name}"!'
+    })
+
+
+@login_required(login_url='login')
+@require_POST
+def batch_action(request):
+    """Batch move, copy, or delete multiple works."""
+    org = get_org_from_request(request)
+    user = request.user
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'success': False, 'error': 'Invalid request data.'})
+
+    action = data.get('action')
+    work_ids = data.get('work_ids', [])
+    folder_id = data.get('folder_id')
+
+    if not work_ids or not action:
+        return JsonResponse({'success': False, 'error': 'No works or action specified.'})
+
+    works = SavedWork.objects.filter(id__in=work_ids, organization=org, user=user)
+    count = works.count()
+
+    if count == 0:
+        return JsonResponse({'success': False, 'error': 'No matching works found.'})
+
+    target_folder = None
+    if folder_id and folder_id != 'none':
+        target_folder = get_object_or_404(WorkFolder, id=folder_id, organization=org, user=user)
+
+    if action == 'move':
+        works.update(folder=target_folder)
+        return JsonResponse({'success': True, 'message': f'Moved {count} work(s) successfully!'})
+
+    elif action == 'copy':
+        for work in works:
+            SavedWork.objects.create(
+                organization=org,
+                user=user,
+                folder=target_folder,
+                name=f"{work.name} (Copy)",
+                work_type=work.work_type,
+                work_data=work.work_data.copy() if work.work_data else {},
+                category=work.category,
+                notes=work.notes,
+                progress_percent=work.progress_percent,
+                last_step=work.last_step,
+            )
+        return JsonResponse({'success': True, 'message': f'Copied {count} work(s) successfully!'})
+
+    elif action == 'delete':
+        works.delete()
+        return JsonResponse({'success': True, 'message': f'Deleted {count} work(s) successfully!'})
+
+    return JsonResponse({'success': False, 'error': 'Invalid action.'})
 
 
 # ==============================================================================
