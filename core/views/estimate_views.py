@@ -1528,17 +1528,18 @@ def download_forwarding_letter_live(request, category):
             run2.font.size = Pt(13)
             run2.font.color.rgb = placeholder_color
             run2.font.italic = True
-        
+
         doc.add_paragraph()
-        
+
         # From/To section in a table
         from_to_table = doc.add_table(rows=1, cols=2)
         from_to_table.autofit = True
-        
+
         from_cell = from_to_table.cell(0, 0)
         from_para = from_cell.paragraphs[0]
-        from_para.add_run('From: -\n')
-        
+        from_label = from_para.add_run('From: -\n')
+        from_label.font.bold = True
+
         # From section - Officer details
         if letter_settings and letter_settings.officer_name:
             name_qual = letter_settings.officer_name
@@ -1570,44 +1571,52 @@ def download_forwarding_letter_live(request, category):
         # To section - Recipient details
         to_cell = from_to_table.cell(0, 1)
         to_para = to_cell.paragraphs[0]
-        to_para.add_run('To,\n')
-        
+        to_label = to_para.add_run('To,\n')
+        to_label.font.bold = True
+
         if letter_settings and letter_settings.recipient_designation:
             to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
         else:
             to_run1 = to_para.add_run('[Officer Designation],\n')
             to_run1.font.color.rgb = placeholder_color
             to_run1.font.italic = True
-        
+
         if letter_settings and letter_settings.recipient_division:
             to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
         else:
             to_run2 = to_para.add_run('[Division Name],\n')
             to_run2.font.color.rgb = placeholder_color
             to_run2.font.italic = True
-        
+
         if letter_settings and letter_settings.recipient_address:
             to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
         else:
             to_run3 = to_para.add_run('[Address].')
             to_run3.font.color.rgb = placeholder_color
             to_run3.font.italic = True
-        
+
         doc.add_paragraph()
-        
+
         # Letter number and date
         lr_para = doc.add_paragraph()
-        lr_para.add_run('Lr No. ')
+        lr_run = lr_para.add_run('Lr No. ')
+        lr_run.font.bold = True
+        lr_run.font.underline = True
         if letter_settings and letter_settings.office_code:
             lr_code = lr_para.add_run(letter_settings.office_code)
             lr_code.font.underline = True
+            lr_code.font.bold = True
         else:
             lr_placeholder = lr_para.add_run('[Office Code]')
             lr_placeholder.font.color.rgb = placeholder_color
             lr_placeholder.font.italic = True
             lr_placeholder.font.underline = True
-        lr_para.add_run(f'/{financial_year}/          ')
-        lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
+            lr_placeholder.font.bold = True
+        lr_fy = lr_para.add_run(f'/{financial_year}/          ')
+        lr_fy.font.bold = True
+        lr_fy.font.underline = True
+        lr_date = lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
+        lr_date.font.bold = True
         
         doc.add_paragraph()
         
