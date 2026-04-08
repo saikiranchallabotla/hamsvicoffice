@@ -970,7 +970,14 @@ def workslip(request):
             if workslip_files:
                 # Sort workslip files by phase number to process in order
                 workslip_files.sort(key=lambda x: x[0])
-                
+
+                # Use ONLY the most recent workslip file. Workslip-(N-1) already
+                # contains complete execution data for phases 1..(N-1) and all
+                # accumulated supplemental items in its phase columns. Processing
+                # earlier files in addition would duplicate phase exec maps and
+                # supplemental items, inflating quantities/amounts in the output.
+                workslip_files = [workslip_files[-1]]
+
                 # Initialize combined data structures for all phases
                 all_phase_exec_maps = []  # List of exec_maps, one per phase
                 all_phase_ae_data = []    # List of ae_data, one per phase
