@@ -41,469 +41,387 @@ from .utils import (get_org_from_request, _apply_print_settings,
     _get_current_financial_year, _get_current_date_formatted,
     _get_letter_settings, _format_date_to_ddmmyyyy)
 
+
+# ==============================================================================
+# ESTIMATE PARSING HELPERS (extracted from estimate() for reuse)
+# ==============================================================================
+
+def _cell_is_yellow(cell):
+    fill = cell.fill
+    if not fill or not fill.patternType or fill.patternType.lower() != "solid":
+        return False
+    rgb = getattr(fill.fgColor, "rgb", None)
+    if rgb and str(rgb).upper().endswith("FFFF00"):
+        return True
+    if getattr(fill.fgColor, "type", None) == "theme":
+        if getattr(fill.fgColor, "theme", None) in (4, 5, 6):
+            return True
+    if getattr(fill.fgColor, "indexed", None) == 6:
+        return True
+    return False
+
+
+def _cell_is_red_text(cell):
+    font = cell.font
+    if not font or not font.color:
+        return False
+    rgb = getattr(font.color, "rgb", None)
+    if rgb and str(rgb).upper().endswith("FF0000"):
+        return True
+    if getattr(font.color, "type", None) == "theme":
+        return True
+    if getattr(font.color, "indexed", None) == 3:
+        return True
+    return False
+
+
+def _is_yellow_and_red(cell):
+    return _cell_is_yellow(cell) and _cell_is_red_text(cell)
+
+
+def _is_valid_item_block(ws_src, start_row, end_row):
+    """Check if this block looks like a valid item block (has rate data in column J)."""
+    for r in range(start_row, min(end_row + 1, start_row + 50)):
+        val = ws_src.cell(row=r, column=10).value
+        if val not in (None, "") and str(val).strip():
+            return True
+    return False
+
+
+def _find_item_block_end(ws_src, start_row, max_row):
+    """Find the true end of an item block by looking for the rate row in column J."""
+    next_heading_row = max_row + 1
+    for rr in range(start_row + 1, max_row + 1):
+        for c in range(1, 11):
+            cell = ws_src.cell(row=rr, column=c)
+            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
+                next_heading_row = rr
+                break
+        if next_heading_row <= max_row:
+            break
+
+    potential_end = next_heading_row - 1
+    last_rate_row = start_row
+    for r in range(start_row, potential_end + 1):
+        val = ws_src.cell(row=r, column=10).value
+        if val not in (None, "") and str(val).strip():
+            last_rate_row = r
+
+    return last_rate_row, next_heading_row
+
+
+def _extract_items_from_sheet(ws_src):
+    """Extract all item blocks from a single sheet."""
+    fetched_items = []
+    item_blocks = {}
+
+    max_row = ws_src.max_row
+    r = 1
+
+    while r <= max_row:
+        heading_name = None
+        for c in range(1, 11):
+            cell = ws_src.cell(row=r, column=c)
+            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
+                heading_name = str(cell.value).strip()
+                break
+
+        if heading_name:
+            start_row = r
+            end_row, next_heading_row = _find_item_block_end(ws_src, start_row, max_row)
+            if _is_valid_item_block(ws_src, start_row, end_row):
+                fetched_items.append(heading_name)
+                item_blocks[heading_name] = (start_row, end_row)
+            r = next_heading_row if next_heading_row <= max_row else end_row + 1
+        else:
+            r += 1
+
+    return fetched_items, item_blocks
+
+
+def _to_plural(unit):
+    """Convert unit to plural form."""
+    unit_lower = unit.lower()
+    mapping = {
+        "no": "Nos", "nos": "Nos", "mtr": "Mtrs", "mtrs": "Mtrs",
+        "pts": "Pts", "pt": "Pts", "cum": "Cum", "kg": "Kg", "l": "L",
+    }
+    return mapping.get(unit_lower, unit + "s" if unit else "Nos")
+
+
+def _to_singular(unit):
+    """Convert unit to singular form."""
+    unit_lower = unit.lower()
+    mapping = {
+        "nos": "No", "no": "No", "mtrs": "Mtr", "mtr": "Mtr",
+        "pts": "Pt", "pt": "Pt", "cum": "Cum", "kg": "Kg", "l": "L",
+    }
+    return mapping.get(unit_lower, unit)
+
+
+def _determine_unit_from_heading(heading_name, upload_units_map=None):
+    """Determine unit from Groups sheet units_map first, then fall back to heuristic."""
+    if upload_units_map and heading_name in upload_units_map:
+        return upload_units_map[heading_name]
+
+    heading_lower = heading_name.lower()
+
+    if "light point" in heading_lower or "fan point" in heading_lower:
+        return "Pts"
+    light_fan_keywords = ["light", "fan", "bulb", "fixture", "downlight", "spotlight", "batten"]
+    for keyword in light_fan_keywords:
+        if keyword in heading_lower:
+            return "Nos"
+    pipe_keywords = ["pipe", "wire", "cable", "conduit", "duct", "channel", "rod", "bar", "rail", "tube"]
+    for keyword in pipe_keywords:
+        if keyword in heading_lower:
+            return "Mtr"
+    if "point" in heading_lower or "pts" in heading_lower:
+        return "Pts"
+
+    return "Nos"
+
+
+def _create_output_and_estimate_sheets(wb_out, ws_src, fetched_items, item_blocks,
+                                       output_sheet_name, estimate_sheet_name, upload_units_map=None):
+    """Create Output and Estimate sheets for a single source sheet."""
+    thin = Side(border_style="thin", color="000000")
+    border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
+
+    ws_out = wb_out.create_sheet(output_sheet_name)
+
+    cursor = 1
+    rate_pos = {}
+    data_serial = 1
+
+    for item_name in fetched_items:
+        src_min, src_max = item_blocks[item_name]
+
+        rate_src_row = None
+        for r in range(src_max, src_min - 1, -1):
+            v = ws_src.cell(row=r, column=10).value
+            if v not in (None, ""):
+                rate_src_row = r
+                break
+
+        dst_start = cursor
+
+        copy_block_with_styles_and_formulas(
+            ws_src=ws_src,
+            ws_dst=ws_out,
+            src_min_row=src_min,
+            src_max_row=src_max,
+            dst_start_row=dst_start,
+            col_start=1,
+            col_end=10
+        )
+
+        ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"
+        data_serial += 1
+
+        if rate_src_row:
+            rate_pos[item_name] = dst_start + (rate_src_row - src_min)
+
+        cursor += (src_max - src_min + 1)
+
+    ws_est = wb_out.create_sheet(estimate_sheet_name)
+
+    ws_est.merge_cells("A1:H1")
+    c1 = ws_est["A1"]
+    c1.value = "ESTIMATE"
+    c1.font = Font(bold=True, size=14)
+    c1.alignment = Alignment(horizontal="center", vertical="center")
+
+    ws_est.merge_cells("A2:H2")
+    c2 = ws_est["A2"]
+    c2.value = "Name of the work : "
+    c2.font = Font(bold=True, size=11)
+    c2.alignment = Alignment(horizontal="left", vertical="center")
+
+    for row in (1, 2):
+        for col in range(1, 9):
+            ws_est.cell(row=row, column=col).border = border_all
+
+    headers = ["Sl.No", "Quantity (Unit)", "", "Item Description",
+               "Rate", "Per Unit", "", "Amount"]
+
+    for col, text in enumerate(headers, start=1):
+        cell = ws_est.cell(row=3, column=col, value=text)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border_all
+
+    ws_est.merge_cells("B3:C3")
+    ws_est.merge_cells("F3:G3")
+
+    ws_est.column_dimensions["A"].width = 6
+    ws_est.column_dimensions["B"].width = 10
+    ws_est.column_dimensions["C"].width = 10
+    ws_est.column_dimensions["D"].width = 38
+    ws_est.column_dimensions["E"].width = 10
+    ws_est.column_dimensions["F"].width = 8
+    ws_est.column_dimensions["G"].width = 10
+    ws_est.column_dimensions["H"].width = 15
+
+    row_est = 4
+    slno = 1
+
+    for item_name in fetched_items:
+        src_min, src_max = item_blocks[item_name]
+
+        base_desc = ws_src.cell(row=src_min + 2, column=4).value or ""
+        desc = str(base_desc).strip()
+
+        best_unit = _determine_unit_from_heading(item_name, upload_units_map)
+        unit_plural = _to_plural(best_unit)
+        unit_singular = _to_singular(best_unit)
+
+        rr = rate_pos.get(item_name)
+        safe_output_name = f"'{output_sheet_name}'" if ' ' in output_sheet_name else output_sheet_name
+        rate_formula = f"={safe_output_name}!J{rr}" if rr else ""
+
+        a = ws_est.cell(row=row_est, column=1, value=slno)
+        a.alignment = Alignment(horizontal="center", vertical="center")
+        a.border = border_all
+
+        b = ws_est.cell(row=row_est, column=2, value="")
+        b.alignment = Alignment(horizontal="center", vertical="center")
+        b.border = border_all
+
+        c = ws_est.cell(row=row_est, column=3, value=unit_plural)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = border_all
+
+        d = ws_est.cell(row=row_est, column=4, value=desc)
+        d.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
+        d.border = border_all
+
+        e = ws_est.cell(row=row_est, column=5, value=rate_formula)
+        e.alignment = Alignment(horizontal="center", vertical="center")
+        e.border = border_all
+
+        f = ws_est.cell(row=row_est, column=6, value=1)
+        f.alignment = Alignment(horizontal="center", vertical="center")
+        f.border = border_all
+
+        g = ws_est.cell(row=row_est, column=7, value=unit_singular)
+        g.alignment = Alignment(horizontal="center", vertical="center")
+        g.border = border_all
+
+        h = ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}")
+        h.alignment = Alignment(horizontal="center", vertical="center")
+        h.border = border_all
+
+        row_est += 1
+        slno += 1
+
+    # Totals rows
+    ecv_row = row_est
+    ws_est.cell(row=ecv_row, column=4, value="ECV")
+    ws_est.cell(row=ecv_row, column=8, value=f"=SUM(H4:H{ecv_row-1})")
+
+    lc_row = ecv_row + 1
+    qc_row = ecv_row + 2
+    nac_row = ecv_row + 3
+    sub_row = ecv_row + 4
+    gst_row = ecv_row + 5
+    ls_row = ecv_row + 6
+    gt_row = ecv_row + 7
+
+    ws_est.cell(row=lc_row, column=4, value="Add LC @ 1 %")
+    ws_est.cell(row=lc_row, column=8, value=f"=H{ecv_row}*0.01")
+
+    ws_est.cell(row=qc_row, column=4, value="Add QC @ 1 %")
+    ws_est.cell(row=qc_row, column=8, value=f"=H{ecv_row}*0.01")
+
+    ws_est.cell(row=nac_row, column=4, value="Add NAC @ 0.1 %")
+    ws_est.cell(row=nac_row, column=8, value=f"=H{ecv_row}*0.001")
+
+    ws_est.cell(row=sub_row, column=4, value="Sub Total")
+    ws_est.cell(row=sub_row, column=8, value=f"=H{ecv_row}+H{lc_row}+H{qc_row}+H{nac_row}")
+
+    ws_est.cell(row=gst_row, column=4, value="Add GST@18 %")
+    ws_est.cell(row=gst_row, column=8, value=f"=H{sub_row}*0.18")
+
+    ws_est.cell(row=ls_row, column=4, value="L.S Provision towards unforeseen items")
+    ws_est.cell(row=ls_row, column=8, value=f"=H{gt_row}-H{gst_row}-H{sub_row}")
+
+    ws_est.cell(row=gt_row, column=4, value="Grand Total")
+
+    for r in range(ecv_row, gt_row + 1):
+        for c in range(1, 9):
+            cell = ws_est.cell(row=r, column=c)
+            cell.border = border_all
+            if c == 4:
+                cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            else:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws_est.cell(row=r, column=4).font = Font(bold=True)
+        ws_est.cell(row=r, column=8).font = Font(bold=True)
+
+    return ws_out, ws_est
+
 @login_required(login_url='login')
 def estimate(request):
     """
-    Estimate module: Upload item blocks sheet (in backend format)
-    and generate estimate in the standard format with Output and Estimate sheets.
-    
-    The uploaded file should contain item blocks in the same format as:
-    - core/data/electrical_backend.xlsx
-    - core/data/civil_backend.xlsx
-    
-    Items are detected by yellow background + red text cells in the header row.
+    Estimate module: Upload item blocks sheet (in backend format),
+    parse items, and redirect to preview page for quantity entry.
     """
     if request.method == 'GET':
         return render(request, 'core/estimate.html', {})
-    
+
     if request.method == 'POST':
         output_file = request.FILES.get('output_file')
-        
+
         if not output_file:
             return render(request, 'core/estimate.html', {
                 'error': 'Please upload an Excel file with item blocks.'
             })
-        
-        # Verify file size and content
+
         if output_file.size == 0:
             return render(request, 'core/estimate.html', {
                 'error': 'Uploaded file is empty. Please select a valid Excel file.'
             })
-        
+
         try:
-            # Load the uploaded workbook
-            # Reset file position before loading to fix first-attempt upload issue
             try:
                 output_file.seek(0)
-            except Exception as seek_error:
-                pass  # Some file-like objects don't support seek
-            
+            except Exception:
+                pass
+
             try:
                 wb_upload = load_workbook(output_file, data_only=False)
             except Exception as load_error:
                 return render(request, 'core/estimate.html', {
                     'error': f'Failed to read Excel file: {str(load_error)}'
                 })
-            
+
             try:
-                output_file.seek(0)  # Reset again for second load
-            except Exception as seek_error:
+                output_file.seek(0)
+            except Exception:
                 pass
-            
+
             try:
                 wb_upload_vals = load_workbook(output_file, data_only=True)
             except Exception as load_error:
                 return render(request, 'core/estimate.html', {
                     'error': f'Failed to process Excel file: {str(load_error)}'
                 })
-            
-            # ---- Read units from Groups sheet if available ----
+
+            # Read units from Groups sheet if available
             upload_units_map = {}
             try:
                 if "Groups" in wb_upload.sheetnames:
                     from core.utils_excel import read_groups
                     _, upload_units_map = read_groups(wb_upload["Groups"])
             except Exception:
-                pass  # If Groups sheet is missing or malformed, fall back to heuristic
-            
-            # ---- Helper: Check if cell is yellow with red text ----
-            def cell_is_yellow(cell):
-                fill = cell.fill
-                if not fill or not fill.patternType or fill.patternType.lower() != "solid":
-                    return False
-                rgb = getattr(fill.fgColor, "rgb", None)
-                if rgb and str(rgb).upper().endswith("FFFF00"):
-                    return True
-                if getattr(fill.fgColor, "type", None) == "theme":
-                    if getattr(fill.fgColor, "theme", None) in (4, 5, 6):
-                        return True
-                if getattr(fill.fgColor, "indexed", None) == 6:
-                    return True
-                return False
-            
-            def cell_is_red_text(cell):
-                font = cell.font
-                if not font or not font.color:
-                    return False
-                rgb = getattr(font.color, "rgb", None)
-                if rgb and str(rgb).upper().endswith("FF0000"):
-                    return True
-                if getattr(font.color, "type", None) == "theme":
-                    return True
-                if getattr(font.color, "indexed", None) == 3:
-                    return True
-                return False
-            
-            def is_yellow_and_red(cell):
-                return cell_is_yellow(cell) and cell_is_red_text(cell)
-            
-            def is_valid_item_block(ws_src, start_row, end_row):
-                """
-                Check if this block looks like a valid item block (has rate data in column J).
-                This helps distinguish real item blocks from headings or signature sections.
-                """
-                # A valid item block should have at least one non-empty value in column J (rate column)
-                for r in range(start_row, min(end_row + 1, start_row + 50)):  # Check up to 50 rows
-                    val = ws_src.cell(row=r, column=10).value
-                    if val not in (None, "") and str(val).strip():
-                        return True
-                return False
-            
-            def find_item_block_end(ws_src, start_row, max_row):
-                """
-                Find the true end of an item block by looking for the rate row in column J.
-                The block ends at the last row that has meaningful data before the next heading
-                or signature section.
-                """
-                # First, find where the next yellow+red heading is
-                next_heading_row = max_row + 1
-                for rr in range(start_row + 1, max_row + 1):
-                    for c in range(1, 11):
-                        cell = ws_src.cell(row=rr, column=c)
-                        if is_yellow_and_red(cell) and str(cell.value or "").strip():
-                            next_heading_row = rr
-                            break
-                    if next_heading_row <= max_row:
-                        break
-                
-                # The block should end before the next heading
-                potential_end = next_heading_row - 1
-                
-                # Find the last row with rate data (column J) - this is the true end of item block
-                last_rate_row = start_row
-                for r in range(start_row, potential_end + 1):
-                    val = ws_src.cell(row=r, column=10).value
-                    if val not in (None, "") and str(val).strip():
-                        last_rate_row = r
-                
-                # The block ends at the last rate row (don't include signature/footer content)
-                return last_rate_row, next_heading_row
-            
-            def extract_items_from_sheet(ws_src):
-                """Extract all item blocks from a single sheet."""
-                fetched_items = []
-                item_blocks = {}  # name -> (start_row, end_row)
-                
-                max_row = ws_src.max_row
-                r = 1
-                first_item_found = False
-                
-                while r <= max_row:
-                    heading_name = None
-                    heading_col = None
-                    # Check columns A..J for yellow+red cell
-                    for c in range(1, 11):
-                        cell = ws_src.cell(row=r, column=c)
-                        if is_yellow_and_red(cell) and str(cell.value or "").strip():
-                            heading_name = str(cell.value).strip()
-                            heading_col = c
-                            break
-                    
-                    if heading_name:
-                        start_row = r
-                        
-                        # Find the proper end of this block
-                        end_row, next_heading_row = find_item_block_end(ws_src, start_row, max_row)
-                        
-                        # Validate this is a real item block (not a sheet heading or signature section)
-                        if is_valid_item_block(ws_src, start_row, end_row):
-                            fetched_items.append(heading_name)
-                            item_blocks[heading_name] = (start_row, end_row)
-                            first_item_found = True
-                        
-                        # Move to next heading position
-                        r = next_heading_row if next_heading_row <= max_row else end_row + 1
-                    else:
-                        r += 1
-                
-                return fetched_items, item_blocks
-            
-            def create_output_and_estimate_sheets(wb_out, ws_src, fetched_items, item_blocks, 
-                                                   output_sheet_name, estimate_sheet_name):
-                """Create Output and Estimate sheets for a single source sheet."""
-                thin = Side(border_style="thin", color="000000")
-                border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
-                
-                # Create Output sheet
-                ws_out = wb_out.create_sheet(output_sheet_name)
-                
-                # Build Output sheet by copying item blocks
-                cursor = 1
-                rate_pos = {}
-                data_serial = 1
-                
-                for item_name in fetched_items:
-                    src_min, src_max = item_blocks[item_name]
-                    
-                    # Find rate row (non-empty in column J)
-                    rate_src_row = None
-                    for r in range(src_max, src_min - 1, -1):
-                        v = ws_src.cell(row=r, column=10).value
-                        if v not in (None, ""):
-                            rate_src_row = r
-                            break
-                    
-                    dst_start = cursor
-                    
-                    # Copy block with styles
-                    copy_block_with_styles_and_formulas(
-                        ws_src=ws_src,
-                        ws_dst=ws_out,
-                        src_min_row=src_min,
-                        src_max_row=src_max,
-                        dst_start_row=dst_start,
-                        col_start=1,
-                        col_end=10
-                    )
-                    
-                    ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"
-                    data_serial += 1
-                    
-                    # Store rate row position
-                    if rate_src_row:
-                        rate_pos[item_name] = dst_start + (rate_src_row - src_min)
-                    
-                    cursor += (src_max - src_min + 1)
-                
-                # Create Estimate sheet
-                ws_est = wb_out.create_sheet(estimate_sheet_name)
-                
-                # Title row
-                ws_est.merge_cells("A1:H1")
-                c1 = ws_est["A1"]
-                c1.value = "ESTIMATE"
-                c1.font = Font(bold=True, size=14)
-                c1.alignment = Alignment(horizontal="center", vertical="center")
-                
-                # Title row 2
-                ws_est.merge_cells("A2:H2")
-                c2 = ws_est["A2"]
-                c2.value = "Name of the work : "
-                c2.font = Font(bold=True, size=11)
-                c2.alignment = Alignment(horizontal="left", vertical="center")
-                
-                for row in (1, 2):
-                    for col in range(1, 9):
-                        ws_est.cell(row=row, column=col).border = border_all
-                
-                # Header row
-                headers = ["Sl.No", "Quantity (Unit)", "", "Item Description",
-                           "Rate", "Per Unit", "", "Amount"]
-                
-                for col, text in enumerate(headers, start=1):
-                    cell = ws_est.cell(row=3, column=col, value=text)
-                    cell.font = Font(bold=True)
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                    cell.border = border_all
-                
-                ws_est.merge_cells("B3:C3")
-                ws_est.merge_cells("F3:G3")
-                
-                ws_est.column_dimensions["A"].width = 6
-                ws_est.column_dimensions["B"].width = 10
-                ws_est.column_dimensions["C"].width = 10
-                ws_est.column_dimensions["D"].width = 38
-                ws_est.column_dimensions["E"].width = 10
-                ws_est.column_dimensions["F"].width = 8
-                ws_est.column_dimensions["G"].width = 10
-                ws_est.column_dimensions["H"].width = 15
-                
-                # Fill estimate rows
-                row_est = 4
-                slno = 1
-                
-                def to_plural(unit):
-                    """Convert unit to plural form."""
-                    unit_lower = unit.lower()
-                    if unit_lower == "no":
-                        return "Nos"
-                    elif unit_lower == "nos":
-                        return "Nos"
-                    elif unit_lower == "mtr":
-                        return "Mtrs"
-                    elif unit_lower == "mtrs":
-                        return "Mtrs"
-                    elif unit_lower == "pts":
-                        return "Pts"
-                    elif unit_lower == "pt":
-                        return "Pts"
-                    elif unit_lower == "cum":
-                        return "Cum"
-                    elif unit_lower == "kg":
-                        return "Kg"
-                    elif unit_lower == "l":
-                        return "L"
-                    elif unit_lower == "kg":
-                        return "Kg"
-                    else:
-                        return unit + "s" if unit else "Nos"
-                
-                def to_singular(unit):
-                    """Convert unit to singular form."""
-                    unit_lower = unit.lower()
-                    if unit_lower == "nos":
-                        return "No"
-                    elif unit_lower == "no":
-                        return "No"
-                    elif unit_lower == "mtrs":
-                        return "Mtr"
-                    elif unit_lower == "mtr":
-                        return "Mtr"
-                    elif unit_lower == "pts":
-                        return "Pt"
-                    elif unit_lower == "pt":
-                        return "Pt"
-                    elif unit_lower == "cum":
-                        return "Cum"
-                    elif unit_lower == "kg":
-                        return "Kg"
-                    elif unit_lower == "l":
-                        return "L"
-                    else:
-                        return unit
-                
-                def determine_unit_from_heading(heading_name):
-                    """
-                    Determine unit from Groups sheet units_map first,
-                    then fall back to heading name heuristic.
-                    """
-                    # Priority 1: Use unit from Groups sheet (authoritative)
-                    if upload_units_map and heading_name in upload_units_map:
-                        return upload_units_map[heading_name]
-                    
-                    heading_lower = heading_name.lower()
-                    
-                    # Light Point or Fan Point â†’ Pts
-                    if "light point" in heading_lower or "fan point" in heading_lower:
-                        return "Pts"
-                    
-                    # Light or Fan (fixtures/bulbs) â†’ Nos (check BEFORE pipe keywords to avoid "tube light" being "Mtr")
-                    light_fan_keywords = ["light", "fan", "bulb", "fixture", "downlight", "spotlight", "batten"]
-                    for keyword in light_fan_keywords:
-                        if keyword in heading_lower:
-                            return "Nos"
-                    
-                    # Pipes, wires, cables â†’ Mtr (meters)
-                    pipe_keywords = ["pipe", "wire", "cable", "conduit", "duct", "channel", "rod", "bar", "rail", "tube"]
-                    for keyword in pipe_keywords:
-                        if keyword in heading_lower:
-                            return "Mtr"
-                    
-                    # Points â†’ Pts
-                    if "point" in heading_lower or "pts" in heading_lower:
-                        return "Pts"
-                    
-                    # Default to Nos
-                    return "Nos"
-                
-                for item_name in fetched_items:
-                    src_min, src_max = item_blocks[item_name]
-                    
-                    # Get the description from the second row (src_min + 2)
-                    base_desc = ws_src.cell(row=src_min + 2, column=4).value or ""
-                    base_desc_str = str(base_desc).strip()
-                    desc = base_desc_str
+                pass
 
-                    # Determine unit intelligently from heading name
-                    best_unit = determine_unit_from_heading(item_name)
-                    unit_plural = to_plural(best_unit)
-                    unit_singular = to_singular(best_unit)
-
-                    # Rate from Output sheet (reference the correct output sheet)
-                    rr = rate_pos.get(item_name)
-                    # Excel sheet names with spaces need quotes
-                    safe_output_name = f"'{output_sheet_name}'" if ' ' in output_sheet_name else output_sheet_name
-                    rate_formula = f"={safe_output_name}!J{rr}" if rr else ""
-
-                    # Write row
-                    a = ws_est.cell(row=row_est, column=1, value=slno)
-                    a.alignment = Alignment(horizontal="center", vertical="center")
-                    a.border = border_all
-
-                    b = ws_est.cell(row=row_est, column=2, value="")
-                    b.alignment = Alignment(horizontal="center", vertical="center")
-                    b.border = border_all
-
-                    c = ws_est.cell(row=row_est, column=3, value=unit_plural)
-                    c.alignment = Alignment(horizontal="center", vertical="center")
-                    c.border = border_all
-
-                    d = ws_est.cell(row=row_est, column=4, value=desc)
-                    d.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
-                    d.border = border_all
-
-                    e = ws_est.cell(row=row_est, column=5, value=rate_formula)
-                    e.alignment = Alignment(horizontal="center", vertical="center")
-                    e.border = border_all
-
-                    f = ws_est.cell(row=row_est, column=6, value=1)
-                    f.alignment = Alignment(horizontal="center", vertical="center")
-                    f.border = border_all
-
-                    g = ws_est.cell(row=row_est, column=7, value=unit_singular)
-                    g.alignment = Alignment(horizontal="center", vertical="center")
-                    g.border = border_all
-
-                    h = ws_est.cell(row=row_est, column=8, value=f"=B{row_est}*E{row_est}")
-                    h.alignment = Alignment(horizontal="center", vertical="center")
-                    h.border = border_all
-
-                    row_est += 1
-                    slno += 1
-                
-                # ---- Add totals rows ----
-                ecv_row = row_est
-                ws_est.cell(row=ecv_row, column=4, value="ECV")
-                ws_est.cell(row=ecv_row, column=8, value=f"=SUM(H4:H{ecv_row-1})")
-                
-                lc_row = ecv_row + 1
-                qc_row = ecv_row + 2
-                nac_row = ecv_row + 3
-                sub_row = ecv_row + 4
-                gst_row = ecv_row + 5
-                ls_row = ecv_row + 6
-                gt_row = ecv_row + 7
-                
-                ws_est.cell(row=lc_row, column=4, value="Add LC @ 1 %")
-                ws_est.cell(row=lc_row, column=8, value=f"=H{ecv_row}*0.01")
-                
-                ws_est.cell(row=qc_row, column=4, value="Add QC @ 1 %")
-                ws_est.cell(row=qc_row, column=8, value=f"=H{ecv_row}*0.01")
-                
-                ws_est.cell(row=nac_row, column=4, value="Add NAC @ 0.1 %")
-                ws_est.cell(row=nac_row, column=8, value=f"=H{ecv_row}*0.001")
-                
-                ws_est.cell(row=sub_row, column=4, value="Sub Total")
-                ws_est.cell(row=sub_row, column=8, value=f"=H{ecv_row}+H{lc_row}+H{qc_row}+H{nac_row}")
-                
-                ws_est.cell(row=gst_row, column=4, value="Add GST@18 %")
-                ws_est.cell(row=gst_row, column=8, value=f"=H{sub_row}*0.18")
-                
-                ws_est.cell(row=ls_row, column=4, value="L.S Provision towards unforeseen items")
-                ws_est.cell(row=ls_row, column=8, value=f"=H{gt_row}-H{gst_row}-H{sub_row}")
-                
-                ws_est.cell(row=gt_row, column=4, value="Grand Total")
-                
-                # Apply borders to totals
-                for r in range(ecv_row, gt_row + 1):
-                    for c in range(1, 9):
-                        cell = ws_est.cell(row=r, column=c)
-                        cell.border = border_all
-                        if c == 4:
-                            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-                        else:
-                            cell.alignment = Alignment(horizontal="center", vertical="center")
-                    ws_est.cell(row=r, column=4).font = Font(bold=True)
-                    ws_est.cell(row=r, column=8).font = Font(bold=True)
-                
-                return ws_out, ws_est
-            
-            # ---- Multi-sheet processing ----
             # Find all sheets with item blocks
             sheets_with_items = []
             for sheet_name in wb_upload.sheetnames:
                 ws_src = wb_upload[sheet_name]
-                fetched_items, item_blocks = extract_items_from_sheet(ws_src)
+                fetched_items, item_blocks = _extract_items_from_sheet(ws_src)
                 if fetched_items:
                     sheets_with_items.append({
                         'name': sheet_name,
@@ -511,93 +429,77 @@ def estimate(request):
                         'fetched_items': fetched_items,
                         'item_blocks': item_blocks
                     })
-            
+
             if not sheets_with_items:
                 return render(request, 'core/estimate.html', {
                     'error': 'No item blocks found in any sheet. Make sure item headers have yellow background and red text.'
                 })
-            
-            # Create output workbook
-            wb_out = Workbook()
-            # Remove the default sheet, we'll create our own
-            default_sheet = wb_out.active
-            
-            # Generate Output and Estimate sheets for each source sheet with items
-            total_sheets = len(sheets_with_items)
-            
-            for idx, sheet_info in enumerate(sheets_with_items):
-                src_sheet_name = sheet_info['name']
+
+            # Extract items into session for preview
+            all_fetched_items = []
+            all_item_rates = {}
+            all_item_units = {}
+            all_item_descs = {}
+
+            for sheet_info in sheets_with_items:
                 ws_src = sheet_info['ws_src']
-                fetched_items = sheet_info['fetched_items']
-                item_blocks = sheet_info['item_blocks']
-                
-                # Determine sheet names
-                if total_sheets == 1:
-                    # Single sheet: use simple names
-                    output_sheet_name = "Datas"
-                    estimate_sheet_name = "Estimate"
-                else:
-                    # Multiple sheets: append source sheet name
-                    # Truncate to fit Excel's 31 character limit
-                    base_name = src_sheet_name[:20] if len(src_sheet_name) > 20 else src_sheet_name
-                    output_sheet_name = f"Datas_{base_name}"[:31]
-                    estimate_sheet_name = f"Estimate_{base_name}"[:31]
-                
-                create_output_and_estimate_sheets(
-                    wb_out=wb_out,
-                    ws_src=ws_src,
-                    fetched_items=fetched_items,
-                    item_blocks=item_blocks,
-                    output_sheet_name=output_sheet_name,
-                    estimate_sheet_name=estimate_sheet_name
-                )
-            
-            # Remove the default empty sheet if we created our own
-            if default_sheet.title in wb_out.sheetnames and len(wb_out.sheetnames) > 1:
-                wb_out.remove(default_sheet)
-            
-            # Reorder sheets: Estimate followed by its corresponding Datas sheet
-            # Pattern: Estimate_1, Datas_1, Estimate_2, Datas_2, etc.
-            estimate_sheets = [s for s in wb_out.sheetnames if s.startswith("Estimate") or s == "Estimate"]
-            output_sheets = [s for s in wb_out.sheetnames if s.startswith("Datas") or s == "Datas"]
-            
-            # Build pairs based on suffix matching
-            ordered_sheets = []
-            for est_name in estimate_sheets:
-                ordered_sheets.append(est_name)
-                # Find matching Datas sheet
-                if est_name == "Estimate":
-                    # Single sheet case
-                    if "Datas" in output_sheets:
-                        ordered_sheets.append("Datas")
-                else:
-                    # Multi-sheet case: Estimate_XYZ -> Datas_XYZ
-                    suffix = est_name[8:]  # Remove "Estimate" prefix (8 chars)
-                    output_name = f"Datas{suffix}"
-                    if output_name in output_sheets:
-                        ordered_sheets.append(output_name)
-            
-            # Add any remaining output sheets that weren't paired
-            for out_name in output_sheets:
-                if out_name not in ordered_sheets:
-                    ordered_sheets.append(out_name)
-            
-            # Reorder sheets according to the new order
-            for i, sheet_name in enumerate(ordered_sheets):
-                if sheet_name in wb_out.sheetnames:
-                    current_idx = wb_out.sheetnames.index(sheet_name)
-                    if current_idx != i:
-                        wb_out.move_sheet(sheet_name, offset=(i - current_idx))
-            
-            # Return the estimate workbook
-            _apply_print_settings(wb_out)
-            response = HttpResponse(
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = 'attachment; filename="estimate.xlsx"'
-            wb_out.save(response)
-            return response
-            
+                ws_vals = wb_upload_vals[sheet_info['name']]
+                fi = sheet_info['fetched_items']
+                ib = sheet_info['item_blocks']
+
+                for item_name in fi:
+                    src_min, src_max = ib[item_name]
+
+                    # Rate: last non-empty value in column J
+                    rate = None
+                    for r in range(src_max, src_min - 1, -1):
+                        v = ws_vals.cell(row=r, column=10).value
+                        if v not in (None, ""):
+                            try:
+                                rate = float(v)
+                            except (ValueError, TypeError):
+                                rate = None
+                            break
+
+                    unit = _determine_unit_from_heading(item_name, upload_units_map)
+                    desc = str(ws_src.cell(row=src_min + 2, column=4).value or "").strip()
+
+                    all_fetched_items.append(item_name)
+                    all_item_rates[item_name] = rate
+                    all_item_units[item_name] = unit
+                    all_item_descs[item_name] = desc or item_name
+
+            # Store in session
+            request.session['fetched_items'] = all_fetched_items
+            request.session['item_rates'] = all_item_rates
+            request.session['item_units'] = all_item_units
+            request.session['item_descs'] = all_item_descs
+            request.session['qty_map'] = {}
+            request.session['unit_map'] = {}
+            request.session['work_name'] = ''
+            request.session['grand_total'] = ''
+            request.session['estimate_source'] = 'uploaded'
+            request.session.modified = True
+
+            # Save uploaded file to temp storage for later re-generation
+            import tempfile as _tempfile
+            temp_dir = os.path.join(_tempfile.gettempdir(), 'hamsvic_estimates')
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_path = os.path.join(temp_dir, f'upload_{request.session.session_key}.xlsx')
+            old_path = request.session.get('estimate_upload_path')
+            if old_path and os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+            output_file.seek(0)
+            with open(temp_path, 'wb') as f:
+                for chunk in output_file.chunks():
+                    f.write(chunk)
+            request.session['estimate_upload_path'] = temp_path
+
+            return redirect('estimate_preview')
+
         except Exception as e:
             import traceback
             return render(request, 'core/estimate.html', {
@@ -2256,6 +2158,518 @@ def generate_estimate_forwarding_letter(request):
         return render(request, 'core/estimate.html', {
             'error': f'Error generating forwarding letter: {str(e)}'
         })
+
+
+# ==============================================================================
+# ESTIMATE PREVIEW VIEWS (uploaded estimate → UI editor)
+# ==============================================================================
+
+@login_required(login_url='login')
+def estimate_preview(request):
+    """Show uploaded estimate items in a UI for quantity entry."""
+    fetched_items = request.session.get('fetched_items', [])
+    if not fetched_items:
+        return redirect('estimate')
+
+    item_rates = request.session.get('item_rates', {})
+    item_units = request.session.get('item_units', {})
+    item_descs = request.session.get('item_descs', {})
+    qty_map = request.session.get('qty_map', {})
+    work_name = request.session.get('work_name', '')
+    grand_total = request.session.get('grand_total', '')
+
+    estimate_rows = []
+    for idx, name in enumerate(fetched_items, start=1):
+        rate = item_rates.get(name)
+        unit = item_units.get(name, 'Nos')
+        desc = item_descs.get(name, name)
+        qty = qty_map.get(name, '')
+        estimate_rows.append({
+            'sl': idx,
+            'name': name,
+            'desc': desc,
+            'unit': unit,
+            'rate': rate,
+            'qty': qty,
+        })
+
+    return render(request, 'core/estimate_preview.html', {
+        'estimate_rows': estimate_rows,
+        'work_name': work_name,
+        'grand_total': grand_total,
+    })
+
+
+@login_required(login_url='login')
+@require_POST
+def estimate_save_qty_map(request):
+    """AJAX endpoint to save qty map and other fields for uploaded estimate."""
+    try:
+        qty_map_str = request.POST.get('qty_map', '')
+        work_name = request.POST.get('work_name', '')
+        grand_total_str = request.POST.get('grand_total', '')
+
+        if qty_map_str:
+            try:
+                qty_map = json.loads(qty_map_str)
+                if isinstance(qty_map, dict):
+                    request.session['qty_map'] = qty_map
+            except json.JSONDecodeError:
+                pass
+
+        if work_name:
+            request.session['work_name'] = work_name
+        if grand_total_str:
+            request.session['grand_total'] = grand_total_str
+
+        request.session.modified = True
+        return JsonResponse({'status': 'ok'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+@login_required(login_url='login')
+@require_POST
+def estimate_download(request):
+    """Generate estimate Excel from uploaded file with quantities filled in."""
+    fetched_items = request.session.get('fetched_items', [])
+    item_rates = request.session.get('item_rates', {})
+    item_units = request.session.get('item_units', {})
+    item_descs = request.session.get('item_descs', {})
+
+    if not fetched_items:
+        return redirect('estimate')
+
+    # Get qty_map from POST or session
+    qty_map_str = request.POST.get('qty_map', '')
+    qty_map = {}
+    if qty_map_str:
+        try:
+            qty_map = json.loads(qty_map_str)
+        except json.JSONDecodeError:
+            pass
+    if not qty_map:
+        qty_map = request.session.get('qty_map', {})
+
+    work_name = request.POST.get('work_name', '') or request.session.get('work_name', '')
+    grand_total_str = request.POST.get('grand_total', '') or request.session.get('grand_total', '')
+
+    temp_path = request.session.get('estimate_upload_path')
+
+    # Try re-generating from uploaded file
+    if temp_path and os.path.exists(temp_path):
+        try:
+            wb_upload = load_workbook(temp_path, data_only=False)
+            wb_upload_vals = load_workbook(temp_path, data_only=True)
+
+            upload_units_map = {}
+            try:
+                if "Groups" in wb_upload.sheetnames:
+                    from core.utils_excel import read_groups
+                    _, upload_units_map = read_groups(wb_upload["Groups"])
+            except Exception:
+                pass
+
+            wb_out = Workbook()
+            wb_out.remove(wb_out.active)
+
+            for sheet_name in wb_upload.sheetnames:
+                ws_src = wb_upload[sheet_name]
+                fi, ib = _extract_items_from_sheet(ws_src)
+                if not fi:
+                    continue
+
+                out_name = f"Output {sheet_name}" if len([s for s in wb_upload.sheetnames if _extract_items_from_sheet(wb_upload[s])[0]]) > 1 else "Output"
+                est_name = f"Estimate {sheet_name}" if len([s for s in wb_upload.sheetnames if _extract_items_from_sheet(wb_upload[s])[0]]) > 1 else "Estimate"
+
+                ws_out, ws_est = _create_output_and_estimate_sheets(
+                    wb_out, ws_src, fi, ib, out_name, est_name, upload_units_map
+                )
+
+                # Fill in quantities and grand total
+                for row_idx in range(4, ws_est.max_row + 1):
+                    desc_val = str(ws_est.cell(row=row_idx, column=4).value or '').strip()
+                    sl_val = ws_est.cell(row=row_idx, column=1).value
+                    if not sl_val or not str(sl_val).strip().isdigit():
+                        continue
+                    # Match by item name (look up which item this description belongs to)
+                    for item_name in fi:
+                        item_desc = item_descs.get(item_name, item_name)
+                        if item_desc == desc_val or item_name == desc_val:
+                            qty_val = qty_map.get(item_name, '')
+                            if qty_val:
+                                try:
+                                    ws_est.cell(row=row_idx, column=2).value = float(qty_val)
+                                except (ValueError, TypeError):
+                                    pass
+                            break
+
+                # Set work name
+                if work_name:
+                    ws_est['A2'].value = f"Name of the work : {work_name}"
+
+                # Set grand total
+                if grand_total_str:
+                    try:
+                        gt_val = float(grand_total_str)
+                        # Find Grand Total row
+                        for r in range(4, ws_est.max_row + 1):
+                            cell_val = str(ws_est.cell(row=r, column=4).value or '').strip()
+                            if 'Grand Total' in cell_val:
+                                ws_est.cell(row=r, column=8).value = gt_val
+                                break
+                    except (ValueError, TypeError):
+                        pass
+
+            buf = BytesIO()
+            wb_out.save(buf)
+            buf.seek(0)
+
+            response = HttpResponse(
+                buf.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            safe_name = work_name.replace('"', '').replace("'", '')[:50] if work_name else 'Estimate'
+            response['Content-Disposition'] = f'attachment; filename="{safe_name}.xlsx"'
+            return response
+
+        except Exception as e:
+            logger.error(f'Error generating estimate from upload: {e}', exc_info=True)
+
+    # Fallback: generate estimate-only sheet from session data
+    wb_out = Workbook()
+    ws_est = wb_out.active
+    ws_est.title = "Estimate"
+
+    thin = Side(border_style="thin", color="000000")
+    border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
+
+    ws_est.merge_cells("A1:H1")
+    ws_est["A1"].value = "ESTIMATE"
+    ws_est["A1"].font = Font(bold=True, size=14)
+    ws_est["A1"].alignment = Alignment(horizontal="center", vertical="center")
+
+    ws_est.merge_cells("A2:H2")
+    ws_est["A2"].value = f"Name of the work : {work_name}"
+    ws_est["A2"].font = Font(bold=True, size=11)
+    ws_est["A2"].alignment = Alignment(horizontal="left", vertical="center")
+
+    for row in (1, 2):
+        for col in range(1, 9):
+            ws_est.cell(row=row, column=col).border = border_all
+
+    headers = ["Sl.No", "Quantity", "Unit", "Item Description", "Rate", "Per", "Unit", "Amount"]
+    for col, text in enumerate(headers, start=1):
+        cell = ws_est.cell(row=3, column=col, value=text)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border_all
+
+    ws_est.column_dimensions["A"].width = 6
+    ws_est.column_dimensions["B"].width = 10
+    ws_est.column_dimensions["C"].width = 8
+    ws_est.column_dimensions["D"].width = 38
+    ws_est.column_dimensions["E"].width = 10
+    ws_est.column_dimensions["F"].width = 5
+    ws_est.column_dimensions["G"].width = 8
+    ws_est.column_dimensions["H"].width = 15
+
+    row_est = 4
+    for idx, item_name in enumerate(fetched_items, start=1):
+        rate = item_rates.get(item_name)
+        unit = item_units.get(item_name, 'Nos')
+        desc = item_descs.get(item_name, item_name)
+        qty = qty_map.get(item_name, '')
+
+        qty_val = ''
+        if qty:
+            try:
+                qty_val = float(qty)
+            except (ValueError, TypeError):
+                qty_val = ''
+
+        rate_val = rate if rate else ''
+        amount_formula = f"=B{row_est}*E{row_est}" if rate else ""
+
+        for col, val in enumerate([idx, qty_val, _to_plural(unit), desc, rate_val, 1, _to_singular(unit), amount_formula], start=1):
+            cell = ws_est.cell(row=row_est, column=col, value=val)
+            cell.border = border_all
+            cell.alignment = Alignment(
+                horizontal="center" if col != 4 else "justify",
+                vertical="center" if col != 4 else "top",
+                wrap_text=(col == 4)
+            )
+        row_est += 1
+
+    # Totals
+    ecv_row = row_est
+    totals_info = [
+        ("ECV", f"=SUM(H4:H{ecv_row-1})"),
+        ("Add LC @ 1 %", f"=H{ecv_row}*0.01"),
+        ("Add QC @ 1 %", f"=H{ecv_row}*0.01"),
+        ("Add NAC @ 0.1 %", f"=H{ecv_row}*0.001"),
+        ("Sub Total", f"=H{ecv_row}+H{ecv_row+1}+H{ecv_row+2}+H{ecv_row+3}"),
+        ("Add GST@18 %", f"=H{ecv_row+4}*0.18"),
+        ("L.S Provision towards unforeseen items", f"=H{ecv_row+7}-H{ecv_row+5}-H{ecv_row+4}"),
+        ("Grand Total", ""),
+    ]
+    for i, (label, formula) in enumerate(totals_info):
+        r = ecv_row + i
+        ws_est.cell(row=r, column=4, value=label).font = Font(bold=True)
+        ws_est.cell(row=r, column=8, value=formula).font = Font(bold=True)
+        for c in range(1, 9):
+            cell = ws_est.cell(row=r, column=c)
+            cell.border = border_all
+            cell.alignment = Alignment(horizontal="center" if c != 4 else "left", vertical="center")
+
+    gt_row = ecv_row + 7
+    if grand_total_str:
+        try:
+            ws_est.cell(row=gt_row, column=8).value = float(grand_total_str)
+        except (ValueError, TypeError):
+            pass
+
+    buf = BytesIO()
+    wb_out.save(buf)
+    buf.seek(0)
+
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    safe_name = work_name.replace('"', '').replace("'", '')[:50] if work_name else 'Estimate'
+    response['Content-Disposition'] = f'attachment; filename="{safe_name}.xlsx"'
+    return response
+
+
+@login_required(login_url='login')
+@require_POST
+def estimate_spec_report(request):
+    """Generate specification report from uploaded estimate session data."""
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    items_json = request.POST.get('items', '[]')
+    work_name = request.POST.get('work_name', '{{NAME_OF_WORK}}')
+    total_amount = request.POST.get('total_amount', '0.00')
+
+    items = json.loads(items_json)
+    if not items:
+        return redirect('estimate_preview')
+
+    doc = Document()
+
+    title = doc.add_heading('Specification report accompanying the estimate :-', level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    for run in title.runs:
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.underline = True
+
+    intro_para = doc.add_paragraph()
+    intro_para.add_run(f'The estimate is prepared for the work {work_name}')
+
+    doc.add_paragraph()
+
+    amount_para = doc.add_paragraph()
+    amount_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    amount_run = amount_para.add_run(f'Est.Amount: Rs. {total_amount}')
+    amount_run.font.bold = True
+    amount_run.font.underline = True
+
+    doc.add_paragraph()
+
+    body_para = doc.add_paragraph('{{BODY_OF_LETTER}}')
+    for run in body_para.runs:
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(128, 128, 128)
+
+    doc.add_paragraph()
+    doc.add_paragraph('Hence, this estimate has been prepared accordingly.')
+    doc.add_paragraph()
+
+    for item in items:
+        desc = item.get('desc', '')
+        qty = item.get('qty', '')
+        unit = item.get('unit', '')
+        if qty:
+            try:
+                qty_f = float(qty)
+                qty = str(int(qty_f)) if qty_f == int(qty_f) else str(qty_f)
+            except:
+                pass
+        if qty and unit:
+            bullet_text = f'{desc}  -  {qty} {unit}'
+        elif qty:
+            bullet_text = f'{desc}  -  {qty}'
+        else:
+            bullet_text = desc
+        bullet_para = doc.add_paragraph(bullet_text, style='List Bullet')
+        for run in bullet_para.runs:
+            run.font.size = Pt(11)
+            run.font.bold = True
+
+    doc.add_paragraph()
+
+    from datetime import datetime
+    today = datetime.now()
+    fy_start = today.year if today.month >= 4 else today.year - 1
+    fy_end = (fy_start + 1) % 100
+    financial_year = f"{fy_start}-{fy_end:02d}"
+
+    footer_text = (f'The rates proposed in the estimate are as per SQR {financial_year} and Approved rates. L.S. Provision is made in the '
+                  'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
+                  'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
+    footer_para = doc.add_paragraph(footer_text)
+    for run in footer_para.runs:
+        run.font.size = Pt(10)
+
+    doc.add_paragraph()
+
+    funds_para = doc.add_paragraph()
+    funds_run = funds_para.add_run('FUNDS: ')
+    funds_run.font.bold = True
+    funds_run.font.underline = True
+    funds_para.add_run('The estimate requires Administrative sanction and also fixes up the agency with provision of funds '
+                      'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    response['Content-Disposition'] = 'attachment; filename="Spec_Report.docx"'
+    doc.save(response)
+    return response
+
+
+@login_required(login_url='login')
+@require_POST
+def estimate_forwarding_letter(request):
+    """Generate forwarding letter from uploaded estimate session data."""
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    items_json = request.POST.get('items', '[]')
+    work_name = request.POST.get('work_name', '{{NAME_OF_WORK}}')
+    total_amount = request.POST.get('total_amount', '0.00')
+
+    items = json.loads(items_json)
+    if not items:
+        return redirect('estimate_preview')
+
+    letter_settings = _get_letter_settings(request)
+
+    doc = Document()
+
+    # Set default font
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Times New Roman'
+    font.size = Pt(12)
+
+    # From address
+    from_para = doc.add_paragraph()
+    run1 = from_para.add_run('From: -')
+    run1.font.bold = True
+    from_para.add_run(f'\n{letter_settings["from_designation"]},')
+    from_para.add_run(f'\n{letter_settings["from_office"]},')
+    from_para.add_run(f'\n{letter_settings["from_location"]}.')
+
+    # To address
+    to_para = doc.add_paragraph()
+    run2 = to_para.add_run('To,')
+    run2.font.bold = True
+    to_para.add_run(f'\n{letter_settings["to_designation"]},')
+    to_para.add_run(f'\n{letter_settings["to_office"]},')
+    to_para.add_run(f'\n{letter_settings["to_location"]}.')
+
+    # Lr.No line
+    lr_para = doc.add_paragraph()
+    lr_run = lr_para.add_run(f'Lr.No. {letter_settings["lr_no"]}                                     Dt. {_get_current_date_formatted()}')
+    lr_run.font.bold = True
+    lr_run.font.underline = True
+
+    doc.add_paragraph()
+
+    # Subject
+    subj_para = doc.add_paragraph()
+    subj_para.add_run('Sub: - ').font.bold = True
+    subj_para.add_run(f'{letter_settings["subject_prefix"]} - {work_name} - Submission of Estimate - Regarding.')
+
+    doc.add_paragraph()
+
+    # Reference
+    ref_para = doc.add_paragraph()
+    ref_para.add_run('Ref: - ').font.bold = True
+    ref_para.add_run(letter_settings.get("reference", "{{REFERENCE}}"))
+
+    doc.add_paragraph()
+
+    # Body
+    doc.add_paragraph('Sir,')
+    doc.add_paragraph()
+
+    # Work details with amount
+    try:
+        amount_val = float(total_amount.replace(',', ''))
+        formatted_amount = _format_indian_number(amount_val)
+        amount_words = _number_to_words_rupees(amount_val)
+    except:
+        formatted_amount = total_amount
+        amount_words = ''
+
+    detail_para = doc.add_paragraph()
+    detail_para.add_run('       With reference to the subject and reference cited above, I am here with submitting the estimate for the work ')
+    detail_para.add_run(f'"{work_name}"').font.bold = True
+    detail_para.add_run(f' amounting to Rs. {formatted_amount}/- ({amount_words}) for the kind favour of your approval please.')
+
+    doc.add_paragraph()
+
+    # Item list
+    for i, item in enumerate(items, 1):
+        desc = item.get('desc', '')
+        qty = item.get('qty', '')
+        unit = item.get('unit', '')
+        if qty:
+            try:
+                qty_f = float(qty)
+                qty = str(int(qty_f)) if qty_f == int(qty_f) else str(qty_f)
+            except:
+                pass
+        if qty and unit:
+            line = f'{i}. {desc}  -  {qty} {unit}'
+        elif qty:
+            line = f'{i}. {desc}  -  {qty}'
+        else:
+            line = f'{i}. {desc}'
+        doc.add_paragraph(line)
+
+    doc.add_paragraph()
+    doc.add_paragraph('Hence, this estimate has been prepared and submitted for favour of your approval please.')
+    doc.add_paragraph()
+
+    # Signature
+    sig_para = doc.add_paragraph()
+    sig_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    sig_para.add_run(f'{letter_settings["from_designation"]}')
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    response['Content-Disposition'] = 'attachment; filename="Forwarding_Letter.docx"'
+    doc.save(response)
+    return response
+
+
+@login_required(login_url='login')
+@require_POST
+def estimate_clear(request):
+    """Clear uploaded estimate session data and redirect to upload page."""
+    for key in ['fetched_items', 'item_rates', 'item_units', 'item_descs',
+                'qty_map', 'unit_map', 'work_name', 'grand_total',
+                'estimate_source', 'estimate_upload_path']:
+        request.session.pop(key, None)
+    request.session.modified = True
+    return redirect('estimate')
 
 
 # ==============================================================================

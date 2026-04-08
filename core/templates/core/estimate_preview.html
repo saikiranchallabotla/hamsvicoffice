@@ -1,0 +1,906 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Estimate Preview{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-file-earmark-spreadsheet me-2"></i>Uploaded Estimate Preview
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .estimate-preview-container {
+        max-width: 950px;
+        margin: 0 auto;
+    }
+
+    .preview-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+    }
+
+    .preview-header {
+        background: linear-gradient(135deg, #805ad5 0%, #d53f8c 100%);
+        color: white;
+        padding: 0.7rem 1rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .preview-body {
+        padding: 0.8rem;
+    }
+
+    /* Work name input */
+    .work-name-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4a5568;
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.3rem;
+    }
+
+    .work-name-input {
+        width: 100%;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+        margin-bottom: 0.6rem;
+    }
+
+    .work-name-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.15);
+    }
+
+    /* Estimate table */
+    .estimate-table-wrapper {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .estimate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem;
+    }
+
+    .estimate-table thead th {
+        background: #f7fafc;
+        padding: 0.4rem 0.5rem;
+        text-align: center;
+        font-weight: 600;
+        color: #4a5568;
+        border-bottom: 2px solid #e2e8f0;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .estimate-table tbody td {
+        padding: 0.35rem 0.4rem;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+    }
+
+    .estimate-table tbody tr:hover {
+        background: #f7fafc;
+    }
+
+    .sl-cell {
+        text-align: center;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    .desc-col {
+        max-width: 250px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.73rem;
+    }
+
+    .unit-cell, .rate-cell, .amount-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .qty-input {
+        width: 80px;
+        padding: 0.25rem 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .qty-input:focus {
+        outline: none;
+        border-color: #805ad5;
+        box-shadow: 0 0 0 2px rgba(128, 90, 213, 0.15);
+    }
+
+    .delete-cell {
+        text-align: center;
+    }
+
+    .btn-delete-item {
+        background: none;
+        border: none;
+        color: #e53e3e;
+        cursor: pointer;
+        padding: 2px;
+        font-size: 0.85rem;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+    }
+
+    .btn-delete-item:hover {
+        opacity: 1;
+    }
+
+    /* Totals row */
+    .estimate-total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0.7rem;
+        background: #f8f9fa;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        margin-top: 0.5rem;
+    }
+
+    .total-label {
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 0.8rem;
+    }
+
+    .total-amount {
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #805ad5;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.6rem;
+        padding-top: 0.6rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.4rem 0.7rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        color: white;
+    }
+
+    .btn-action:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-download {
+        background: linear-gradient(135deg, #319795, #2c7a7b);
+        box-shadow: 0 2px 8px rgba(49, 151, 149, 0.25);
+    }
+
+    .btn-download:hover {
+        box-shadow: 0 4px 12px rgba(49, 151, 149, 0.35);
+        color: white;
+    }
+
+    .btn-save {
+        background: #805ad5;
+        color: white;
+        box-shadow: 0 2px 8px rgba(128, 90, 213, 0.25);
+    }
+
+    .btn-save:hover {
+        background: #6b46c1;
+        color: white;
+    }
+
+    .btn-clear {
+        background: #e53e3e;
+        color: white;
+        box-shadow: 0 2px 8px rgba(229, 62, 62, 0.25);
+    }
+
+    .btn-clear:hover {
+        background: #c53030;
+        color: white;
+    }
+
+    /* Drag styles */
+    .estimate-table tbody tr.draggable { cursor: grab; }
+    .estimate-table tbody tr.draggable:active { cursor: grabbing; }
+    .estimate-table tbody tr.dragging { opacity: 0.5; background: #e6fffa !important; }
+    .estimate-table tbody tr.drag-over { border-top: 2px solid #319795; }
+
+    .drag-handle {
+        cursor: grab;
+        color: #a0aec0;
+        padding: 0 4px !important;
+        font-size: 0.8rem;
+        text-align: center;
+        width: 24px;
+    }
+
+    .drag-handle:hover { color: #319795; }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 1.5rem;
+        color: #a0aec0;
+    }
+
+    .empty-state i { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5; }
+    .empty-state p { font-size: 0.75rem; }
+</style>
+
+<div class="estimate-preview-container">
+    <div class="preview-card">
+        <div class="preview-header">
+            <i class="bi bi-calculator"></i>
+            Estimate Preview (Uploaded)
+        </div>
+        <div class="preview-body">
+            <form id="estimate-form" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="qty_map" id="qty-map-field">
+                <input type="hidden" name="work_name" id="work-name-hidden">
+                <input type="hidden" name="grand_total" id="grand-total-field">
+
+                <label class="work-name-label">
+                    <i class="bi bi-pencil-square me-1"></i>
+                    Name of the Work
+                </label>
+                <input type="text"
+                       id="work-name-input"
+                       class="work-name-input"
+                       placeholder="Enter work name..."
+                       value="{{ work_name|default_if_none:'' }}">
+
+                <div class="estimate-table-wrapper">
+                    <table class="estimate-table" id="estimate-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th style="width: 50px;">Sl.No</th>
+                                <th>Item Description</th>
+                                <th style="width: 70px;">Unit</th>
+                                <th style="width: 100px;">Qty</th>
+                                <th style="width: 80px;">Rate</th>
+                                <th style="width: 100px;">Amount</th>
+                                <th style="width: 30px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if estimate_rows %}
+                                {% for row in estimate_rows %}
+                                    <tr data-item-name="{{ row.name }}" class="draggable" draggable="true">
+                                        <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
+                                        <td class="sl-cell">{{ row.sl }}</td>
+                                        <td class="desc-col" title="{{ row.desc }}">{{ row.desc }}</td>
+                                        <td class="unit-cell">{{ row.unit }}</td>
+                                        <td>
+                                            <input type="number"
+                                                   min="0"
+                                                   step="0.01"
+                                                   class="qty-input"
+                                                   value="{{ row.qty|default_if_none:'' }}"
+                                                   data-rate="{{ row.rate|default_if_none:0 }}">
+                                        </td>
+                                        <td class="rate-cell">
+                                            {% if row.rate is not None %}
+                                                ₹{{ row.rate }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="amount-cell"></td>
+                                        <td class="delete-cell">
+                                            <button type="button" class="btn-delete-item" title="Remove item">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="8">
+                                        <div class="empty-state">
+                                            <i class="bi bi-clipboard-x"></i>
+                                            <p>No items found. Please upload a file first.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="estimate-total-row">
+                    <span class="total-label">
+                        <i class="bi bi-currency-rupee me-1"></i>
+                        ECV Amount
+                    </span>
+                    <span class="total-amount">₹<span id="estimate-total">0.00</span></span>
+                </div>
+
+                <!-- Grand Total Input -->
+                <div class="estimate-total-row" style="background: #e6fffa; border-color: #38b2ac;">
+                    <label for="grand-total-input" class="total-label" style="color: #234e52;">
+                        <i class="bi bi-calculator me-1"></i>
+                        Grand Total (Manual Entry)
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                        <span style="font-weight: 600; color: #319795;">₹</span>
+                        <input type="number"
+                               id="grand-total-input"
+                               class="qty-input"
+                               style="width: 100px; font-weight: 700; color: #319795; border-color: #38b2ac;"
+                               step="0.01"
+                               min="0"
+                               placeholder="Enter amount"
+                               oninput="updateTaxBreakdown()"
+                               value="{{ grand_total|default_if_none:'' }}">
+                    </div>
+                </div>
+
+                <!-- Tax & Provision Breakdown Preview -->
+                <div id="tax-breakdown-section" style="margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 8px 14px; border-bottom: 1px solid #e2e8f0; cursor: pointer;" onclick="toggleTaxBreakdown()">
+                        <span style="font-size: 0.75rem; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="bi bi-receipt me-1"></i>Tax & Provision Preview
+                            <i class="bi bi-chevron-down ms-1" id="tax-breakdown-chevron"></i>
+                        </span>
+                    </div>
+                    <div id="tax-breakdown-content" style="padding: 10px 14px; background: #fffbeb; font-size: 0.72rem;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">ECV (Items Total)</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-ecv">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add LC @ 1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-lc">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add QC @ 1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-qc">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add NAC @ 0.1%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-nac">0.00</span></td>
+                                </tr>
+                                <tr style="border-top: 1px dashed #d97706;">
+                                    <td style="padding: 5px 0 3px; color: #78350f; font-weight: 600;">Sub Total</td>
+                                    <td style="padding: 5px 0 3px; text-align: right; font-weight: 700; color: #78350f;">₹<span id="preview-subtotal">0.00</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 3px 0; color: #78350f;">Add GST @ 18%</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: 600; color: #78350f;">₹<span id="preview-gst">0.00</span></td>
+                                </tr>
+                                <tr style="border-top: 2px solid #d97706; background: #fef3c7;">
+                                    <td style="padding: 6px 0; color: #78350f; font-weight: 700;">L.S Provision (Unforeseen Items)</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: 700;">
+                                        <span id="preview-ls-unforeseen" style="color: #22c55e;">₹0.00</span>
+                                    </td>
+                                </tr>
+                                <tr style="background: #fcd34d;">
+                                    <td style="padding: 6px 0; color: #78350f; font-weight: 700;">Grand Total</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: 700; color: #78350f;">₹<span id="preview-grand-total">0.00</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="ls-warning" style="display: none; margin-top: 8px; padding: 6px 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; color: #dc2626; font-size: 0.7rem;">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Warning:</strong> L.S Provision is negative. Increase Grand Total.
+                            <div style="margin-top: 4px;">
+                                <strong>Minimum Grand Total needed:</strong> ₹<span id="min-grand-total">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="action-buttons">
+                    <button type="button" class="btn-action btn-download" onclick="downloadEstimate()">
+                        <i class="bi bi-download"></i>
+                        Download Estimate
+                    </button>
+
+                    <button type="button" class="btn-action btn-download" onclick="downloadSpecificationReport()" style="background:linear-gradient(135deg, #38a169 0%, #2f855a 100%);">
+                        <i class="bi bi-file-earmark-word"></i>
+                        Specification Report
+                    </button>
+
+                    <button type="button" class="btn-action btn-download" onclick="downloadForwardingLetter()" style="background:linear-gradient(135deg, #2b6cb0 0%, #1d4ed8 100%);">
+                        <i class="bi bi-envelope-paper"></i>
+                        Forwarding Letter
+                    </button>
+
+                    <a href="{% url 'estimate' %}" class="btn-action" style="background: #718096;">
+                        <i class="bi bi-upload"></i>
+                        Upload New
+                    </a>
+
+                    <button type="button" class="btn-action btn-save" data-bs-toggle="modal" data-bs-target="#saveWorkModal">
+                        <i class="bi bi-save"></i>
+                        Save Work
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% include 'core/saved_works/save_modal.html' with work_type='new_estimate' category='electrical' %}
+
+<script>
+(function() {
+    var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+    var saveQtyMapUrl = "{% url 'estimate_save_qty_map' %}";
+
+    // ========================================
+    // ESCAPE HELPERS
+    // ========================================
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    function escapeCssSelector(str) {
+        return String(str).replace(/([\\"'\[\]])/g, '\\$1');
+    }
+
+    // ========================================
+    // ROW CALCULATIONS
+    // ========================================
+    function recalcRow(row) {
+        var qtyInput = row.querySelector(".qty-input");
+        if (!qtyInput) return;
+        var rate = parseFloat(qtyInput.dataset.rate || "0");
+        var qty = parseFloat(qtyInput.value || "0");
+        if (isNaN(rate)) rate = 0;
+        if (isNaN(qty)) qty = 0;
+        var amount = rate * qty;
+        var cell = row.querySelector(".amount-cell");
+        if (cell) {
+            cell.textContent = amount > 0 ? amount.toFixed(2) : "";
+        }
+    }
+
+    function recalcTotal() {
+        var total = 0;
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var cell = row.querySelector(".amount-cell");
+            if (!cell) return;
+            var val = parseFloat(cell.textContent || "0");
+            if (!isNaN(val)) total += val;
+        });
+        var totalSpan = document.getElementById("estimate-total");
+        if (totalSpan) totalSpan.textContent = total.toFixed(2);
+        updateTaxBreakdown();
+    }
+
+    // ========================================
+    // TAX BREAKDOWN
+    // ========================================
+    function toggleTaxBreakdown() {
+        var content = document.getElementById('tax-breakdown-content');
+        var chevron = document.getElementById('tax-breakdown-chevron');
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            chevron.className = 'bi bi-chevron-down ms-1';
+        } else {
+            content.style.display = 'none';
+            chevron.className = 'bi bi-chevron-right ms-1';
+        }
+    }
+
+    function updateTaxBreakdown() {
+        var ecvSpan = document.getElementById("estimate-total");
+        var ecv = parseFloat(ecvSpan ? ecvSpan.textContent : "0") || 0;
+
+        var lc = ecv * 0.01;
+        var qc = ecv * 0.01;
+        var nac = ecv * 0.001;
+        var subTotal = ecv + lc + qc + nac;
+        var gst = subTotal * 0.18;
+
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var grandTotal = parseFloat(grandTotalInput ? grandTotalInput.value : "0") || 0;
+        var lsUnforeseen = grandTotal - subTotal - gst;
+        var minGrandTotal = subTotal + gst;
+
+        document.getElementById("preview-ecv").textContent = ecv.toFixed(2);
+        document.getElementById("preview-lc").textContent = lc.toFixed(2);
+        document.getElementById("preview-qc").textContent = qc.toFixed(2);
+        document.getElementById("preview-nac").textContent = nac.toFixed(2);
+        document.getElementById("preview-subtotal").textContent = subTotal.toFixed(2);
+        document.getElementById("preview-gst").textContent = gst.toFixed(2);
+        document.getElementById("preview-grand-total").textContent = grandTotal.toFixed(2);
+
+        var lsSpan = document.getElementById("preview-ls-unforeseen");
+        var warningDiv = document.getElementById("ls-warning");
+        if (grandTotal > 0 && lsUnforeseen < 0) {
+            lsSpan.textContent = "₹" + lsUnforeseen.toFixed(2);
+            lsSpan.style.color = "#dc2626";
+            warningDiv.style.display = "block";
+            document.getElementById("min-grand-total").textContent = minGrandTotal.toFixed(2);
+        } else if (grandTotal > 0) {
+            lsSpan.textContent = "₹" + lsUnforeseen.toFixed(2);
+            lsSpan.style.color = "#22c55e";
+            warningDiv.style.display = "none";
+        } else {
+            lsSpan.textContent = "₹0.00 (enter Grand Total)";
+            lsSpan.style.color = "#6b7280";
+            warningDiv.style.display = "none";
+        }
+    }
+    window.updateTaxBreakdown = updateTaxBreakdown;
+    window.toggleTaxBreakdown = toggleTaxBreakdown;
+
+    // ========================================
+    // DELETE ITEM
+    // ========================================
+    function deleteItem(btn) {
+        var row = btn.closest('tr');
+        if (!row) return;
+        row.remove();
+        updateSerialNumbers();
+        recalcTotal();
+        debouncedAutoSave();
+    }
+
+    document.querySelectorAll('.btn-delete-item').forEach(function(btn) {
+        btn.addEventListener('click', function() { deleteItem(this); });
+    });
+
+    // ========================================
+    // SERIAL NUMBERS
+    // ========================================
+    function updateSerialNumbers() {
+        var rows = document.querySelectorAll('#estimate-table tbody tr[data-item-name]');
+        rows.forEach(function(row, idx) {
+            var cell = row.querySelector('.sl-cell');
+            if (cell) cell.textContent = idx + 1;
+        });
+    }
+
+    // ========================================
+    // QTY INPUT LISTENERS
+    // ========================================
+    function attachRowListeners(row) {
+        var qtyInput = row.querySelector('.qty-input');
+        if (qtyInput) {
+            qtyInput.addEventListener('input', function() {
+                recalcRow(row);
+                recalcTotal();
+                debouncedAutoSave();
+            });
+        }
+    }
+
+    document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+        attachRowListeners(row);
+    });
+
+    // Keyboard nav
+    var table = document.getElementById("estimate-table");
+    if (table) {
+        table.addEventListener("keydown", function(e) {
+            var target = e.target;
+            if (!target.classList.contains("qty-input")) return;
+            var row = target.closest("tr");
+            if (!row) return;
+            var allRows = Array.from(table.querySelectorAll("tbody tr"));
+            var idx = allRows.indexOf(row);
+            if (e.key === "Enter" || e.key === "ArrowDown") {
+                e.preventDefault();
+                for (var i = idx + 1; i < allRows.length; i++) {
+                    var next = allRows[i].querySelector(".qty-input");
+                    if (next) { next.focus(); next.select(); break; }
+                }
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                for (var i = idx - 1; i >= 0; i--) {
+                    var prev = allRows[i].querySelector(".qty-input");
+                    if (prev) { prev.focus(); prev.select(); break; }
+                }
+            }
+        });
+    }
+
+    // Prevent form submit on Enter in inputs
+    var form = document.getElementById("estimate-form");
+    if (form) {
+        form.addEventListener("keydown", function(e) {
+            if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "submit") {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // ========================================
+    // DRAG & DROP REORDER
+    // ========================================
+    var draggedRow = null;
+
+    function attachDragListeners(row) {
+        row.addEventListener('dragstart', function(e) {
+            draggedRow = row;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', function() {
+            row.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+            draggedRow = null;
+            updateSerialNumbers();
+            debouncedAutoSave();
+        });
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            if (draggedRow && draggedRow !== row) row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', function() { row.classList.remove('drag-over'); });
+        row.addEventListener('drop', function(e) {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            if (draggedRow && draggedRow !== row) {
+                var tbody = row.parentNode;
+                var rows = Array.from(tbody.querySelectorAll('tr[data-item-name]'));
+                if (rows.indexOf(draggedRow) < rows.indexOf(row)) {
+                    tbody.insertBefore(draggedRow, row.nextSibling);
+                } else {
+                    tbody.insertBefore(draggedRow, row);
+                }
+            }
+        });
+    }
+
+    document.querySelectorAll('#estimate-table tbody tr.draggable').forEach(attachDragListeners);
+
+    // ========================================
+    // AUTO-SAVE
+    // ========================================
+    var _autoSaveTimer = null;
+
+    function buildQtyMap() {
+        var map = {};
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var name = row.getAttribute("data-item-name");
+            var inp = row.querySelector(".qty-input");
+            if (!name || !inp) return;
+            var val = inp.value;
+            if (val !== "" && !isNaN(parseFloat(val))) map[name] = val;
+        });
+        return map;
+    }
+
+    function saveToSession() {
+        var qtyMap = buildQtyMap();
+        var workInput = document.getElementById("work-name-input");
+        var grandTotalInput = document.getElementById("grand-total-input");
+
+        var formData = new FormData();
+        formData.append("qty_map", JSON.stringify(qtyMap));
+        formData.append("work_name", workInput ? workInput.value : "");
+        formData.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+        formData.append("csrfmiddlewaretoken", csrfToken);
+
+        fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
+    }
+
+    function debouncedAutoSave() {
+        if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = setTimeout(saveToSession, 2000);
+    }
+
+    document.addEventListener("input", function(e) {
+        if (e.target.closest("#estimate-table") || e.target.id === "work-name-input" || e.target.id === "grand-total-input") {
+            debouncedAutoSave();
+        }
+    });
+
+    window.addEventListener("beforeunload", function() {
+        var qtyMap = buildQtyMap();
+        var workInput = document.getElementById("work-name-input");
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var data = new FormData();
+        data.append("qty_map", JSON.stringify(qtyMap));
+        data.append("work_name", workInput ? workInput.value : "");
+        data.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+        data.append("csrfmiddlewaretoken", csrfToken);
+        navigator.sendBeacon(saveQtyMapUrl, data);
+    });
+
+    // ========================================
+    // DOWNLOAD ESTIMATE
+    // ========================================
+    window.downloadEstimate = function() {
+        var qtyMap = buildQtyMap();
+        var workName = document.getElementById("work-name-input").value || "";
+        var grandTotal = document.getElementById("grand-total-input").value || "";
+
+        var form = document.createElement("form");
+        form.method = "POST";
+        form.action = "{% url 'estimate_download' %}";
+        form.style.display = "none";
+
+        var fields = {
+            csrfmiddlewaretoken: csrfToken,
+            qty_map: JSON.stringify(qtyMap),
+            work_name: workName,
+            grand_total: grandTotal
+        };
+
+        for (var key in fields) {
+            var input = document.createElement("input");
+            input.type = "hidden";
+            input.name = key;
+            input.value = fields[key];
+            form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+
+    // ========================================
+    // SPECIFICATION REPORT
+    // ========================================
+    window.downloadSpecificationReport = function() {
+        var items = [];
+        var workName = document.getElementById("work-name-input").value || "{{NAME_OF_WORK}}";
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var totalAmount = grandTotalInput ? grandTotalInput.value : "0.00";
+        if (!totalAmount) totalAmount = document.getElementById("estimate-total").textContent || "0.00";
+
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var name = row.getAttribute("data-item-name");
+            if (!name) return;
+            var unitCell = row.querySelector(".unit-cell");
+            var unit = unitCell ? unitCell.textContent.trim() : "";
+            var qtyInput = row.querySelector(".qty-input");
+            var qty = qtyInput ? qtyInput.value : "";
+            if (name && qty && parseFloat(qty) > 0) {
+                items.push({ desc: name, qty: qty, unit: unit });
+            }
+        });
+
+        if (items.length === 0) {
+            alert("Please add items with quantities to generate specification report");
+            return;
+        }
+
+        var form = document.createElement("form");
+        form.method = "POST";
+        form.action = "{% url 'estimate_spec_report' %}";
+        form.style.display = "none";
+
+        var fields = {
+            csrfmiddlewaretoken: csrfToken,
+            items: JSON.stringify(items),
+            work_name: workName,
+            total_amount: totalAmount
+        };
+
+        for (var key in fields) {
+            var input = document.createElement("input");
+            input.type = "hidden";
+            input.name = key;
+            input.value = fields[key];
+            form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+
+    // ========================================
+    // FORWARDING LETTER
+    // ========================================
+    window.downloadForwardingLetter = function() {
+        var items = [];
+        var workName = document.getElementById("work-name-input").value || "{{NAME_OF_WORK}}";
+        var grandTotalInput = document.getElementById("grand-total-input");
+        var totalAmount = grandTotalInput ? grandTotalInput.value : "0.00";
+        if (!totalAmount) totalAmount = document.getElementById("estimate-total").textContent || "0.00";
+
+        document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+            var name = row.getAttribute("data-item-name");
+            if (!name) return;
+            var qtyInput = row.querySelector(".qty-input");
+            var qty = qtyInput ? qtyInput.value : "";
+            if (name && qty && parseFloat(qty) > 0) {
+                items.push({ desc: name, qty: qty });
+            }
+        });
+
+        if (items.length === 0) {
+            alert("Please add items with quantities to generate forwarding letter");
+            return;
+        }
+
+        var form = document.createElement("form");
+        form.method = "POST";
+        form.action = "{% url 'estimate_forwarding_letter' %}";
+        form.style.display = "none";
+
+        var fields = {
+            csrfmiddlewaretoken: csrfToken,
+            items: JSON.stringify(items),
+            work_name: workName,
+            total_amount: totalAmount
+        };
+
+        for (var key in fields) {
+            var input = document.createElement("input");
+            input.type = "hidden";
+            input.name = key;
+            input.value = fields[key];
+            form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+
+    // ========================================
+    // SAVE WORK (preSaveSync for save_modal.html)
+    // ========================================
+    window.preSaveSync = function() {
+        var qtyMap = buildQtyMap();
+        var workInput = document.getElementById("work-name-input");
+        var grandTotalInput = document.getElementById("grand-total-input");
+
+        var formData = new FormData();
+        formData.append("qty_map", JSON.stringify(qtyMap));
+        formData.append("work_name", workInput ? workInput.value : "");
+        formData.append("grand_total", grandTotalInput ? grandTotalInput.value : "");
+        formData.append("csrfmiddlewaretoken", csrfToken);
+
+        return fetch(saveQtyMapUrl, { method: "POST", body: formData });
+    };
+
+    // ========================================
+    // INITIAL CALCULATION
+    // ========================================
+    document.querySelectorAll("#estimate-table tbody tr").forEach(function(row) {
+        recalcRow(row);
+    });
+    recalcTotal();
+})();
+</script>
+
+{% endblock %}

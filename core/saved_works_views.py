@@ -1035,6 +1035,7 @@ def collect_work_data(request, work_type):
             'item_rates': request.session.get('item_rates', {}),
             'item_units': request.session.get('item_units', {}),
             'item_descs': request.session.get('item_descs', {}),
+            'estimate_source': request.session.get('estimate_source', ''),
             # Estimate-level metadata: header fields unique to each work
             'estimate_metadata': request.session.get('estimate_metadata', {
                 'admin_sanction': '',
@@ -1264,6 +1265,8 @@ def restore_work_data(request, saved_work):
             request.session['item_descs'] = work_data['item_descs']
         # Restore estimate-level metadata (admin sanction, tech sanction, etc.)
         request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
+        # Restore estimate source (uploaded vs datas)
+        request.session['estimate_source'] = work_data.get('estimate_source', '')
         # Force session save
         request.session.modified = True
     
@@ -1348,6 +1351,9 @@ def get_module_url(saved_work):
     work_data = saved_work.work_data or {}
     
     if work_type == 'new_estimate':
+        # Uploaded estimates go to the preview page
+        if work_data.get('estimate_source') == 'uploaded':
+            return reverse('estimate_preview')
         # If we have a last group saved, redirect to that group's items page
         last_group = work_data.get('last_group', '')
         if last_group:

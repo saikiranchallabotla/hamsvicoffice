@@ -117,6 +117,12 @@ urlpatterns = [
     # -------------------------
     path('', lambda request: redirect('dashboard') if request.user.is_authenticated else render(request, 'landing.html'), name='home'),
     path('estimate/', views.estimate, name='estimate'),
+    path('estimate/preview/', views.estimate_preview, name='estimate_preview'),
+    path('estimate/preview/download/', views.estimate_download, name='estimate_download'),
+    path('estimate/preview/specification-report/', views.estimate_spec_report, name='estimate_spec_report'),
+    path('estimate/preview/forwarding-letter/', views.estimate_forwarding_letter, name='estimate_forwarding_letter'),
+    path('estimate/preview/save_qty_map/', views.estimate_save_qty_map, name='estimate_save_qty_map'),
+    path('estimate/preview/clear/', views.estimate_clear, name='estimate_clear'),
     path('estimate/specification-report/', views.generate_specification_report_from_file, name='generate_specification_report'),
     path('estimate/forwarding-letter/', views.generate_estimate_forwarding_letter, name='generate_forwarding_letter'),
     path('workslip/', views.workslip_home, name='workslip'),  # Landing page for work type selection
