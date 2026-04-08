@@ -188,6 +188,17 @@ def workslip(request):
     except Exception:
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
+    # Load prefix map early so estimate parsing can strip prefixes from descriptions
+    prefix_map_ws = {}
+    if ws_work_mode == 'repair':
+        from core.saved_works_views import load_prefix_map
+        prefix_map_ws = load_prefix_map(
+            ws_category, backend_id=ws_selected_backend_id,
+            module_code=module_code, user=request.user
+        )
+    # Build a reverse mapping: {prefix: item_name} for stripping prefixes from estimate descriptions
+    _prefix_values = set(prefix_map_ws.values()) if prefix_map_ws else set()
+
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
     current_group = request.GET.get("group") or (groups[0] if groups else "")
 
@@ -550,7 +561,18 @@ def workslip(request):
                     unit = ws_est_sheet.cell(row=r, column=col_unit).value  # Dynamic column
 
                     # backend item name from desc (for rate lookup, etc.)
-                    backend_item_name = desc_to_item.get(desc_str, desc_str)
+                    # If in repair mode, the estimate desc may already have a prefix
+                    # (e.g. "R/to Providing and fixing...") — try stripping it for lookup
+                    backend_item_name = desc_to_item.get(desc_str, "")
+                    if not backend_item_name and _prefix_values:
+                        for _pfx in _prefix_values:
+                            if desc_str.startswith(_pfx + " "):
+                                _stripped = desc_str[len(_pfx) + 1:]
+                                backend_item_name = desc_to_item.get(_stripped, "")
+                                if backend_item_name:
+                                    break
+                    if not backend_item_name:
+                        backend_item_name = desc_str
 
                     # display name from yellow header list (for UI only)
                     if heading_idx < len(heading_names):
@@ -1478,7 +1500,16 @@ def workslip(request):
                         if desc_str != "" and not (rate_is_empty and qty_is_empty):
                             qty_num = float(qty_value) if isinstance(qty_value, (int, float)) else to_number_local(qty_formula)
                             unit = ws_est_sheet.cell(row=r, column=3).value
-                            backend_item_name = desc_to_item.get(desc_str, desc_str)
+                            backend_item_name = desc_to_item.get(desc_str, "")
+                            if not backend_item_name and _prefix_values:
+                                for _pfx in _prefix_values:
+                                    if desc_str.startswith(_pfx + " "):
+                                        _stripped = desc_str[len(_pfx) + 1:]
+                                        backend_item_name = desc_to_item.get(_stripped, "")
+                                        if backend_item_name:
+                                            break
+                            if not backend_item_name:
+                                backend_item_name = desc_str
                             
                             if heading_idx < len(heading_names_local):
                                 display_name = heading_names_local[heading_idx]
@@ -1913,12 +1944,7 @@ def workslip(request):
                 supp_rate_map[name] = rate_val
 
             # Load prefix mapping for repair mode (used in both ItemBlocks and WorkSlip sheets)
-            item_to_prefix_ws = {}
-            if ws_work_mode == 'repair':
-                from core.saved_works_views import load_prefix_map
-                item_to_prefix_ws = load_prefix_map(
-                    ws_category, backend_id=ws_selected_backend_id, user=request.user
-                )
+            item_to_prefix_ws = prefix_map_ws  # Already loaded at top of view
 
             # ---------- create workbook ----------
             wb_out = Workbook()
