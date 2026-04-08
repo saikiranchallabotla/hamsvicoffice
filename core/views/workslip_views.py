@@ -188,17 +188,6 @@ def workslip(request):
     except Exception:
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
-    # Load prefix map early so estimate parsing can strip prefixes from descriptions
-    prefix_map_ws = {}
-    if ws_work_mode == 'repair':
-        from core.saved_works_views import load_prefix_map
-        prefix_map_ws = load_prefix_map(
-            ws_category, backend_id=ws_selected_backend_id,
-            module_code=module_code, user=request.user
-        )
-    # Build a reverse mapping: {prefix: item_name} for stripping prefixes from estimate descriptions
-    _prefix_values = set(prefix_map_ws.values()) if prefix_map_ws else set()
-
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
     current_group = request.GET.get("group") or (groups[0] if groups else "")
 
@@ -561,18 +550,7 @@ def workslip(request):
                     unit = ws_est_sheet.cell(row=r, column=col_unit).value  # Dynamic column
 
                     # backend item name from desc (for rate lookup, etc.)
-                    # If in repair mode, the estimate desc may already have a prefix
-                    # (e.g. "R/to Providing and fixing...") — try stripping it for lookup
-                    backend_item_name = desc_to_item.get(desc_str, "")
-                    if not backend_item_name and _prefix_values:
-                        for _pfx in _prefix_values:
-                            if desc_str.startswith(_pfx + " "):
-                                _stripped = desc_str[len(_pfx) + 1:]
-                                backend_item_name = desc_to_item.get(_stripped, "")
-                                if backend_item_name:
-                                    break
-                    if not backend_item_name:
-                        backend_item_name = desc_str
+                    backend_item_name = desc_to_item.get(desc_str, desc_str)
 
                     # display name from yellow header list (for UI only)
                     if heading_idx < len(heading_names):
@@ -1500,16 +1478,7 @@ def workslip(request):
                         if desc_str != "" and not (rate_is_empty and qty_is_empty):
                             qty_num = float(qty_value) if isinstance(qty_value, (int, float)) else to_number_local(qty_formula)
                             unit = ws_est_sheet.cell(row=r, column=3).value
-                            backend_item_name = desc_to_item.get(desc_str, "")
-                            if not backend_item_name and _prefix_values:
-                                for _pfx in _prefix_values:
-                                    if desc_str.startswith(_pfx + " "):
-                                        _stripped = desc_str[len(_pfx) + 1:]
-                                        backend_item_name = desc_to_item.get(_stripped, "")
-                                        if backend_item_name:
-                                            break
-                            if not backend_item_name:
-                                backend_item_name = desc_str
+                            backend_item_name = desc_to_item.get(desc_str, desc_str)
                             
                             if heading_idx < len(heading_names_local):
                                 display_name = heading_names_local[heading_idx]
@@ -1944,7 +1913,12 @@ def workslip(request):
                 supp_rate_map[name] = rate_val
 
             # Load prefix mapping for repair mode (used in both ItemBlocks and WorkSlip sheets)
-            item_to_prefix_ws = prefix_map_ws  # Already loaded at top of view
+            item_to_prefix_ws = {}
+            if ws_work_mode == 'repair':
+                from core.saved_works_views import load_prefix_map
+                item_to_prefix_ws = load_prefix_map(
+                    ws_category, backend_id=ws_selected_backend_id, user=request.user
+                )
 
             # ---------- create workbook ----------
             wb_out = Workbook()
@@ -2170,18 +2144,12 @@ def workslip(request):
                 unit = row.get("unit") or ""
                 original_rate = round(float(row.get("rate", 0) or 0), 2)
                 rate = round(get_rate_for_row(row_key, original_rate), 2)  # Apply custom rate if user modified it
-                desc_est = row.get("item_desc") or row.get("desc") or row.get("item_name") or ""
+                desc_est = row.get("desc") or row.get("item_desc") or row.get("item_name") or ""
                 # If desc_est is just the header name, try to get the real row+2 description from backend
                 _display = row.get("display_name") or row.get("item_name") or ""
                 if desc_est == _display and _display in item_name_to_desc:
                     desc_est = item_name_to_desc[_display]
-                # Apply repair prefix to base estimate items
-                if ws_work_mode == 'repair' and item_to_prefix_ws:
-                    _item_name_for_prefix = row.get("item_name") or row.get("display_name") or ""
-                    _prefix = item_to_prefix_ws.get(_item_name_for_prefix, "")
-                    if _prefix:
-                        desc_est = f"{_prefix} {desc_est}" if desc_est else _prefix
-                
+
                 # Get previous phases' execution quantities for this row (AE already merged)
                 prev_phase_qtys = []
                 for phase_map in ws_previous_phases:
