@@ -834,33 +834,24 @@ def _extract_labels_from_lines(lines):
     return labels
 
 
-def _preprocess_image_for_ocr(img):
+def _preprocess_image_for_ocr(img, variant='standard'):
     """
-    ULTIMATE OCR preprocessing for best accuracy on government documents.
-    Handles blurred, skewed, low-quality scanned images with advanced techniques.
-    
-    Enhancement Pipeline:
-    1. Auto-orientation detection
-    2. Deskewing (straightening tilted text)
-    3. Smart upscaling for small images
-    4. Adaptive contrast enhancement
-    5. Noise reduction with edge preservation
-    6. Sharpening for blurred text
-    7. Adaptive binarization (Otsu)
-    8. Morphological cleanup
+    OCR preprocessing for government documents.
+    Supports multiple variants to handle different scan qualities:
+      'standard'  - Otsu binarization (good for clean scans)
+      'adaptive'  - Local adaptive thresholding (good for uneven lighting/shadows)
+      'gentle'    - Minimal processing, just grayscale + sharpen (good for already-clean images)
     """
     try:
         from PIL import Image, ImageEnhance, ImageFilter, ImageOps
         import numpy as np
     except ImportError:
-        return img  # Return original if dependencies not available
+        return img
 
     import logging
     logger = logging.getLogger(__name__)
 
     try:
-        original_mode = img.mode
-        
         # 1. Auto-rotate based on EXIF data (for photos)
         try:
             img = ImageOps.exif_transpose(img)
@@ -873,15 +864,13 @@ def _preprocess_image_for_ocr(img):
 
         # 2. Smart upscaling for better OCR on small/low-res images
         width, height = img.size
-        target_dpi_size = 2500  # Target minimum dimension
+        target_dpi_size = 3000  # Increased target for better recognition
         if width < target_dpi_size or height < target_dpi_size:
             scale_factor = max(target_dpi_size / width, target_dpi_size / height)
-            # Limit scale factor to prevent excessive memory use
             scale_factor = min(scale_factor, 4.0)
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
             img = img.resize((new_width, new_height), Image.LANCZOS)
-            logger.debug(f"OCR: Upscaled image from {width}x{height} to {new_width}x{new_height}")
 
         # 3. Convert to grayscale
         gray = img.convert('L')
@@ -892,17 +881,18 @@ def _preprocess_image_for_ocr(img):
         except Exception as e:
             logger.debug(f"OCR: Deskew failed: {e}")
 
+        if variant == 'gentle':
+            # Minimal processing - just sharpen and return grayscale
+            gray = ImageOps.autocontrast(gray, cutoff=0.5)
+            enhancer = ImageEnhance.Sharpness(gray.convert('RGB'))
+            gray = enhancer.enhance(1.8).convert('L')
+            return gray
+
         # 5. Adaptive contrast enhancement (CLAHE-like approach)
         try:
             img_array = np.array(gray)
-            # Apply local contrast enhancement
-            from PIL import ImageFilter
-            
-            # High-pass filter for local contrast
             blurred = gray.filter(ImageFilter.GaussianBlur(radius=50))
             blurred_array = np.array(blurred)
-            
-            # Unsharp masking with gentle settings
             enhanced = img_array.astype(np.float32) - 0.5 * blurred_array.astype(np.float32)
             enhanced = np.clip(enhanced, 0, 255).astype(np.uint8)
             gray = Image.fromarray(enhanced)
@@ -919,78 +909,79 @@ def _preprocess_image_for_ocr(img):
         gray_rgb = gray.convert('RGB')
         enhancer = ImageEnhance.Sharpness(gray_rgb)
         gray_rgb = enhancer.enhance(2.5)
-        
-        # Apply unsharp mask for additional deblurring
         gray_rgb = gray_rgb.filter(ImageFilter.UnsharpMask(radius=2, percent=200, threshold=2))
         gray = gray_rgb.convert('L')
 
         # 8. Noise reduction with edge preservation
         try:
-            # Bilateral-like filtering using median + edge detection
             gray = gray.filter(ImageFilter.MedianFilter(size=3))
         except Exception:
             pass
 
-        # 9. Otsu-style adaptive thresholding for binarization
-        try:
-            img_array = np.array(gray)
-            
-            # Apply slight Gaussian blur before thresholding
-            blurred = Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(radius=1))
-            img_array = np.array(blurred)
-            
-            # Calculate Otsu threshold
-            hist, _ = np.histogram(img_array.ravel(), bins=256, range=(0, 256))
-            total = img_array.size
-            sum_all = np.sum(np.arange(256) * hist)
-            sum_bg, w_bg = 0.0, 0
-            max_var, threshold = 0.0, 128
-            
-            for t in range(256):
-                w_bg += hist[t]
-                if w_bg == 0:
-                    continue
-                w_fg = total - w_bg
-                if w_fg == 0:
-                    break
-                sum_bg += t * hist[t]
-                mean_bg = sum_bg / w_bg
-                mean_fg = (sum_all - sum_bg) / w_fg
-                var_between = w_bg * w_fg * (mean_bg - mean_fg) ** 2
-                if var_between > max_var:
-                    max_var = var_between
-                    threshold = t
+        if variant == 'adaptive':
+            # Adaptive local thresholding - works much better for uneven lighting
+            try:
+                img_array = np.array(gray, dtype=np.float32)
+                # Compute local mean using a large window
+                from PIL import ImageFilter
+                local_mean = np.array(gray.filter(ImageFilter.GaussianBlur(radius=25)), dtype=np.float32)
+                # Pixel is foreground if darker than local mean minus offset
+                offset = 12
+                binary = np.where(img_array < local_mean - offset, 0, 255).astype(np.uint8)
+                gray = Image.fromarray(binary)
+            except Exception:
+                pass
+        else:
+            # 9. Otsu-style binarization
+            try:
+                img_array = np.array(gray)
+                blurred = Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(radius=1))
+                img_array = np.array(blurred)
+                hist, _ = np.histogram(img_array.ravel(), bins=256, range=(0, 256))
+                total = img_array.size
+                sum_all = np.sum(np.arange(256) * hist)
+                sum_bg, w_bg = 0.0, 0
+                max_var, threshold = 0.0, 128
 
-            # Apply threshold with slight bias towards preserving text (lower threshold)
-            adjusted_threshold = max(threshold - 10, 50)
-            img_array = np.where(img_array > adjusted_threshold, 255, 0).astype(np.uint8)
-            gray = Image.fromarray(img_array)
-        except Exception:
-            pass
+                for t in range(256):
+                    w_bg += hist[t]
+                    if w_bg == 0:
+                        continue
+                    w_fg = total - w_bg
+                    if w_fg == 0:
+                        break
+                    sum_bg += t * hist[t]
+                    mean_bg = sum_bg / w_bg
+                    mean_fg = (sum_all - sum_bg) / w_fg
+                    var_between = w_bg * w_fg * (mean_bg - mean_fg) ** 2
+                    if var_between > max_var:
+                        max_var = var_between
+                        threshold = t
+
+                adjusted_threshold = max(threshold - 10, 50)
+                img_array = np.where(img_array > adjusted_threshold, 255, 0).astype(np.uint8)
+                gray = Image.fromarray(img_array)
+            except Exception:
+                pass
 
         # 10. Morphological operations to clean up text
         try:
-            img_array = np.array(gray)
-            # Slight dilation to thicken thin text (helps with degraded scans)
-            gray = Image.fromarray(img_array).filter(ImageFilter.MinFilter(size=3))
-            # Then slight erosion to remove noise
+            gray = gray.filter(ImageFilter.MinFilter(size=3))
             gray = gray.filter(ImageFilter.MaxFilter(size=3))
         except Exception:
             pass
 
-        logger.debug(f"OCR: Preprocessing complete, final size: {gray.size}")
         return gray
 
     except Exception as e:
         logger.warning(f"OCR preprocessing failed: {e}")
-        return img  # Return original on error
+        return img
 
 
 def _deskew_image(img):
     """
     Detect and correct skew angle in document images.
-    Uses projection profile analysis for accurate skew detection.
-    Returns the deskewed image.
+    Uses coarse-then-fine projection profile analysis for speed and accuracy.
     """
     import numpy as np
     from PIL import Image
@@ -999,37 +990,42 @@ def _deskew_image(img):
 
     try:
         img_array = np.array(img)
-        
-        # Convert to binary for analysis
         threshold = np.mean(img_array)
-        binary = (img_array < threshold).astype(np.uint8)  # Text is dark
-        
-        # Test rotation angles from -15 to +15 degrees
+        binary = (img_array < threshold).astype(np.uint8)
+
+        # Coarse search: -15 to +15 degrees in 1-degree steps
         best_angle = 0
         best_score = 0
-        
-        for angle in np.arange(-15, 15.5, 0.5):
-            # Rotate image
+
+        for angle in range(-15, 16, 1):
             rotated = img.rotate(angle, fillcolor=255, resample=Image.BICUBIC)
             rot_array = np.array(rotated)
             rot_binary = (rot_array < threshold).astype(np.uint8)
-            
-            # Calculate horizontal projection profile
             projection = np.sum(rot_binary, axis=1)
-            
-            # Score: variance of projection (higher = more aligned text)
             score = np.var(projection)
-            
             if score > best_score:
                 best_score = score
                 best_angle = angle
-        
-        if abs(best_angle) > 0.5:  # Only deskew if significant angle detected
-            logger.debug(f"OCR: Deskewing by {best_angle} degrees")
-            return img.rotate(best_angle, fillcolor=255, resample=Image.BICUBIC, expand=True)
-        
+
+        # Fine search: +/- 1 degree around best in 0.25-degree steps
+        fine_best = best_angle
+        for angle_10x in range((best_angle - 1) * 4, (best_angle + 1) * 4 + 1):
+            angle = angle_10x / 4.0
+            rotated = img.rotate(angle, fillcolor=255, resample=Image.BICUBIC)
+            rot_array = np.array(rotated)
+            rot_binary = (rot_array < threshold).astype(np.uint8)
+            projection = np.sum(rot_binary, axis=1)
+            score = np.var(projection)
+            if score > best_score:
+                best_score = score
+                fine_best = angle
+
+        if abs(fine_best) > 0.3:
+            logger.debug(f"OCR: Deskewing by {fine_best} degrees")
+            return img.rotate(fine_best, fillcolor=255, resample=Image.BICUBIC, expand=True)
+
         return img
-        
+
     except Exception as e:
         logger.debug(f"Deskew failed: {e}")
         return img
@@ -1037,10 +1033,8 @@ def _deskew_image(img):
 
 def _ocr_with_multiple_configs(img, lang='eng'):
     """
-    ULTIMATE OCR extraction with multiple Tesseract configurations for maximum accuracy.
-    Tries multiple PSM modes, OEM engines, and language combinations.
-    Automatically detects and uses available languages.
-    Applies advanced image preprocessing before OCR.
+    OCR extraction using multiple Tesseract configurations AND multiple
+    image preprocessing variants.  Picks the best result by scoring.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -1051,96 +1045,94 @@ def _ocr_with_multiple_configs(img, lang='eng'):
         logger.error("pytesseract not installed. OCR unavailable.")
         return ""
 
-    # Preprocess the image for better OCR accuracy
-    preprocessed_img = _preprocess_image_for_ocr(img)
-
-    # Detect available languages (fallback to eng if detection fails)
+    # Detect available languages
     available_langs = ['eng']
     try:
         langs_output = pytesseract.get_languages()
         available_langs = [l for l in langs_output if l not in ('osd', 'snum')]
-        logger.debug(f"OCR: Available languages: {available_langs}")
     except Exception:
         pass
 
-    # Build language string - prioritize English, add Hindi/Telugu if available for Indian docs
     lang_priority = ['eng']
     for indian_lang in ['hin', 'tel', 'tam', 'kan', 'mar', 'guj', 'ben']:
         if indian_lang in available_langs:
             lang_priority.append(indian_lang)
-    
-    lang_str = '+'.join(lang_priority[:3])  # Max 3 languages for speed
-    logger.debug(f"OCR: Using languages: {lang_str}")
+    lang_str = '+'.join(lang_priority[:3])
 
-    # Extended configurations to try - ordered by typical effectiveness for documents
-    configs = [
-        ('--oem 3 --psm 6', 'PSM6-block'),       # Uniform block of text (best for documents)
-        ('--oem 1 --psm 6', 'LSTM-PSM6'),        # LSTM neural net, block mode
-        ('--oem 3 --psm 3', 'PSM3-auto'),        # Fully automatic page segmentation
-        ('--oem 3 --psm 4', 'PSM4-column'),      # Single column of text
-        ('--oem 3 --psm 11', 'PSM11-sparse'),    # Sparse text - find as much text as possible
-        ('--oem 1 --psm 3', 'LSTM-PSM3'),        # LSTM with auto segmentation
+    # Domain keywords for scoring
+    domain_keywords = [
+        'sanction', 'estimate', 'contractor', 'work', 'amount', 'Rs',
+        'agreement', 'tender', 'completion', 'forwarding', 'slip',
+        'period', 'maintenance', 'providing', 'electrical', 'civil',
+        'bill', 'measurement', 'abstract', 'schedule',
+        'administrative', 'technical', 'NIT', 'agency',
     ]
+
+    def score_result(text):
+        result_lines = [ln.strip() for ln in text.splitlines() if ln.strip() and len(ln.strip()) > 2]
+        alnum_chars = sum(1 for c in text if c.isalnum())
+        total_chars = len(text) or 1
+        alnum_ratio = alnum_chars / total_chars
+        key_terms_found = sum(1 for term in domain_keywords if term.lower() in text.lower())
+        # Penalize gibberish: long runs of consonants or repeated chars
+        gibberish_penalty = len(re.findall(r'[bcdfghjklmnpqrstvwxyz]{6,}', text.lower())) * 20
+        return (
+            len(result_lines) * 10
+            + alnum_chars
+            + alnum_ratio * 50
+            + key_terms_found * 30
+            - gibberish_penalty
+        )
+
+    # Tesseract configs to try (most effective first)
+    configs = [
+        ('--oem 1 --psm 6', 'LSTM-block'),      # LSTM neural net, block mode (best for docs)
+        ('--oem 1 --psm 3', 'LSTM-auto'),        # LSTM with auto page segmentation
+        ('--oem 3 --psm 6', 'PSM6-block'),       # Default + block
+        ('--oem 3 --psm 4', 'PSM4-column'),      # Single column
+        ('--oem 1 --psm 4', 'LSTM-column'),      # LSTM + column
+        ('--oem 3 --psm 11', 'PSM11-sparse'),    # Sparse text
+    ]
+
+    # Preprocessing variants to try
+    preprocess_variants = ['standard', 'adaptive', 'gentle']
 
     best_result = ""
     best_score = 0
-    
-    # Track all results for ensemble approach
-    all_results = []
 
-    for config, label in configs:
+    for variant in preprocess_variants:
         try:
-            result = pytesseract.image_to_string(preprocessed_img, lang=lang_str, config=config)
-            
-            # Apply domain-specific corrections
-            result = _apply_domain_corrections(result)
-            
-            # Score based on content quality metrics
-            result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
-            alnum_chars = sum(1 for c in result if c.isalnum())
-            total_chars = len(result) or 1
-            
-            # Advanced scoring
-            # - More lines is better
-            # - Higher alphanumeric ratio is better
-            # - Presence of key document terms is better
-            key_terms_found = sum(1 for term in ['sanction', 'estimate', 'contractor', 'work', 'amount', 'Rs'] 
-                                  if term.lower() in result.lower())
-            
-            score = (
-                len(result_lines) * 10 +           # Line count
-                alnum_chars +                       # Character count
-                (alnum_chars / total_chars) * 50 + # Alphanumeric ratio
-                key_terms_found * 30                # Domain relevance
-            )
-            
-            logger.debug(f"OCR {label}: {len(result_lines)} lines, {key_terms_found} keywords, score={score:.0f}")
-            
-            all_results.append((score, result, label))
-            
-            if score > best_score:
-                best_score = score
-                best_result = result
-                
-        except Exception as e:
-            logger.debug(f"OCR {label} failed: {e}")
+            preprocessed_img = _preprocess_image_for_ocr(img, variant=variant)
+        except Exception:
+            continue
 
-    # If preprocessed results are poor, try original image as fallback
+        # Try top 3 configs for each variant (6 * 3 = 18 total is too many)
+        configs_to_try = configs[:3] if variant != 'standard' else configs
+        for config, label in configs_to_try:
+            try:
+                result = pytesseract.image_to_string(preprocessed_img, lang=lang_str, config=config)
+                result = _apply_domain_corrections(result)
+                s = score_result(result)
+
+                logger.debug(f"OCR [{variant}] {label}: score={s:.0f}")
+
+                if s > best_score:
+                    best_score = s
+                    best_result = result
+
+            except Exception as e:
+                logger.debug(f"OCR [{variant}] {label} failed: {e}")
+
+    # If all preprocessed results are poor, try original image as fallback
     if best_score < 100:
         try:
-            result = pytesseract.image_to_string(img, lang=lang_str, config='--oem 3 --psm 6')
+            result = pytesseract.image_to_string(img, lang=lang_str, config='--oem 1 --psm 6')
             result = _apply_domain_corrections(result)
-            result_lines = [ln.strip() for ln in result.splitlines() if ln.strip() and len(ln.strip()) > 2]
-            alnum_chars = sum(1 for c in result if c.isalnum())
-            total_chars = len(result) or 1
-            key_terms_found = sum(1 for term in ['sanction', 'estimate', 'contractor', 'work', 'amount', 'Rs'] 
-                                  if term.lower() in result.lower())
-            score = len(result_lines) * 10 + alnum_chars + (alnum_chars / total_chars) * 50 + key_terms_found * 30
-            
-            if score > best_score:
+            s = score_result(result)
+            if s > best_score:
                 best_result = result
-                best_score = score
-                logger.debug(f"Original image OCR was better: score={score:.0f}")
+                best_score = s
+                logger.debug(f"Original image OCR was better: score={s:.0f}")
         except Exception:
             pass
 
@@ -1154,45 +1146,69 @@ _DOMAIN_CORRECTIONS = {
     'sanctoin': 'sanction',
     'sancfion': 'sanction',
     'sanct1on': 'sanction',
+    'sanctlon': 'sanction',
+    'sancflon': 'sanction',
+    'sanciion': 'sanction',
     'estlmate': 'estimate',
     'est1mate': 'estimate',
     'esimate': 'estimate',
     'estmate': 'estimate',
+    'estirnate': 'estimate',
+    'estlrnate': 'estimate',
     'contractar': 'contractor',
     'contracter': 'contractor',
-    'contractor': 'contractor',
     'contracor': 'contractor',
+    'contrac+or': 'contractor',
+    'contractoi': 'contractor',
+    'conlractor': 'contractor',
     'arnount': 'amount',
     'amoun+': 'amount',
     'amcunt': 'amount',
+    'arnounl': 'amount',
+    'amounl': 'amount',
+    'amouni': 'amount',
     'adminisirative': 'administrative',
     'administratve': 'administrative',
     'administrat1ve': 'administrative',
+    'adrninistrative': 'administrative',
+    'administralive': 'administrative',
     'techmical': 'technical',
     'technlcal': 'technical',
     'technica1': 'technical',
+    'tecbnical': 'technical',
+    'lechnical': 'technical',
     'tander': 'tender',
     'tendar': 'tender',
+    'lender': 'tender',
     'prernium': 'premium',
     'premiurn': 'premium',
     'prem1um': 'premium',
+    'prerniurn': 'premium',
     'cornpletion': 'completion',
     'completlon': 'completion',
     'complet1on': 'completion',
+    'cornplelion': 'completion',
+    'compietion': 'completion',
     'perlod': 'period',
     'pericd': 'period',
     'per1od': 'period',
+    'peri0d': 'period',
     'electricai': 'electrical',
     'electrlcal': 'electrical',
     'electrica1': 'electrical',
+    'eleclrical': 'electrical',
+    'electricol': 'electrical',
     'c1vil': 'civil',
     'civll': 'civil',
     'maintenace': 'maintenance',
     'maintainence': 'maintenance',
     'maintenanoe': 'maintenance',
+    'mainlenance': 'maintenance',
+    'rnaintenance': 'maintenance',
     'providng': 'providing',
     'provlding': 'providing',
     'provid1ng': 'providing',
+    'ptoviding': 'providing',
     'generatar': 'generator',
     'generater': 'generator',
     'generat0r': 'generator',
@@ -1202,11 +1218,55 @@ _DOMAIN_CORRECTIONS = {
     'annua1': 'annual',
     'forwaroing': 'forwarding',
     'forwardlng': 'forwarding',
+    'lorwarding': 'forwarding',
+    'forwardmg': 'forwarding',
+    # Measurement / Bill terms
+    'measurernent': 'measurement',
+    'measuremenl': 'measurement',
+    'rneasurement': 'measurement',
+    'abslract': 'abstract',
+    'absiract': 'abstract',
+    'abstracl': 'abstract',
+    'scheduie': 'schedule',
+    'schedu1e': 'schedule',
+    'scbedule': 'schedule',
+    # Government office terms
+    'superintending': 'superintending',
+    'superintendlng': 'superintending',
+    'superlntending': 'superintending',
+    'execulive': 'executive',
+    'executlve': 'executive',
+    'execut1ve': 'executive',
+    'asslstant': 'assistant',
+    'assislant': 'assistant',
+    'assistanl': 'assistant',
+    'depariment': 'department',
+    'departmenl': 'department',
+    'deparlment': 'department',
+    'governrnent': 'government',
+    'governmenl': 'government',
+    'governmenf': 'government',
+    'govemment': 'government',
+    # Work slip / FW slip
+    'workslip': 'workslip',
+    'worksllp': 'workslip',
+    'worksl1p': 'workslip',
+    'supplying': 'supplying',
+    'supplylng': 'supplying',
+    'instailation': 'installation',
+    'installalion': 'installation',
+    'installatlon': 'installation',
+    'cornmissioning': 'commissioning',
+    'commissloning': 'commissioning',
+    'commencement': 'commencement',
+    'commencemenl': 'commencement',
+    'cornmencement': 'commencement',
     # NIT/Agreement patterns
     'NlT': 'NIT',
     'N1T': 'NIT',
     'Agreernent': 'Agreement',
     'Agreemen+': 'Agreement',
+    'Agreemenl': 'Agreement',
     # Common unit errors
     'Rs,': 'Rs.',
     'Rs ': 'Rs.',
@@ -1254,27 +1314,53 @@ def _fix_ocr_text(text):
     """Apply character-level OCR fixes and clean common artifacts."""
     if not text:
         return text
-    
+
     # Apply character fixes
     for wrong, correct in _OCR_CHAR_FIXES.items():
         text = text.replace(wrong, correct)
-    
+
     # Fix common OCR patterns
     text = re.sub(r'\bRs\s*[.,]\s*', 'Rs. ', text)  # Fix "Rs," or "Rs ." to "Rs. "
-    text = re.sub(r'\b0f\b', 'of', text, flags=re.I)  # 0f → of
-    text = re.sub(r'\b1n\b', 'in', text, flags=re.I)  # 1n → in
+    text = re.sub(r'\b0f\b', 'of', text, flags=re.I)  # 0f -> of
+    text = re.sub(r'\b1n\b', 'in', text, flags=re.I)  # 1n -> in
     text = re.sub(r'\bthe\s+the\b', 'the', text, flags=re.I)  # Remove duplicate "the the"
-    text = re.sub(r'\btbe\b', 'the', text, flags=re.I)  # tbe → the
-    text = re.sub(r'\bvvork\b', 'work', text, flags=re.I)  # vvork → work
-    text = re.sub(r'\bworK\b', 'work', text, flags=re.I)  # worK → work
-    
+    text = re.sub(r'\btbe\b', 'the', text, flags=re.I)  # tbe -> the
+    text = re.sub(r'\bvvork\b', 'work', text, flags=re.I)  # vvork -> work
+    text = re.sub(r'\bworK\b', 'work', text, flags=re.I)  # worK -> work
+    text = re.sub(r'\bWorK\b', 'Work', text)
+    text = re.sub(r'\bNarne\b', 'Name', text)  # Narne -> Name
+    text = re.sub(r'\bnarne\b', 'name', text, flags=re.I)
+    text = re.sub(r'\bNurnber\b', 'Number', text)  # Nurnber -> Number
+    text = re.sub(r'\bnurnber\b', 'number', text, flags=re.I)
+    text = re.sub(r'\bOfficer\b', 'Officer', text)
+    text = re.sub(r'\bOfficei\b', 'Officer', text)
+    text = re.sub(r'\bEngineer\b', 'Engineer', text)
+    text = re.sub(r'\bEngineel\b', 'Engineer', text)
+    text = re.sub(r'\bEngineei\b', 'Engineer', text)
+    text = re.sub(r'\bDivision\b', 'Division', text)
+    text = re.sub(r'\bDivlsion\b', 'Division', text, flags=re.I)
+    text = re.sub(r'\bDiv1sion\b', 'Division', text, flags=re.I)
+
     # Fix number/letter confusions in specific contexts
     text = re.sub(r'(\d),(\d{3})', r'\1,\2', text)  # Ensure proper comma in numbers
     text = re.sub(r'Rs\.?\s*([0-9,]+)\s*/-', r'Rs. \1/-', text)  # Standardize Rs format
-    
+
+    # Fix common line-joining artifacts: join lines that start with lowercase
+    # (OCR sometimes breaks words across lines)
+    lines = text.split('\n')
+    fixed_lines = []
+    for i, line in enumerate(lines):
+        if line and i > 0 and fixed_lines and line[0].islower() and not line.startswith(('http', 'www')):
+            # This line likely continues the previous one
+            if fixed_lines[-1] and not fixed_lines[-1].endswith(('-', ':')):
+                fixed_lines[-1] = fixed_lines[-1].rstrip() + ' ' + line.lstrip()
+                continue
+        fixed_lines.append(line)
+    text = '\n'.join(fixed_lines)
+
     # Apply domain corrections
     text = _apply_domain_corrections(text)
-    
+
     return text
 
 
@@ -1343,30 +1429,76 @@ def _extract_labels_from_source_file(uploaded_file):
     elif ext == "pdf":
         import logging
         logger = logging.getLogger(__name__)
-        
-        # First try PyPDF2 for text-based PDFs
+
+        # First try pdfplumber for text-based PDFs (much better than PyPDF2 for tables/columns)
         try:
-            import PyPDF2
-            uploaded_file.seek(0)  # Reset file pointer
-            reader = PyPDF2.PdfReader(uploaded_file)
-            for page in reader.pages:
-                txt = page.extract_text() or ""
-                # PDF text often has inconsistent spacing/newlines
-                for ln in txt.splitlines():
-                    ln = ln.strip()
-                    if ln:
-                        # Handle cases where multiple fields are on one line
-                        if ':' in ln and len(ln) > 50:
-                            parts = re.split(r'(?<=[a-zA-Z])\s*:\s*(?=[A-Z])', ln)
-                            if len(parts) > 1:
-                                for p in parts:
-                                    if p.strip():
-                                        lines.append(p.strip())
+            import pdfplumber
+            uploaded_file.seek(0)
+            with pdfplumber.open(uploaded_file) as pdf:
+                for page in pdf.pages:
+                    # Extract tables first (structured data)
+                    tables = page.extract_tables() or []
+                    table_text_added = False
+                    for table in tables:
+                        for row in table:
+                            if not row:
                                 continue
-                        lines.append(ln)
+                            cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+                            if not cells:
+                                continue
+                            # 2-column table: try label: value format
+                            if len(cells) == 2:
+                                label = cells[0].lower()
+                                if any(x in label for x in ['name', 'work', 'sanction', 'amount', 'contractor',
+                                                              'nit', 'estimate', 'period', 'address', 'premium',
+                                                              'agreement', 'bond', 'agency', 'mb ', 'date',
+                                                              'tender', 'completion', 'order', 'commencement']):
+                                    lines.append(f"{cells[0]}: {cells[1]}")
+                                else:
+                                    lines.append(" ".join(cells))
+                            else:
+                                lines.append(" ".join(cells))
+                            table_text_added = True
+
+                    # Also extract non-table text
+                    txt = page.extract_text() or ""
+                    for ln in txt.splitlines():
+                        ln = ln.strip()
+                        if ln:
+                            # Handle cases where multiple fields are on one line
+                            if ':' in ln and len(ln) > 50:
+                                parts = re.split(r'(?<=[a-zA-Z])\s*:\s*(?=[A-Z])', ln)
+                                if len(parts) > 1:
+                                    for p in parts:
+                                        if p.strip():
+                                            lines.append(p.strip())
+                                    continue
+                            lines.append(ln)
+            logger.info(f"pdfplumber extracted {len(lines)} lines from PDF")
+        except ImportError:
+            # Fallback to PyPDF2 if pdfplumber not available
+            try:
+                import PyPDF2
+                uploaded_file.seek(0)
+                reader = PyPDF2.PdfReader(uploaded_file)
+                for page in reader.pages:
+                    txt = page.extract_text() or ""
+                    for ln in txt.splitlines():
+                        ln = ln.strip()
+                        if ln:
+                            if ':' in ln and len(ln) > 50:
+                                parts = re.split(r'(?<=[a-zA-Z])\s*:\s*(?=[A-Z])', ln)
+                                if len(parts) > 1:
+                                    for p in parts:
+                                        if p.strip():
+                                            lines.append(p.strip())
+                                    continue
+                            lines.append(ln)
+            except Exception as e:
+                logger.warning(f"PyPDF2 extraction failed: {e}")
         except Exception as e:
-            logger.warning(f"PyPDF2 extraction failed: {e}")
-        
+            logger.warning(f"pdfplumber extraction failed: {e}")
+
         # If no text extracted or very little text, try OCR for scanned/blurred PDFs
         if len(lines) < 3:
             try:
@@ -1378,8 +1510,8 @@ def _extract_labels_from_source_file(uploaded_file):
                 uploaded_file.seek(0)
                 pdf_bytes = uploaded_file.read()
 
-                # Convert PDF pages to images at 300 DPI for better OCR accuracy
-                images = convert_from_bytes(pdf_bytes, dpi=300)
+                # Convert PDF pages to images at 400 DPI for better OCR accuracy
+                images = convert_from_bytes(pdf_bytes, dpi=400)
 
                 ocr_lines = []
 
