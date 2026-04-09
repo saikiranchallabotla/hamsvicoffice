@@ -612,7 +612,7 @@
                         {% endif %}
                         <td class="rate-col">₹{{ row.rate|floatformat:2 }}</td>
                         {% if bill_preview_number > 1 %}
-                        <td class="deduct-col" id="deduct-{{ row.key }}">0.00</td>
+                        <td class="deduct-col" id="deduct-{{ row.key }}">0</td>
                         {% endif %}
                         <td class="amt-col" id="amt-{{ row.key }}">₹{{ row.amount|floatformat:2 }}</td>
                     </tr>
@@ -647,7 +647,7 @@
                 var key = row.getAttribute('data-row-key');
                 var deductCell = document.getElementById('deduct-' + key);
                 if (deductCell && prevQtyMap[key]) {
-                    deductCell.textContent = parseFloat(prevQtyMap[key]).toFixed(2);
+                    deductCell.textContent = parseFloat(prevQtyMap[key]);
                 }
             });
             recalcAllBillRows();
@@ -664,7 +664,7 @@
             var amount = netQty * rate;
 
             var deductCell = document.getElementById('deduct-' + key);
-            if (deductCell) deductCell.textContent = parseFloat(deductQty).toFixed(2);
+            if (deductCell) deductCell.textContent = parseFloat(deductQty);
 
             var amtCell = document.getElementById('amt-' + key);
             if (amtCell) amtCell.textContent = '₹' + amount.toFixed(2);
