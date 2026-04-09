@@ -114,9 +114,35 @@
     /* Placeholder Rows */
     .placeholder-row {
         display: grid;
-        grid-template-columns: 1fr 1fr 28px;
+        grid-template-columns: 1fr 1fr auto 28px;
         gap: 0.35rem;
         margin-bottom: 0.35rem;
+        align-items: center;
+    }
+
+    .ph-live-preview {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.15rem 0.35rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        font-weight: 600;
+        font-family: monospace;
+        cursor: pointer;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.2s;
+        border: none;
+    }
+    .ph-live-preview.visible { opacity: 1; }
+    .ph-live-preview:hover { filter: brightness(1.1); }
+    .ph-live-preview .copied-flash {
+        display: none;
+        color: #86efac;
+        font-size: 0.55rem;
     }
     
     .btn-remove-row {
@@ -344,7 +370,7 @@
         font-style: italic;
     }
     
-    /* Help Popup */
+    /* Help Panel (slide-out) */
     .help-overlay {
         display: none;
         position: fixed;
@@ -353,76 +379,140 @@
         z-index: 999;
     }
     .help-overlay.show { display: block; }
-    
+
     .help-popup {
         display: none;
         position: fixed;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -50%);
+        top: 0; right: 0; bottom: 0;
+        width: 400px;
+        max-width: 90vw;
         background: white;
-        border-radius: 10px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        box-shadow: -5px 0 30px rgba(0,0,0,0.15);
         z-index: 1000;
-        max-width: 480px;
-        width: 90%;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
     }
-    .help-popup.show { display: block; }
-    
+    .help-popup.show { display: flex; flex-direction: column; transform: translateX(0); }
+
     .help-popup-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 0.6rem 0.8rem;
-        border-radius: 10px 10px 0 0;
+        padding: 0.75rem 1rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
         font-size: 0.85rem;
         font-weight: 600;
+        flex-shrink: 0;
     }
-    
+
     .help-popup-close {
         background: rgba(255,255,255,0.2);
         border: none;
         color: white;
-        width: 24px; height: 24px;
+        width: 28px; height: 28px;
         border-radius: 50%;
         cursor: pointer;
+        font-size: 1rem;
     }
-    
+
     .help-popup-body {
         padding: 0.75rem;
-        max-height: 350px;
+        flex: 1;
         overflow-y: auto;
     }
-    
-    .placeholder-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.4rem;
-    }
-    
-    .placeholder-chip {
+
+    .help-hint {
+        font-size: 0.68rem;
+        color: #718096;
+        margin-bottom: 0.6rem;
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        padding: 0.4rem 0.6rem;
-        background: #f7fafc;
-        border-radius: 6px;
-        border: 1px solid #e2e8f0;
+        gap: 0.3rem;
     }
-    
+
+    .ph-category {
+        margin-bottom: 0.6rem;
+    }
+
+    .ph-category-title {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #4a5568;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.3rem;
+        padding-bottom: 0.2rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .placeholder-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+    }
+
+    .placeholder-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.5rem;
+        background: #f7fafc;
+        border-radius: 5px;
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        transition: all 0.15s;
+        position: relative;
+    }
+    .placeholder-chip:hover {
+        border-color: #667eea;
+        background: #f0f0ff;
+    }
+    .placeholder-chip:active {
+        background: #e0ffe0;
+        border-color: #38a169;
+    }
+
     .placeholder-chip code {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 0.15rem 0.4rem;
-        border-radius: 4px;
-        font-size: 0.62rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-size: 0.58rem;
         font-weight: 600;
     }
-    
-    .placeholder-chip span {
+
+    .placeholder-chip .ph-desc {
         color: #4a5568;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
+    }
+
+    .placeholder-chip .ph-copy-icon {
+        color: #a0aec0;
+        font-size: 0.6rem;
+        transition: color 0.15s;
+    }
+    .placeholder-chip:hover .ph-copy-icon { color: #667eea; }
+
+    .ph-copied-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #38a169;
+        color: white;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        z-index: 9999;
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: all 0.2s;
+        pointer-events: none;
+    }
+    .ph-copied-toast.show {
+        opacity: 1;
+        transform: translateY(0);
     }
     
     .hidden-textarea { display: none; }
@@ -478,11 +568,12 @@
                 
                 <div class="sf-row">
                     <div class="sf-row-title"><span class="num">3</span> Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></div>
-                    
+                    <p class="sf-hint" style="margin-bottom:0.3rem;">Name your placeholder + write the label text to find in source file</p>
                     <div id="placeholder-rows">
                         <div class="placeholder-row">
-                            <input type="text" class="sf-input ph-name" placeholder="Placeholder name">
-                            <input type="text" class="sf-input ph-label" placeholder="Label to find">
+                            <input type="text" class="sf-input ph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
+                            <input type="text" class="sf-input ph-label" placeholder="e.g. Name of Division">
+                            <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
                             <button type="button" class="btn-remove-row" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
                         </div>
                     </div>
@@ -545,11 +636,12 @@
                 
                 <div class="sf-row">
                     <label class="sf-label">Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></label>
-                    
+                    <p class="sf-hint" style="margin-bottom:0.3rem;">Name your placeholder + write the label text to find in source file</p>
                     <div id="format-placeholder-rows">
                         <div class="placeholder-row">
-                            <input type="text" class="sf-input fph-name" placeholder="Placeholder name">
-                            <input type="text" class="sf-input fph-label" placeholder="Label to find">
+                            <input type="text" class="sf-input fph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
+                            <input type="text" class="sf-input fph-label" placeholder="e.g. Name of Division">
+                            <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
                             <button type="button" class="btn-remove-row" onclick="removeFormatRow(this)"><i class="bi bi-x"></i></button>
                         </div>
                     </div>
@@ -759,28 +851,99 @@ dialog::backdrop {
     </div>
 </div>
 
-<!-- Help Popup -->
+<!-- Copied Toast -->
+<div class="ph-copied-toast" id="ph-copied-toast">Copied!</div>
+
+<!-- Help Panel (slide-out) -->
 <div class="help-overlay" id="help-overlay" onclick="toggleHelpPopup()"></div>
 <div class="help-popup" id="help-popup">
     <div class="help-popup-header">
-        <span><i class="bi bi-lightbulb me-1"></i> Built-in Placeholders</span>
+        <span><i class="bi bi-lightbulb me-1"></i> All Placeholders</span>
         <button class="help-popup-close" onclick="toggleHelpPopup()"><i class="bi bi-x"></i></button>
     </div>
     <div class="help-popup-body">
-        <p style="font-size:0.72rem;color:#718096;margin-bottom:0.5rem;">These are automatically detected from your source file (Forwarding Slip, Estimate, Bill, etc.):</p>
-        <div class="placeholder-grid">
-            <div class="placeholder-chip"><code>{% verbatim %}{{NAME_OF_WORK}}{% endverbatim %}</code><span>Work Name</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{AMOUNT}}{% endverbatim %}</code><span>Total Amount</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{ESTIMATE_AMOUNT}}{% endverbatim %}</code><span>Estimate Amount</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{AMOUNT_IN_WORDS}}{% endverbatim %}</code><span>In Words</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{NAME_OF_AGENCY}}{% endverbatim %}</code><span>Agency/Contractor</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{CONTRACTOR}}{% endverbatim %}</code><span>Contractor Name</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{ADMIN_SANCTION}}{% endverbatim %}</code><span>Admin Sanction</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{TECH_SANCTION}}{% endverbatim %}</code><span>Tech Sanction</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{MB_DETAILS}}{% endverbatim %}</code><span>MB Details</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{EST_GRAND_TOTAL}}{% endverbatim %}</code><span>Estimate Total</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{REF_OF_AGREEMENT}}{% endverbatim %}</code><span>Agreement/Bond No</span></div>
-            <div class="placeholder-chip"><code>{% verbatim %}{{TP_DETAILS}}{% endverbatim %}</code><span>T.P. Details</span></div>
+        <p class="help-hint"><i class="bi bi-info-circle"></i> Click any placeholder to copy it. Paste into your template file.</p>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Work Details</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{NAME_OF_WORK}}{% endverbatim %}</code><span class="ph-desc">Work Name</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{CC_HEADER}}{% endverbatim %}</code><span class="ph-desc">Bill Type</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Amount</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{AMOUNT}}{% endverbatim %}</code><span class="ph-desc">Total (formatted)</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{TOTAL_AMOUNT}}{% endverbatim %}</code><span class="ph-desc">Total Amount</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{AMOUNT_RAW}}{% endverbatim %}</code><span class="ph-desc">Raw Number</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{AMOUNT_WITH_RS}}{% endverbatim %}</code><span class="ph-desc">With Rs. Prefix</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{AMOUNT_IN_WORDS}}{% endverbatim %}</code><span class="ph-desc">In Words</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{ESTIMATE_AMOUNT}}{% endverbatim %}</code><span class="ph-desc">Estimate Amount</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{EST_GRAND_TOTAL}}{% endverbatim %}</code><span class="ph-desc">Estimate Grand Total</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Sanctions</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{ADMIN_SANCTION}}{% endverbatim %}</code><span class="ph-desc">Admin Sanction Ref</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{TECH_SANCTION}}{% endverbatim %}</code><span class="ph-desc">Tech Sanction Ref</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{ADMIN_SANCTION_AMOUNT}}{% endverbatim %}</code><span class="ph-desc">Admin Sanction Amt</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{TECH_SANCTION_AMOUNT}}{% endverbatim %}</code><span class="ph-desc">Tech Sanction Amt</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Agency / Contractor</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{NAME_OF_AGENCY}}{% endverbatim %}</code><span class="ph-desc">Agency Name</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{CONTRACTOR}}{% endverbatim %}</code><span class="ph-desc">Contractor</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{NAME_OF_CONTRACTOR}}{% endverbatim %}</code><span class="ph-desc">Contractor (Full)</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{CONTRACTOR_ADDRESS}}{% endverbatim %}</code><span class="ph-desc">Address</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Agreement / Tender</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{REF_OF_AGREEMENT}}{% endverbatim %}</code><span class="ph-desc">Agreement Ref</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{BOND_NO}}{% endverbatim %}</code><span class="ph-desc">Bond Number</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{NIT_NO}}{% endverbatim %}</code><span class="ph-desc">NIT Number</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{TENDER_NO}}{% endverbatim %}</code><span class="ph-desc">Tender Number</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{WORK_ORDER_NO}}{% endverbatim %}</code><span class="ph-desc">Work Order No</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{WORK_ORDER_DATE}}{% endverbatim %}</code><span class="ph-desc">Work Order Date</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Dates & Period</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{DATE_OF_COMMENCEMENT}}{% endverbatim %}</code><span class="ph-desc">Start Date</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{DATE_OF_COMPLETION}}{% endverbatim %}</code><span class="ph-desc">End Date</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{PERIOD_OF_COMPLETION}}{% endverbatim %}</code><span class="ph-desc">Period</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{STIPULATED_PERIOD}}{% endverbatim %}</code><span class="ph-desc">Stipulated Period</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Deposits</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{EARNEST_MONEY}}{% endverbatim %}</code><span class="ph-desc">Earnest Money</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{EMD}}{% endverbatim %}</code><span class="ph-desc">EMD</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{SECURITY_DEPOSIT}}{% endverbatim %}</code><span class="ph-desc">Security Deposit</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{SD}}{% endverbatim %}</code><span class="ph-desc">SD</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
+        </div>
+
+        <div class="ph-category">
+            <div class="ph-category-title">Other</div>
+            <div class="placeholder-grid">
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{MB_DETAILS}}{% endverbatim %}</code><span class="ph-desc">MB Details</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{TP_DETAILS}}{% endverbatim %}</code><span class="ph-desc">T.P. Details</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+                <div class="placeholder-chip" onclick="copyPH(this)"><code>{% verbatim %}{{TENDER_PREMIUM}}{% endverbatim %}</code><span class="ph-desc">Tender Premium</span><i class="bi bi-clipboard ph-copy-icon"></i></div>
+            </div>
         </div>
     </div>
 </div>
@@ -791,6 +954,62 @@ window.toggleHelpPopup = function() {
     document.getElementById('help-overlay').classList.toggle('show');
 };
 
+// --- Copy placeholder to clipboard ---
+var _copyToastTimer = null;
+window.copyPH = function(chip) {
+    var codeEl = chip.querySelector('code');
+    if (!codeEl) return;
+    var text = codeEl.textContent.trim();
+    navigator.clipboard.writeText(text).then(function() {
+        // Flash the chip green
+        chip.style.background = '#c6f6d5';
+        chip.style.borderColor = '#38a169';
+        setTimeout(function() { chip.style.background = ''; chip.style.borderColor = ''; }, 400);
+        // Show toast
+        var toast = document.getElementById('ph-copied-toast');
+        toast.textContent = 'Copied: ' + text;
+        toast.classList.add('show');
+        clearTimeout(_copyToastTimer);
+        _copyToastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1200);
+    }).catch(function() {
+        // Fallback: select and copy
+        var temp = document.createElement('textarea');
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        chip.style.background = '#c6f6d5';
+        setTimeout(function() { chip.style.background = ''; }, 400);
+    });
+};
+
+// --- Live preview for custom placeholder name inputs ---
+window.updateLivePreview = function(input) {
+    var row = input.closest('.placeholder-row');
+    var previewBtn = row ? row.querySelector('.ph-live-preview') : null;
+    if (!previewBtn) return;
+    var name = input.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    if (name) {
+        previewBtn.textContent = '{{' + name + '}}';
+        previewBtn.classList.add('visible');
+    } else {
+        previewBtn.textContent = '';
+        previewBtn.classList.remove('visible');
+    }
+};
+
+window.copyLivePreview = function(btn) {
+    var text = btn.textContent.trim();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function() {
+        var orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.style.background = '#38a169';
+        setTimeout(function() { btn.textContent = orig; btn.style.background = ''; }, 800);
+    }).catch(function() {});
+};
+
 {% verbatim %}
 (function(){
     // Generate form placeholder rows
@@ -799,38 +1018,40 @@ window.toggleHelpPopup = function() {
         const row = document.createElement('div');
         row.className = 'placeholder-row';
         row.innerHTML = `
-            <input type="text" class="sf-input ph-name" placeholder="Placeholder name">
-            <input type="text" class="sf-input ph-label" placeholder="Label to find">
+            <input type="text" class="sf-input ph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
+            <input type="text" class="sf-input ph-label" placeholder="e.g. Name of Division">
+            <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
             <button type="button" class="btn-remove-row" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
         `;
         container.appendChild(row);
     };
-    
+
     window.removeRow = function(btn) {
         const row = btn.closest('.placeholder-row');
         const container = document.getElementById('placeholder-rows');
         if (container.children.length > 1) row.remove();
-        else row.querySelectorAll('input').forEach(i => i.value = '');
+        else { row.querySelectorAll('input').forEach(i => i.value = ''); var lp = row.querySelector('.ph-live-preview'); if(lp){lp.textContent='';lp.classList.remove('visible');} }
     };
-    
+
     // Format form placeholder rows
     window.addFormatPlaceholderRow = function() {
         const container = document.getElementById('format-placeholder-rows');
         const row = document.createElement('div');
         row.className = 'placeholder-row';
         row.innerHTML = `
-            <input type="text" class="sf-input fph-name" placeholder="Placeholder name">
-            <input type="text" class="sf-input fph-label" placeholder="Label to find">
+            <input type="text" class="sf-input fph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
+            <input type="text" class="sf-input fph-label" placeholder="e.g. Name of Division">
+            <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
             <button type="button" class="btn-remove-row" onclick="removeFormatRow(this)"><i class="bi bi-x"></i></button>
         `;
         container.appendChild(row);
     };
-    
+
     window.removeFormatRow = function(btn) {
         const row = btn.closest('.placeholder-row');
         const container = document.getElementById('format-placeholder-rows');
         if (container.children.length > 1) row.remove();
-        else row.querySelectorAll('input').forEach(i => i.value = '');
+        else { row.querySelectorAll('input').forEach(i => i.value = ''); var lp = row.querySelector('.ph-live-preview'); if(lp){lp.textContent='';lp.classList.remove('visible');} }
     };
     
     function combinePlaceholders() {
@@ -969,9 +1190,10 @@ window.toggleHelpPopup = function() {
                 if (Object.keys(map).length === 0) {
                     table.innerText = 'No placeholders detected.';
                 } else {
-                    let html = '<table><tr><th>Placeholder</th><th>Value</th></tr>';
+                    let html = '<table><tr><th>Placeholder</th><th></th><th>Value</th></tr>';
                     for (const key of Object.keys(map)) {
-                        html += `<tr><td><code>{{${key}}}</code></td><td>${String(map[key])}</td></tr>`;
+                        const phText = `{{${key}}}`;
+                        html += `<tr><td><code>${phText}</code></td><td><button type="button" style="border:none;background:none;cursor:pointer;color:#667eea;font-size:0.7rem;padding:0 4px;" onclick="copyPH(this.closest('tr'))" title="Copy placeholder"><i class="bi bi-clipboard"></i></button></td><td>${String(map[key])}</td></tr>`;
                     }
                     html += '</table>';
                     table.innerHTML = html;
