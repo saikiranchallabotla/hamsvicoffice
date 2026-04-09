@@ -855,6 +855,7 @@
 
                     <div class="hub-bottom">
                         <a href="{% url 'saved_work_detail' work.id %}" class="hub-link"><i class="bi bi-eye"></i> Details</a>
+                        <button class="hub-link" onclick="renameWorkDirect({{ work.id }},'{{ work.name|escapejs }}')"><i class="bi bi-pencil"></i> Rename</button>
                         <button class="hub-link danger" onclick="deleteWorkDirect({{ work.id }},'{{ work.name|escapejs }}')"><i class="bi bi-trash"></i> Delete</button>
                     </div>
                 </div>
@@ -924,6 +925,10 @@
     </div>
     <div class="context-menu-item" onclick="duplicateSelectedWork()">
         <i class="bi bi-copy"></i> Duplicate
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="renameSelectedWork()">
+        <i class="bi bi-pencil"></i> Rename
     </div>
     <div class="context-menu-divider"></div>
     <div class="context-menu-item danger" onclick="deleteSelectedWork()">
@@ -1230,6 +1235,26 @@
         });
     }
 
+    function renameSelectedWork() {
+        appPrompt('Enter new name:', 'Rename Work', selectedWorkName).then(function(newName) {
+            if (!newName || !newName.trim() || newName.trim() === selectedWorkName) return;
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/${selectedWorkId}/update/`, {
+                method: 'POST',
+                body: new URLSearchParams({ name: newName.trim() }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to rename');
+            });
+        });
+    }
+
     function deleteSelectedWork() {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         fetch(`/saved-works/${selectedWorkId}/delete/`, {
@@ -1273,6 +1298,26 @@
             .then(data => {
                 if (data.success) location.reload();
                 else alert(data.error || 'Failed to delete');
+            });
+        });
+    }
+
+    function renameWorkDirect(workId, workName) {
+        appPrompt('Enter new name:', 'Rename Work', workName).then(function(newName) {
+            if (!newName || !newName.trim() || newName.trim() === workName) return;
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/saved-works/${workId}/update/`, {
+                method: 'POST',
+                body: new URLSearchParams({ name: newName.trim() }),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || 'Failed to rename');
             });
         });
     }

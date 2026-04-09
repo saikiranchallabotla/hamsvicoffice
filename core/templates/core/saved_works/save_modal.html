@@ -175,17 +175,54 @@ function loadSaveModalData() {
 function saveCurrentWork() {
     const form = document.getElementById('saveWorkForm');
     const formData = new FormData(form);
-    
+
+    const workName = formData.get('work_name').trim();
+    if (!workName) {
+        showToast('Please enter a work name', 'error');
+        return;
+    }
+
+    const folderId = formData.get('folder_id') || '';
+    const workId = formData.get('work_id') || '';
+
+    // Check for duplicate name before saving
+    const checkUrl = `/saved-works/check-name/?name=${encodeURIComponent(workName)}&folder_id=${encodeURIComponent(folderId)}&exclude_id=${encodeURIComponent(workId)}`;
+    fetch(checkUrl)
+        .then(res => res.json())
+        .then(data => {
+            if (data.exists) {
+                if (typeof appConfirm === 'function') {
+                    appConfirm(
+                        'A work named "' + workName + '" already exists in this folder. Save anyway?',
+                        'Duplicate Name',
+                        { type: 'warning', okText: 'Save Anyway' }
+                    ).then(function(ok) {
+                        if (ok) doSaveWork(form, formData);
+                    });
+                } else if (confirm('A work named "' + workName + '" already exists in this folder. Save anyway?')) {
+                    doSaveWork(form, formData);
+                }
+            } else {
+                doSaveWork(form, formData);
+            }
+        })
+        .catch(() => {
+            // If check fails, proceed with save
+            doSaveWork(form, formData);
+        });
+}
+
+function doSaveWork(form, formData) {
     const btn = document.getElementById('saveWorkBtn');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
     btn.disabled = true;
-    
+
     // Sync client-side data (quantities, entries) to session before saving
     const syncPromise = (typeof window.preSaveSync === 'function')
         ? Promise.resolve(window.preSaveSync())
         : Promise.resolve();
-    
+
     syncPromise.then(() => fetch('/saved-works/save/', {
         method: 'POST',
         body: formData,
@@ -197,20 +234,20 @@ function saveCurrentWork() {
     .then(data => {
         btn.innerHTML = originalText;
         btn.disabled = false;
-        
+
         if (data.success) {
             // Update the saved work ID for future saves
             document.getElementById('saveWorkId').value = data.work_id;
-            
+
             // Show success message
             showToast(data.message, 'success');
-            
+
             // Close modal
             bootstrap.Modal.getInstance(document.getElementById('saveWorkModal')).hide();
-            
+
             // Update button text
             document.getElementById('saveWorkBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Work';
-            
+
             // Show current work indicator
             showCurrentWorkIndicator(formData.get('work_name'));
         } else {

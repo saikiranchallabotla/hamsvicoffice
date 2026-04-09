@@ -1668,6 +1668,29 @@ def batch_action(request):
 # ==============================================================================
 
 @login_required(login_url='login')
+def check_work_name(request):
+    """Check if a work with the same name already exists in the given folder."""
+    org = get_org_from_request(request)
+    user = request.user
+    name = request.GET.get('name', '').strip()
+    folder_id = request.GET.get('folder_id', '') or None
+    exclude_id = request.GET.get('exclude_id', '') or None
+
+    if not name:
+        return JsonResponse({'exists': False})
+
+    qs = SavedWork.objects.filter(organization=org, user=user, name__iexact=name)
+    if folder_id:
+        qs = qs.filter(folder_id=folder_id)
+    else:
+        qs = qs.filter(folder__isnull=True)
+    if exclude_id:
+        qs = qs.exclude(id=exclude_id)
+
+    return JsonResponse({'exists': qs.exists()})
+
+
+@login_required(login_url='login')
 def get_save_work_modal_data(request):
     """Get data needed for save work modal (folders list, current work info)."""
     org = get_org_from_request(request)

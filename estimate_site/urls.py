@@ -89,6 +89,7 @@ urlpatterns = [
     path('saved-works/save/', saved_works_views.save_work, name='save_work'),
     path('saved-works/save-with-parent/', saved_works_views.save_with_parent, name='save_with_parent'),
     path('saved-works/modal-data/', saved_works_views.get_save_work_modal_data, name='get_save_work_modal_data'),
+    path('saved-works/check-name/', saved_works_views.check_work_name, name='check_work_name'),
     path('saved-works/<int:work_id>/', saved_works_views.saved_work_detail, name='saved_work_detail'),
     path('saved-works/<int:work_id>/resume/', saved_works_views.resume_saved_work, name='resume_saved_work'),
     path('saved-works/<int:work_id>/update/', saved_works_views.update_saved_work, name='update_saved_work'),
