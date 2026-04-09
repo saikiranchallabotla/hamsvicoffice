@@ -76,6 +76,11 @@ def datas(request):
     request.session["grand_total"] = ""
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
     request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
+    # Clear uploaded custom items
+    request.session["uploaded_items"] = []
+    request.session["uploaded_file_id"] = None
+    request.session["uploaded_item_blocks"] = {}
+    request.session["uploaded_sheet_name"] = ""
 
     mode = request.GET.get("work_type")
 
@@ -315,7 +320,22 @@ def datas_items(request, category, group):
         for nm in item_list_in_grp:
             item_to_group.setdefault(nm, grp_name)
 
+    # Merge uploaded item data from session (uploaded items aren't in backend)
+    uploaded_items_in_session = set(request.session.get('uploaded_items', []))
+    session_saved_rates = request.session.get('item_rates', {})
+    session_saved_units = request.session.get('item_units', {})
+    session_saved_descs = request.session.get('item_descs', {})
+    for uname in uploaded_items_in_session:
+        if uname not in item_rates:
+            item_rates[uname] = session_saved_rates.get(uname)
+        if uname not in item_descs:
+            item_descs[uname] = session_saved_descs.get(uname, uname)
+
     def units_for(name):
+        # Uploaded items: use saved session unit
+        if name in uploaded_items_in_session:
+            u = session_saved_units.get(name, 'Nos')
+            return (u, u)
         # First check backend_units_map (Column D from backend Excel)
         backend_unit = backend_units_map.get(name, "")
         if backend_unit:
@@ -456,6 +476,7 @@ def datas_items(request, category, group):
         "available_backends": available_backends,
         "selected_backend_id": selected_backend_id,
         "item_descs_json": json.dumps(item_descs),
+        "uploaded_items_json": json.dumps(list(uploaded_items_in_session)),
     })
 
 
@@ -530,7 +551,28 @@ def ajax_toggle_item(request, category):
                 action_taken = "added"
         
         request.session["fetched_items"] = fetched
-        
+
+        # If a removed item was an uploaded custom item, clean it from uploaded tracking
+        if action_taken == "removed":
+            uploaded = request.session.get("uploaded_items", [])
+            if item in uploaded:
+                uploaded.remove(item)
+                request.session["uploaded_items"] = uploaded
+                # Clean up associated data
+                for key in ("item_rates", "item_units", "item_descs"):
+                    d = request.session.get(key, {})
+                    if isinstance(d, dict):
+                        d.pop(item, None)
+                uploaded_blocks = request.session.get("uploaded_item_blocks", {})
+                if isinstance(uploaded_blocks, dict):
+                    uploaded_blocks.pop(item, None)
+                    request.session["uploaded_item_blocks"] = uploaded_blocks
+                # If no uploaded items left, clear the upload file reference
+                if not uploaded:
+                    request.session["uploaded_file_id"] = None
+                    request.session["uploaded_sheet_name"] = ""
+                request.session.modified = True
+
         if work_name is not None:
             request.session["work_name"] = work_name
         
@@ -647,6 +689,185 @@ def ajax_reorder_items(request, category):
         
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+# -----------------------
+# AJAX UPLOAD CUSTOM ITEMS
+# -----------------------
+@login_required(login_url='login')
+@require_POST
+def ajax_upload_custom_items(request, category):
+    """
+    AJAX endpoint to upload an Excel file containing custom item blocks.
+    Parses item blocks (yellow bg + red text) and adds them to the session
+    alongside any backend-selected items.
+    Returns JSON: { status, items: [{name, rate, unit, desc}], count, warnings }
+    """
+    from ..models import Upload
+    from .estimate_views import _extract_items_from_sheet, _determine_unit_from_heading
+
+    try:
+        uploaded_file = request.FILES.get('custom_items_file')
+        if not uploaded_file:
+            return JsonResponse({"status": "error", "message": "No file uploaded"}, status=400)
+
+        if uploaded_file.size == 0:
+            return JsonResponse({"status": "error", "message": "Uploaded file is empty"}, status=400)
+
+        if uploaded_file.size > 10 * 1024 * 1024:
+            return JsonResponse({"status": "error", "message": "File too large (max 10MB)"}, status=400)
+
+        if not uploaded_file.name.endswith('.xlsx'):
+            return JsonResponse({"status": "error", "message": "Only .xlsx files are supported"}, status=400)
+
+        org = get_org_from_request(request)
+
+        # Load workbook twice: formulas and values
+        uploaded_file.seek(0)
+        try:
+            wb_formulas = load_workbook(uploaded_file, data_only=False)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Failed to read Excel file: {e}"}, status=400)
+
+        uploaded_file.seek(0)
+        try:
+            wb_values = load_workbook(uploaded_file, data_only=True)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Failed to process Excel file: {e}"}, status=400)
+
+        # Read units from Groups sheet if available
+        upload_units_map = {}
+        try:
+            if "Groups" in wb_formulas.sheetnames:
+                from ..utils_excel import read_groups
+                _, upload_units_map = read_groups(wb_formulas["Groups"])
+        except Exception:
+            pass
+
+        # Find item blocks across all sheets
+        all_items = []          # [{name, rate, unit, desc}]
+        all_item_blocks = {}    # {name: [start_row, end_row]}
+        used_sheet_name = ""
+
+        for sheet_name in wb_formulas.sheetnames:
+            ws_src = wb_formulas[sheet_name]
+            fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
+            if not fetched_names:
+                continue
+
+            if not used_sheet_name:
+                used_sheet_name = sheet_name
+
+            ws_vals = wb_values[sheet_name]
+
+            for item_name in fetched_names:
+                src_min, src_max = item_blocks[item_name]
+
+                # Rate: last non-empty value in column J
+                rate = None
+                for r in range(src_max, src_min - 1, -1):
+                    v = ws_vals.cell(row=r, column=10).value
+                    if v not in (None, ""):
+                        try:
+                            rate = float(v)
+                        except (ValueError, TypeError):
+                            rate = None
+                        break
+
+                unit = _determine_unit_from_heading(item_name, upload_units_map)
+                desc = str(ws_src.cell(row=src_min + 2, column=4).value or "").strip()
+
+                all_items.append({
+                    "name": item_name,
+                    "rate": rate,
+                    "unit": unit,
+                    "desc": desc or item_name,
+                })
+                all_item_blocks[item_name] = [src_min, src_max]
+
+        if not all_items:
+            return JsonResponse({
+                "status": "error",
+                "message": "No item blocks found. Ensure item headers have yellow background and red text."
+            }, status=400)
+
+        # Remove old uploaded items from session if re-uploading
+        old_uploaded = set(request.session.get('uploaded_items', []))
+        if old_uploaded:
+            fetched = request.session.get('fetched_items', [])
+            request.session['fetched_items'] = [n for n in fetched if n not in old_uploaded]
+            for n in old_uploaded:
+                request.session.get('item_rates', {}).pop(n, None)
+                request.session.get('item_units', {}).pop(n, None)
+                request.session.get('item_descs', {}).pop(n, None)
+                request.session.get('qty_map', {}).pop(n, None)
+
+        # Detect name collisions with current backend items
+        current_backend_items = set(request.session.get('fetched_items', []))
+        warnings = []
+        new_items = []
+        for item in all_items:
+            if item["name"] in current_backend_items:
+                warnings.append(f"'{item['name']}' already selected from backend, skipped")
+            else:
+                new_items.append(item)
+
+        if not new_items:
+            return JsonResponse({
+                "status": "error",
+                "message": "All uploaded items already exist in your selection.",
+                "warnings": warnings,
+            }, status=400)
+
+        # Save uploaded file via Upload model for persistence
+        uploaded_file.seek(0)
+        upload_obj = Upload.objects.create(
+            organization=org,
+            user=request.user,
+            file=uploaded_file,
+            filename=uploaded_file.name,
+            file_size=uploaded_file.size,
+            status='completed',
+        )
+
+        # Merge into session
+        fetched = request.session.get('fetched_items', []) or []
+        item_rates = request.session.get('item_rates', {}) or {}
+        item_units = request.session.get('item_units', {}) or {}
+        item_descs = request.session.get('item_descs', {}) or {}
+
+        uploaded_names = []
+        for item in new_items:
+            name = item["name"]
+            fetched.append(name)
+            item_rates[name] = item["rate"]
+            item_units[name] = item["unit"]
+            item_descs[name] = item["desc"]
+            uploaded_names.append(name)
+
+        request.session['fetched_items'] = fetched
+        request.session['item_rates'] = item_rates
+        request.session['item_units'] = item_units
+        request.session['item_descs'] = item_descs
+
+        # Only keep blocks for items that were actually added (not skipped)
+        filtered_blocks = {n: all_item_blocks[n] for n in uploaded_names if n in all_item_blocks}
+
+        request.session['uploaded_items'] = uploaded_names
+        request.session['uploaded_file_id'] = upload_obj.id
+        request.session['uploaded_item_blocks'] = filtered_blocks
+        request.session['uploaded_sheet_name'] = used_sheet_name
+        request.session.modified = True
+
+        return JsonResponse({
+            "status": "ok",
+            "items": [i for i in new_items],
+            "count": len(new_items),
+            "warnings": warnings,
+        })
+
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 # -----------------------
@@ -799,6 +1020,13 @@ def download_output(request, category):
                 'ls_special_amount': ls_special_amount,
                 'deduct_old_material': deduct_old_material,
                 'backend_id': selected_backend_id,
+                # Uploaded custom items data for dual-source download
+                'uploaded_items': request.session.get('uploaded_items', []),
+                'uploaded_file_id': request.session.get('uploaded_file_id'),
+                'uploaded_item_blocks': request.session.get('uploaded_item_blocks', {}),
+                'uploaded_sheet_name': request.session.get('uploaded_sheet_name', ''),
+                'item_descs': request.session.get('item_descs', {}),
+                'item_units_saved': request.session.get('item_units', {}),
             }
             job.save()
             
@@ -886,9 +1114,16 @@ def download_output(request, category):
             'ls_special_amount': ls_special_amount,
             'deduct_old_material': deduct_old_material,
             'backend_id': selected_backend_id,
+            # Uploaded custom items data for dual-source download
+            'uploaded_items': request.session.get('uploaded_items', []),
+            'uploaded_file_id': request.session.get('uploaded_file_id'),
+            'uploaded_item_blocks': request.session.get('uploaded_item_blocks', {}),
+            'uploaded_sheet_name': request.session.get('uploaded_sheet_name', ''),
+            'item_descs': request.session.get('item_descs', {}),
+            'item_units_saved': request.session.get('item_units', {}),
         }
         job.save()
-        
+
         # Enqueue async task
         from core.tasks import generate_output_excel
         task = generate_output_excel.delay(
@@ -934,6 +1169,11 @@ def clear_output(request, category):
     request.session["unit_map"] = {}
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
+    # Clear uploaded custom items
+    request.session["uploaded_items"] = []
+    request.session["uploaded_file_id"] = None
+    request.session["uploaded_item_blocks"] = {}
+    request.session["uploaded_sheet_name"] = ""
 
     group = request.GET.get("group")
     if group:

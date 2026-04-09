@@ -99,7 +99,68 @@
     .panel-search input::placeholder {
         color: #a0aec0;
     }
-    
+
+    /* Upload Custom Items */
+    .upload-custom-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        padding: 0.4rem 0.5rem;
+        background: #fffbeb;
+        border: 1px dashed #d97706;
+        border-radius: 6px;
+    }
+    .btn-upload-custom {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.6rem;
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+    .btn-upload-custom:hover { opacity: 0.9; transform: translateY(-1px); }
+    .upload-status {
+        font-size: 0.68rem;
+        color: #92400e;
+        flex: 1;
+    }
+    .upload-status .count { font-weight: 700; }
+    .btn-clear-uploaded {
+        font-size: 0.65rem;
+        color: #dc2626;
+        background: none;
+        border: none;
+        cursor: pointer;
+        text-decoration: underline;
+        padding: 0;
+        white-space: nowrap;
+    }
+    .btn-clear-uploaded:hover { color: #991b1b; }
+    .uploaded-item td:first-child {
+        border-left: 3px solid #d97706 !important;
+    }
+    .uploaded-badge {
+        display: inline-block;
+        font-size: 0.55rem;
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.05rem 0.3rem;
+        border-radius: 3px;
+        font-weight: 600;
+        margin-left: 0.3rem;
+        vertical-align: middle;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
     /* Groups List */
     .groups-list {
         list-style: none;
@@ -847,6 +908,18 @@
                        placeholder="Enter work name..."
                        value="{{ work_name|default_if_none:'' }}">
 
+                <!-- Upload Custom Items -->
+                <div class="upload-custom-row" id="upload-custom-row">
+                    <input type="file" id="custom-items-file" accept=".xlsx" style="display:none">
+                    <button type="button" class="btn-upload-custom" onclick="document.getElementById('custom-items-file').click()">
+                        <i class="bi bi-upload"></i> Upload Custom Items
+                    </button>
+                    <span class="upload-status" id="upload-status"></span>
+                    <button type="button" class="btn-clear-uploaded" id="btn-clear-uploaded" style="display:none" onclick="clearUploadedItems()">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </div>
+
                 <div class="estimate-table-wrapper">
                     <table class="estimate-table" id="estimate-table">
                         <thead>
@@ -1586,7 +1659,144 @@ document.addEventListener('keydown', function(e) {
     }
     var ajaxToggleUrl = "{% url 'ajax_toggle_item' category %}";
     var ajaxReorderUrl = "{% url 'ajax_reorder_items' category %}";
+    var ajaxUploadUrl = "{% url 'ajax_upload_custom_items' category %}";
     var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+    // ========================================
+    // UPLOADED CUSTOM ITEMS TRACKING
+    // ========================================
+    var uploadedItemsSet = new Set({{ uploaded_items_json|safe }});
+
+    // On page load: mark existing uploaded items and update status
+    (function initUploadedUI() {
+        if (uploadedItemsSet.size > 0) {
+            uploadedItemsSet.forEach(function(name) {
+                var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + escapeCssSelector(name) + '"]');
+                if (row) {
+                    row.classList.add('uploaded-item');
+                    var descSpan = row.querySelector('.item-text');
+                    if (descSpan && !descSpan.querySelector('.uploaded-badge')) {
+                        descSpan.insertAdjacentHTML('afterend', '<span class="uploaded-badge">Custom</span>');
+                    }
+                }
+            });
+            var statusEl = document.getElementById('upload-status');
+            var clearBtn = document.getElementById('btn-clear-uploaded');
+            if (statusEl) statusEl.innerHTML = '<span class="count">' + uploadedItemsSet.size + '</span> custom item(s) loaded';
+            if (clearBtn) clearBtn.style.display = '';
+        }
+    })();
+
+    // Handle file selection for custom items upload
+    document.getElementById('custom-items-file').addEventListener('change', function(e) {
+        if (!this.files || !this.files.length) return;
+        var file = this.files[0];
+        if (!file.name.endsWith('.xlsx')) {
+            alert('Please select a .xlsx file');
+            this.value = '';
+            return;
+        }
+        handleCustomItemUpload(file);
+        this.value = '';
+    });
+
+    function handleCustomItemUpload(file) {
+        var statusEl = document.getElementById('upload-status');
+        var clearBtn = document.getElementById('btn-clear-uploaded');
+        var uploadBtn = document.querySelector('.btn-upload-custom');
+
+        statusEl.innerHTML = '<i class="bi bi-hourglass-split"></i> Uploading...';
+        if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.6'; }
+
+        var formData = new FormData();
+        formData.append('custom_items_file', file);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(ajaxUploadUrl, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+        .then(function(response) { return response.json().then(function(data) { return {ok: response.ok, data: data}; }); })
+        .then(function(result) {
+            if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.style.opacity = ''; }
+
+            if (!result.ok) {
+                statusEl.innerHTML = '<span style="color:#dc2626"><i class="bi bi-exclamation-triangle"></i> ' + escapeHtml(result.data.message || 'Upload failed') + '</span>';
+                return;
+            }
+
+            var data = result.data;
+
+            // Remove old uploaded items from table before adding new ones
+            uploadedItemsSet.forEach(function(name) {
+                var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + escapeCssSelector(name) + '"]');
+                if (row) row.remove();
+            });
+            uploadedItemsSet.clear();
+
+            // Add new items to estimate table
+            data.items.forEach(function(item) {
+                addItemToTable(item.name, {rate: item.rate, unit: item.unit});
+                uploadedItemsSet.add(item.name);
+                // Mark the row as uploaded
+                var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + escapeCssSelector(item.name) + '"]');
+                if (row) {
+                    row.classList.add('uploaded-item');
+                    var descSpan = row.querySelector('.item-text');
+                    if (descSpan && !descSpan.querySelector('.uploaded-badge')) {
+                        descSpan.insertAdjacentHTML('afterend', '<span class="uploaded-badge">Custom</span>');
+                    }
+                }
+            });
+
+            updateSerialNumbers();
+            recalcTotal();
+
+            statusEl.innerHTML = '<span class="count">' + data.count + '</span> custom item(s) added';
+            if (clearBtn) clearBtn.style.display = '';
+
+            // Show warnings if any
+            if (data.warnings && data.warnings.length) {
+                statusEl.innerHTML += '<br><span style="color:#b45309;font-size:0.6rem">' + data.warnings.join('; ') + '</span>';
+            }
+        })
+        .catch(function(err) {
+            if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.style.opacity = ''; }
+            statusEl.innerHTML = '<span style="color:#dc2626"><i class="bi bi-exclamation-triangle"></i> Upload failed</span>';
+            console.error('Upload error:', err);
+        });
+    }
+
+    function clearUploadedItems() {
+        uploadedItemsSet.forEach(function(name) {
+            removeItemFromTable(name);
+            // Also remove from session via AJAX toggle
+            fetch(ajaxToggleUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ item: name, action: 'remove' })
+            }).catch(function() {});
+        });
+        uploadedItemsSet.clear();
+        updateSerialNumbers();
+        recalcTotal();
+        var statusEl = document.getElementById('upload-status');
+        var clearBtn = document.getElementById('btn-clear-uploaded');
+        if (statusEl) statusEl.innerHTML = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        // Clear uploaded session keys by posting empty upload state
+        fetch(saveQtyMapUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: new URLSearchParams({
+                qty_map: JSON.stringify(buildQtyMap()),
+                unit_map: JSON.stringify(buildUnitMapLocal()),
+                work_name: document.getElementById('work-name-input') ? document.getElementById('work-name-input').value : '',
+                grand_total: document.getElementById('grand-total-input') ? document.getElementById('grand-total-input').value : '',
+            })
+        }).catch(function() {});
+    }
     
     // ========================================
     // QUEUED ITEM FETCH SYSTEM
@@ -2428,7 +2638,21 @@ document.addEventListener('keydown', function(e) {
     window.deleteItemFromPreview = function(itemName) {
         // Remove from table
         removeItemFromTable(itemName);
-        
+
+        // Track uploaded items removal
+        if (uploadedItemsSet.has(itemName)) {
+            uploadedItemsSet.delete(itemName);
+            if (uploadedItemsSet.size === 0) {
+                var statusEl = document.getElementById('upload-status');
+                var clearBtn = document.getElementById('btn-clear-uploaded');
+                if (statusEl) statusEl.innerHTML = '';
+                if (clearBtn) clearBtn.style.display = 'none';
+            } else {
+                var statusEl = document.getElementById('upload-status');
+                if (statusEl) statusEl.innerHTML = '<span class="count">' + uploadedItemsSet.size + '</span> custom item(s) loaded';
+            }
+        }
+
         // Update serial numbers
         updateSerialNumbers();
         

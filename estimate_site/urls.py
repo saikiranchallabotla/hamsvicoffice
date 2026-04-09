@@ -183,6 +183,7 @@ urlpatterns = [
     # AJAX endpoints for New Estimate module (queued item selection & drag-drop reorder)
     path('datas/<str:category>/ajax_toggle_item/', views.ajax_toggle_item, name='ajax_toggle_item'),
     path('datas/<str:category>/ajax_reorder_items/', views.ajax_reorder_items, name='ajax_reorder_items'),
+    path('datas/<str:category>/ajax_upload_custom_items/', views.ajax_upload_custom_items, name='ajax_upload_custom_items'),
 
     # -------------------------
     # Bill document routes

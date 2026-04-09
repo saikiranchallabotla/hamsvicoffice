@@ -1036,6 +1036,11 @@ def collect_work_data(request, work_type):
             'item_units': request.session.get('item_units', {}),
             'item_descs': request.session.get('item_descs', {}),
             'estimate_source': request.session.get('estimate_source', ''),
+            # Uploaded custom items data
+            'uploaded_items': request.session.get('uploaded_items', []),
+            'uploaded_file_id': request.session.get('uploaded_file_id'),
+            'uploaded_item_blocks': request.session.get('uploaded_item_blocks', {}),
+            'uploaded_sheet_name': request.session.get('uploaded_sheet_name', ''),
             # Estimate-level metadata: header fields unique to each work
             'estimate_metadata': request.session.get('estimate_metadata', {
                 'admin_sanction': '',
@@ -1267,6 +1272,11 @@ def restore_work_data(request, saved_work):
         request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
         # Restore estimate source (uploaded vs datas)
         request.session['estimate_source'] = work_data.get('estimate_source', '')
+        # Restore uploaded custom items data
+        request.session['uploaded_items'] = work_data.get('uploaded_items', [])
+        request.session['uploaded_file_id'] = work_data.get('uploaded_file_id')
+        request.session['uploaded_item_blocks'] = work_data.get('uploaded_item_blocks', {})
+        request.session['uploaded_sheet_name'] = work_data.get('uploaded_sheet_name', '')
         # Force session save
         request.session.modified = True
     
@@ -1351,8 +1361,8 @@ def get_module_url(saved_work):
     work_data = saved_work.work_data or {}
     
     if work_type == 'new_estimate':
-        # Uploaded estimates go to the preview page
-        if work_data.get('estimate_source') == 'uploaded':
+        # Old estimate module uploads (no uploaded_items key) go to estimate_preview
+        if work_data.get('estimate_source') == 'uploaded' and not work_data.get('uploaded_items'):
             return reverse('estimate_preview')
         # If we have a last group saved, redirect to that group's items page
         last_group = work_data.get('last_group', '')

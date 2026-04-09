@@ -479,17 +479,41 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             else:
                 fetched.append(str(item))
         fetched = [n for n in fetched if n]
-        
+
+        # Load uploaded custom items data (for dual-source support)
+        uploaded_items_list = job.result.get('uploaded_items', []) if job.result else []
+        uploaded_items_set = set(uploaded_items_list)
+        uploaded_file_id = job.result.get('uploaded_file_id') if job.result else None
+        uploaded_item_blocks = job.result.get('uploaded_item_blocks', {}) if job.result else {}
+        uploaded_sheet_name = job.result.get('uploaded_sheet_name', '') if job.result else ''
+        saved_item_descs = job.result.get('item_descs', {}) if job.result else {}
+        saved_item_units = job.result.get('item_units_saved', {}) if job.result else {}
+
+        # Load uploaded workbook if needed
+        ws_upload_src = None
+        if uploaded_items_set and uploaded_file_id:
+            try:
+                upload_obj = Upload.objects.get(id=uploaded_file_id)
+                upload_data = upload_obj.file.read()
+                upload_obj.file.seek(0)
+                wb_upload = load_workbook(BytesIO(upload_data), data_only=False)
+                if uploaded_sheet_name and uploaded_sheet_name in wb_upload.sheetnames:
+                    ws_upload_src = wb_upload[uploaded_sheet_name]
+                else:
+                    ws_upload_src = wb_upload.worksheets[0]
+            except Exception as e:
+                logger.warning(f"Job {job_id}: Could not load uploaded file (id={uploaded_file_id}): {e}")
+
         # Log items found vs missing for debugging
-        missing_items = [name for name in fetched if name not in name_to_info]
-        if missing_items:
-            logger.warning(f"Job {job_id}: {len(missing_items)} items not found in backend: {missing_items[:5]}{'...' if len(missing_items) > 5 else ''}")
-        logger.info(f"Job {job_id}: Processing {len(fetched)} fetched items, {len(fetched) - len(missing_items)} found in backend")
-        
+        backend_missing = [name for name in fetched if name not in name_to_info and name not in uploaded_items_set]
+        if backend_missing:
+            logger.warning(f"Job {job_id}: {len(backend_missing)} items not found in backend or upload: {backend_missing[:5]}{'...' if len(backend_missing) > 5 else ''}")
+        logger.info(f"Job {job_id}: Processing {len(fetched)} fetched items ({len(uploaded_items_set)} uploaded)")
+
         job.progress = 30
         job.current_step = "Building Output sheet..."
         job.save()
-        
+
         # Create workbook
         wb = Workbook()
         ws_out = wb.active
@@ -511,30 +535,41 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         rate_pos = {}
         data_serial = 1
 
-        # Build Output sheet
+        # Build Output sheet (dual-source: backend + uploaded items)
         for idx, name in enumerate(fetched):
             if idx % max(1, len(fetched) // 5) == 0:
                 job.progress = 30 + int((idx / len(fetched)) * 40)
                 job.save()
-            
-            info = name_to_info.get(name)
-            if not info:
-                continue
-            
-            src_min = info["start_row"]
-            src_max = info["end_row"]
-            
+
+            is_uploaded = name in uploaded_items_set
+
+            if is_uploaded:
+                # Use uploaded workbook as source
+                block = uploaded_item_blocks.get(name)
+                if not block or not ws_upload_src:
+                    continue
+                src_min, src_max = block[0], block[1]
+                src_ws = ws_upload_src
+            else:
+                # Use backend workbook as source
+                info = name_to_info.get(name)
+                if not info:
+                    continue
+                src_min = info["start_row"]
+                src_max = info["end_row"]
+                src_ws = ws_src
+
             rate_src_row = None
             for r in range(src_max, src_min, -1):
-                v = ws_src.cell(row=r, column=10).value
+                v = src_ws.cell(row=r, column=10).value
                 if v not in (None, ""):
                     rate_src_row = r
                     break
-            
+
             dst_start = cursor
-            
+
             copy_block_with_styles_and_formulas(
-                ws_src=ws_src,
+                ws_src=src_ws,
                 ws_dst=ws_out,
                 src_min_row=src_min,
                 src_max_row=src_max,
@@ -542,21 +577,22 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 col_start=1,
                 col_end=10
             )
-            
+
             ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"
             data_serial += 1
-            
+
             if rate_src_row:
                 rate_pos[name] = dst_start + (rate_src_row - src_min)
-            
-            if is_repair:
+
+            # Prefix only for backend items in repair mode
+            if is_repair and not is_uploaded:
                 prefix = item_to_prefix.get(name, "")
                 if prefix:
                     desc_cell = ws_out.cell(row=dst_start + 2, column=4)
                     base = desc_cell.value
                     base_str = str(base).strip() if base not in (None, "") else ""
                     desc_cell.value = f"{prefix} {base_str}" if base_str else prefix
-            
+
             cursor += (src_max - src_min + 1)
         
         job.progress = 70
@@ -609,37 +645,58 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         slno = 1
         
         for name in fetched:
-            info = name_to_info.get(name)
-            if not info:
-                continue
-            
-            start = info["start_row"]
-            base_desc = ws_src.cell(row=start + 2, column=4).value or ""
-            base_desc_str = normalize_text(base_desc).strip()
-            
-            prefix = item_to_prefix.get(name, "") if is_repair else ""
-            if prefix:
-                desc = f"{prefix} {base_desc_str}" if base_desc_str else prefix
-            else:
+            is_uploaded = name in uploaded_items_set
+
+            if is_uploaded:
+                # Uploaded item: get description from uploaded workbook or saved descs
+                block = uploaded_item_blocks.get(name)
+                if not block or not ws_upload_src:
+                    continue
+                start = block[0]
+                base_desc = ws_upload_src.cell(row=start + 2, column=4).value or ""
+                base_desc_str = normalize_text(str(base_desc).strip()) or saved_item_descs.get(name, name)
+                # No prefix for uploaded items
                 desc = base_desc_str
-            
+            else:
+                info = name_to_info.get(name)
+                if not info:
+                    continue
+
+                start = info["start_row"]
+                base_desc = ws_src.cell(row=start + 2, column=4).value or ""
+                base_desc_str = normalize_text(base_desc).strip()
+
+                prefix = item_to_prefix.get(name, "") if is_repair else ""
+                if prefix:
+                    desc = f"{prefix} {base_desc_str}" if base_desc_str else prefix
+                else:
+                    desc = base_desc_str
+
             rr = rate_pos.get(name)
             rate_formula = f"=Output!J{rr}" if rr else ""
-            
-            # Priority for unit: 1) user-entered unit_map, 2) backend_units_map (Column D), 3) group-based default
+
+            # Priority for unit: 1) user-entered unit_map, 2) saved/backend unit, 3) group-based default
             custom_unit = unit_map.get(name, "").strip()
-            backend_unit = backend_units_map.get(name, "").strip() if backend_units_map else ""
-            
-            if custom_unit:
-                # Use user-entered custom unit - derive singular form
-                unit_plural = custom_unit
-                unit_lower = custom_unit.lower()
-            elif backend_unit:
-                # Use unit from backend Column D - derive singular form
-                unit_plural = backend_unit
-                unit_lower = backend_unit.lower()
+
+            if is_uploaded:
+                # For uploaded items, use custom_unit or saved unit
+                if custom_unit:
+                    unit_plural = custom_unit
+                    unit_lower = custom_unit.lower()
+                else:
+                    saved_u = saved_item_units.get(name, 'Nos')
+                    unit_plural = saved_u
+                    unit_lower = saved_u.lower()
             else:
-                unit_lower = ""
+                backend_unit = backend_units_map.get(name, "").strip() if backend_units_map else ""
+                if custom_unit:
+                    unit_plural = custom_unit
+                    unit_lower = custom_unit.lower()
+                elif backend_unit:
+                    unit_plural = backend_unit
+                    unit_lower = backend_unit.lower()
+                else:
+                    unit_lower = ""
             
             if unit_lower:
                 # Derive singular form from the unit
