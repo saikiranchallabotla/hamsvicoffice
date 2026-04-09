@@ -1199,7 +1199,7 @@
                                             data-row-key="{% if row.row_type == 'supp' %}supp:{{ row.name }}{% else %}{{ row.key }}{% endif %}"
                                             {% if row.row_type == 'supp' %}data-supp-name="{{ row.name }}"{% endif %}>
                                             <td>{{ row.sl }}</td>
-                                            <td class="desc-col" title="{{ row.desc }}" data-spec="{{ row.item_desc|default:'' }}">{{ row.desc }}</td>
+                                            <td class="desc-col"><span class="item-text" data-spec="{{ row.item_desc|default:'' }}">{{ row.desc }}</span></td>
                                             <td>{{ row.unit }}</td>
                                             <td>{{ row.qty_est }}</td>
                                             {% for phase_exec in row.previous_phases_exec %}

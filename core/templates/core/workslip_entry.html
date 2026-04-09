@@ -634,7 +634,7 @@
             row.innerHTML = `
                 <td><strong>${++itemCount}</strong></td>
                 <td>
-                    <div class="item-name desc-col" data-spec="${(item.item_desc || '').replace(/"/g, '&quot;')}">${item.item_name || item.desc || 'Item'}</div>
+                    <div class="item-name" data-spec="${(item.item_desc || '').replace(/"/g, '&quot;')}">${item.item_name || item.desc || 'Item'}</div>
                 </td>
                 <td>${item.unit || 'Nos'}</td>
                 ${refQtyCell}

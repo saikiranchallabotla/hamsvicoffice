@@ -307,7 +307,7 @@
                                     <tr data-item-name="{{ row.name }}" class="draggable" draggable="true">
                                         <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
                                         <td class="sl-cell">{{ row.sl }}</td>
-                                        <td class="desc-col" title="{{ row.desc }}">{{ row.desc }}</td>
+                                        <td class="desc-col"><span class="item-text" title="{{ row.desc }}">{{ row.desc }}</span></td>
                                         <td class="unit-cell">{{ row.unit }}</td>
                                         <td>
                                             <input type="number"
@@ -907,11 +907,11 @@
 <script>
 (function() {
     var descs = {{ item_descs_json|safe }};
-    document.querySelectorAll('#estimate-table .desc-col').forEach(function(cell) {
-        var row = cell.closest('tr');
-        var name = row ? row.getAttribute('data-item-name') : '';
-        if (name && descs[name] && descs[name] !== name) {
-            cell.setAttribute('data-spec', descs[name]);
+    document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+        var name = row.getAttribute('data-item-name');
+        var span = row.querySelector('.item-text');
+        if (name && descs[name] && descs[name] !== name && span) {
+            span.setAttribute('data-spec', descs[name]);
         }
     });
 })();

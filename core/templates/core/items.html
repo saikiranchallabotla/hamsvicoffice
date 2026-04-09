@@ -867,7 +867,7 @@
                                     <tr data-item-name="{{ row.name }}" data-unit="{{ row.unit }}" class="draggable" draggable="true">
                                         <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
                                         <td class="sl-cell">{{ row.sl }}</td>
-                                        <td class="desc-col" title="{{ row.name }}">{{ row.name }}</td>
+                                        <td class="desc-col"><span class="item-text" title="{{ row.name }}">{{ row.name }}</span></td>
                                         <td class="unit-cell">{{ row.unit }}</td>
                                         <td>
                                             <input type="number"
@@ -1697,7 +1697,7 @@ document.addEventListener('keydown', function(e) {
         var safeHtml = escapeHtml(itemName);
         newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
                            '<td class="sl-cell">' + sl + '</td>' +
-                           '<td class="desc-col" title="' + safeHtml + '">' + safeHtml + '</td>' +
+                           '<td class="desc-col"><span class="item-text" title="' + safeHtml + '">' + safeHtml + '</span></td>' +
                            '<td class="unit-cell">' + escapeHtml(unit) + '</td>' +
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '"></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
@@ -2808,11 +2808,11 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
 <script>
 (function() {
     var descs = {{ item_descs_json|safe }};
-    document.querySelectorAll('#estimate-table .desc-col').forEach(function(cell) {
-        var row = cell.closest('tr');
-        var name = row ? row.getAttribute('data-item-name') : '';
-        if (name && descs[name] && descs[name] !== name) {
-            cell.setAttribute('data-spec', descs[name]);
+    document.querySelectorAll('#estimate-table tbody tr[data-item-name]').forEach(function(row) {
+        var name = row.getAttribute('data-item-name');
+        var span = row.querySelector('.item-text') || row.querySelector('.desc-col');
+        if (name && descs[name] && descs[name] !== name && span) {
+            span.setAttribute('data-spec', descs[name]);
         }
     });
     var _origAdd = window.addItemToTable;
@@ -2822,8 +2822,8 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
             if (descs[itemName] && descs[itemName] !== itemName) {
                 var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + CSS.escape(itemName) + '"]');
                 if (row) {
-                    var cell = row.querySelector('.desc-col');
-                    if (cell) cell.setAttribute('data-spec', descs[itemName]);
+                    var span = row.querySelector('.item-text') || row.querySelector('.desc-col');
+                    if (span) span.setAttribute('data-spec', descs[itemName]);
                 }
             }
         };

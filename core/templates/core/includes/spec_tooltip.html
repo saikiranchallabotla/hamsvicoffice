@@ -1,4 +1,4 @@
-<!-- Specification tooltip - shows item description on hover -->
+<!-- Specification tooltip - shows item description on hover over item name text -->
 <style>
 .spec-tip {
     display: none;
@@ -6,17 +6,15 @@
     z-index: 99999;
     max-width: 350px;
     padding: 6px 10px;
-    background: #333;
-    color: #fff;
+    background: #fff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
     border-radius: 4px;
     font-size: 0.78rem;
     line-height: 1.4;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     pointer-events: none;
     word-wrap: break-word;
-}
-.desc-col[data-spec] {
-    cursor: help;
-    border-bottom: 1px dotted #94a3b8;
 }
 </style>
 <div class="spec-tip" id="specTip"></div>
