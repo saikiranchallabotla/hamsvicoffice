@@ -617,7 +617,7 @@
                 const estQty = parseFloat(item.est_qty) || 0;
                 refQtyCell = `
                     <td style="background: #eff6ff; text-align: right; color: #1e40af; font-weight: 600;">
-                        ${estQty > 0 ? estQty.toFixed(2) : '-'}
+                        ${estQty > 0 ? estQty : '-'}
                     </td>
                 `;
             } else {
@@ -626,7 +626,7 @@
                 const prevQty = prevItem ? parseFloat(prevItem.qty) || 0 : 0;
                 refQtyCell = `
                     <td style="background: #fffbeb; text-align: right; color: #92400e; font-weight: 600;">
-                        ${prevQty > 0 ? prevQty.toFixed(2) : '-'}
+                        ${prevQty > 0 ? prevQty : '-'}
                     </td>
                 `;
             }
@@ -634,7 +634,7 @@
             row.innerHTML = `
                 <td><strong>${++itemCount}</strong></td>
                 <td>
-                    <div class="item-name">${item.item_name || item.desc || 'Item'}</div>
+                    <div class="item-name desc-col" data-spec="${(item.item_desc || '').replace(/"/g, '&quot;')}">${item.item_name || item.desc || 'Item'}</div>
                 </td>
                 <td>${item.unit || 'Nos'}</td>
                 ${refQtyCell}
@@ -799,5 +799,7 @@
     // Initialize on load
     document.addEventListener('DOMContentLoaded', initializeTable);
 </script>
+
+{% include 'core/includes/spec_tooltip.html' %}
 
 {% endblock %}

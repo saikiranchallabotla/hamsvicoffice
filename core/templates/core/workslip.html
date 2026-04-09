@@ -1168,7 +1168,7 @@
                                             <td style="color: #92400e;">{{ row.unit|default:"-" }}</td>
                                             <td style="color: #92400e;">-</td>
                                             {% for phase_exec in row.previous_phases_exec %}
-                                            <td style="background: #fef3c7; color: #92400e; font-weight: 500;">{{ phase_exec.qty|floatformat:2 }}</td>
+                                            <td style="background: #fef3c7; color: #92400e; font-weight: 500;">{{ phase_exec.qty|floatformat:-2 }}</td>
                                             <td style="background: #fef3c7; color: #92400e; font-weight: 500;">
                                                 {% if row.rate %}₹{{ phase_exec.amount|floatformat:2 }}{% else %}-{% endif %}
                                             </td>
@@ -1199,12 +1199,12 @@
                                             data-row-key="{% if row.row_type == 'supp' %}supp:{{ row.name }}{% else %}{{ row.key }}{% endif %}"
                                             {% if row.row_type == 'supp' %}data-supp-name="{{ row.name }}"{% endif %}>
                                             <td>{{ row.sl }}</td>
-                                            <td class="desc-col" title="{{ row.desc }}">{{ row.desc }}</td>
+                                            <td class="desc-col" title="{{ row.desc }}" data-spec="{{ row.item_desc|default:'' }}">{{ row.desc }}</td>
                                             <td>{{ row.unit }}</td>
                                             <td>{{ row.qty_est }}</td>
                                             {% for phase_exec in row.previous_phases_exec %}
                                             <td style="background: #fffbeb; color: #92400e; font-weight: 500;">
-                                                {{ phase_exec.qty|floatformat:2 }}
+                                                {{ phase_exec.qty|floatformat:-2 }}
                                             </td>
                                             <td style="background: #fffbeb; color: #92400e; font-weight: 500;">
                                                 ₹{{ phase_exec.amount|floatformat:2 }}
@@ -1215,7 +1215,7 @@
                                                        min="0"
                                                        step="0.01"
                                                        class="qty-input qty-exec-input"
-                                                       value="{% if row.qty_exec %}{{ row.qty_exec|floatformat:"0" }}{% endif %}">
+                                                       value="{% if row.qty_exec %}{{ row.qty_exec|floatformat:-2 }}{% endif %}">
                                             </td>
                                             {% if row.row_type == 'supp' %}
                                             <!-- Supplemental items (freshly added): Rate is display-only -->
@@ -2271,5 +2271,6 @@ function quickSaveWorkslip() {
     <span>Save Work</span>
 </button>
 {% include 'core/saved_works/save_modal.html' with work_type='workslip' category='electrical' %}
+{% include 'core/includes/spec_tooltip.html' %}
 
 {% endblock %}

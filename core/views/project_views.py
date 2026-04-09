@@ -445,6 +445,7 @@ def datas_items(request, category, group):
         "fetched_json": json.dumps(fetched),
         "available_backends": available_backends,
         "selected_backend_id": selected_backend_id,
+        "item_descs_json": json.dumps(item_descs),
     })
 
 

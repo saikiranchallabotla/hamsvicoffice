@@ -1,0 +1,80 @@
+<!-- Specification tooltip - shows item description on hover -->
+<style>
+.spec-tooltip {
+    display: none;
+    position: fixed;
+    z-index: 99999;
+    max-width: 420px;
+    min-width: 200px;
+    padding: 10px 14px;
+    background: #1e293b;
+    color: #f1f5f9;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    pointer-events: none;
+    word-wrap: break-word;
+    white-space: pre-line;
+}
+.spec-tooltip .spec-label {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    display: block;
+}
+.desc-col[data-spec] {
+    cursor: help;
+}
+</style>
+<div class="spec-tooltip" id="specTooltip">
+    <span class="spec-label">Specification</span>
+    <span id="specTooltipText"></span>
+</div>
+<script>
+(function() {
+    var tooltip = document.getElementById('specTooltip');
+    var tooltipText = document.getElementById('specTooltipText');
+    var showTimer = null;
+
+    document.addEventListener('mouseover', function(e) {
+        var cell = e.target.closest('.desc-col[data-spec]');
+        if (!cell) return;
+        var spec = cell.getAttribute('data-spec');
+        if (!spec || spec === cell.textContent.trim()) return;
+        clearTimeout(showTimer);
+        showTimer = setTimeout(function() {
+            tooltipText.textContent = spec;
+            tooltip.style.display = 'block';
+            positionTooltip(e);
+        }, 300);
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (tooltip.style.display === 'block') {
+            positionTooltip(e);
+        }
+    });
+
+    document.addEventListener('mouseout', function(e) {
+        var cell = e.target.closest('.desc-col[data-spec]');
+        if (!cell) return;
+        clearTimeout(showTimer);
+        tooltip.style.display = 'none';
+    });
+
+    function positionTooltip(e) {
+        var x = e.clientX + 12;
+        var y = e.clientY + 12;
+        var tw = tooltip.offsetWidth;
+        var th = tooltip.offsetHeight;
+        if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 12;
+        if (y + th > window.innerHeight - 10) y = e.clientY - th - 12;
+        tooltip.style.left = x + 'px';
+        tooltip.style.top = y + 'px';
+    }
+})();
+</script>

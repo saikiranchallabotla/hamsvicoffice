@@ -2197,6 +2197,7 @@ def estimate_preview(request):
         'estimate_rows': estimate_rows,
         'work_name': work_name,
         'grand_total': grand_total,
+        'item_descs_json': json.dumps(item_descs),
     })
 
 

@@ -839,7 +839,7 @@
                 row.innerHTML = `
                     <td class="sl-col"><strong>${++itemCount}</strong></td>
                     <td class="item-col">
-                        <div class="item-name">${item.item_name || 'Item'}</div>
+                        <div class="item-name desc-col" data-spec="${(item.item_desc || '').replace(/"/g, '&quot;')}">${item.item_name || 'Item'}</div>
                         ${supplementalBadge}
                     </td>
                     <td class="unit-col">${item.unit || 'Nos'}</td>
@@ -877,7 +877,7 @@
                 row.innerHTML = `
                     <td class="sl-col"><strong>${++itemCount}</strong></td>
                     <td class="item-col">
-                        <div class="item-name">${item.item_name || 'Item'}</div>
+                        <div class="item-name desc-col" data-spec="${(item.item_desc || '').replace(/"/g, '&quot;')}">${item.item_name || 'Item'}</div>
                         ${supplementalBadge}
                     </td>
                     <td class="unit-col">${item.unit || 'Nos'}</td>
@@ -887,7 +887,7 @@
                     <td class="deduct-col">
                         <input type="number" class="qty-input readonly deduct-qty" 
                                data-key="${key}"
-                               value="${prevQty > 0 ? prevQty.toFixed(2) : ''}" 
+                               value="${prevQty > 0 ? prevQty : ''}" 
                                readonly
                                tabindex="-1">
                     </td>
@@ -988,7 +988,7 @@
                         <td class="deduct-col">
                             <input type="number" class="qty-input readonly deduct-qty"
                                    data-key="${aeKey}"
-                                   value="${prevAEQty > 0 ? prevAEQty.toFixed(2) : ''}"
+                                   value="${prevAEQty > 0 ? prevAEQty : ''}"
                                    readonly tabindex="-1">
                         </td>
                         <td class="tilldate-col">
@@ -1057,7 +1057,7 @@
         // Update Since Last cell
         const sinceLastCell = document.getElementById(`sincelast_${idx}`);
         if (sinceLastCell) {
-            sinceLastCell.textContent = tillDateQty > 0 ? netQty.toFixed(2) : '-';
+            sinceLastCell.textContent = tillDateQty > 0 ? String(netQty) : '-';
             sinceLastCell.style.color = netQty < 0 ? '#dc2626' : '#047857';
         }
 
@@ -1079,7 +1079,7 @@
         // Update Since Last cell
         const sinceLastCell = document.getElementById(`ae_sincelast_${aeIdx}`);
         if (sinceLastCell) {
-            sinceLastCell.textContent = tillDateQty > 0 ? netQty.toFixed(2) : '-';
+            sinceLastCell.textContent = tillDateQty > 0 ? String(netQty) : '-';
             sinceLastCell.style.color = netQty < 0 ? '#dc2626' : '#047857';
         }
 
@@ -1318,5 +1318,7 @@
         setTimeout(() => alertDiv.remove(), 3000);
     }
 </script>
+
+{% include 'core/includes/spec_tooltip.html' %}
 
 {% endblock %}

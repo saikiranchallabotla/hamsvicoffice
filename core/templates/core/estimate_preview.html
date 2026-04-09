@@ -903,4 +903,18 @@
 })();
 </script>
 
+{% include 'core/includes/spec_tooltip.html' %}
+<script>
+(function() {
+    var descs = {{ item_descs_json|safe }};
+    document.querySelectorAll('#estimate-table .desc-col').forEach(function(cell) {
+        var row = cell.closest('tr');
+        var name = row ? row.getAttribute('data-item-name') : '';
+        if (name && descs[name]) {
+            cell.setAttribute('data-spec', descs[name]);
+        }
+    });
+})();
+</script>
+
 {% endblock %}

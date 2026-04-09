@@ -2737,8 +2737,9 @@ def workslip(request):
             "row_type": "base",
             "key": row_key,
             "sl": idx,
-            # ðŸ‘‡ UI shows item NAME (yellow header) if present
+            # UI shows item NAME (yellow header) if present
             "desc": row.get("display_name") or row.get("item_name") or row.get("desc"),
+            "item_desc": row.get("item_desc", ""),
             "qty_est": row.get("qty_est", 0),
             "unit": row.get("unit", ""),
             "rate": row.get("rate", 0),
