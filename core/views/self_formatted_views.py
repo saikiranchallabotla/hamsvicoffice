@@ -1035,6 +1035,9 @@ def _ocr_with_multiple_configs(img, lang='eng'):
     """
     OCR extraction using multiple Tesseract configurations AND multiple
     image preprocessing variants.  Picks the best result by scoring.
+
+    Uses a fast-first strategy: try the best config first, only expand
+    to more variants if the initial result is poor.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -1074,7 +1077,6 @@ def _ocr_with_multiple_configs(img, lang='eng'):
         total_chars = len(text) or 1
         alnum_ratio = alnum_chars / total_chars
         key_terms_found = sum(1 for term in domain_keywords if term.lower() in text.lower())
-        # Penalize gibberish: long runs of consonants or repeated chars
         gibberish_penalty = len(re.findall(r'[bcdfghjklmnpqrstvwxyz]{6,}', text.lower())) * 20
         return (
             len(result_lines) * 10
@@ -1084,46 +1086,60 @@ def _ocr_with_multiple_configs(img, lang='eng'):
             - gibberish_penalty
         )
 
-    # Tesseract configs to try (most effective first)
-    configs = [
-        ('--oem 1 --psm 6', 'LSTM-block'),      # LSTM neural net, block mode (best for docs)
-        ('--oem 1 --psm 3', 'LSTM-auto'),        # LSTM with auto page segmentation
-        ('--oem 3 --psm 6', 'PSM6-block'),       # Default + block
-        ('--oem 3 --psm 4', 'PSM4-column'),      # Single column
-        ('--oem 1 --psm 4', 'LSTM-column'),      # LSTM + column
-        ('--oem 3 --psm 11', 'PSM11-sparse'),    # Sparse text
-    ]
-
-    # Preprocessing variants to try
-    preprocess_variants = ['standard', 'adaptive', 'gentle']
-
     best_result = ""
     best_score = 0
 
-    for variant in preprocess_variants:
-        try:
-            preprocessed_img = _preprocess_image_for_ocr(img, variant=variant)
-        except Exception:
-            continue
+    # PHASE 1: Fast attempt - standard preprocessing + best single config
+    try:
+        preprocessed = _preprocess_image_for_ocr(img, variant='standard')
+        result = pytesseract.image_to_string(preprocessed, lang=lang_str, config='--oem 1 --psm 6')
+        result = _apply_domain_corrections(result)
+        best_score = score_result(result)
+        best_result = result
+        logger.debug(f"OCR Phase1 [standard/LSTM-block]: score={best_score:.0f}")
+    except Exception as e:
+        logger.debug(f"OCR Phase1 failed: {e}")
 
-        # Try top 3 configs for each variant (6 * 3 = 18 total is too many)
-        configs_to_try = configs[:3] if variant != 'standard' else configs
-        for config, label in configs_to_try:
+    # PHASE 2: If Phase 1 result is good enough (>300), return immediately
+    if best_score >= 300:
+        logger.info(f"OCR fast-path: {len(best_result)} chars, score={best_score:.0f}")
+        return best_result
+
+    # PHASE 3: Try additional configs on standard preprocessing
+    extra_configs = [
+        ('--oem 1 --psm 3', 'LSTM-auto'),
+        ('--oem 3 --psm 6', 'legacy-block'),
+    ]
+    try:
+        if 'preprocessed' not in dir():
+            preprocessed = _preprocess_image_for_ocr(img, variant='standard')
+        for config, label in extra_configs:
+            result = pytesseract.image_to_string(preprocessed, lang=lang_str, config=config)
+            result = _apply_domain_corrections(result)
+            s = score_result(result)
+            if s > best_score:
+                best_score = s
+                best_result = result
+            logger.debug(f"OCR Phase3 [{label}]: score={s:.0f}")
+    except Exception:
+        pass
+
+    # PHASE 4: If still poor, try adaptive and gentle variants with single config each
+    if best_score < 200:
+        for variant in ['adaptive', 'gentle']:
             try:
-                result = pytesseract.image_to_string(preprocessed_img, lang=lang_str, config=config)
+                prep = _preprocess_image_for_ocr(img, variant=variant)
+                result = pytesseract.image_to_string(prep, lang=lang_str, config='--oem 1 --psm 6')
                 result = _apply_domain_corrections(result)
                 s = score_result(result)
-
-                logger.debug(f"OCR [{variant}] {label}: score={s:.0f}")
-
                 if s > best_score:
                     best_score = s
                     best_result = result
+                logger.debug(f"OCR Phase4 [{variant}]: score={s:.0f}")
+            except Exception:
+                pass
 
-            except Exception as e:
-                logger.debug(f"OCR [{variant}] {label} failed: {e}")
-
-    # If all preprocessed results are poor, try original image as fallback
+    # PHASE 5: Last resort - try original unprocessed image
     if best_score < 100:
         try:
             result = pytesseract.image_to_string(img, lang=lang_str, config='--oem 1 --psm 6')
@@ -1132,7 +1148,8 @@ def _ocr_with_multiple_configs(img, lang='eng'):
             if s > best_score:
                 best_result = result
                 best_score = s
-                logger.debug(f"Original image OCR was better: score={s:.0f}")
+        except Exception:
+            pass
         except Exception:
             pass
 
@@ -2030,12 +2047,112 @@ def _replace_placeholders_in_docx_xml(xml_str, safe_map):
     return xml_str
 
 
+# Label-text patterns that map to placeholder keys.
+# Used for auto-filling Excel templates that don't have {{PLACEHOLDER}} markers.
+# Format: list of (keywords_to_match_in_cell, placeholder_key)
+_LABEL_TO_PLACEHOLDER = [
+    # Name of work variants
+    (['name of the work', 'name of work', 'work name'],                '{{NAME_OF_WORK}}'),
+    (['agreement', 'ref of agreement', 'bond no', 'bond number'],      '{{REF_OF_AGREEMENT}}'),
+    (['admin sanction', 'administrative sanction', 'a.s.'],            '{{ADMIN_SANCTION}}'),
+    (['admin sanction amount', 'a.s. amount'],                          '{{ADMIN_SANCTION_AMOUNT}}'),
+    (['tech sanction', 'technical sanction', 't.s.'],                  '{{TECH_SANCTION}}'),
+    (['tech sanction amount', 't.s. amount'],                           '{{TECH_SANCTION_AMOUNT}}'),
+    (['name of agency', 'name of contractor', 'agency name', 'contractor name', 'contractor'], '{{AGENCY_NAME}}'),
+    (['contractor address', 'address of contractor', 'agency address'], '{{CONTRACTOR_ADDRESS}}'),
+    (['mb details', 'measurement book', 'mb no', 'm.b.'],             '{{MB_DETAILS}}'),
+    (['tp details', 'tender premium'],                                  '{{TENDER_PREMIUM}}'),
+    (['estimate amount', 'amount of estimate', 'estimated cost'],      '{{ESTIMATE_AMOUNT}}'),
+    (['nit no', 'nit number', 'n.i.t'],                                '{{NIT_NO}}'),
+    (['period of completion', 'stipulated period'],                     '{{PERIOD_OF_COMPLETION}}'),
+    (['date of commencement', 'commencement date'],                     '{{DATE_OF_COMMENCEMENT}}'),
+    (['date of completion', 'completion date'],                         '{{DATE_OF_COMPLETION}}'),
+    (['work order no', 'work order number', 'w.o. no'],                '{{WORK_ORDER_NO}}'),
+    (['work order date', 'w.o. date'],                                  '{{WORK_ORDER_DATE}}'),
+    (['earnest money', 'emd'],                                          '{{EARNEST_MONEY}}'),
+    (['security deposit', 'sd amount'],                                 '{{SECURITY_DEPOSIT}}'),
+    (['amount', 'total amount', 'bill amount'],                        '{{AMOUNT}}'),
+    (['amount in words', 'in words'],                                   '{{AMOUNT_IN_WORDS}}'),
+]
+
+
+def _fill_template_by_labels(wb, placeholder_map):
+    """
+    For Excel templates without {{PLACEHOLDER}} markers:
+    scan cells for known label text (e.g. "Name of the work :") and fill
+    the value either after the colon in the same cell or in the adjacent cell
+    to the right.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    for ws in wb.worksheets:
+        max_r = ws.max_row or 0
+        max_c = ws.max_column or 0
+        for r in range(1, max_r + 1):
+            for c in range(1, max_c + 1):
+                cell = ws.cell(row=r, column=c)
+                if not isinstance(cell.value, str):
+                    continue
+                cell_text = cell.value.strip()
+                if not cell_text:
+                    continue
+
+                cell_lower = cell_text.lower()
+                # Remove trailing colons/dashes for matching
+                cell_clean = re.sub(r'[\s:;\-]+$', '', cell_lower).strip()
+
+                matched_key = None
+                for label_variants, ph_key in _LABEL_TO_PLACEHOLDER:
+                    for label in label_variants:
+                        if label in cell_clean or cell_clean.endswith(label):
+                            matched_key = ph_key
+                            break
+                    if matched_key:
+                        break
+
+                if not matched_key:
+                    continue
+
+                value = placeholder_map.get(matched_key, '')
+                if not value:
+                    continue
+
+                value = str(value)
+
+                # Determine where to put the value:
+                # Case 1: Cell ends with ":" or ":-" → append value after the colon in same cell
+                if re.search(r'[:]\s*[-_]*\s*$', cell_text):
+                    # Check if cell to the right is empty; if so, put value there
+                    if c + 1 <= max_c + 5:  # allow a few columns past max
+                        right_cell = ws.cell(row=r, column=c + 1)
+                        if right_cell.value is None or str(right_cell.value).strip() == '':
+                            right_cell.value = value
+                            logger.debug(f"Label fill: [{ws.title}] R{r}C{c+1} = {value[:50]}")
+                            continue
+                    # Otherwise append in same cell
+                    cell.value = cell_text + ' ' + value
+                    logger.debug(f"Label fill (append): [{ws.title}] R{r}C{c} = {cell.value[:50]}")
+
+                # Case 2: Cell has just the label text, value goes in the next cell
+                else:
+                    if c + 1 <= max_c + 5:
+                        right_cell = ws.cell(row=r, column=c + 1)
+                        if right_cell.value is None or str(right_cell.value).strip() == '':
+                            right_cell.value = value
+                            logger.debug(f"Label fill (right): [{ws.title}] R{r}C{c+1} = {value[:50]}")
+
+
 def _fill_template_file(template_file, placeholder_map):
     """
     Apply placeholders to template_file and return a HttpResponse with the
     filled file.
     Uses ZIP-level XML replacement for DOCX to preserve all document features
     (themes, fonts, styles, images, headers/footers, compatibility settings).
+
+    For Excel/DOCX templates WITHOUT explicit {{PLACEHOLDER}} markers, performs
+    a second pass: detects label text (e.g. "Name of the work:") and fills the
+    value from the source either after the colon or in the adjacent cell.
     """
     import zipfile
     from xml.sax.saxutils import escape as xml_escape
@@ -2089,6 +2206,9 @@ def _fill_template_file(template_file, placeholder_map):
     # -------- Excel (XLSX / XLSM) --------
     if ext in ("xlsx", "xlsm"):
         wb = load_workbook(template_file)
+
+        # PASS 1: Replace explicit {{PLACEHOLDER}} markers
+        any_placeholder_found = False
         for ws in wb.worksheets:
             max_r = ws.max_row or 0
             max_c = ws.max_column or 0
@@ -2102,8 +2222,14 @@ def _fill_template_file(template_file, placeholder_map):
                             if ph in txt:
                                 txt = txt.replace(ph, str(val) if val is not None else "")
                                 changed = True
+                                any_placeholder_found = True
                         if changed:
                             cell.value = txt
+
+        # PASS 2: If NO {{PLACEHOLDER}} was found, do smart label detection.
+        # Scan cells for known label text and fill value after colon or in adjacent cell.
+        if not any_placeholder_found:
+            _fill_template_by_labels(wb, placeholder_map)
 
         _apply_print_settings(wb)
         resp = HttpResponse(
