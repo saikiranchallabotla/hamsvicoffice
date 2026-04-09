@@ -796,8 +796,59 @@
     document.getElementById('tp-percent-input').addEventListener('change', updateSummary);
     document.getElementById('tp-percent-input').addEventListener('input', updateSummary);
 
+    // --- Auto-save quantities to sessionStorage for refresh protection ---
+    const WS_ENTRY_STORAGE_KEY = 'ws_entry_execMap_{{ work_id }}';
+
+    function saveToSession() {
+        try {
+            sessionStorage.setItem(WS_ENTRY_STORAGE_KEY, JSON.stringify(execMap));
+        } catch(e) {}
+    }
+
+    function restoreFromSession() {
+        try {
+            var saved = sessionStorage.getItem(WS_ENTRY_STORAGE_KEY);
+            if (!saved) return;
+            var map = JSON.parse(saved);
+            if (!map || typeof map !== 'object') return;
+            document.querySelectorAll('.exec-qty').forEach(function(inp) {
+                var key = inp.getAttribute('data-key');
+                if (key && map[key] !== undefined && map[key] !== null && map[key] !== 0) {
+                    inp.value = map[key];
+                    execMap[key] = parseFloat(map[key]) || 0;
+                }
+            });
+            // Recalculate all amounts
+            workslipData.items.forEach(function(item, idx) {
+                var key = item.key || 'item_' + idx;
+                updateAmount(idx, execMap[key] || 0, rateMap[key] || 0);
+            });
+            updateSummary();
+        } catch(e) {}
+    }
+
     // Initialize on load
-    document.addEventListener('DOMContentLoaded', initializeTable);
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeTable();
+        restoreFromSession();
+    });
+
+    // Save on every quantity input change
+    document.getElementById('quantities-tbody').addEventListener('input', function(e) {
+        if (e.target.classList.contains('exec-qty')) saveToSession();
+    });
+
+    // Clear sessionStorage after successful form save
+    var origSubmitHandler = document.getElementById('workslip-entry-form');
+    var origFetch = window.fetch;
+    // (The existing submit handler already uses fetch; we hook into success to clear storage)
+    var _origShowNotif = showNotification;
+    showNotification = function(msg, type) {
+        if (type === 'success') {
+            try { sessionStorage.removeItem(WS_ENTRY_STORAGE_KEY); } catch(e) {}
+        }
+        return _origShowNotif(msg, type);
+    };
 </script>
 
 {% include 'core/includes/spec_tooltip.html' %}

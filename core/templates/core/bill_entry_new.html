@@ -1316,7 +1316,60 @@
         alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
         document.body.appendChild(alertDiv);
         setTimeout(() => alertDiv.remove(), 3000);
+        // Clear sessionStorage on successful save
+        if (type === 'success') {
+            try { sessionStorage.removeItem(BILL_STORAGE_KEY); } catch(e) {}
+        }
     }
+
+    // --- Auto-save quantities to sessionStorage for refresh protection ---
+    const BILL_STORAGE_KEY = 'bill_execMap_{{ work_id }}_b{{ bill_number }}';
+
+    function saveBillToSession() {
+        try {
+            sessionStorage.setItem(BILL_STORAGE_KEY, JSON.stringify(execMap));
+        } catch(e) {}
+    }
+
+    function restoreBillFromSession() {
+        // Skip if server already provided saved data
+        if (Object.keys(billData.savedExecMap).length > 0) return;
+        try {
+            var saved = sessionStorage.getItem(BILL_STORAGE_KEY);
+            if (!saved) return;
+            var map = JSON.parse(saved);
+            if (!map || typeof map !== 'object') return;
+            var changed = false;
+            document.querySelectorAll('.exec-qty').forEach(function(inp) {
+                var key = inp.getAttribute('data-key');
+                if (key && map[key] !== undefined && map[key] !== null && map[key] !== 0) {
+                    inp.value = map[key];
+                    execMap[key] = parseFloat(map[key]) || 0;
+                    changed = true;
+                }
+            });
+            if (changed) {
+                billData.items.forEach(function(item, idx) {
+                    var key = item.key || 'item_' + idx;
+                    updateRowAmount(idx, key);
+                });
+                billData.aeItems.forEach(function(aeItem, aeIdx) {
+                    updateAERowAmount(aeIdx, aeItem.key);
+                });
+                updateSummary();
+            }
+        } catch(e) {}
+    }
+
+    // Restore on DOMContentLoaded (after initializeTable has already run)
+    document.addEventListener('DOMContentLoaded', function() {
+        restoreBillFromSession();
+    });
+
+    // Save on every quantity input change
+    document.querySelector('.quantities-table').addEventListener('input', function(e) {
+        if (e.target.classList.contains('exec-qty')) saveBillToSession();
+    });
 </script>
 
 {% include 'core/includes/spec_tooltip.html' %}

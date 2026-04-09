@@ -1473,6 +1473,15 @@ document.addEventListener('click', function(e) {
 // SEARCH FILTER FUNCTIONS
 // ========================================
 document.addEventListener('DOMContentLoaded', function() {
+    // If items are loaded in the table, add ?preserve=1 to URL so F5 refresh keeps session data
+    if (document.querySelectorAll('#ws-table tr[data-row-key]').length > 0) {
+        var url = new URL(window.location);
+        if (!url.searchParams.has('preserve')) {
+            url.searchParams.set('preserve', '1');
+            history.replaceState(null, '', url.toString());
+        }
+    }
+
     // Groups search
     var groupsSearch = document.getElementById('groups-search');
     if (groupsSearch) {
@@ -2154,7 +2163,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // Helper function to collect exec_map from the UI
 function collectExecMap() {
     const execMap = {};
-    // Collect from base item rows
     document.querySelectorAll('tr[data-row-key]').forEach(row => {
         const key = row.getAttribute('data-row-key');
         const input = row.querySelector('.qty-exec-input');
@@ -2162,7 +2170,6 @@ function collectExecMap() {
             execMap[key] = parseFloat(input.value) || 0;
         }
     });
-    // Collect from supplemental rows
     document.querySelectorAll('tr[data-supp-name]').forEach(row => {
         const name = row.getAttribute('data-supp-name');
         const input = row.querySelector('.qty-exec-input');
@@ -2172,6 +2179,55 @@ function collectExecMap() {
     });
     return execMap;
 }
+
+// --- Auto-save workslip quantities to session ---
+(function() {
+    var _wsAutoTimer = null;
+    function saveWorkslipToSession() {
+        var execMap = collectExecMap();
+        var rateMap = {};
+        document.querySelectorAll('.rate-edit-input').forEach(function(inp) {
+            var row = inp.closest('tr');
+            var key = row ? row.getAttribute('data-row-key') : '';
+            if (key && inp.value) rateMap[key] = inp.value;
+        });
+        var tpInput = document.getElementById('tp-percent-input');
+        var tpSelect = document.getElementById('tp-type-select');
+        var fd = new FormData();
+        fd.append('action', 'update_preview');
+        fd.append('exec_map', JSON.stringify(execMap));
+        fd.append('rate_map', JSON.stringify(rateMap));
+        fd.append('tp_percent', tpInput ? tpInput.value : '');
+        fd.append('tp_type', tpSelect ? tpSelect.value : 'Excess');
+        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        fetch('{% url "workslip_main" %}', { method: 'POST', body: fd, redirect: 'manual' }).catch(function(){});
+    }
+    function debouncedSave() {
+        clearTimeout(_wsAutoTimer);
+        _wsAutoTimer = setTimeout(saveWorkslipToSession, 2000);
+    }
+    var wsTable = document.getElementById('ws-table');
+    if (wsTable) wsTable.addEventListener('input', debouncedSave);
+    window.addEventListener('beforeunload', function() {
+        var execMap = collectExecMap();
+        var rateMap = {};
+        document.querySelectorAll('.rate-edit-input').forEach(function(inp) {
+            var row = inp.closest('tr');
+            var key = row ? row.getAttribute('data-row-key') : '';
+            if (key && inp.value) rateMap[key] = inp.value;
+        });
+        var tpInput = document.getElementById('tp-percent-input');
+        var tpSelect = document.getElementById('tp-type-select');
+        var fd = new FormData();
+        fd.append('action', 'update_preview');
+        fd.append('exec_map', JSON.stringify(execMap));
+        fd.append('rate_map', JSON.stringify(rateMap));
+        fd.append('tp_percent', tpInput ? tpInput.value : '');
+        fd.append('tp_type', tpSelect ? tpSelect.value : 'Excess');
+        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        navigator.sendBeacon('{% url "workslip_main" %}', fd);
+    });
+})();
 
 // Quick save function for workslip - saves directly if there's already a current work
 function quickSaveWorkslip() {
