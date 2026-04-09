@@ -48,6 +48,7 @@ def _apply_print_settings(wb, landscape=False):
       - A4 paper, fit all columns to 1 page width
       - Portrait (default) or Landscape
       - Times New Roman font on all populated cells
+      - Repeat header row(s) at top of every printed page
     """
     for ws in wb.worksheets:
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
@@ -56,8 +57,21 @@ def _apply_print_settings(wb, landscape=False):
         ws.page_setup.fitToHeight = 0  # unlimited pages vertically
         ws.sheet_properties.pageSetUpPr.fitToPage = True
 
+        # Auto-detect header row(s) for print titles
+        # Look for rows containing "Sl" / "S.No" / "Sl.No" in column A (typical header)
         max_r = ws.max_row or 0
         max_c = ws.max_column or 0
+        header_row = 0
+        for r in range(1, min(max_r + 1, 20)):  # scan first 20 rows
+            val = ws.cell(row=r, column=1).value
+            if val is not None:
+                val_str = str(val).strip().lower().replace('.', '').replace(' ', '')
+                if val_str in ('sl', 'sno', 'slno', 'srno', 'sino'):
+                    header_row = r
+                    break
+        if header_row > 0:
+            ws.print_title_rows = '1:{}'.format(header_row)
+
         for r in range(1, max_r + 1):
             for c in range(1, max_c + 1):
                 cell = ws.cell(row=r, column=c)

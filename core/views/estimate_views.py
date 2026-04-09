@@ -2322,6 +2322,17 @@ def estimate_download(request):
                     except (ValueError, TypeError):
                         pass
 
+            # Reorder sheets: Estimate sheets first, then Output sheets
+            est_sheets = [s for s in wb_out.sheetnames if s.startswith('Estimate')]
+            out_sheets = [s for s in wb_out.sheetnames if not s.startswith('Estimate')]
+            desired_order = est_sheets + out_sheets
+            for idx, name in enumerate(desired_order):
+                current_idx = wb_out.sheetnames.index(name)
+                if current_idx != idx:
+                    wb_out.move_sheet(name, offset=idx - current_idx)
+
+            _apply_print_settings(wb_out)
+
             buf = BytesIO()
             wb_out.save(buf)
             buf.seek(0)
@@ -2429,6 +2440,8 @@ def estimate_download(request):
             ws_est.cell(row=gt_row, column=8).value = float(grand_total_str)
         except (ValueError, TypeError):
             pass
+
+    _apply_print_settings(wb_out)
 
     buf = BytesIO()
     wb_out.save(buf)
