@@ -2054,12 +2054,12 @@ def _replace_placeholders_in_docx_xml(xml_str, safe_map):
 _LABEL_TO_PLACEHOLDER = [
     # Name of work variants
     (['name of the work', 'name of work', 'work name'],                '{{NAME_OF_WORK}}'),
-    (['agreement', 'ref of agreement', 'bond no', 'bond number'],      '{{REF_OF_AGREEMENT}}'),
-    (['admin sanction', 'administrative sanction', 'a.s.'],            '{{ADMIN_SANCTION}}'),
-    (['admin sanction amount', 'a.s. amount'],                          '{{ADMIN_SANCTION_AMOUNT}}'),
-    (['tech sanction', 'technical sanction', 't.s.'],                  '{{TECH_SANCTION}}'),
-    (['tech sanction amount', 't.s. amount'],                           '{{TECH_SANCTION_AMOUNT}}'),
-    (['name of agency', 'name of contractor', 'agency name', 'contractor name', 'contractor'], '{{AGENCY_NAME}}'),
+    (['ref of agreement', 'ref. to agreement', 'agreement no', 'bond no', 'bond number'], '{{REF_OF_AGREEMENT}}'),
+    (['ref. to admin', 'ref to admin', 'ref. to administrative sanction', 'admin sanction', 'administrative sanction', 'a.s.'], '{{ADMIN_SANCTION}}'),
+    (['admin sanction amount', 'administrative sanction amount', 'a.s. amount'], '{{ADMIN_SANCTION_AMOUNT}}'),
+    (['ref. to tech', 'ref to tech', 'ref. to technical sanction', 'tech sanction', 'technical sanction', 't.s.'], '{{TECH_SANCTION}}'),
+    (['tech sanction amount', 'technical sanction amount', 't.s. amount'], '{{TECH_SANCTION_AMOUNT}}'),
+    (['name of the agency', 'name of agency', 'name of contractor', 'agency name', 'contractor name', 'contractor'], '{{AGENCY_NAME}}'),
     (['contractor address', 'address of contractor', 'agency address'], '{{CONTRACTOR_ADDRESS}}'),
     (['mb details', 'measurement book', 'mb no', 'm.b.'],             '{{MB_DETAILS}}'),
     (['tp details', 'tender premium'],                                  '{{TENDER_PREMIUM}}'),
@@ -2072,7 +2072,7 @@ _LABEL_TO_PLACEHOLDER = [
     (['work order date', 'w.o. date'],                                  '{{WORK_ORDER_DATE}}'),
     (['earnest money', 'emd'],                                          '{{EARNEST_MONEY}}'),
     (['security deposit', 'sd amount'],                                 '{{SECURITY_DEPOSIT}}'),
-    (['amount', 'total amount', 'bill amount'],                        '{{AMOUNT}}'),
+    (['total amount', 'bill amount', 'grand total'],                   '{{AMOUNT}}'),
     (['amount in words', 'in words'],                                   '{{AMOUNT_IN_WORDS}}'),
 ]
 
@@ -2086,6 +2086,7 @@ def _fill_template_by_labels(wb, placeholder_map):
     """
     import logging
     logger = logging.getLogger(__name__)
+    from openpyxl.cell.cell import MergedCell
 
     for ws in wb.worksheets:
         max_r = ws.max_row or 0
@@ -2093,6 +2094,9 @@ def _fill_template_by_labels(wb, placeholder_map):
         for r in range(1, max_r + 1):
             for c in range(1, max_c + 1):
                 cell = ws.cell(row=r, column=c)
+                # Skip merged cells (read-only)
+                if isinstance(cell, MergedCell):
+                    continue
                 if not isinstance(cell.value, str):
                     continue
                 cell_text = cell.value.strip()
@@ -2121,27 +2125,29 @@ def _fill_template_by_labels(wb, placeholder_map):
 
                 value = str(value)
 
-                # Determine where to put the value:
-                # Case 1: Cell ends with ":" or ":-" → append value after the colon in same cell
-                if re.search(r'[:]\s*[-_]*\s*$', cell_text):
-                    # Check if cell to the right is empty; if so, put value there
-                    if c + 1 <= max_c + 5:  # allow a few columns past max
-                        right_cell = ws.cell(row=r, column=c + 1)
-                        if right_cell.value is None or str(right_cell.value).strip() == '':
-                            right_cell.value = value
-                            logger.debug(f"Label fill: [{ws.title}] R{r}C{c+1} = {value[:50]}")
-                            continue
-                    # Otherwise append in same cell
-                    cell.value = cell_text + ' ' + value
-                    logger.debug(f"Label fill (append): [{ws.title}] R{r}C{c} = {cell.value[:50]}")
+                # Find the first writable (non-merged, empty) cell to the right
+                def _find_writable_right(row, start_col):
+                    for cc in range(start_col, start_col + 10):
+                        try:
+                            rc = ws.cell(row=row, column=cc)
+                            if isinstance(rc, MergedCell):
+                                continue
+                            if rc.value is None or str(rc.value).strip() == '':
+                                return rc
+                        except Exception:
+                            pass
+                    return None
 
-                # Case 2: Cell has just the label text, value goes in the next cell
+                # Determine where to put the value
+                right_cell = _find_writable_right(r, c + 1)
+                if right_cell:
+                    right_cell.value = value
+                    logger.debug(f"Label fill: [{ws.title}] R{r}C{right_cell.column} = {value[:50]}")
                 else:
-                    if c + 1 <= max_c + 5:
-                        right_cell = ws.cell(row=r, column=c + 1)
-                        if right_cell.value is None or str(right_cell.value).strip() == '':
-                            right_cell.value = value
-                            logger.debug(f"Label fill (right): [{ws.title}] R{r}C{c+1} = {value[:50]}")
+                    # Append to the label cell itself
+                    if not isinstance(cell, MergedCell):
+                        cell.value = cell_text + ' ' + value
+                        logger.debug(f"Label fill (append): [{ws.title}] R{r}C{c} = {cell.value[:50]}")
 
 
 def _fill_template_file(template_file, placeholder_map):
