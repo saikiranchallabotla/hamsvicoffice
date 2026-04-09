@@ -2806,25 +2806,25 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
 
 {% include 'core/includes/spec_tooltip.html' %}
 <script>
-// Populate spec tooltips from item_descs
 (function() {
     var descs = {{ item_descs_json|safe }};
     document.querySelectorAll('#estimate-table .desc-col').forEach(function(cell) {
         var row = cell.closest('tr');
         var name = row ? row.getAttribute('data-item-name') : '';
-        if (name && descs[name]) {
+        if (name && descs[name] && descs[name] !== name) {
             cell.setAttribute('data-spec', descs[name]);
         }
     });
-    // Patch addItemToTable to include spec
     var _origAdd = window.addItemToTable;
     if (typeof _origAdd === 'function') {
         window.addItemToTable = function(itemName, itemInfo) {
             _origAdd(itemName, itemInfo);
-            var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + CSS.escape(itemName) + '"]');
-            if (row && descs[itemName]) {
-                var cell = row.querySelector('.desc-col');
-                if (cell) cell.setAttribute('data-spec', descs[itemName]);
+            if (descs[itemName] && descs[itemName] !== itemName) {
+                var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + CSS.escape(itemName) + '"]');
+                if (row) {
+                    var cell = row.querySelector('.desc-col');
+                    if (cell) cell.setAttribute('data-spec', descs[itemName]);
+                }
             }
         };
     }

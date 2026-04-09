@@ -910,7 +910,7 @@
     document.querySelectorAll('#estimate-table .desc-col').forEach(function(cell) {
         var row = cell.closest('tr');
         var name = row ? row.getAttribute('data-item-name') : '';
-        if (name && descs[name]) {
+        if (name && descs[name] && descs[name] !== name) {
             cell.setAttribute('data-spec', descs[name]);
         }
     });

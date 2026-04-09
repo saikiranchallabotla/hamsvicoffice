@@ -1,80 +1,53 @@
 <!-- Specification tooltip - shows item description on hover -->
 <style>
-.spec-tooltip {
+.spec-tip {
     display: none;
     position: fixed;
     z-index: 99999;
-    max-width: 420px;
-    min-width: 200px;
-    padding: 10px 14px;
-    background: #1e293b;
-    color: #f1f5f9;
-    border-radius: 8px;
-    font-size: 0.82rem;
-    line-height: 1.5;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    max-width: 350px;
+    padding: 6px 10px;
+    background: #333;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    line-height: 1.4;
     pointer-events: none;
     word-wrap: break-word;
-    white-space: pre-line;
-}
-.spec-tooltip .spec-label {
-    color: #94a3b8;
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-    display: block;
 }
 .desc-col[data-spec] {
     cursor: help;
+    border-bottom: 1px dotted #94a3b8;
 }
 </style>
-<div class="spec-tooltip" id="specTooltip">
-    <span class="spec-label">Specification</span>
-    <span id="specTooltipText"></span>
-</div>
+<div class="spec-tip" id="specTip"></div>
 <script>
 (function() {
-    var tooltip = document.getElementById('specTooltip');
-    var tooltipText = document.getElementById('specTooltipText');
-    var showTimer = null;
-
+    var tip = document.getElementById('specTip');
+    var timer = null;
     document.addEventListener('mouseover', function(e) {
-        var cell = e.target.closest('.desc-col[data-spec]');
-        if (!cell) return;
-        var spec = cell.getAttribute('data-spec');
-        if (!spec || spec === cell.textContent.trim()) return;
-        clearTimeout(showTimer);
-        showTimer = setTimeout(function() {
-            tooltipText.textContent = spec;
-            tooltip.style.display = 'block';
-            positionTooltip(e);
-        }, 300);
+        var el = e.target.closest('[data-spec]');
+        if (!el) return;
+        var spec = el.getAttribute('data-spec');
+        if (!spec) return;
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            tip.textContent = spec;
+            tip.style.display = 'block';
+            pos(e);
+        }, 250);
     });
-
     document.addEventListener('mousemove', function(e) {
-        if (tooltip.style.display === 'block') {
-            positionTooltip(e);
-        }
+        if (tip.style.display === 'block') pos(e);
     });
-
     document.addEventListener('mouseout', function(e) {
-        var cell = e.target.closest('.desc-col[data-spec]');
-        if (!cell) return;
-        clearTimeout(showTimer);
-        tooltip.style.display = 'none';
+        if (e.target.closest('[data-spec]')) { clearTimeout(timer); tip.style.display = 'none'; }
     });
-
-    function positionTooltip(e) {
-        var x = e.clientX + 12;
-        var y = e.clientY + 12;
-        var tw = tooltip.offsetWidth;
-        var th = tooltip.offsetHeight;
-        if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 12;
-        if (y + th > window.innerHeight - 10) y = e.clientY - th - 12;
-        tooltip.style.left = x + 'px';
-        tooltip.style.top = y + 'px';
+    function pos(e) {
+        var x = e.clientX + 10, y = e.clientY + 14;
+        if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - tip.offsetWidth - 10;
+        if (y + tip.offsetHeight > window.innerHeight - 8) y = e.clientY - tip.offsetHeight - 10;
+        tip.style.left = x + 'px';
+        tip.style.top = y + 'px';
     }
 })();
 </script>

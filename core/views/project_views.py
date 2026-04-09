@@ -293,10 +293,20 @@ def datas_items(request, category, group):
                 rate = val
                 break
         item_rates[name] = rate
-        # Row+2 description (detailed text below the header)
-        desc_cell = ws_vals.cell(row=start_row + 2, column=4).value
-        if desc_cell and str(desc_cell).strip():
-            item_descs[name] = str(desc_cell).strip()
+        # Scan rows below header for the best description text
+        # Check columns B(2) and D(4) in rows start_row+1 through end_row
+        desc_candidates = []
+        for r in range(start_row + 1, min(end_row + 1, start_row + 4)):
+            for col in (4, 2):  # column D first, then B
+                cell_val = ws_vals.cell(row=r, column=col).value
+                if cell_val:
+                    txt = str(cell_val).strip()
+                    # Skip if it's just a number, rate value, or unit
+                    if txt and len(txt) > 5 and not txt.replace('.', '').replace(',', '').isdigit():
+                        desc_candidates.append(txt)
+        if desc_candidates:
+            # Pick the longest candidate as the most detailed description
+            item_descs[name] = max(desc_candidates, key=len)
         else:
             item_descs[name] = name
 
