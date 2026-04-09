@@ -514,6 +514,136 @@
         opacity: 1;
         transform: translateY(0);
     }
+
+    /* How it works Guide */
+    .guide-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1100;
+    }
+    .guide-overlay.show { display: block; }
+
+    .guide-modal {
+        display: none;
+        position: fixed;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        z-index: 1101;
+        width: 720px;
+        max-width: 95vw;
+        max-height: 90vh;
+        overflow: hidden;
+    }
+    .guide-modal.show { display: flex; flex-direction: column; }
+
+    .guide-header {
+        background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+        color: white;
+        padding: 0.75rem 1rem;
+        display: flex; justify-content: space-between; align-items: center;
+        flex-shrink: 0;
+    }
+    .guide-header h3 { margin: 0; font-size: 0.9rem; font-weight: 700; }
+    .guide-close {
+        background: rgba(255,255,255,0.15);
+        border: none; color: white;
+        width: 28px; height: 28px;
+        border-radius: 50%; cursor: pointer;
+        font-size: 1rem;
+    }
+
+    .guide-body {
+        padding: 1rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .guide-step {
+        margin-bottom: 1.25rem;
+    }
+    .guide-step-header {
+        display: flex; align-items: center; gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .guide-step-num {
+        width: 26px; height: 26px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+    }
+    .guide-step-title {
+        font-size: 0.82rem; font-weight: 700; color: #2d3748;
+    }
+    .guide-step-desc {
+        font-size: 0.72rem; color: #4a5568; margin-bottom: 0.4rem;
+        line-height: 1.5;
+    }
+
+    /* Simulated file examples */
+    .guide-file-example {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+    .guide-file-bar {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.62rem;
+        font-weight: 700;
+        display: flex; align-items: center; gap: 0.3rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .guide-file-bar.source { background: #dbeafe; color: #1e40af; }
+    .guide-file-bar.template { background: #fce7f3; color: #9d174d; }
+    .guide-file-bar.output { background: #d1fae5; color: #065f46; }
+
+    .guide-file-body {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.7rem;
+        font-family: 'Courier New', monospace;
+        line-height: 1.6;
+        background: #fafbfc;
+    }
+    .guide-file-body .label { color: #4a5568; }
+    .guide-file-body .value { color: #1a202c; font-weight: 600; }
+    .guide-file-body .ph { color: #764ba2; font-weight: 700; background: #f5f0ff; padding: 0.1rem 0.2rem; border-radius: 3px; }
+    .guide-file-body .filled { color: #065f46; font-weight: 700; background: #d1fae5; padding: 0.1rem 0.2rem; border-radius: 3px; }
+
+    .guide-flow-arrow {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #667eea;
+        margin: 0.3rem 0;
+    }
+
+    .guide-columns {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 0.5rem;
+        align-items: start;
+    }
+    .guide-columns .arrow-col {
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; color: #667eea; padding-top: 2rem;
+    }
+
+    .guide-tip {
+        padding: 0.5rem 0.6rem;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        color: #92400e;
+        display: flex; gap: 0.3rem; align-items: flex-start;
+    }
+    .guide-tip i { flex-shrink: 0; margin-top: 0.1rem; }
     
     .hidden-textarea { display: none; }
     
@@ -596,6 +726,9 @@
                     </button>
                     <button type="button" class="sf-btn sf-btn-purple" onclick="toggleHelpPopup()">
                         <i class="bi bi-lightbulb"></i> Placeholders
+                    </button>
+                    <button type="button" class="sf-btn" style="background:#e2e8f0;color:#2d3748;" onclick="toggleGuide()">
+                        <i class="bi bi-question-circle"></i> How it works?
                     </button>
                 </div>
                 
@@ -854,6 +987,216 @@ dialog::backdrop {
 <!-- Copied Toast -->
 <div class="ph-copied-toast" id="ph-copied-toast">Copied!</div>
 
+<!-- How it works Guide Modal -->
+<div class="guide-overlay" id="guide-overlay" onclick="toggleGuide()"></div>
+<div class="guide-modal" id="guide-modal">
+    <div class="guide-header">
+        <h3><i class="bi bi-book me-2"></i>How Self Formatted Forms Work</h3>
+        <button class="guide-close" onclick="toggleGuide()"><i class="bi bi-x"></i></button>
+    </div>
+    <div class="guide-body">
+
+        <!-- OVERVIEW -->
+        <div class="guide-step">
+            <div class="guide-step-header">
+                <div class="guide-step-num">1</div>
+                <div class="guide-step-title">The Concept</div>
+            </div>
+            <div class="guide-step-desc">
+                You have a <strong>source file</strong> (Forwarding Slip, Estimate, Bill, etc.) that contains data like work name, amount, contractor name, MB details, etc.<br>
+                You have a <strong>template file</strong> (Word/Excel) where you want this data to appear — but in <em>your own format</em>.<br>
+                You place <strong>{% verbatim %}{{PLACEHOLDERS}}{% endverbatim %}</strong> in the template wherever you want data to appear. The system reads the source, extracts values, and fills your template automatically.
+            </div>
+        </div>
+
+        <!-- STEP 2: SOURCE FILE EXAMPLE -->
+        <div class="guide-step">
+            <div class="guide-step-header">
+                <div class="guide-step-num">2</div>
+                <div class="guide-step-title">Your Source File (Input)</div>
+            </div>
+            <div class="guide-step-desc">This is your existing file — a forwarding slip, estimate, or bill Excel/Word/PDF. For example:</div>
+            <div class="guide-file-example">
+                <div class="guide-file-bar source"><i class="bi bi-file-earmark-spreadsheet"></i> Source File — Forwarding_Slip.xlsx</div>
+                <div class="guide-file-body">
+                    <span class="label">Name of the Work :</span> <span class="value">Construction of CC Road at Ward No.5</span><br>
+                    <span class="label">Name of the Agency :</span> <span class="value">Sri. Ramesh Kumar</span><br>
+                    <span class="label">Agreement No :</span> <span class="value">AGR/2024-25/156</span><br>
+                    <span class="label">Administrative Sanction :</span> <span class="value">Proc.No.123/2024, dt: 15-03-2024</span><br>
+                    <span class="label">Technical Sanction :</span> <span class="value">TS/456/2024, dt: 20-03-2024</span><br>
+                    <span class="label">M.B No :</span> <span class="value">MB-45, Pages 12 to 18</span><br>
+                    <span class="label">Amount :</span> <span class="value">Rs. 4,85,000.00</span><br>
+                    <span class="label">Tender Premium :</span> <span class="value">15% Excess</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: TEMPLATE & OUTPUT SIDE BY SIDE -->
+        <div class="guide-step">
+            <div class="guide-step-header">
+                <div class="guide-step-num">3</div>
+                <div class="guide-step-title">Your Template File (with Placeholders) → Filled Output</div>
+            </div>
+            <div class="guide-step-desc">
+                In your template, put <strong>{% verbatim %}{{PLACEHOLDER_NAME}}{% endverbatim %}</strong> wherever data should go. Click the <strong>Placeholders</strong> button to see all available names and copy them.
+            </div>
+
+            <div class="guide-columns">
+                <!-- Template -->
+                <div>
+                    <div class="guide-file-example">
+                        <div class="guide-file-bar template"><i class="bi bi-file-earmark-word"></i> Template — My_Bill_Format.docx</div>
+                        <div class="guide-file-body">
+                            <strong>OFFICE OF THE EXECUTIVE ENGINEER</strong><br><br>
+                            <span class="label">Sub:</span> <span class="ph">{% verbatim %}{{NAME_OF_WORK}}{% endverbatim %}</span><br><br>
+                            <span class="label">Ref:</span> Agreement No. <span class="ph">{% verbatim %}{{REF_OF_AGREEMENT}}{% endverbatim %}</span><br><br>
+                            <span class="label">Contractor:</span> <span class="ph">{% verbatim %}{{CONTRACTOR}}{% endverbatim %}</span><br><br>
+                            <span class="label">A.S:</span> <span class="ph">{% verbatim %}{{ADMIN_SANCTION}}{% endverbatim %}</span><br>
+                            <span class="label">T.S:</span> <span class="ph">{% verbatim %}{{TECH_SANCTION}}{% endverbatim %}</span><br><br>
+                            <span class="label">Bill Amount:</span> Rs. <span class="ph">{% verbatim %}{{AMOUNT}}{% endverbatim %}</span><br>
+                            <span class="label">In Words:</span> <span class="ph">{% verbatim %}{{AMOUNT_IN_WORDS}}{% endverbatim %}</span><br><br>
+                            <span class="label">M.B Details:</span> <span class="ph">{% verbatim %}{{MB_DETAILS}}{% endverbatim %}</span><br>
+                            <span class="label">T.P:</span> <span class="ph">{% verbatim %}{{TP_DETAILS}}{% endverbatim %}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Arrow -->
+                <div class="arrow-col">→</div>
+
+                <!-- Output -->
+                <div>
+                    <div class="guide-file-example">
+                        <div class="guide-file-bar output"><i class="bi bi-file-earmark-check"></i> Output — Filled_Document.docx</div>
+                        <div class="guide-file-body">
+                            <strong>OFFICE OF THE EXECUTIVE ENGINEER</strong><br><br>
+                            <span class="label">Sub:</span> <span class="filled">Construction of CC Road at Ward No.5</span><br><br>
+                            <span class="label">Ref:</span> Agreement No. <span class="filled">AGR/2024-25/156</span><br><br>
+                            <span class="label">Contractor:</span> <span class="filled">Sri. Ramesh Kumar</span><br><br>
+                            <span class="label">A.S:</span> <span class="filled">Proc.No.123/2024, dt: 15-03-2024</span><br>
+                            <span class="label">T.S:</span> <span class="filled">TS/456/2024, dt: 20-03-2024</span><br><br>
+                            <span class="label">Bill Amount:</span> Rs. <span class="filled">4,85,000.00</span><br>
+                            <span class="label">In Words:</span> <span class="filled">Rupees Four Lakhs Eighty Five Thousand Only</span><br><br>
+                            <span class="label">M.B Details:</span> <span class="filled">MB-45, Pages 12 to 18</span><br>
+                            <span class="label">T.P:</span> <span class="filled">15% Excess</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 4: EXCEL TEMPLATE EXAMPLE -->
+        <div class="guide-step">
+            <div class="guide-step-header">
+                <div class="guide-step-num">4</div>
+                <div class="guide-step-title">Excel Template Example</div>
+            </div>
+            <div class="guide-step-desc">Works the same way with Excel files. Put placeholders in cells:</div>
+
+            <div class="guide-columns">
+                <div>
+                    <div class="guide-file-example">
+                        <div class="guide-file-bar template"><i class="bi bi-file-earmark-spreadsheet"></i> Template — LS_Form.xlsx</div>
+                        <div class="guide-file-body" style="padding:0;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.65rem;">
+                                <tr style="background:#f0f0f0;"><td style="border:1px solid #ddd;padding:3px 6px;">A</td><td style="border:1px solid #ddd;padding:3px 6px;">B</td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Name of Work</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="ph">{% verbatim %}{{NAME_OF_WORK}}{% endverbatim %}</span></td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Agency</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="ph">{% verbatim %}{{NAME_OF_AGENCY}}{% endverbatim %}</span></td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Agreement</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="ph">{% verbatim %}{{REF_OF_AGREEMENT}}{% endverbatim %}</span></td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Amount</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="ph">{% verbatim %}{{AMOUNT}}{% endverbatim %}</span></td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="arrow-col">→</div>
+                <div>
+                    <div class="guide-file-example">
+                        <div class="guide-file-bar output"><i class="bi bi-file-earmark-check"></i> Output — Filled_LS_Form.xlsx</div>
+                        <div class="guide-file-body" style="padding:0;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.65rem;">
+                                <tr style="background:#f0f0f0;"><td style="border:1px solid #ddd;padding:3px 6px;">A</td><td style="border:1px solid #ddd;padding:3px 6px;">B</td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Name of Work</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="filled">Construction of CC Road at Ward No.5</span></td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Agency</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="filled">Sri. Ramesh Kumar</span></td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Agreement</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="filled">AGR/2024-25/156</span></td></tr>
+                                <tr><td style="border:1px solid #ddd;padding:3px 6px;" class="label">Amount</td><td style="border:1px solid #ddd;padding:3px 6px;"><span class="filled">4,85,000.00</span></td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 5: CUSTOM PLACEHOLDERS -->
+        <div class="guide-step">
+            <div class="guide-step-header">
+                <div class="guide-step-num">5</div>
+                <div class="guide-step-title">Custom Placeholders</div>
+            </div>
+            <div class="guide-step-desc">
+                Need a field that's not in the built-in list? Create a <strong>Custom Placeholder</strong>:
+            </div>
+            <div class="guide-file-example">
+                <div class="guide-file-bar" style="background:#f5f0ff;color:#764ba2;"><i class="bi bi-plus-circle"></i> Custom Placeholder Example</div>
+                <div class="guide-file-body" style="font-family:inherit;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+                        <tr style="background:#f0f0f0;font-weight:600;">
+                            <td style="border:1px solid #ddd;padding:4px 8px;">Placeholder Name</td>
+                            <td style="border:1px solid #ddd;padding:4px 8px;">Label to Find</td>
+                            <td style="border:1px solid #ddd;padding:4px 8px;">What Happens</td>
+                        </tr>
+                        <tr>
+                            <td style="border:1px solid #ddd;padding:4px 8px;"><code style="background:#f5f0ff;color:#764ba2;padding:1px 4px;border-radius:3px;">DIVISION_NAME</code></td>
+                            <td style="border:1px solid #ddd;padding:4px 8px;">Name of Division</td>
+                            <td style="border:1px solid #ddd;padding:4px 8px;">System searches source file for "Name of Division" and extracts the value next to it</td>
+                        </tr>
+                        <tr>
+                            <td style="border:1px solid #ddd;padding:4px 8px;"><code style="background:#f5f0ff;color:#764ba2;padding:1px 4px;border-radius:3px;">CIRCLE_NAME</code></td>
+                            <td style="border:1px solid #ddd;padding:4px 8px;">Name of Circle</td>
+                            <td style="border:1px solid #ddd;padding:4px 8px;">System finds "Name of Circle" in source and extracts the value</td>
+                        </tr>
+                    </table>
+                    <p style="margin:0.4rem 0 0;font-size:0.68rem;color:#718096;">
+                        Then in your template, use <span class="ph">{% verbatim %}{{DIVISION_NAME}}{% endverbatim %}</span> and <span class="ph">{% verbatim %}{{CIRCLE_NAME}}{% endverbatim %}</span> — they'll be replaced with the found values.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 6: QUICK STEPS -->
+        <div class="guide-step">
+            <div class="guide-step-header">
+                <div class="guide-step-num">6</div>
+                <div class="guide-step-title">Quick Steps</div>
+            </div>
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                <div style="flex:1;min-width:160px;padding:0.5rem;background:#dbeafe;border-radius:6px;border-left:3px solid #3b82f6;">
+                    <div style="font-weight:700;font-size:0.72rem;color:#1e40af;margin-bottom:0.2rem;"><i class="bi bi-1-circle me-1"></i> Prepare Template</div>
+                    <div style="font-size:0.65rem;color:#1e3a5f;">Open your Word/Excel template. Type <code style="font-size:0.6rem;">{% verbatim %}{{PLACEHOLDER}}{% endverbatim %}</code> wherever data should go. Use the <strong>Placeholders</strong> button to copy names.</div>
+                </div>
+                <div style="flex:1;min-width:160px;padding:0.5rem;background:#fce7f3;border-radius:6px;border-left:3px solid #ec4899;">
+                    <div style="font-weight:700;font-size:0.72rem;color:#9d174d;margin-bottom:0.2rem;"><i class="bi bi-2-circle me-1"></i> Upload Files</div>
+                    <div style="font-size:0.65rem;color:#831843;">Upload your <strong>source file</strong> (forwarding slip/estimate/bill) and your <strong>template file</strong> here.</div>
+                </div>
+                <div style="flex:1;min-width:160px;padding:0.5rem;background:#d1fae5;border-radius:6px;border-left:3px solid #10b981;">
+                    <div style="font-weight:700;font-size:0.72rem;color:#065f46;margin-bottom:0.2rem;"><i class="bi bi-3-circle me-1"></i> Generate</div>
+                    <div style="font-size:0.65rem;color:#064e3b;">Click <strong>Preview</strong> to check extracted values, then <strong>Generate</strong> to download the filled document!</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TIPS -->
+        <div class="guide-tip">
+            <i class="bi bi-lightbulb-fill"></i>
+            <div>
+                <strong>Tips:</strong>
+                Use <strong>Save Reusable Format</strong> (right side) to save your template so you only upload the source file next time.
+                The <strong>Preview</strong> button lets you verify extracted values before generating.
+                Supported source files: Excel, Word, PDF (including scanned), Images.
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Help Panel (slide-out) -->
 <div class="help-overlay" id="help-overlay" onclick="toggleHelpPopup()"></div>
 <div class="help-popup" id="help-popup">
@@ -952,6 +1295,11 @@ dialog::backdrop {
 window.toggleHelpPopup = function() {
     document.getElementById('help-popup').classList.toggle('show');
     document.getElementById('help-overlay').classList.toggle('show');
+};
+
+window.toggleGuide = function() {
+    document.getElementById('guide-modal').classList.toggle('show');
+    document.getElementById('guide-overlay').classList.toggle('show');
 };
 
 // --- Copy placeholder to clipboard ---
