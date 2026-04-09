@@ -122,7 +122,8 @@ def self_formatted_generate(request):
     try:
         labels, lines = _extract_labels_from_source_file(source_file)
     except Exception as e:
-        logger.error(f"Source file extraction failed: {e}")
+        import traceback
+        logger.error(f"Source file extraction failed: {e}\n{traceback.format_exc()}")
         return redirect(f"{reverse('self_formatted_form_page')}?error=Failed+to+read+source+file.+Please+check+the+file+format.")
 
     # Check if no text was extracted (likely scanned PDF)
@@ -139,7 +140,8 @@ def self_formatted_generate(request):
     try:
         return _fill_template_file(template_file, placeholder_map)
     except Exception as e:
-        logger.error(f"Template fill failed: {e}")
+        import traceback
+        logger.error(f"Template fill failed: {e}\n{traceback.format_exc()}")
         return redirect(f"{reverse('self_formatted_form_page')}?error=Failed+to+fill+template.+Please+check+the+template+file+format.")
 
 

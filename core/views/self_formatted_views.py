@@ -864,10 +864,10 @@ def _preprocess_image_for_ocr(img, variant='standard'):
 
         # 2. Smart upscaling for better OCR on small/low-res images
         width, height = img.size
-        target_dpi_size = 3000  # Increased target for better recognition
+        target_dpi_size = 2000  # Target minimum dimension
         if width < target_dpi_size or height < target_dpi_size:
             scale_factor = max(target_dpi_size / width, target_dpi_size / height)
-            scale_factor = min(scale_factor, 4.0)
+            scale_factor = min(scale_factor, 3.0)
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
             img = img.resize((new_width, new_height), Image.LANCZOS)
@@ -875,11 +875,12 @@ def _preprocess_image_for_ocr(img, variant='standard'):
         # 3. Convert to grayscale
         gray = img.convert('L')
 
-        # 4. Deskew detection and correction
-        try:
-            gray = _deskew_image(gray)
-        except Exception as e:
-            logger.debug(f"OCR: Deskew failed: {e}")
+        # 4. Deskew detection and correction (skip for 'gentle' and 'standard' to save time)
+        if variant == 'adaptive':
+            try:
+                gray = _deskew_image(gray)
+            except Exception as e:
+                logger.debug(f"OCR: Deskew failed: {e}")
 
         if variant == 'gentle':
             # Minimal processing - just sharpen and return grayscale
@@ -1528,7 +1529,7 @@ def _extract_labels_from_source_file(uploaded_file):
                 pdf_bytes = uploaded_file.read()
 
                 # Convert PDF pages to images at 400 DPI for better OCR accuracy
-                images = convert_from_bytes(pdf_bytes, dpi=400)
+                images = convert_from_bytes(pdf_bytes, dpi=300)
 
                 ocr_lines = []
 
