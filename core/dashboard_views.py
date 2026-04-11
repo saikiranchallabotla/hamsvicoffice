@@ -7,7 +7,7 @@ Shows module cards, subscription status, quick actions, and announcements.
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-from django.db.models import Count, Q
+from django.db.models import Count
 
 from accounts.models import UserProfile
 from subscriptions.models import Module, UserModuleSubscription
@@ -111,11 +111,11 @@ def dashboard(request):
                 status='expired'
             ).first()
             
-            # Check if trial was ever used
+            # Check if trial was ever used (only count actual trial records, not expired paid subs)
             trial_ever_used = UserModuleSubscription.objects.filter(
                 user=user,
                 module=module,
-                status__in=['trial', 'expired']
+                status='trial'
             ).exists()
             
             if expired_sub:

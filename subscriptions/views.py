@@ -134,23 +134,38 @@ def start_trial_view(request, module_code):
     Start a free trial for a module.
     """
     module = get_object_or_404(Module, code=module_code, is_active=True)
-    
-    # Check if user already used trial
-    existing_trial = UserModuleSubscription.objects.filter(
+
+    # Check for any existing subscription (active, trial, expired, cancelled)
+    existing_sub = UserModuleSubscription.objects.filter(
         user=request.user,
         module=module,
-        status='trial'
     ).first()
 
-    if existing_trial:
-        # Check if admin extended trial duration — re-offer remaining time
-        if existing_trial.expires_at and existing_trial.expires_at < timezone.now():
-            time_used = existing_trial.expires_at - existing_trial.started_at
+    if existing_sub:
+        # Already has an active paid subscription
+        if existing_sub.status == 'active' and existing_sub.expires_at > timezone.now():
+            messages.info(request, f'You already have an active subscription for {module.name}.')
+            redirect_url = request.session.pop('subscription_redirect', None)
+            if redirect_url:
+                return redirect(redirect_url)
+            return redirect('dashboard')
+
+        # Active trial
+        if existing_sub.status == 'trial' and existing_sub.expires_at > timezone.now():
+            messages.info(request, f'You already have an active trial for {module.name}.')
+            redirect_url = request.session.pop('subscription_redirect', None)
+            if redirect_url:
+                return redirect(redirect_url)
+            return redirect('dashboard')
+
+        # Expired trial — check if admin extended trial duration
+        if existing_sub.status == 'trial' and existing_sub.expires_at and existing_sub.expires_at < timezone.now():
+            time_used = existing_sub.expires_at - existing_sub.started_at
             new_duration = module.trial_duration_timedelta
             if new_duration > time_used:
                 remaining = new_duration - time_used
-                existing_trial.expires_at = timezone.now() + remaining
-                existing_trial.save(update_fields=['expires_at'])
+                existing_sub.expires_at = timezone.now() + remaining
+                existing_sub.save(update_fields=['expires_at'])
                 total_secs = int(remaining.total_seconds())
                 rem_days = total_secs // 86400
                 rem_hours = (total_secs % 86400) // 3600
@@ -165,35 +180,30 @@ def start_trial_view(request, module_code):
                 if redirect_url:
                     return redirect(redirect_url)
                 return redirect('dashboard')
-        messages.error(request, f'You have already used your free trial for {module.name}.')
-        return redirect('module_access', module_code=module_code)
-    
-    # Check if user already has active subscription
-    active_sub = UserModuleSubscription.objects.filter(
-        user=request.user,
-        module=module,
-        status='active',
-        expires_at__gt=timezone.now()
-    ).first()
-    
-    if active_sub:
-        messages.info(request, f'You already have an active subscription for {module.name}.')
-        redirect_url = request.session.pop('subscription_redirect', None)
-        if redirect_url:
-            return redirect(redirect_url)
-        return redirect('dashboard')
-    
-    # Create trial subscription using module's configured trial duration
-    trial_expires = timezone.now() + module.trial_duration_timedelta
-    
-    UserModuleSubscription.objects.create(
-        user=request.user,
-        module=module,
-        status='trial',
-        started_at=timezone.now(),
-        expires_at=trial_expires,
-        usage_limit=module.max_usage_per_subscription if module.max_usage_per_subscription >= 0 else 0,
-    )
+            messages.error(request, f'You have already used your free trial for {module.name}.')
+            return redirect('module_access', module_code=module_code)
+
+        # Expired/cancelled paid subscription — allow a fresh trial by reusing the record
+        if existing_sub.status in ('expired', 'cancelled', 'suspended'):
+            trial_expires = timezone.now() + module.trial_duration_timedelta
+            existing_sub.status = 'trial'
+            existing_sub.started_at = timezone.now()
+            existing_sub.expires_at = trial_expires
+            existing_sub.usage_count = 0
+            existing_sub.usage_limit = module.max_usage_per_subscription if module.max_usage_per_subscription >= 0 else 0
+            existing_sub.cancelled_at = None
+            existing_sub.save()
+    else:
+        # No existing subscription — create a new trial
+        trial_expires = timezone.now() + module.trial_duration_timedelta
+        UserModuleSubscription.objects.create(
+            user=request.user,
+            module=module,
+            status='trial',
+            started_at=timezone.now(),
+            expires_at=trial_expires,
+            usage_limit=module.max_usage_per_subscription if module.max_usage_per_subscription >= 0 else 0,
+        )
     
     # Build human-readable duration string
     parts = []

@@ -41,10 +41,6 @@ class PaymentService:
         result = PaymentService.process_refund(payment, amount, reason)
     """
     
-    # Razorpay credentials from settings
-    RAZORPAY_KEY_ID = getattr(settings, 'RAZORPAY_KEY_ID', '')
-    RAZORPAY_KEY_SECRET = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
-    
     # Currency
     CURRENCY = 'INR'
     
@@ -177,7 +173,7 @@ class PaymentService:
             data={
                 "order_id": order_id,
                 "razorpay_order_id": razorpay_order_id,
-                "razorpay_key_id": cls.RAZORPAY_KEY_ID,
+                "razorpay_key_id": getattr(settings, 'RAZORPAY_KEY_ID', ''),
                 "amount": int(total * 100),  # Razorpay expects paise
                 "amount_display": f"₹{total:,.2f}",
                 "currency": cls.CURRENCY,
@@ -267,7 +263,7 @@ class PaymentService:
         return cls._success("Order created successfully.", data={
             "order_id": order_id,
             "razorpay_order_id": razorpay_order_id,
-            "razorpay_key_id": cls.RAZORPAY_KEY_ID,
+            "razorpay_key_id": getattr(settings, 'RAZORPAY_KEY_ID', ''),
             "amount": int(total * 100),
             "amount_display": f"₹{total:,.2f}",
             "currency": cls.CURRENCY,
@@ -341,7 +337,7 @@ class PaymentService:
         # Create subscriptions for each module
         subscriptions = []
         pricing_data = payment.pricing_snapshot.get('modules', [])
-        
+
         for module in payment.modules.all():
             # Find duration from pricing snapshot
             duration = 1
@@ -349,28 +345,48 @@ class PaymentService:
                 if p['code'] == module.code:
                     duration = p['duration']
                     break
-            
+
             # Get pricing
             pricing = ModulePricing.objects.filter(
                 module=module,
                 duration_months=duration,
                 is_active=True
             ).first()
-            
+
             # Calculate expiry
             expires_at = timezone.now() + timezone.timedelta(days=duration * 30)
-            
-            # Create subscription
-            subscription = UserModuleSubscription.objects.create(
+
+            # Create or update subscription (reuse existing record if any)
+            existing_sub = UserModuleSubscription.objects.filter(
                 user=payment.user,
                 module=module,
-                pricing=pricing,
-                status='active',
-                started_at=timezone.now(),
-                expires_at=expires_at,
-                usage_limit=pricing.usage_limit if pricing else 0,
-                payment=payment,
-            )
+            ).first()
+
+            if existing_sub:
+                # Extend if still active, otherwise reset
+                if existing_sub.expires_at and existing_sub.expires_at > timezone.now():
+                    existing_sub.expires_at = existing_sub.expires_at + timezone.timedelta(days=duration * 30)
+                else:
+                    existing_sub.expires_at = expires_at
+                existing_sub.status = 'active'
+                existing_sub.pricing = pricing
+                existing_sub.payment = payment
+                existing_sub.started_at = timezone.now()
+                existing_sub.usage_limit = pricing.usage_limit if pricing else 0
+                existing_sub.cancelled_at = None
+                existing_sub.save()
+                subscription = existing_sub
+            else:
+                subscription = UserModuleSubscription.objects.create(
+                    user=payment.user,
+                    module=module,
+                    pricing=pricing,
+                    status='active',
+                    started_at=timezone.now(),
+                    expires_at=expires_at,
+                    usage_limit=pricing.usage_limit if pricing else 0,
+                    payment=payment,
+                )
             subscriptions.append({
                 'module': module.code,
                 'module_name': module.name,
@@ -839,8 +855,8 @@ class PaymentService:
     def _get_razorpay_client(cls):
         """Get Razorpay client instance."""
         # Check if credentials are properly configured (not empty or placeholder)
-        key_id = cls.RAZORPAY_KEY_ID
-        key_secret = cls.RAZORPAY_KEY_SECRET
+        key_id = getattr(settings, 'RAZORPAY_KEY_ID', '')
+        key_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
         
         # Return None if credentials are empty or contain placeholders
         if not key_id or not key_secret:
@@ -897,7 +913,7 @@ class PaymentService:
         
         message = f"{order_id}|{payment_id}"
         expected = hmac.new(
-            cls.RAZORPAY_KEY_SECRET.encode(),
+            getattr(settings, 'RAZORPAY_KEY_SECRET', '').encode(),
             message.encode(),
             hashlib.sha256
         ).hexdigest()
