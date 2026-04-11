@@ -13,23 +13,13 @@ class Command(BaseCommand):
         modules_data = [
             {
                 'code': 'new_estimate',
-                'name': 'New Estimate',
+                'name': 'Estimate',
                 'description': 'Create new professional estimates for clients',
                 'url_name': 'datas',
                 'icon': 'file-earmark-plus',
                 'color': '#3B82F6',
                 'display_order': 1,
                 'features': ['Create estimates', 'Excel/MS Word Export', 'Share via link', 'Multiple formats'],
-            },
-            {
-                'code': 'estimate',
-                'name': 'Estimate',
-                'description': 'Manage and view your estimates',
-                'url_name': 'estimate',
-                'icon': 'file-earmark-bar-graph',
-                'color': '#6366F1',
-                'display_order': 2,
-                'features': ['View estimates', 'Edit estimates', 'Excel/MS Word Export'],
             },
             {
                 'code': 'workslip',

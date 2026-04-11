@@ -21,16 +21,6 @@ modules_data = [
         'features': ['Create estimates', 'Excel/MS Word Export', 'Share via link', 'Multiple formats'],
     },
     {
-        'code': 'estimate',
-        'name': 'Estimate',
-        'description': 'Manage and view your estimates',
-        'url_name': 'estimate',
-        'icon': '📊',
-        'color': '#6366F1',
-        'display_order': 2,
-        'features': ['View estimates', 'Edit estimates', 'Excel/MS Word Export'],
-    },
-    {
         'code': 'workslip',
         'name': 'Workslip',
         'description': 'Generate work slips for your projects',

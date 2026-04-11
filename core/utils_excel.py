@@ -131,6 +131,90 @@ def detect_items(ws):
     return items
 
 
+# ---------- Upload item block parsing helpers ----------
+def _is_valid_item_block(ws_src, start_row, end_row):
+    """Check if this block looks like a valid item block (has rate data in column J)."""
+    for r in range(start_row, min(end_row + 1, start_row + 50)):
+        val = ws_src.cell(row=r, column=10).value
+        if val not in (None, "") and str(val).strip():
+            return True
+    return False
+
+
+def _find_item_block_end(ws_src, start_row, max_row):
+    """Find the true end of an item block by looking for the rate row in column J."""
+    next_heading_row = max_row + 1
+    for rr in range(start_row + 1, max_row + 1):
+        for c in range(1, 11):
+            cell = ws_src.cell(row=rr, column=c)
+            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
+                next_heading_row = rr
+                break
+        if next_heading_row <= max_row:
+            break
+
+    potential_end = next_heading_row - 1
+    last_rate_row = start_row
+    for r in range(start_row, potential_end + 1):
+        val = ws_src.cell(row=r, column=10).value
+        if val not in (None, "") and str(val).strip():
+            last_rate_row = r
+
+    return last_rate_row, next_heading_row
+
+
+def _extract_items_from_sheet(ws_src):
+    """Extract all item blocks from a single sheet."""
+    fetched_items = []
+    item_blocks = {}
+
+    max_row = ws_src.max_row
+    r = 1
+
+    while r <= max_row:
+        heading_name = None
+        for c in range(1, 11):
+            cell = ws_src.cell(row=r, column=c)
+            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
+                heading_name = str(cell.value).strip()
+                break
+
+        if heading_name:
+            start_row = r
+            end_row, next_heading_row = _find_item_block_end(ws_src, start_row, max_row)
+            if _is_valid_item_block(ws_src, start_row, end_row):
+                fetched_items.append(heading_name)
+                item_blocks[heading_name] = (start_row, end_row)
+            r = next_heading_row if next_heading_row <= max_row else end_row + 1
+        else:
+            r += 1
+
+    return fetched_items, item_blocks
+
+
+def _determine_unit_from_heading(heading_name, upload_units_map=None):
+    """Determine unit from Groups sheet units_map first, then fall back to heuristic."""
+    if upload_units_map and heading_name in upload_units_map:
+        return upload_units_map[heading_name]
+
+    heading_lower = heading_name.lower()
+
+    if "light point" in heading_lower or "fan point" in heading_lower:
+        return "Pts"
+    light_fan_keywords = ["light", "fan", "bulb", "fixture", "downlight", "spotlight", "batten"]
+    for keyword in light_fan_keywords:
+        if keyword in heading_lower:
+            return "Nos"
+    pipe_keywords = ["pipe", "wire", "cable", "conduit", "duct", "channel", "rod", "bar", "rail", "tube"]
+    for keyword in pipe_keywords:
+        if keyword in heading_lower:
+            return "Mtr"
+    if "point" in heading_lower or "pts" in heading_lower:
+        return "Pts"
+
+    return "Nos"
+
+
 # ---------- Read groups from "Groups" ----------
 def read_groups(ws_groups):
     """

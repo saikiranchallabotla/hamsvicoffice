@@ -32,15 +32,6 @@ modules_data = [
         'url_name': 'tempworks_home',
     },
     {
-        'code': 'estimate',
-        'name': 'Estimate',
-        'description': 'Create detailed project estimates with material and labor calculations',
-        'icon': 'calculator',
-        'display_order': 3,
-        'trial_days': 1,
-        'url_name': 'estimate',
-    },
-    {
         'code': 'workslip',
         'name': 'Work Slip',
         'description': 'Generate work slips and measurement sheets',

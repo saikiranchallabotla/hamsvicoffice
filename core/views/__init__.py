@@ -11,11 +11,10 @@ Module organization:
   estimate_excel.py         - Estimate Excel workbook builder
   amount_utils.py           - Amount extraction & template filling
   document_views.py         - Bill document, LS forms, covering letters
-  project_views.py          - Projects, SOR data browsing, estimate download
+  project_views.py          - Projects, SOR data browsing, estimate download, spec report, fwd letter
   self_formatted_views.py   - OCR & self-formatted document system
   self_formatted_form_views.py - Self-formatted form UI & management
   tempworks_views.py        - Temporary works module
-  estimate_views.py         - Estimate module views
   amc_views.py              - AMC (Annual Maintenance Contract) module
 """
 
@@ -36,7 +35,6 @@ _submodules = [
     'self_formatted_views',
     'self_formatted_form_views',
     'tempworks_views',
-    'estimate_views',
     'amc_views',
 ]
 

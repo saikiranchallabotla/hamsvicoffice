@@ -488,16 +488,13 @@ MODULE_PROTECTED_URLS = {
         r'^/groups/',
         r'^/items/',
         r'^/fetch-item/',
+        r'^/projects/',
     ],
     'temp_works': [
         r'^/tempworks/',
         r'^/temp-groups/',
         r'^/temp-items/',
         r'^/temp-rate/',
-    ],
-    'estimate': [
-        r'^/estimate/',
-        r'^/projects/',
     ],
     'workslip': [
         r'^/workslip/',
@@ -532,7 +529,6 @@ MODULE_EXEMPT_URLS = [
 
 # URLs that track usage (for metered billing)
 USAGE_TRACKED_URLS = [
-    (r'^/estimate/$', 'estimate', 'POST'),
     (r'^/workslip/$', 'workslip', 'POST'),
     (r'^/bill/$', 'bill', 'POST'),
     (r'^/self-formatted/use/$', 'self_formatted', 'POST'),

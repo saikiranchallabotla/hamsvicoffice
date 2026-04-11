@@ -422,10 +422,8 @@
                             </span>
                         </div>
                     </div>
-                    {% if card.module.name == "New Estimate" %}
+                    {% if card.module.name == "Estimate" %}
                     <div class="module-desc">Create estimates by selecting items and quantities.</div>
-                    {% elif card.module.name == "Estimate" %}
-                    <div class="module-desc">Upload data sheet to generate estimates.</div>
                     {% elif card.module.name == "WorkSlip" or card.module.name == "Workslip" %}
                     <div class="module-desc">Track on-site execution quantities.</div>
                     {% elif card.module.name == "Temporary Works" %}

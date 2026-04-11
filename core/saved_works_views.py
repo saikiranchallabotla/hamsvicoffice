@@ -1361,10 +1361,8 @@ def get_module_url(saved_work):
     work_data = saved_work.work_data or {}
     
     if work_type == 'new_estimate':
-        # Old estimate module uploads (no uploaded_items key) go to estimate_preview
-        if work_data.get('estimate_source') == 'uploaded' and not work_data.get('uploaded_items'):
-            return reverse('estimate_preview')
-        # If we have a last group saved, redirect to that group's items page
+        # All new_estimate saved works go to the new module
+        # (old uploaded-estimate works are also compatible with the new module)
         last_group = work_data.get('last_group', '')
         if last_group:
             return reverse('datas_items', kwargs={'category': category, 'group': last_group})
