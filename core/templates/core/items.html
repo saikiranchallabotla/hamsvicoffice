@@ -908,18 +908,6 @@
                        placeholder="Enter work name..."
                        value="{{ work_name|default_if_none:'' }}">
 
-                <!-- Upload Custom Items -->
-                <div class="upload-custom-row" id="upload-custom-row">
-                    <input type="file" id="custom-items-file" accept=".xlsx" style="display:none">
-                    <button type="button" class="btn-upload-custom" onclick="document.getElementById('custom-items-file').click()">
-                        <i class="bi bi-upload"></i> Upload Custom Items
-                    </button>
-                    <span class="upload-status" id="upload-status"></span>
-                    <button type="button" class="btn-clear-uploaded" id="btn-clear-uploaded" style="display:none" onclick="clearUploadedItems()">
-                        <i class="bi bi-x-circle"></i> Clear
-                    </button>
-                </div>
-
                 <div class="estimate-table-wrapper">
                     <table class="estimate-table" id="estimate-table">
                         <thead>
@@ -975,6 +963,18 @@
                             {% endif %}
                         </tbody>
                     </table>
+
+                <!-- Upload Custom Items -->
+                <div class="upload-custom-row" id="upload-custom-row">
+                    <input type="file" id="custom-items-file" accept=".xlsx" style="display:none">
+                    <button type="button" class="btn-upload-custom" onclick="document.getElementById('custom-items-file').click()">
+                        <i class="bi bi-upload"></i> Upload Custom Items
+                    </button>
+                    <span class="upload-status" id="upload-status"></span>
+                    <button type="button" class="btn-clear-uploaded" id="btn-clear-uploaded" style="display:none" onclick="clearUploadedItems()">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </div>
 
                 <div class="estimate-total-row">
                     <span class="total-label">
