@@ -22,7 +22,7 @@ from openpyxl.utils import get_column_letter
 from admin_panel.decorators import admin_required
 from accounts.models import UserProfile, UserSession
 from subscriptions.models import Module, UserModuleSubscription, Payment
-from core.models import Estimate, Job, Upload
+from core.models import Estimate, Job, Upload, SavedWork
 
 
 @admin_required
@@ -99,15 +99,15 @@ def analytics_dashboard(request):
     # -------------------------------------------------------------------------
     # USAGE STATS (Estimates, Bills, Jobs)
     # -------------------------------------------------------------------------
-    total_estimates = Estimate.objects.count()
-    estimates_this_month = Estimate.objects.filter(created_at__date__gte=month_ago).count()
-    
+    total_estimates = SavedWork.objects.count()
+    estimates_this_month = SavedWork.objects.filter(created_at__date__gte=month_ago).count()
+
     total_jobs = Job.objects.count()
     jobs_this_month = Job.objects.filter(created_at__date__gte=month_ago).count()
-    
+
     # Usage by day for last 30 days
     estimate_usage = (
-        Estimate.objects.filter(created_at__date__gte=month_ago)
+        SavedWork.objects.filter(created_at__date__gte=month_ago)
         .annotate(day=TruncDate('created_at'))
         .values('day')
         .annotate(count=Count('id'))
@@ -170,7 +170,7 @@ def analytics_dashboard(request):
     # -------------------------------------------------------------------------
     top_users_by_estimates = (
         User.objects.annotate(
-            estimate_count=Count('estimates')
+            estimate_count=Count('saved_works')
         )
         .filter(estimate_count__gt=0)
         .order_by('-estimate_count')[:10]
@@ -242,8 +242,8 @@ def user_analytics(request, user_id):
     today = timezone.now().date()
     month_ago = today - timedelta(days=30)
     
-    # User's estimates
-    estimates = Estimate.objects.filter(user=user).order_by('-created_at')
+    # User's saved works (estimates, workslips, bills, etc.)
+    estimates = SavedWork.objects.filter(user=user).order_by('-created_at')
     estimates_this_month = estimates.filter(created_at__date__gte=month_ago).count()
     
     # User's jobs
@@ -262,7 +262,7 @@ def user_analytics(request, user_id):
     for est in estimates[:10]:
         activity.append({
             'type': 'estimate',
-            'title': f'Created estimate: {est.work_name}',
+            'title': f'Created {est.get_work_type_display()}: {est.name}',
             'date': est.created_at
         })
     for job in jobs[:10]:
@@ -326,7 +326,7 @@ def analytics_api(request):
     
     elif chart_type == 'usage':
         estimates = (
-            Estimate.objects.filter(created_at__date__gte=start_date)
+            SavedWork.objects.filter(created_at__date__gte=start_date)
             .annotate(day=TruncDate('created_at'))
             .values('day')
             .annotate(count=Count('id'))
@@ -479,31 +479,32 @@ def export_analytics(request, export_type):
     
     elif export_type == 'estimates':
         ws = wb.active
-        ws.title = 'Estimates'
-        
+        ws.title = 'Saved Works'
+
         # Title
-        ws['A1'] = 'Estimates Export'
+        ws['A1'] = 'Saved Works Export'
         ws['A1'].font = title_font
         ws['A2'] = f'Generated: {today.strftime("%Y-%m-%d %H:%M:%S")}'
         ws['A2'].font = Font(italic=True, color='666666')
-        
+
         # Headers
-        headers = ['ID', 'Work Name', 'User', 'Email', 'Created At', 'Status']
+        headers = ['ID', 'Name', 'Work Type', 'User', 'Email', 'Created At', 'Status']
         for col, header in enumerate(headers, 1):
             ws.cell(row=4, column=col, value=header)
         style_header_row(ws, 4, len(headers))
-        
+
         # Data
-        estimates = Estimate.objects.all().select_related('user').order_by('-created_at')
+        saved_works = SavedWork.objects.all().select_related('user').order_by('-created_at')
         data = []
-        for est in estimates:
+        for sw in saved_works:
             data.append([
-                est.id,
-                est.work_name or 'Untitled',
-                est.user.username if est.user else 'N/A',
-                est.user.email if est.user else 'N/A',
-                est.created_at.strftime('%Y-%m-%d %H:%M:%S') if est.created_at else '',
-                getattr(est, 'status', 'N/A')
+                sw.id,
+                sw.name or 'Untitled',
+                sw.get_work_type_display(),
+                sw.user.username if sw.user else 'N/A',
+                sw.user.email if sw.user else 'N/A',
+                sw.created_at.strftime('%Y-%m-%d %H:%M:%S') if sw.created_at else '',
+                sw.get_status_display() if hasattr(sw, 'get_status_display') else sw.status
             ])
         add_data_rows(ws, 5, data)
         auto_adjust_columns(ws)
@@ -553,8 +554,8 @@ def export_analytics(request, export_type):
         ws_summary.cell(row=row, column=1, value='USAGE STATISTICS').font = subtitle_font
         row += 1
         stats = [
-            ['Total Estimates', Estimate.objects.count()],
-            ['Estimates (Last 30 Days)', Estimate.objects.filter(created_at__date__gte=today.date() - timedelta(days=30)).count()],
+            ['Total Saved Works', SavedWork.objects.count()],
+            ['Saved Works (Last 30 Days)', SavedWork.objects.filter(created_at__date__gte=today.date() - timedelta(days=30)).count()],
             ['Total Jobs', Job.objects.count()],
             ['Jobs (Last 30 Days)', Job.objects.filter(created_at__date__gte=today.date() - timedelta(days=30)).count()],
         ]
@@ -609,25 +610,27 @@ def export_analytics(request, export_type):
         auto_adjust_columns(ws_users)
         ws_users.freeze_panes = 'A4'
         
-        # ========== ESTIMATES SHEET ==========
-        ws_estimates = wb.create_sheet('Estimates')
-        ws_estimates['A1'] = 'All Estimates'
+        # ========== SAVED WORKS SHEET ==========
+        ws_estimates = wb.create_sheet('Saved Works')
+        ws_estimates['A1'] = 'All Saved Works'
         ws_estimates['A1'].font = title_font
-        
-        headers = ['ID', 'Work Name', 'User', 'Email', 'Created At']
+
+        headers = ['ID', 'Name', 'Work Type', 'User', 'Email', 'Created At', 'Status']
         for col, header in enumerate(headers, 1):
             ws_estimates.cell(row=3, column=col, value=header)
         style_header_row(ws_estimates, 3, len(headers))
-        
-        estimates = Estimate.objects.all().select_related('user').order_by('-created_at')
+
+        saved_works = SavedWork.objects.all().select_related('user').order_by('-created_at')
         data = []
-        for est in estimates:
+        for sw in saved_works:
             data.append([
-                est.id,
-                est.work_name or 'Untitled',
-                est.user.username if est.user else 'N/A',
-                est.user.email if est.user else 'N/A',
-                est.created_at.strftime('%Y-%m-%d %H:%M:%S') if est.created_at else ''
+                sw.id,
+                sw.name or 'Untitled',
+                sw.get_work_type_display(),
+                sw.user.username if sw.user else 'N/A',
+                sw.user.email if sw.user else 'N/A',
+                sw.created_at.strftime('%Y-%m-%d %H:%M:%S') if sw.created_at else '',
+                sw.get_status_display() if hasattr(sw, 'get_status_display') else sw.status
             ])
         add_data_rows(ws_estimates, 4, data)
         auto_adjust_columns(ws_estimates)
