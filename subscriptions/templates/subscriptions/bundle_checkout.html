@@ -504,7 +504,7 @@
                     if (v.ok) {
                         payBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Success!';
                         payBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
-                        setTimeout(() => { window.location.replace('{% url "dashboard" %}'; }, 1000));
+                        setTimeout(() => { window.location.replace('{% url "dashboard" %}'); }, 1000);
                     } else {
                         showToast(v.reason || 'Payment verification failed', 'error', 'Payment Failed');
                         resetButton();
@@ -541,7 +541,7 @@
                         if (v.ok) {
                             payBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Success!';
                             payBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #34d399 100%)';
-                            setTimeout(() => { window.location.replace('{% url "dashboard" %}'; }, 1000));
+                            setTimeout(() => { window.location.replace('{% url "dashboard" %}'); }, 1000);
                         } else {
                             showToast(v.reason || 'Payment verification failed', 'error', 'Payment Failed');
                             resetButton();
