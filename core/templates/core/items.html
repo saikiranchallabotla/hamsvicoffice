@@ -2527,6 +2527,8 @@ document.addEventListener('keydown', function(e) {
         var form = document.createElement("form");
         form.method = "POST";
         form.action = "{% url 'download_specification_report_live' category %}";
+        form.className = "no-spa";
+        form.target = "_blank";
         form.style.display = "none";
         
         var csrfInput = document.createElement("input");
@@ -2593,6 +2595,8 @@ document.addEventListener('keydown', function(e) {
         var form = document.createElement("form");
         form.method = "POST";
         form.action = "{% url 'download_forwarding_letter_live' category %}";
+        form.className = "no-spa";
+        form.target = "_blank";
         form.style.display = "none";
         
         var csrfInput = document.createElement("input");

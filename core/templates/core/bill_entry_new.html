@@ -754,7 +754,7 @@
 </div>
 
 <!-- Hidden form for direct download (no redirect) -->
-<form id="download-form" class="no-spa download-form" method="POST" action="{% url 'bill_generate' work_id %}" style="display:none;">
+<form id="download-form" class="no-spa download-form" method="POST" action="{% url 'bill_generate' work_id %}" target="_blank" style="display:none;">
     {% csrf_token %}
     <input type="hidden" name="action_type" id="dl-action-type">
     <input type="hidden" name="mb_measure_no" id="dl-mb-measure-no">
