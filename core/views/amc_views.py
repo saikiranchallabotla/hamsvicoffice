@@ -1096,7 +1096,7 @@ def amc_download_output(request, category):
         job.refresh_from_db()
 
         # Redirect to the first output file for direct download
-        output_file = job.outputfile_set.first()
+        output_file = job.output_files.first()
         if output_file:
             return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
         else:
