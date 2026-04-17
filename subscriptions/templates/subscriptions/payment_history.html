@@ -327,6 +327,27 @@
         border-top: 1px dashed #e2e8f0;
     }
 }
+
+.ph-print-btn {
+    background: none;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.3rem 0.5rem;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+    margin-top: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.ph-print-btn:hover {
+    background: #f1f5f9;
+    color: #6366f1;
+    border-color: #6366f1;
+}
 {% endblock %}
 
 {% block content %}
@@ -420,6 +441,11 @@
                         {{ payment.get_status_display }}
                         {% endif %}
                     </span>
+                    {% if payment.status == 'completed' %}
+                    <button class="ph-print-btn" onclick="printReceipt('{{ payment.order_id }}', '{{ payment.created_at|date:"d M Y, h:i A" }}', '₹{{ payment.total_amount|floatformat:0 }}', '{{ payment.gateway_payment_id|default:"-" }}', '{% for m in payment.modules.all %}{{ m.name }}{% if not forloop.last %}, {% endif %}{% endfor %}', '{{ payment.subtotal|floatformat:2 }}', '{{ payment.discount_amount|floatformat:2 }}', '{{ payment.gst_amount|floatformat:2 }}', '{{ request.user.get_full_name|default:request.user.username }}', '{{ request.user.email }}')" title="Print Receipt">
+                        <i class="bi bi-printer"></i>
+                    </button>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -438,4 +464,71 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function printReceipt(orderId, date, total, paymentId, modules, subtotal, discount, gst, userName, userEmail) {
+    var w = window.open('', '_blank', 'width=600,height=700');
+    w.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<title>Receipt - ${orderId}</title>
+<style>
+    body { font-family: 'Inter', Arial, sans-serif; margin: 0; padding: 2rem; color: #1e293b; }
+    .receipt { max-width: 500px; margin: 0 auto; }
+    .receipt-header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
+    .receipt-header h1 { font-size: 1.5rem; margin: 0 0 0.25rem; color: #6366f1; }
+    .receipt-header p { color: #64748b; margin: 0; font-size: 0.85rem; }
+    .receipt-section { margin-bottom: 1.5rem; }
+    .receipt-section h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin: 0 0 0.75rem; }
+    .receipt-row { display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.9rem; }
+    .receipt-row.border-top { border-top: 1px solid #e2e8f0; }
+    .receipt-row.total { font-weight: 700; font-size: 1.1rem; border-top: 2px solid #1e293b; padding-top: 0.75rem; margin-top: 0.25rem; }
+    .receipt-row .label { color: #64748b; }
+    .receipt-badge { display: inline-block; background: #dcfce7; color: #15803d; padding: 0.2rem 0.6rem; border-radius: 50px; font-size: 0.75rem; font-weight: 600; }
+    .receipt-footer { text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px dashed #e2e8f0; color: #94a3b8; font-size: 0.8rem; }
+    @media print { body { padding: 1rem; } .no-print { display: none; } }
+</style>
+</head>
+<body>
+<div class="receipt">
+    <div class="receipt-header">
+        <h1>Hamsvic</h1>
+        <p>Payment Receipt</p>
+    </div>
+    <div class="receipt-section">
+        <h3>Transaction Details</h3>
+        <div class="receipt-row"><span class="label">Order ID</span><span>${orderId}</span></div>
+        <div class="receipt-row"><span class="label">Payment ID</span><span>${paymentId}</span></div>
+        <div class="receipt-row"><span class="label">Date</span><span>${date}</span></div>
+        <div class="receipt-row"><span class="label">Status</span><span class="receipt-badge">Completed</span></div>
+    </div>
+    <div class="receipt-section">
+        <h3>Billed To</h3>
+        <div class="receipt-row"><span class="label">Name</span><span>${userName}</span></div>
+        <div class="receipt-row"><span class="label">Email</span><span>${userEmail}</span></div>
+    </div>
+    <div class="receipt-section">
+        <h3>Purchase Details</h3>
+        <div class="receipt-row"><span class="label">Module(s)</span><span>${modules || 'N/A'}</span></div>
+        <div class="receipt-row border-top"><span class="label">Subtotal</span><span>₹${subtotal}</span></div>
+        ${parseFloat(discount) > 0 ? '<div class="receipt-row"><span class="label">Discount</span><span>-₹' + discount + '</span></div>' : ''}
+        ${parseFloat(gst) > 0 ? '<div class="receipt-row"><span class="label">GST</span><span>₹' + gst + '</span></div>' : ''}
+        <div class="receipt-row total"><span>Total Paid</span><span>${total}</span></div>
+    </div>
+    <div class="receipt-footer">
+        <p>Thank you for your purchase!</p>
+        <p>hamsvic.com</p>
+    </div>
+    <div style="text-align:center;margin-top:1.5rem;" class="no-print">
+        <button onclick="window.print()" style="background:#6366f1;color:white;border:none;padding:0.6rem 2rem;border-radius:8px;font-weight:600;cursor:pointer;">
+            Print Receipt
+        </button>
+    </div>
+</div>
+</body>
+</html>`);
+    w.document.close();
+}
+</script>
 {% endblock %}

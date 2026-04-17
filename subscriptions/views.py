@@ -8,6 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.db.models import Sum
 from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
 
@@ -445,9 +446,16 @@ def payment_history_view(request):
     payments = Payment.objects.filter(
         user=request.user
     ).select_related().prefetch_related('modules').order_by('-created_at')
-    
+
+    total_spent = payments.filter(
+        status='completed'
+    ).exclude(
+        gateway_order_id__startswith='order_mock_'
+    ).aggregate(total=Sum('total_amount'))['total'] or 0
+
     context = {
         'payments': payments,
+        'total_spent': total_spent,
     }
     
     return render(request, 'subscriptions/payment_history.html', context)
