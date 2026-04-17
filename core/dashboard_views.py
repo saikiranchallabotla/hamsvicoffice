@@ -104,18 +104,18 @@ def dashboard(request):
             usage_limit = sub.usage_limit
             trial_used = True  # They have/had a trial
         else:
-            # Check for expired subscriptions (including trials)
+            # Check for expired/cancelled subscriptions (including trials)
             expired_sub = UserModuleSubscription.objects.filter(
                 user=user,
                 module=module,
-                status='expired'
+                status__in=['expired', 'cancelled']
             ).first()
             
-            # Check if trial was ever used (only count actual trial records, not expired paid subs)
+            # Check if trial was ever used (trial subs have no pricing FK)
             trial_ever_used = UserModuleSubscription.objects.filter(
                 user=user,
                 module=module,
-                status='trial'
+                pricing__isnull=True,
             ).exists()
             
             if expired_sub:
