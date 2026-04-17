@@ -1084,7 +1084,7 @@
             </div>
 
             <!-- Main Workslip form -->
-            <form id="ws-form" method="post" action="{% url 'workslip_main' %}">
+            <form id="ws-form" class="no-spa" method="post" action="{% url 'workslip_main' %}">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="download_workslip">
                 <input type="hidden" name="exec_map" id="ws-exec-map-field">
