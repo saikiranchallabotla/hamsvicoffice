@@ -116,7 +116,13 @@ def download_output_file(request, file_id):
             job__organization=request.organization,
         )
     except OutputFile.DoesNotExist:
-        return JsonResponse({'error': 'File not found'}, status=404)
+        if request.headers.get('Accept', '').startswith('application/json') or request.GET.get('format') == 'json':
+            return JsonResponse({'error': 'File not found'}, status=404)
+        from django.shortcuts import render
+        return render(request, 'core/download_error.html', {
+            'error_title': 'File Not Found',
+            'error_message': 'The file you are trying to download could not be found. It may have been deleted or expired.',
+        }, status=404)
     
     # Increment download counter atomically to prevent race conditions
     from django.db.models import F
@@ -142,10 +148,16 @@ def download_output_file(request, file_id):
         )
         return response
     except Exception:
-        return JsonResponse(
-            {'error': 'An unexpected error occurred while downloading the file.'},
-            status=500
-        )
+        if request.headers.get('Accept', '').startswith('application/json') or request.GET.get('format') == 'json':
+            return JsonResponse(
+                {'error': 'An unexpected error occurred while downloading the file.'},
+                status=500
+            )
+        from django.shortcuts import render
+        return render(request, 'core/download_error.html', {
+            'error_title': 'Download Error',
+            'error_message': 'An unexpected error occurred while downloading the file. Please try again.',
+        }, status=500)
 
 
 @require_http_methods(["GET"])

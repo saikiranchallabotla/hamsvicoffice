@@ -474,14 +474,9 @@
             return;
         }
 
-        // Download URLs
+        // Download URLs — open in new tab/window so browser handles natively
         if (isDownloadUrl(url) && method === 'GET') {
-            // For downloads, open in hidden iframe so URL doesn't change
-            var iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = url;
-            document.body.appendChild(iframe);
-            setTimeout(function() { iframe.remove(); }, 60000);
+            window.open(url, '_blank');
             return;
         }
 
@@ -528,12 +523,8 @@
                             return { _fullHtml: html };
                         });
                     }
-                    // Binary / file download — trigger natively via hidden iframe
-                    var iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = url;
-                    document.body.appendChild(iframe);
-                    setTimeout(function() { iframe.remove(); }, 60000);
+                    // Binary / file download — open in new tab
+                    window.open(url, '_blank');
                     return null;
                 }
                 return response.json();
@@ -561,11 +552,7 @@
 
                 // Handle download
                 if (data.type === 'download') {
-                    var iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = data.url;
-                    document.body.appendChild(iframe);
-                    setTimeout(function() { iframe.remove(); }, 60000);
+                    window.open(data.url, '_blank');
                     return;
                 }
 
@@ -658,13 +645,7 @@
 
         if (isExternalUrl(href)) return;
         if (isDownloadUrl(href)) {
-            // Trigger download without changing URL
-            e.preventDefault();
-            var iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = href;
-            document.body.appendChild(iframe);
-            setTimeout(function() { iframe.remove(); }, 60000);
+            // Let the browser handle the download natively
             return;
         }
 

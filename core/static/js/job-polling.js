@@ -399,7 +399,7 @@ const JobPoller = {
                     ${outputs.map(file => `
                         <div class="job-file-item">
                             <span class="job-file-name">${file.filename}</span>
-                            <a href="${file.download_url}" class="job-file-download">Download</a>
+                            <a href="${file.download_url}" class="job-file-download" download="${file.filename}" target="_blank">Download</a>
                         </div>
                     `).join('')}
                 </div>
