@@ -1173,12 +1173,42 @@ def amc_download_output(request, category):
         
         job.celery_task_id = task.id
         job.save()
-        
-        return JsonResponse({
-            'job_id': job.id,
-            'status_url': reverse('job_status', args=[job.id]),
-            'message': f'Generating AMC {category} output. Please wait...'
-        })
+
+        # Check if this is an AJAX request or native form submit
+        is_ajax = (
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+            request.headers.get('Accept', '').startswith('application/json')
+        )
+
+        if is_ajax:
+            return JsonResponse({
+                'job_id': job.id,
+                'status_url': reverse('job_status', args=[job.id]),
+                'message': f'Generating AMC {category} output. Please wait...'
+            })
+        else:
+            # Native form submit — wait for task, then redirect to file
+            import time
+            for _ in range(120):
+                job.refresh_from_db()
+                if job.is_complete():
+                    break
+                time.sleep(1)
+
+            job.refresh_from_db()
+            output_file = job.outputfile_set.first()
+            if output_file:
+                return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
+            elif job.status == 'failed':
+                return render(request, 'core/download_error.html', {
+                    'error_title': 'Generation Failed',
+                    'error_message': job.error_message or 'Failed to generate the output file.',
+                })
+            else:
+                return render(request, 'core/download_error.html', {
+                    'error_title': 'Generation Timeout',
+                    'error_message': 'The file generation is taking too long. Please try again.',
+                })
         
     except Exception as e:
         logger.error(f"Failed to enqueue AMC output Excel task: {e}")
