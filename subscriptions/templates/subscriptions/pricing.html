@@ -55,8 +55,9 @@
         
         .pricing-card.popular {
             border: 2px solid #6366f1;
+            margin-top: 10px;
         }
-        
+
         .pricing-card.popular::before {
             content: 'Most Popular';
             position: absolute;
@@ -69,6 +70,7 @@
             border-radius: 20px;
             font-size: 0.7rem;
             font-weight: 600;
+            pointer-events: none;
         }
         
         .module-icon {
@@ -213,7 +215,7 @@
             {% if modules_data %}
             <div class="row g-3">
                 {% for item in modules_data %}
-                <div class="col-md-6 col-lg-4 col-xl-3">
+                <div class="col-md-6 col-lg-4 col-xl-3" style="isolation: isolate;">
                     <div class="pricing-card {% if item.popular_pricing %}popular{% endif %}">
                         <div class="module-icon" style="background: {{ item.module.color }}20; color: {{ item.module.color }};">
                             <i class="bi bi-{% if item.module.icon %}{{ item.module.icon }}{% else %}box{% endif %}"></i>
