@@ -1051,12 +1051,29 @@ def download_output(request, category):
             # Refresh job to get updated result
             job.refresh_from_db()
 
-            # Return JSON with job_id and status_url so JS can poll/download
-            return JsonResponse({
-                'job_id': job.id,
-                'status_url': reverse('job_status', args=[job.id]),
-                'message': job.current_step or 'Processing complete',
-            })
+            # Check if this is an AJAX request (from JobPoller) or native form submit
+            is_ajax = (
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+                request.headers.get('Accept', '').startswith('application/json')
+            )
+
+            if is_ajax:
+                # Return JSON with job_id and status_url so JS can poll/download
+                return JsonResponse({
+                    'job_id': job.id,
+                    'status_url': reverse('job_status', args=[job.id]),
+                    'message': job.current_step or 'Processing complete',
+                })
+            else:
+                # Native form submit (JS failed) — redirect to the first output file
+                output_file = job.outputfile_set.first()
+                if output_file:
+                    return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
+                else:
+                    return render(request, 'core/download_error.html', {
+                        'error_title': 'Generation Failed',
+                        'error_message': job.error_message or 'No output file was generated.',
+                    })
                 
         except Exception as e:
             logger.error(f"Failed to generate output Excel: {e}")

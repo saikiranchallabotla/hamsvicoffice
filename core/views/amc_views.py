@@ -1123,7 +1123,7 @@ def amc_download_output(request, category):
             
             return JsonResponse({
                 'job_id': job.id,
-                'status': job.status,
+                'status_url': reverse('job_status', args=[job.id]),
                 'message': job.current_step or 'Processing complete',
                 'error': job.error_message if job.status == 'failed' else None,
             })

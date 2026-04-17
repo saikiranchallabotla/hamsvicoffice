@@ -882,7 +882,7 @@
             Estimate Preview
         </div>
         <div class="panel-body">
-            <form id="estimate-form" class="no-spa" method="post" action="{% url 'download_output' category %}">
+            <form id="estimate-form" class="no-spa" method="post" target="_blank" action="{% url 'download_output' category %}">
                 {% csrf_token %}
                 <input type="hidden" name="qty_map" id="qty-map-field">
                 <input type="hidden" name="unit_map" id="unit-map-field">
@@ -1186,7 +1186,6 @@
 
 </div>
 
-<script src="{% static 'js/job-polling.js' %}"></script>
 <script>
 // ========================================
 // SEARCH FILTER FUNCTIONS

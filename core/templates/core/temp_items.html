@@ -733,7 +733,7 @@
         </div>
         <div class="panel-body">
             <form id="temp-estimate-form" class="no-spa"
-                  method="post"
+                  method="post" target="_blank"
                   action="{% url 'temp_download_output' category %}">
                 {% csrf_token %}
                 <input type="hidden" name="entries_json" id="entries-json-field">

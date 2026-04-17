@@ -354,6 +354,8 @@
         scripts.forEach(function(oldScript) {
             // Skip the SPA router script itself to avoid double-init
             if (oldScript.src && oldScript.src.indexOf('spa-router.js') !== -1) return;
+            // Skip job-polling.js — loaded globally in base_modern.html
+            if (oldScript.src && oldScript.src.indexOf('job-polling.js') !== -1) return;
 
             var newScript = document.createElement('script');
             for (var i = 0; i < oldScript.attributes.length; i++) {
