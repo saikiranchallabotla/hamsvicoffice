@@ -621,7 +621,8 @@
                 if (selectedPlan) {
                     const planId = selectedPlan.value;
                     const moduleCode = '{{ module.code }}';
-                    window.location.replace('/subscriptions/checkout/' + moduleCode + '/' + planId + '/');
+                    var checkoutUrl = '/subscriptions/checkout/' + moduleCode + '/' + planId + '/';
+                    window.spaNavigate ? spaNavigate(checkoutUrl) : (window.location.href = checkoutUrl);
                 } else {
                     showToast('Please select a plan before proceeding', 'warning', 'Plan Required');
                 }
@@ -647,7 +648,8 @@
 
         function goToBundle() {
             if (selectedBundlePlanId && selectedBundleId) {
-                window.location.replace('/subscriptions/bundle/checkout/' + selectedBundleId + '/' + selectedBundlePlanId + '/');
+                var bundleUrl = '/subscriptions/bundle/checkout/' + selectedBundleId + '/' + selectedBundlePlanId + '/';
+                window.spaNavigate ? spaNavigate(bundleUrl) : (window.location.href = bundleUrl);
             } else {
                 showToast('Please select a bundle plan', 'warning', 'Plan Required');
             }
