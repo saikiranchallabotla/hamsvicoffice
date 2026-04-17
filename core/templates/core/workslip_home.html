@@ -335,25 +335,31 @@ function selectCategory(element) {
 function showStep2() {
     document.getElementById('step1').style.display = 'none';
     document.getElementById('step2').style.display = 'block';
-    
+
     // Update indicators
     document.getElementById('step1-indicator').classList.remove('active');
     document.getElementById('step1-indicator').classList.add('completed');
     document.getElementById('step2-indicator').classList.remove('pending');
     document.getElementById('step2-indicator').classList.add('active');
     document.getElementById('connector1').classList.add('completed');
+
+    // Push history so browser back button works
+    history.pushState({ wizardStep: 2 }, '', window.location.href);
 }
 
 function showStep3() {
     document.getElementById('step2').style.display = 'none';
     document.getElementById('step3').style.display = 'block';
-    
+
     // Update indicators
     document.getElementById('step2-indicator').classList.remove('active');
     document.getElementById('step2-indicator').classList.add('completed');
     document.getElementById('step3-indicator').classList.remove('pending');
     document.getElementById('step3-indicator').classList.add('active');
     document.getElementById('connector2').classList.add('completed');
+
+    // Push history so browser back button works
+    history.pushState({ wizardStep: 3 }, '', window.location.href);
 }
 
 function goBackToStep1() {
@@ -400,8 +406,26 @@ function proceedToWorkslip() {
     
     // Build URL with parameters
     const url = `{% url 'workslip_main' %}?work_type=${selectedWorkType}&work_mode=${selectedWorkMode}&category=${selectedCategory}`;
-    window.spaNavigate ? spaNavigate(url) : (window.location.replace(url));
+    window.spaNavigate ? spaNavigate(url) : (window.location.href = url);
 }
+
+// Handle browser back button for wizard steps
+window.addEventListener('popstate', function(e) {
+    // If we were on step 3, go back to step 2
+    if (document.getElementById('step3') && document.getElementById('step3').style.display === 'block') {
+        goBackToStep2();
+        return;
+    }
+    // If we were on step 2, go back to step 1
+    if (document.getElementById('step2') && document.getElementById('step2').style.display === 'block') {
+        goBackToStep1();
+        return;
+    }
+    // If on step 1, let the SPA router handle it (go back to previous page)
+});
+
+// Mark step 1 state in history so we can detect it
+history.replaceState({ wizardStep: 1 }, '', window.location.href);
 
 // Initialize - set step 1 as active
 document.addEventListener('DOMContentLoaded', function() {
