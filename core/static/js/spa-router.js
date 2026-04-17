@@ -39,29 +39,31 @@
     // Dashboard is the floor — back button should not go past this
     var DASHBOARD_URL = '/dashboard/';
 
-    // Track whether we're at the dashboard floor
-    var isDashboardFloor = false;
-
     // History stack for proper back-button sequencing
-    var historyStack = [window.location.pathname + window.location.search];
+    // Tracks SPA navigations (not wizard sub-steps which use same URL)
+    var historyStack = [];
+
+    // Initialize history stack with current URL
+    (function initHistoryStack() {
+        var url = window.location.pathname + window.location.search;
+        historyStack = [url];
+    })();
 
     /**
-     * Set dashboard as the navigation floor.
-     * Uses a guard entry technique: pushes a duplicate dashboard entry
-     * so that pressing back lands on the guard, which we detect and
-     * push forward again — effectively trapping the user on dashboard.
+     * Check if a URL is the dashboard
      */
-    function setDashboardFloor() {
-        isDashboardFloor = true;
-        historyStack = [DASHBOARD_URL];
-        // Replace current entry to mark it as the floor
-        history.replaceState({ spa: true, url: DASHBOARD_URL, dashboardFloor: true }, '', DASHBOARD_URL);
+    function isDashboardUrl(url) {
+        return url === DASHBOARD_URL || url === '/dashboard';
     }
 
-    // After every SPA navigation, check if we landed on dashboard and set floor
+    /**
+     * Reset history stack when landing on dashboard.
+     * This makes dashboard the floor — back can't go past it.
+     */
     function checkDashboardFloor(url) {
-        if (url === DASHBOARD_URL || url === DASHBOARD_URL.replace(/\/$/, '')) {
-            setDashboardFloor();
+        if (isDashboardUrl(url)) {
+            historyStack = [DASHBOARD_URL];
+            history.replaceState({ spa: true, url: DASHBOARD_URL, dashboardFloor: true }, '', DASHBOARD_URL);
         }
     }
 
@@ -731,108 +733,103 @@
         var url = window.location.pathname + window.location.search;
         var state = e.state || {};
 
-        // Dashboard floor enforcement:
-        // If user pressed back and landed on dashboard (or before it),
-        // and our history stack says dashboard is the bottom, stay on dashboard.
-        if (historyStack.length <= 1 || (currentLogicalUrl === DASHBOARD_URL && url !== currentLogicalUrl)) {
-            // User is trying to go back past dashboard — block it
-            history.pushState({ spa: true, url: DASHBOARD_URL, dashboardFloor: true }, '', DASHBOARD_URL);
-            currentLogicalUrl = DASHBOARD_URL;
-            return;
-        }
-
-        // If landed on an admin panel page via back button, skip past it
+        // --- Guard 1: Admin panel pages — skip past them ---
         if (url.indexOf('/admin-panel/') === 0 || url.indexOf('/admin/') === 0) {
             history.back();
             return;
         }
 
-        // If landed on a pre-auth page, redirect to dashboard
+        // --- Guard 2: Pre-auth pages — redirect to dashboard ---
         if (url === '/' || url === '/accounts/login/' || url === '/login/') {
             history.replaceState({ spa: true, url: DASHBOARD_URL }, '', DASHBOARD_URL);
             url = DASHBOARD_URL;
             historyStack = [DASHBOARD_URL];
+            currentLogicalUrl = DASHBOARD_URL;
         }
 
-        if (url !== currentLogicalUrl) {
-            // Pop from our stack if going back
-            if (historyStack.length > 1 && historyStack[historyStack.length - 2] === url) {
-                historyStack.pop();
+        // --- Guard 3: Dashboard floor — if we're already on dashboard, block going further back ---
+        if (isDashboardUrl(currentLogicalUrl) && !isDashboardUrl(url)) {
+            // Trying to go before dashboard — push back to dashboard
+            history.pushState({ spa: true, url: DASHBOARD_URL, dashboardFloor: true }, '', DASHBOARD_URL);
+            return;
+        }
+        if (isDashboardUrl(currentLogicalUrl) && isDashboardUrl(url)) {
+            // Already on dashboard, staying on dashboard — nothing to do
+            return;
+        }
+
+        // --- Guard 4: Same URL (e.g. wizard sub-steps) — let page-level handlers deal with it ---
+        if (url === currentLogicalUrl) {
+            // Wizard popstate handlers on the page will handle this
+            return;
+        }
+
+        // --- Navigation: URL actually changed ---
+        // Pop from our stack
+        if (historyStack.length > 1) {
+            historyStack.pop();
+        }
+        currentLogicalUrl = url;
+
+        // If arriving at dashboard, set it as floor
+        if (isDashboardUrl(url)) {
+            historyStack = [DASHBOARD_URL];
+        }
+
+        isNavigating = true;
+
+        var csrfToken = '';
+        var match = document.cookie.match(/csrftoken=([^;]+)/);
+        if (match) csrfToken = match[1];
+
+        fetch(url, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-SPA-Request': 'true' }
+        })
+        .then(function(response) {
+            var contentType = response.headers.get('Content-Type') || '';
+            if (contentType.indexOf('application/json') !== -1) {
+                return response.json();
             }
-            currentLogicalUrl = url;
-            // Use originalNavigate to avoid pushState (browser already updated the URL)
-            isNavigating = true;
+            return response.text().then(function(html) { return { _fullHtml: html }; });
+        })
+        .then(function(data) {
+            isNavigating = false;
+            if (!data) return;
 
-            var csrfToken = '';
-            var match = document.cookie.match(/csrftoken=([^;]+)/);
-            if (match) csrfToken = match[1];
+            if (data._fullHtml) {
+                // Full page — replace document but DON'T push history (we're going back)
+                var doc = new DOMParser().parseFromString(data._fullHtml, 'text/html');
+                var oldHeadEls = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+                var newHeadEls = doc.querySelectorAll('head style, head link[rel="stylesheet"]');
+                oldHeadEls.forEach(function(el) { el.remove(); });
+                newHeadEls.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
+                document.body.innerHTML = doc.body.innerHTML;
+                executeInlineScripts(document.body);
+                document.title = FIXED_TITLE;
+                currentLayout = detectCurrentLayout();
+                window.scrollTo(0, 0);
+                return;
+            }
 
-            fetch(url, {
-                method: 'GET',
-                credentials: 'same-origin',
-                headers: { 'X-SPA-Request': 'true' }
-            })
-            .then(function(response) {
-                var contentType = response.headers.get('Content-Type') || '';
-                if (contentType.indexOf('application/json') !== -1) {
-                    return response.json();
-                }
-                return response.text().then(function(html) { return { _fullHtml: html }; });
-            })
-            .then(function(data) {
-                isNavigating = false;
-                if (!data) return;
+            if (data.type === 'redirect') {
+                window.location.replace(data.url);
+                return;
+            }
 
-                if (data._fullHtml) {
-                    // Full page — replace document but DON'T push history (we're going back)
-                    var doc = new DOMParser().parseFromString(data._fullHtml, 'text/html');
-                    var oldHeadEls = document.querySelectorAll('head style, head link[rel="stylesheet"]');
-                    var newHeadEls = doc.querySelectorAll('head style, head link[rel="stylesheet"]');
-                    oldHeadEls.forEach(function(el) { el.remove(); });
-                    newHeadEls.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
-                    document.body.innerHTML = doc.body.innerHTML;
-                    executeInlineScripts(document.body);
-                    document.title = FIXED_TITLE;
-                    currentLayout = detectCurrentLayout();
-                    window.scrollTo(0, 0);
-                    return;
-                }
+            data._url = url;
+            var targetLayout = data.layout;
 
-                if (data.type === 'redirect') {
-                    window.location.replace(data.url);
-                    return;
-                }
-
-                data._url = url;
-                var targetLayout = data.layout;
-
-                if (targetLayout === currentLayout) {
-                    if (targetLayout === 'app') {
-                        injectAppContent(data);
-                    } else if (targetLayout === 'auth') {
-                        injectAuthContent(data);
-                    } else if (targetLayout === 'classic') {
-                        injectClassicContent(data);
-                    } else {
-                        // Replace without pushing history
-                        var doc2 = new DOMParser().parseFromString('', 'text/html');
-                        fetch(url, { method: 'GET', credentials: 'same-origin' })
-                            .then(function(r) { return r.text(); })
-                            .then(function(html) {
-                                var d = new DOMParser().parseFromString(html, 'text/html');
-                                var ohe = document.querySelectorAll('head style, head link[rel="stylesheet"]');
-                                var nhe = d.querySelectorAll('head style, head link[rel="stylesheet"]');
-                                ohe.forEach(function(el) { el.remove(); });
-                                nhe.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
-                                document.body.innerHTML = d.body.innerHTML;
-                                executeInlineScripts(document.body);
-                                document.title = FIXED_TITLE;
-                                currentLayout = detectCurrentLayout();
-                                window.scrollTo(0, 0);
-                            });
-                    }
+            if (targetLayout === currentLayout) {
+                if (targetLayout === 'app') {
+                    injectAppContent(data);
+                } else if (targetLayout === 'auth') {
+                    injectAuthContent(data);
+                } else if (targetLayout === 'classic') {
+                    injectClassicContent(data);
                 } else {
-                    // Cross-layout back: fetch full HTML and replace without pushing history
+                    // Unknown same-layout — full page replace without pushing history
                     fetch(url, { method: 'GET', credentials: 'same-origin' })
                         .then(function(r) { return r.text(); })
                         .then(function(html) {
@@ -848,17 +845,33 @@
                             window.scrollTo(0, 0);
                         });
                 }
+            } else {
+                // Cross-layout back: fetch full HTML and replace without pushing history
+                fetch(url, { method: 'GET', credentials: 'same-origin' })
+                    .then(function(r) { return r.text(); })
+                    .then(function(html) {
+                        var d = new DOMParser().parseFromString(html, 'text/html');
+                        var ohe = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+                        var nhe = d.querySelectorAll('head style, head link[rel="stylesheet"]');
+                        ohe.forEach(function(el) { el.remove(); });
+                        nhe.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
+                        document.body.innerHTML = d.body.innerHTML;
+                        executeInlineScripts(document.body);
+                        document.title = FIXED_TITLE;
+                        currentLayout = detectCurrentLayout();
+                        window.scrollTo(0, 0);
+                    });
+            }
 
-                document.title = FIXED_TITLE;
-                updateActiveNavLink(url);
-            })
-            .catch(function(error) {
-                isNavigating = false;
-                if (error.name !== 'AbortError') {
-                    window.location.replace(url);
-                }
-            });
-        }
+            document.title = FIXED_TITLE;
+            updateActiveNavLink(url);
+        })
+        .catch(function(error) {
+            isNavigating = false;
+            if (error.name !== 'AbortError') {
+                window.location.replace(url);
+            }
+        });
     });
 
     // =========================================================================
@@ -870,9 +883,7 @@
     history.replaceState({ spa: true, url: currentLogicalUrl }, '', currentLogicalUrl);
 
     // If initial load is dashboard, set it as the floor
-    if (currentLogicalUrl === DASHBOARD_URL || currentLogicalUrl === DASHBOARD_URL.replace(/\/$/, '')) {
-        setDashboardFloor();
-    }
+    checkDashboardFloor(currentLogicalUrl);
 
     document.documentElement.setAttribute('data-spa', 'true');
     document.documentElement.setAttribute('data-spa-layout', currentLayout);
