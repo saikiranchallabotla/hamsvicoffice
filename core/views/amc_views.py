@@ -20,6 +20,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
+from django.db import transaction
 
 import io
 from io import BytesIO
@@ -1162,8 +1163,9 @@ def amc_download_output(request, category):
         job.save()
         
         from core.tasks import generate_output_excel
-        task = generate_output_excel.delay(
-            job.id,
+        _job_id = job.id
+        _task_args = (
+            _job_id,
             category,
             json.dumps(item_qtys),
             json.dumps({}),  # unit_map
@@ -1176,9 +1178,12 @@ def amc_download_output(request, category):
             None,  # deduct_old_material
             amc_selected_backend_id,
         )
-        
-        job.celery_task_id = task.id
-        job.save()
+
+        def _dispatch():
+            task = generate_output_excel.delay(*_task_args)
+            Job.objects.filter(id=_job_id).update(celery_task_id=task.id)
+
+        transaction.on_commit(_dispatch)
 
         return JsonResponse({
             'job_id': job.id,

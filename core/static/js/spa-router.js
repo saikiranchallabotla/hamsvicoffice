@@ -660,21 +660,10 @@
         var form = e.target;
         var action = form.getAttribute('action') || currentLogicalUrl;
 
-        console.log('[SPA] Form submit intercepted:', {
-            id: form.id,
-            action: action,
-            classes: form.className,
-            target: form.target,
-            hasNoSpa: form.classList.contains('no-spa'),
-            hasDownloadForm: form.classList.contains('download-form'),
-            defaultPrevented: e.defaultPrevented
-        });
-
         // Skip forms with special handling
         if (form.classList.contains('no-spa') ||
             form.classList.contains('download-form') ||
             form.querySelector('button[type="submit"].btn-download')) {
-            console.log('[SPA] Skipping form - has no-spa/download-form class');
             return;
         }
 
@@ -1059,28 +1048,5 @@
     };
 
     console.log('[SPA] Router initialized, layout:', currentLayout, ', URL:', currentLogicalUrl);
-
-    // DEBUG: Global click/submit monitor to diagnose download issues
-    document.addEventListener('click', function(e) {
-        var btn = e.target.closest('button, .btn-download, [type="submit"]');
-        if (btn) {
-            console.log('[SPA-DEBUG] Button clicked:', {
-                text: btn.textContent.trim().substring(0, 50),
-                type: btn.type,
-                classes: btn.className,
-                formId: btn.form ? btn.form.id : 'none',
-                defaultPrevented: e.defaultPrevented
-            });
-        }
-        var link = e.target.closest('a.job-file-download, a[download]');
-        if (link) {
-            console.log('[SPA-DEBUG] Download link clicked:', {
-                href: link.getAttribute('href'),
-                download: link.getAttribute('download'),
-                target: link.target,
-                defaultPrevented: e.defaultPrevented
-            });
-        }
-    }, true); // capture phase to see it first
 
 })();
