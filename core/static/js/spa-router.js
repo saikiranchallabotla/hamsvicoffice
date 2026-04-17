@@ -36,6 +36,12 @@
     // URL patterns that indicate file downloads
     var DOWNLOAD_PATTERNS = ['/download/', '/export/', '/specification-report/', '/forwarding-letter/', '/bill-generate/', '/bill/document/', '/self-formatted/generate/'];
 
+    // Dashboard is the floor — back button should not go past this
+    var DASHBOARD_URL = '/dashboard/';
+
+    // History stack for proper back-button sequencing
+    var historyStack = [window.location.pathname + window.location.search];
+
     // Current layout mode
     var currentLayout = detectCurrentLayout();
 
@@ -232,7 +238,13 @@
             currentLogicalUrl = normalizedTarget;
         }
         document.title = FIXED_TITLE;
-        history.replaceState({ spa: true }, '', currentLogicalUrl);
+        // Use pushState so back button works (replaceState was eating history)
+        if (normalizedTarget && normalizedTarget !== historyStack[historyStack.length - 1]) {
+            history.pushState({ spa: true, url: currentLogicalUrl }, '', currentLogicalUrl);
+            historyStack.push(currentLogicalUrl);
+        } else {
+            history.replaceState({ spa: true, url: currentLogicalUrl }, '', currentLogicalUrl);
+        }
 
         // Re-detect layout
         currentLayout = detectCurrentLayout();
@@ -531,6 +543,7 @@
                 // Track current logical URL for same-page detection
                 currentLogicalUrl = url;
                 history.pushState({ spa: true, url: url }, '', currentLogicalUrl);
+                historyStack.push(url);
 
                 // Update active nav link
                 updateActiveNavLink(url);
@@ -659,17 +672,120 @@
         }
     });
 
-    // Handle browser back/forward — navigate to the previous URL
+    // Handle browser back/forward
     window.addEventListener('popstate', function(e) {
         var url = window.location.pathname + window.location.search;
+
+        // Dashboard floor: if user tries to go back past dashboard, stay on dashboard
+        if (!url || url === '/' || url === '/accounts/login/' || url === '/login/') {
+            history.replaceState({ spa: true, url: DASHBOARD_URL }, '', DASHBOARD_URL);
+            url = DASHBOARD_URL;
+        }
+
         if (url !== currentLogicalUrl) {
-            currentLogicalUrl = url;
-            // Use the navigate function (which may be overridden by prefetch)
-            if (window.spaNavigate) {
-                window.spaNavigate(url);
-            } else {
-                navigate(url);
+            // Pop from our stack if going back
+            if (historyStack.length > 1 && historyStack[historyStack.length - 2] === url) {
+                historyStack.pop();
             }
+            currentLogicalUrl = url;
+            // Use originalNavigate to avoid pushState (browser already updated the URL)
+            isNavigating = true;
+
+            var csrfToken = '';
+            var match = document.cookie.match(/csrftoken=([^;]+)/);
+            if (match) csrfToken = match[1];
+
+            fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'X-SPA-Request': 'true' }
+            })
+            .then(function(response) {
+                var contentType = response.headers.get('Content-Type') || '';
+                if (contentType.indexOf('application/json') !== -1) {
+                    return response.json();
+                }
+                return response.text().then(function(html) { return { _fullHtml: html }; });
+            })
+            .then(function(data) {
+                isNavigating = false;
+                if (!data) return;
+
+                if (data._fullHtml) {
+                    // Full page — replace document but DON'T push history (we're going back)
+                    var doc = new DOMParser().parseFromString(data._fullHtml, 'text/html');
+                    var oldHeadEls = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+                    var newHeadEls = doc.querySelectorAll('head style, head link[rel="stylesheet"]');
+                    oldHeadEls.forEach(function(el) { el.remove(); });
+                    newHeadEls.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
+                    document.body.innerHTML = doc.body.innerHTML;
+                    executeInlineScripts(document.body);
+                    document.title = FIXED_TITLE;
+                    currentLayout = detectCurrentLayout();
+                    window.scrollTo(0, 0);
+                    return;
+                }
+
+                if (data.type === 'redirect') {
+                    window.location.replace(data.url);
+                    return;
+                }
+
+                data._url = url;
+                var targetLayout = data.layout;
+
+                if (targetLayout === currentLayout) {
+                    if (targetLayout === 'app') {
+                        injectAppContent(data);
+                    } else if (targetLayout === 'auth') {
+                        injectAuthContent(data);
+                    } else if (targetLayout === 'classic') {
+                        injectClassicContent(data);
+                    } else {
+                        // Replace without pushing history
+                        var doc2 = new DOMParser().parseFromString('', 'text/html');
+                        fetch(url, { method: 'GET', credentials: 'same-origin' })
+                            .then(function(r) { return r.text(); })
+                            .then(function(html) {
+                                var d = new DOMParser().parseFromString(html, 'text/html');
+                                var ohe = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+                                var nhe = d.querySelectorAll('head style, head link[rel="stylesheet"]');
+                                ohe.forEach(function(el) { el.remove(); });
+                                nhe.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
+                                document.body.innerHTML = d.body.innerHTML;
+                                executeInlineScripts(document.body);
+                                document.title = FIXED_TITLE;
+                                currentLayout = detectCurrentLayout();
+                                window.scrollTo(0, 0);
+                            });
+                    }
+                } else {
+                    // Cross-layout back: fetch full HTML and replace without pushing history
+                    fetch(url, { method: 'GET', credentials: 'same-origin' })
+                        .then(function(r) { return r.text(); })
+                        .then(function(html) {
+                            var d = new DOMParser().parseFromString(html, 'text/html');
+                            var ohe = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+                            var nhe = d.querySelectorAll('head style, head link[rel="stylesheet"]');
+                            ohe.forEach(function(el) { el.remove(); });
+                            nhe.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
+                            document.body.innerHTML = d.body.innerHTML;
+                            executeInlineScripts(document.body);
+                            document.title = FIXED_TITLE;
+                            currentLayout = detectCurrentLayout();
+                            window.scrollTo(0, 0);
+                        });
+                }
+
+                document.title = FIXED_TITLE;
+                updateActiveNavLink(url);
+            })
+            .catch(function(error) {
+                isNavigating = false;
+                if (error.name !== 'AbortError') {
+                    window.location.replace(url);
+                }
+            });
         }
     });
 
@@ -847,6 +963,7 @@
                 document.title = FIXED_TITLE;
                 currentLogicalUrl = url;
                 history.pushState({ spa: true, url: url }, '', currentLogicalUrl);
+                historyStack.push(url);
                 updateActiveNavLink(url);
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
                     detail: { url: url, layout: targetLayout }
