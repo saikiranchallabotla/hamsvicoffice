@@ -989,11 +989,18 @@ def download_output(request, category):
     # Get selected backend ID from session (for multi-backend support)
     selected_backend_id = request.session.get("selected_backend_id")
 
-    # For development: Run synchronously without Celery
-    # This bypasses the async task queue when Redis/Celery isn't available
+    # Check if this is an AJAX request (from JobPoller) or native form submit
     from django.conf import settings
-    
-    if getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', True):
+    is_ajax = (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+        request.headers.get('Accept', '').startswith('application/json')
+    )
+
+    # Run synchronously if: CELERY_TASK_ALWAYS_EAGER is True, OR non-AJAX request
+    # Non-AJAX means JS failed, so we must return the file directly
+    use_sync = getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', True) or not is_ajax
+
+    if use_sync:
         # Synchronous mode - call task directly without queue
         try:
             org = get_org_from_request(request)
@@ -1136,42 +1143,11 @@ def download_output(request, category):
         job.celery_task_id = task.id
         job.save()
 
-        # Check if this is an AJAX request or native form submit
-        is_ajax = (
-            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-            request.headers.get('Accept', '').startswith('application/json') or
-            'XMLHttpRequest' in request.headers.get('X-Requested-With', '')
-        )
-
-        if is_ajax:
-            return JsonResponse({
-                'job_id': job.id,
-                'status_url': reverse('job_status', args=[job.id]),
-                'message': f'Generating {category} output estimate. Please wait...'
-            })
-        else:
-            # Native form submit — wait for task to complete (up to 120s), then redirect to file
-            import time
-            for _ in range(120):
-                job.refresh_from_db()
-                if job.is_complete():
-                    break
-                time.sleep(1)
-
-            job.refresh_from_db()
-            output_file = job.outputfile_set.first()
-            if output_file:
-                return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
-            elif job.status == 'failed':
-                return render(request, 'core/download_error.html', {
-                    'error_title': 'Generation Failed',
-                    'error_message': job.error_message or 'Failed to generate the output file.',
-                })
-            else:
-                return render(request, 'core/download_error.html', {
-                    'error_title': 'Generation Timeout',
-                    'error_message': 'The file generation is taking too long. Please try again.',
-                })
+        return JsonResponse({
+            'job_id': job.id,
+            'status_url': reverse('job_status', args=[job.id]),
+            'message': f'Generating {category} output estimate. Please wait...'
+        })
         
     except Exception as e:
         logger.error(f"Failed to enqueue output Excel task: {e}")
