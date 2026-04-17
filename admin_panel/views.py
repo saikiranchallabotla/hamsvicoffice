@@ -76,7 +76,7 @@ def admin_dashboard(request):
     
     # Revenue stats
     month_revenue = Payment.objects.filter(
-        status='success',
+        status='completed',
         created_at__date__gte=month_ago
     ).aggregate(total=Sum('total_amount'))['total'] or 0
     
@@ -85,7 +85,7 @@ def admin_dashboard(request):
     
     # Recent activity
     recent_users = User.objects.order_by('-date_joined')[:5]
-    recent_payments = Payment.objects.filter(status='success').order_by('-created_at')[:5]
+    recent_payments = Payment.objects.filter(status='completed').order_by('-created_at')[:5]
     recent_tickets = SupportTicket.objects.order_by('-created_at')[:5]
     
     context = {
