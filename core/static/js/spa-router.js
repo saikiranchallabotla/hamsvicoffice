@@ -373,11 +373,40 @@
         pendingCallbacks.forEach(function(fn) {
             try { fn(); } catch (e) { console.error('[SPA] DOMContentLoaded callback error:', e); }
         });
+
+        // Re-initialize Bootstrap components after DOM swap
+        reinitBootstrap();
     }
 
     // =========================================================================
     // NAVIGATION
     // =========================================================================
+
+    /**
+     * Re-initialize Bootstrap components after SPA content swap.
+     * Bootstrap's data-bs-toggle listeners are lost when DOM is replaced.
+     */
+    function reinitBootstrap() {
+        if (typeof bootstrap === 'undefined') return;
+        // Dropdowns
+        document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(function(el) {
+            if (!bootstrap.Dropdown.getInstance(el)) {
+                new bootstrap.Dropdown(el);
+            }
+        });
+        // Tooltips
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+            if (!bootstrap.Tooltip.getInstance(el)) {
+                new bootstrap.Tooltip(el);
+            }
+        });
+        // Collapse
+        document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(el) {
+            if (!bootstrap.Collapse.getInstance(el)) {
+                new bootstrap.Collapse(el, { toggle: false });
+            }
+        });
+    }
 
     function shouldBypass(url) {
         for (var i = 0; i < BYPASS_PREFIXES.length; i++) {
