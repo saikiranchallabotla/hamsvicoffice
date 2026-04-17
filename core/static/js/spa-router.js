@@ -712,6 +712,12 @@
             return;
         }
 
+        // If landed on an admin panel page via back button, skip past it
+        if (url.indexOf('/admin-panel/') === 0 || url.indexOf('/admin/') === 0) {
+            history.back();
+            return;
+        }
+
         // If landed on a pre-auth page, redirect to dashboard
         if (url === '/' || url === '/accounts/login/' || url === '/login/') {
             history.replaceState({ spa: true, url: DASHBOARD_URL }, '', DASHBOARD_URL);
