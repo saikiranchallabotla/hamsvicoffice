@@ -1518,77 +1518,30 @@ document.addEventListener('keydown', function(e) {
 
 <script>
 (function() {
-    // Handle form submission with job polling
+    // Handle form submission — populate hidden fields then let native submit proceed
     var form = document.getElementById("estimate-form");
     if (!form) return;
-    
-    var originalAction = form.action;
-    
-    form.addEventListener("submit", async function(e) {
-        e.preventDefault();
-        
+
+    form.addEventListener("submit", function(e) {
         // Build qty map before submission
         var m = buildQtyMap();
         document.getElementById("qty-map-field").value = JSON.stringify(m);
-        
+
         // Build unit map before submission
         var um = buildUnitMap();
         document.getElementById("unit-map-field").value = JSON.stringify(um);
-        
+
         // Set grand total value
         var gtInput = document.getElementById("grand-total-input");
         var gtField = document.getElementById("grand-total-field");
         if (gtInput && gtField) {
             gtField.value = gtInput.value || "";
         }
-        
+
         // Populate additional options
         populateAdditionalOptions();
-        
-        // Check if this is a download request or save project
-        var isDownload = form.action === originalAction && form.action.includes('download_output');
-        
-        if (isDownload) {
-            // Show loading modal
-            const modal = JobPoller.createLoadingModal('estimating');
-            modal.show();
-            
-            // Submit form asynchronously
-            const job = await JobPoller.submitFormAsync(form);
-            
-            if (!job) {
-                modal.setMessage('Error: Failed to start generation');
-                setTimeout(() => modal.hide(), 2000);
-                return;
-            }
-            
-            // Poll for completion
-            JobPoller.pollUntilComplete(
-                job.job_id,
-                job.status_url,
-                {
-                    onProgress: (data) => {
-                        modal.setProgress(data.progress || 0);
-                        modal.setMessage(data.current_step || 'Processing...');
-                    },
-                    onComplete: (data) => {
-                        modal.hide();
-                        setTimeout(() => {
-                            modal.remove();
-                            JobPoller.showResultModal(data);
-                        }, 500);
-                    },
-                    onError: (error) => {
-                        modal.setMessage('Error: ' + error);
-                        setTimeout(() => modal.hide(), 3000);
-                    },
-                },
-                1000
-            );
-        } else {
-            // Regular form submission (for save project, etc.)
-            form.submit();
-        }
+
+        // Let the native form submit proceed (target="_blank" opens new tab)
     });
 
     // Utility function to build qty map
@@ -2419,6 +2372,7 @@ document.addEventListener('keydown', function(e) {
     var unitMapField = document.getElementById("unit-map-field");
     var projectNameField = document.getElementById("project-name-field");
     var saveBtn = document.getElementById("save-project-btn");
+    var originalFormAction = form ? form.action : "";
 
     function buildQtyMap() {
         var map = {};
@@ -2478,7 +2432,11 @@ document.addEventListener('keydown', function(e) {
                 }
 
                 form.action = "{% url 'save_project' category %}";
+                form.target = "";  // save project should not open new tab
                 form.submit();
+                // Restore original action/target so Download button still works
+                form.action = originalFormAction;
+                form.target = "_blank";
             });
         });
     }

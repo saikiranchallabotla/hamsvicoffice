@@ -890,16 +890,16 @@ def output_panel(request, category):
 @login_required(login_url='login')
 def download_output(request, category):
     """
-    Async Excel generation endpoint.
-    
+    Synchronous Excel generation endpoint.
+
     POST with:
       - qty_map: JSON string of quantities
       - unit_map: JSON string of custom units per item
       - work_name: Name of work
       - work_type: "original" or "repair"
-    
-    Returns JSON with job_id and status_url for polling.
-    Actual Excel generation happens asynchronously via Celery task.
+
+    Always runs synchronously and returns the file directly or redirects
+    to the download URL.
     """
     fetched = request.session.get("fetched_items", [])
     if not fetched:
@@ -910,7 +910,7 @@ def download_output(request, category):
     item_units = {}
     work_name = ""
     grand_total = None
-    
+
     # Initialize optional parameters with defaults (before POST check)
     excess_tp_enabled = False
     excess_tp_percent = None
@@ -945,7 +945,7 @@ def download_output(request, category):
                 pass
 
         work_name = (request.POST.get("work_name") or "").strip()
-        
+
         # Parse grand_total from POST
         grand_total_str = request.POST.get("grand_total", "").strip()
         if grand_total_str:
@@ -953,7 +953,7 @@ def download_output(request, category):
                 grand_total = float(grand_total_str)
             except ValueError:
                 grand_total = None
-        
+
         # Parse additional options
         excess_tp_enabled = request.POST.get("excess_tp_enabled", "").strip().lower() == 'true'
         if excess_tp_enabled:
@@ -963,7 +963,7 @@ def download_output(request, category):
                     excess_tp_percent = float(excess_tp_str)
                 except ValueError:
                     excess_tp_percent = None
-        
+
         ls_special_enabled = request.POST.get("ls_special_enabled", "").strip().lower() == 'true'
         if ls_special_enabled:
             ls_special_name = request.POST.get("ls_special_name", "").strip() or None
@@ -973,7 +973,7 @@ def download_output(request, category):
                     ls_special_amount = float(ls_special_amount_str)
                 except ValueError:
                     ls_special_amount = None
-        
+
         # Parse Deduct Old Material Cost (for repair work)
         deduct_old_material_str = request.POST.get("deduct_old_material", "").strip()
         if deduct_old_material_str:
@@ -986,120 +986,23 @@ def download_output(request, category):
                  or request.session.get("work_type")
                  or "original").lower()
     request.session["work_type"] = work_type
-    
+
     # Get selected backend ID from session (for multi-backend support)
     selected_backend_id = request.session.get("selected_backend_id")
 
-    # Check if this is an AJAX request (from JobPoller) or native form submit
-    from django.conf import settings
-    is_ajax = (
-        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-        request.headers.get('Accept', '').startswith('application/json')
-    )
-
-    # Run synchronously if: CELERY_TASK_ALWAYS_EAGER is True, OR non-AJAX request
-    # Non-AJAX means JS failed, so we must return the file directly
-    use_sync = getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', True) or not is_ajax
-
-    if use_sync:
-        # Synchronous mode - call task directly without queue
-        try:
-            org = get_org_from_request(request)
-            
-            job = Job.objects.create(
-                organization=org,
-                user=request.user,
-                job_type='generate_output_excel',
-                status='queued',
-                current_step="Processing...",
-            )
-            
-            # Store inputs in job result
-            job.result = {
-                'fetched_items': fetched,
-                'qty_map': item_qtys,
-                'unit_map': item_units,
-                'work_name': work_name,
-                'work_type': work_type,
-                'grand_total': grand_total,
-                'excess_tp_enabled': excess_tp_enabled,
-                'excess_tp_percent': excess_tp_percent,
-                'ls_special_enabled': ls_special_enabled,
-                'ls_special_name': ls_special_name,
-                'ls_special_amount': ls_special_amount,
-                'deduct_old_material': deduct_old_material,
-                'backend_id': selected_backend_id,
-                # Uploaded custom items data for dual-source download
-                'uploaded_items': request.session.get('uploaded_items', []),
-                'uploaded_file_id': request.session.get('uploaded_file_id'),
-                'uploaded_item_blocks': request.session.get('uploaded_item_blocks', {}),
-                'uploaded_sheet_name': request.session.get('uploaded_sheet_name', ''),
-                'item_descs': request.session.get('item_descs', {}),
-                'item_units_saved': request.session.get('item_units', {}),
-            }
-            job.save()
-            
-            # Call task function directly (synchronous, no Celery)
-            from core.tasks import generate_output_excel
-            generate_output_excel.apply(args=(
-                job.id,
-                category,
-                json.dumps(item_qtys),
-                json.dumps(item_units),
-                work_name,
-                work_type,
-                grand_total,
-                excess_tp_percent,
-                ls_special_name,
-                ls_special_amount,
-                deduct_old_material,
-                selected_backend_id,
-            )).get()
-
-            # Refresh job to get updated result
-            job.refresh_from_db()
-
-            # Check if this is an AJAX request (from JobPoller) or native form submit
-            is_ajax = (
-                request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-                request.headers.get('Accept', '').startswith('application/json')
-            )
-
-            if is_ajax:
-                # Return JSON with job_id and status_url so JS can poll/download
-                return JsonResponse({
-                    'job_id': job.id,
-                    'status_url': reverse('job_status', args=[job.id]),
-                    'message': job.current_step or 'Processing complete',
-                })
-            else:
-                # Native form submit (JS failed) — redirect to the first output file
-                output_file = job.outputfile_set.first()
-                if output_file:
-                    return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
-                else:
-                    return render(request, 'core/download_error.html', {
-                        'error_title': 'Generation Failed',
-                        'error_message': job.error_message or 'No output file was generated.',
-                    })
-                
-        except Exception as e:
-            logger.error(f"Failed to generate output Excel: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
-    
-    # Async mode with Celery (production)
+    # Always run synchronously — task takes 1-2 seconds, no benefit from async
     try:
         org = get_org_from_request(request)
-        
+
         job = Job.objects.create(
             organization=org,
             user=request.user,
             job_type='generate_output_excel',
             status='queued',
-            current_step="Queued for processing",
+            current_step="Processing...",
         )
-        
-        # Store inputs in job result temporarily
+
+        # Store inputs in job result
         job.result = {
             'fetched_items': fetched,
             'qty_map': item_qtys,
@@ -1124,13 +1027,10 @@ def download_output(request, category):
         }
         job.save()
 
-        # Enqueue async task AFTER transaction commits (ATOMIC_REQUESTS wraps
-        # the view in a transaction; dispatching before commit causes
-        # "Job matching query does not exist" in the Celery worker).
+        # Call task function directly (synchronous)
         from core.tasks import generate_output_excel
-        _job_id = job.id
-        _task_args = (
-            _job_id,
+        generate_output_excel.apply(args=(
+            job.id,
             category,
             json.dumps(item_qtys),
             json.dumps(item_units),
@@ -1142,22 +1042,23 @@ def download_output(request, category):
             ls_special_amount,
             deduct_old_material,
             selected_backend_id,
-        )
+        )).get()
 
-        def _dispatch():
-            task = generate_output_excel.delay(*_task_args)
-            Job.objects.filter(id=_job_id).update(celery_task_id=task.id)
+        # Refresh job to get updated result
+        job.refresh_from_db()
 
-        transaction.on_commit(_dispatch)
+        # Redirect to the first output file for direct download
+        output_file = job.outputfile_set.first()
+        if output_file:
+            return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
+        else:
+            return render(request, 'core/download_error.html', {
+                'error_title': 'Generation Failed',
+                'error_message': job.error_message or 'No output file was generated.',
+            })
 
-        return JsonResponse({
-            'job_id': job.id,
-            'status_url': reverse('job_status', args=[job.id]),
-            'message': f'Generating {category} output estimate. Please wait...'
-        })
-        
     except Exception as e:
-        logger.error(f"Failed to enqueue output Excel task: {e}")
+        logger.error(f"Failed to generate output Excel: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
 
@@ -1332,51 +1233,55 @@ def load_project(request, project_id):
 @login_required(login_url='login')
 def download_estimate(request, category):
     """
-    Async estimate Excel generation endpoint.
-    
-    Uses session['fetched_items'] to generate estimate-only workbook asynchronously.
-    Returns JSON with job_id and status_url for polling.
+    Synchronous estimate Excel generation endpoint.
+
+    Uses session['fetched_items'] to generate estimate-only workbook.
+    Returns redirect to the generated file download.
     """
     fetched = request.session.get("fetched_items", [])
     if not fetched:
         return JsonResponse({"error": "No items selected"}, status=400)
-    
+
     # Get selected backend ID from session (for multi-backend support)
     selected_backend_id = request.session.get("selected_backend_id")
 
     try:
         org = get_org_from_request(request)
-        
+
         job = Job.objects.create(
             organization=org,
             user=request.user,
             job_type='generate_estimate_excel',
             status='queued',
-            current_step="Queued for processing",
+            current_step="Processing...",
         )
-        
+
         # Store fetched items and backend_id in result temporarily
         job.result = {
             'fetched_items': fetched,
             'backend_id': selected_backend_id,
         }
         job.save()
-        
-        # Enqueue async task AFTER transaction commits
+
+        # Call task function directly (synchronous)
         from core.tasks import generate_estimate_excel
-        _job_id = job.id
-        _task_args = (
-            _job_id,
+        generate_estimate_excel.apply(args=(
+            job.id,
             category,
             json.dumps(fetched),
             selected_backend_id,
-        )
+        )).get()
 
-        def _dispatch():
-            task = generate_estimate_excel.delay(*_task_args)
-            Job.objects.filter(id=_job_id).update(celery_task_id=task.id)
+        job.refresh_from_db()
 
-        transaction.on_commit(_dispatch)
+        output_file = job.outputfile_set.first()
+        if output_file:
+            return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
+        else:
+            return render(request, 'core/download_error.html', {
+                'error_title': 'Generation Failed',
+                'error_message': job.error_message or 'No output file was generated.',
+            })
         
         return JsonResponse({
             'job_id': job.id,

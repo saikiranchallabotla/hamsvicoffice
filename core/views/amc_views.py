@@ -1011,7 +1011,7 @@ def amc_save_qty_map(request, category):
 @login_required(login_url='login')
 def amc_download_output(request, category):
     """
-    Generate AMC output Excel file - similar to download_output for New Estimate.
+    Generate AMC output Excel file synchronously.
     """
     fetched = request.session.get("amc_fetched_items", [])
     if not fetched:
@@ -1037,7 +1037,7 @@ def amc_download_output(request, category):
                 pass
 
         work_name = (request.POST.get("work_name") or "").strip()
-        
+
         grand_total_str = request.POST.get("grand_total", "").strip()
         if grand_total_str:
             try:
@@ -1049,108 +1049,22 @@ def amc_download_output(request, category):
                  or request.session.get("amc_work_type")
                  or "original").lower()
     request.session["amc_work_type"] = work_type
-    
+
     # Get selected backend ID from session (for multi-backend support)
     amc_selected_backend_id = request.session.get("amc_selected_backend_id")
 
-    from django.conf import settings as django_settings
-
-    is_ajax = (
-        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-        request.headers.get('Accept', '').startswith('application/json')
-    )
-    use_sync = getattr(django_settings, 'CELERY_TASK_ALWAYS_EAGER', True) or not is_ajax
-
-    if use_sync:
-        # Synchronous mode
-        try:
-            org = get_org_from_request(request)
-            
-            job = Job.objects.create(
-                organization=org,
-                user=request.user,
-                job_type='generate_output_excel',
-                status='queued',
-                current_step="Processing AMC...",
-            )
-            
-            job.result = {
-                'fetched_items': fetched,
-                'qty_map': item_qtys,
-                'work_name': work_name,
-                'work_type': work_type,
-                'grand_total': grand_total,
-                'module': 'amc',
-                'backend_id': amc_selected_backend_id,
-            }
-            job.save()
-            
-            # Call task function directly (synchronous)
-            from core.tasks import generate_output_excel
-            result = generate_output_excel.apply(args=(
-                job.id,
-                category,
-                json.dumps(item_qtys),
-                json.dumps({}),  # unit_map
-                work_name,
-                work_type,
-                grand_total,
-                None,  # excess_tp_percent
-                None,  # ls_special_name
-                None,  # ls_special_amount
-                None,  # deduct_old_material
-                amc_selected_backend_id,
-            )).get()
-            
-            job.refresh_from_db()
-            
-            if job.status == 'completed' and job.result.get('output_file_id'):
-                from core.models import OutputFile
-                try:
-                    output_file = OutputFile.objects.get(id=job.result['output_file_id'])
-                    from django.http import FileResponse
-                    import os
-                    
-                    if output_file.file:
-                        # Support both local and S3 storage
-                        from django.core.files.storage import default_storage
-                        if hasattr(default_storage, 'url'):
-                            file_url = default_storage.url(output_file.file.name)
-                            if 'Signature=' in file_url or 'X-Amz-Signature=' in file_url:
-                                from django.http import HttpResponseRedirect
-                                return HttpResponseRedirect(file_url)
-                        response = FileResponse(
-                            output_file.file.open('rb'),
-                            as_attachment=True,
-                            filename=output_file.filename or f"amc_{category}_output.xlsx",
-                        )
-                        return response
-                except OutputFile.DoesNotExist:
-                    pass
-            
-            return JsonResponse({
-                'job_id': job.id,
-                'status_url': reverse('job_status', args=[job.id]),
-                'message': job.current_step or 'Processing complete',
-                'error': job.error_message if job.status == 'failed' else None,
-            })
-                
-        except Exception as e:
-            logger.error(f"Failed to generate AMC output Excel: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
-    
-    # Async mode with Celery
+    # Always run synchronously
     try:
         org = get_org_from_request(request)
-        
+
         job = Job.objects.create(
             organization=org,
             user=request.user,
             job_type='generate_output_excel',
             status='queued',
-            current_step="Queued for AMC processing",
+            current_step="Processing AMC...",
         )
-        
+
         job.result = {
             'fetched_items': fetched,
             'qty_map': item_qtys,
@@ -1161,11 +1075,11 @@ def amc_download_output(request, category):
             'backend_id': amc_selected_backend_id,
         }
         job.save()
-        
+
+        # Call task function directly (synchronous)
         from core.tasks import generate_output_excel
-        _job_id = job.id
-        _task_args = (
-            _job_id,
+        generate_output_excel.apply(args=(
+            job.id,
             category,
             json.dumps(item_qtys),
             json.dumps({}),  # unit_map
@@ -1177,20 +1091,20 @@ def amc_download_output(request, category):
             None,  # ls_special_amount
             None,  # deduct_old_material
             amc_selected_backend_id,
-        )
+        )).get()
 
-        def _dispatch():
-            task = generate_output_excel.delay(*_task_args)
-            Job.objects.filter(id=_job_id).update(celery_task_id=task.id)
+        job.refresh_from_db()
 
-        transaction.on_commit(_dispatch)
+        # Redirect to the first output file for direct download
+        output_file = job.outputfile_set.first()
+        if output_file:
+            return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
+        else:
+            return render(request, 'core/download_error.html', {
+                'error_title': 'Generation Failed',
+                'error_message': job.error_message or 'No output file was generated.',
+            })
 
-        return JsonResponse({
-            'job_id': job.id,
-            'status_url': reverse('job_status', args=[job.id]),
-            'message': f'Generating AMC {category} output. Please wait...'
-        })
-        
     except Exception as e:
-        logger.error(f"Failed to enqueue AMC output Excel task: {e}")
+        logger.error(f"Failed to generate AMC output Excel: {e}")
         return JsonResponse({"error": str(e)}, status=500)
