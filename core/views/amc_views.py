@@ -1095,10 +1095,18 @@ def amc_download_output(request, category):
 
         job.refresh_from_db()
 
-        # Redirect to the first output file for direct download
+        # Serve the file directly with a unique filename
         output_file = job.output_files.first()
-        if output_file:
-            return redirect(reverse('download_output_file', kwargs={'file_id': output_file.id}))
+        if output_file and output_file.file:
+            from django.utils.timezone import localtime
+            ts = localtime().strftime('%Y%m%d_%H%M%S')
+            filename = f"AMC_{category}_Estimate_{ts}.xlsx"
+            response = HttpResponse(
+                output_file.file.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
         else:
             return render(request, 'core/download_error.html', {
                 'error_title': 'Generation Failed',
