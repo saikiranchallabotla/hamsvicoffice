@@ -91,36 +91,32 @@
 <script>
 let selectedWorkType = null;
 
-// Read step from URL on page load (for back button navigation)
-(function initFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const step = parseInt(params.get('step')) || 1;
-    selectedWorkType = params.get('wt') || null;
-
-    if (step >= 2 && selectedWorkType) {
-        const block = document.getElementById('category-block');
-        const badge = document.getElementById('work-type-badge');
-        const step2El = document.getElementById('step2');
-
-        block.style.display = 'block';
-        badge.textContent = selectedWorkType === "repair" ? "Repair Work" : "Original Work";
-        badge.className = selectedWorkType === "repair" ? "badge bg-secondary ms-2" : "badge bg-primary ms-2";
-        step2El.classList.add('active');
-
-        if (selectedWorkType === "original") {
-            document.getElementById('card-original').classList.add('active');
-        } else {
-            document.getElementById('card-repair').classList.add('active');
-        }
-    }
-})();
-
 function setWorkType(type) {
     selectedWorkType = type;
 
-    // Navigate to step 2 URL so SPA router tracks it as a separate page
-    var stepUrl = '/datas/?step=2&wt=' + encodeURIComponent(type);
-    window.spaNavigate ? spaNavigate(stepUrl) : (window.location.href = stepUrl);
+    const block = document.getElementById('category-block');
+    const badge = document.getElementById('work-type-badge');
+    const step2 = document.getElementById('step2');
+
+    block.style.display = 'block';
+    badge.textContent = type === "repair" ? "Repair Work" : "Original Work";
+    badge.className = type === "repair" ? "badge bg-secondary ms-2" : "badge bg-primary ms-2";
+
+    // Update step indicator
+    step2.classList.add('active');
+
+    // Highlight selected card
+    document.getElementById('card-original').classList.remove('active');
+    document.getElementById('card-repair').classList.remove('active');
+
+    if (type === "original") {
+        document.getElementById('card-original').classList.add('active');
+    } else {
+        document.getElementById('card-repair').classList.add('active');
+    }
+    
+    // Smooth scroll to category
+    block.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function goToCategory(anchor, cat) {
@@ -131,10 +127,12 @@ function goToCategory(anchor, cat) {
 
     const baseUrl = anchor.getAttribute("data-url");
     const url = baseUrl + "?work_type=" + encodeURIComponent(selectedWorkType);
-    if (window.spaNavigate) {
+    if (window.safeNavigate) {
+        window.safeNavigate(url);
+    } else if (window.spaNavigate) {
         window.spaNavigate(url);
     } else {
-        window.location.href = url;
+        window.location.replace(url);
     }
     return false;
 }
