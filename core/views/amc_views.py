@@ -1099,8 +1099,8 @@ def amc_download_output(request, category):
         output_file = job.output_files.first()
         if output_file and output_file.file:
             from django.utils.timezone import localtime
-            ts = localtime().strftime('%Y%m%d_%H%M%S')
-            filename = f"AMC_{category}_Estimate_{ts}.xlsx"
+            ts = localtime().strftime('%H%M%S')
+            filename = f"AMC_Estimate_{ts}.xlsx"
             response = HttpResponse(
                 output_file.file.read(),
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
