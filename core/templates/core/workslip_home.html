@@ -284,49 +284,80 @@ let selectedWorkType = '';
 let selectedWorkMode = '';
 let selectedCategory = '';
 
+// Read step from URL on page load (for back button navigation)
+(function initFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const step = parseInt(params.get('step')) || 1;
+    selectedWorkType = params.get('wt') || '';
+    selectedWorkMode = params.get('wm') || '';
+
+    if (step >= 2 && selectedWorkType) {
+        // Show step 2 state
+        document.getElementById('step1').style.display = 'none';
+        document.getElementById('step1-indicator').classList.remove('active');
+        document.getElementById('step1-indicator').classList.add('completed');
+        document.getElementById('connector1').classList.add('completed');
+        // Highlight selected work type
+        document.querySelectorAll('#step1 .option-card').forEach(function(card) {
+            if (card.dataset.value === selectedWorkType) card.classList.add('selected');
+        });
+
+        if (step === 3 && selectedWorkMode) {
+            // Show step 3
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'block';
+            document.getElementById('step2-indicator').classList.remove('pending');
+            document.getElementById('step2-indicator').classList.add('completed');
+            document.getElementById('step3-indicator').classList.remove('pending');
+            document.getElementById('step3-indicator').classList.add('active');
+            document.getElementById('connector2').classList.add('completed');
+            // Highlight selected work mode
+            document.querySelectorAll('#step2 .option-card').forEach(function(card) {
+                if (card.dataset.value === selectedWorkMode) card.classList.add('selected');
+            });
+        } else {
+            // Show step 2
+            document.getElementById('step2').style.display = 'block';
+            document.getElementById('step2-indicator').classList.remove('pending');
+            document.getElementById('step2-indicator').classList.add('active');
+        }
+    } else {
+        // Step 1
+        document.getElementById('step1-indicator').classList.add('active');
+    }
+})();
+
 function selectWorkType(element) {
-    // Remove selection from all
     document.querySelectorAll('#step1 .option-card').forEach(card => {
         card.classList.remove('selected');
     });
-    
-    // Add selection to clicked
     element.classList.add('selected');
     selectedWorkType = element.dataset.value;
-    
-    // Short delay then move to step 2
+
     setTimeout(() => {
         showStep2();
     }, 300);
 }
 
 function selectWorkMode(element) {
-    // Remove selection from all
     document.querySelectorAll('#step2 .option-card').forEach(card => {
         card.classList.remove('selected');
     });
-    
-    // Add selection to clicked
     element.classList.add('selected');
     selectedWorkMode = element.dataset.value;
-    
-    // Short delay then move to step 3
+
     setTimeout(() => {
         showStep3();
     }, 300);
 }
 
 function selectCategory(element) {
-    // Remove selection from all
     document.querySelectorAll('#step3 .option-card').forEach(card => {
         card.classList.remove('selected');
     });
-    
-    // Add selection to clicked
     element.classList.add('selected');
     selectedCategory = element.dataset.value;
-    
-    // Short delay then proceed to workslip
+
     setTimeout(() => {
         proceedToWorkslip();
     }, 300);
@@ -335,67 +366,39 @@ function selectCategory(element) {
 function showStep2() {
     document.getElementById('step1').style.display = 'none';
     document.getElementById('step2').style.display = 'block';
-
-    // Update indicators
     document.getElementById('step1-indicator').classList.remove('active');
     document.getElementById('step1-indicator').classList.add('completed');
     document.getElementById('step2-indicator').classList.remove('pending');
     document.getElementById('step2-indicator').classList.add('active');
     document.getElementById('connector1').classList.add('completed');
 
-    // Push history so browser back button works
-    history.pushState({ wizardStep: 2 }, '', window.location.href);
+    // Navigate to step 2 URL so SPA router tracks it as a separate page
+    var stepUrl = '/workslip/?step=2&wt=' + encodeURIComponent(selectedWorkType);
+    window.spaNavigate ? spaNavigate(stepUrl) : (window.location.href = stepUrl);
 }
 
 function showStep3() {
     document.getElementById('step2').style.display = 'none';
     document.getElementById('step3').style.display = 'block';
-
-    // Update indicators
     document.getElementById('step2-indicator').classList.remove('active');
     document.getElementById('step2-indicator').classList.add('completed');
     document.getElementById('step3-indicator').classList.remove('pending');
     document.getElementById('step3-indicator').classList.add('active');
     document.getElementById('connector2').classList.add('completed');
 
-    // Push history so browser back button works
-    history.pushState({ wizardStep: 3 }, '', window.location.href);
+    // Navigate to step 3 URL so SPA router tracks it as a separate page
+    var stepUrl = '/workslip/?step=3&wt=' + encodeURIComponent(selectedWorkType) + '&wm=' + encodeURIComponent(selectedWorkMode);
+    window.spaNavigate ? spaNavigate(stepUrl) : (window.location.href = stepUrl);
 }
 
 function goBackToStep1() {
-    document.getElementById('step2').style.display = 'none';
-    document.getElementById('step1').style.display = 'block';
-    
-    // Update indicators
-    document.getElementById('step1-indicator').classList.remove('completed');
-    document.getElementById('step1-indicator').classList.add('active');
-    document.getElementById('step2-indicator').classList.remove('active');
-    document.getElementById('step2-indicator').classList.add('pending');
-    document.getElementById('connector1').classList.remove('completed');
-    
-    // Clear work mode selection
-    selectedWorkMode = '';
-    document.querySelectorAll('#step2 .option-card').forEach(card => {
-        card.classList.remove('selected');
-    });
+    var stepUrl = '/workslip/';
+    window.spaNavigate ? spaNavigate(stepUrl) : (window.location.href = stepUrl);
 }
 
 function goBackToStep2() {
-    document.getElementById('step3').style.display = 'none';
-    document.getElementById('step2').style.display = 'block';
-    
-    // Update indicators
-    document.getElementById('step2-indicator').classList.remove('completed');
-    document.getElementById('step2-indicator').classList.add('active');
-    document.getElementById('step3-indicator').classList.remove('active');
-    document.getElementById('step3-indicator').classList.add('pending');
-    document.getElementById('connector2').classList.remove('completed');
-    
-    // Clear category selection
-    selectedCategory = '';
-    document.querySelectorAll('#step3 .option-card').forEach(card => {
-        card.classList.remove('selected');
-    });
+    var stepUrl = '/workslip/?step=2&wt=' + encodeURIComponent(selectedWorkType);
+    window.spaNavigate ? spaNavigate(stepUrl) : (window.location.href = stepUrl);
 }
 
 function proceedToWorkslip() {
@@ -403,34 +406,9 @@ function proceedToWorkslip() {
         alert('Please complete all selections');
         return;
     }
-    
-    // Build URL with parameters
     const url = `{% url 'workslip_main' %}?work_type=${selectedWorkType}&work_mode=${selectedWorkMode}&category=${selectedCategory}`;
     window.spaNavigate ? spaNavigate(url) : (window.location.href = url);
 }
-
-// Handle browser back button for wizard steps
-window.addEventListener('popstate', function(e) {
-    // If we were on step 3, go back to step 2
-    if (document.getElementById('step3') && document.getElementById('step3').style.display === 'block') {
-        goBackToStep2();
-        return;
-    }
-    // If we were on step 2, go back to step 1
-    if (document.getElementById('step2') && document.getElementById('step2').style.display === 'block') {
-        goBackToStep1();
-        return;
-    }
-    // If on step 1, let the SPA router handle it (go back to previous page)
-});
-
-// Mark step 1 state in history so we can detect it
-history.replaceState({ wizardStep: 1 }, '', window.location.href);
-
-// Initialize - set step 1 as active
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('step1-indicator').classList.add('active');
-});
 </script>
 
 {% endblock %}

@@ -101,35 +101,36 @@
 <script>
 let selectedWorkType = null;
 
+// Read step from URL on page load (for back button navigation)
+(function initFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const step = parseInt(params.get('step')) || 1;
+    selectedWorkType = params.get('wt') || null;
+
+    if (step >= 2 && selectedWorkType) {
+        const block = document.getElementById('category-block');
+        const badge = document.getElementById('work-type-badge');
+        const step2El = document.getElementById('step2');
+
+        block.style.display = 'block';
+        badge.textContent = selectedWorkType === "repair" ? "Repair Work" : "Original Work";
+        badge.className = selectedWorkType === "repair" ? "badge bg-secondary ms-2" : "badge bg-primary ms-2";
+        step2El.classList.add('active');
+
+        if (selectedWorkType === "original") {
+            document.getElementById('card-original').classList.add('active');
+        } else {
+            document.getElementById('card-repair').classList.add('active');
+        }
+    }
+})();
+
 function setWorkType(type) {
     selectedWorkType = type;
 
-    const block = document.getElementById('category-block');
-    const badge = document.getElementById('work-type-badge');
-    const step2El = document.getElementById('step2');
-
-    block.style.display = 'block';
-    badge.textContent = type === "repair" ? "Repair Work" : "Original Work";
-    badge.className = type === "repair" ? "badge bg-secondary ms-2" : "badge bg-primary ms-2";
-
-    // Update step indicator
-    step2El.classList.add('active');
-
-    // Highlight selected card
-    document.getElementById('card-original').classList.remove('active');
-    document.getElementById('card-repair').classList.remove('active');
-
-    if (type === "original") {
-        document.getElementById('card-original').classList.add('active');
-    } else {
-        document.getElementById('card-repair').classList.add('active');
-    }
-
-    // Push history so browser back button can return to step 1
-    history.pushState({ amcStep: 2, workType: type }, '', window.location.href);
-
-    // Smooth scroll to category
-    block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Navigate to step 2 URL so SPA router tracks it as a separate page
+    var stepUrl = '/amc/?step=2&wt=' + encodeURIComponent(type);
+    window.spaNavigate ? spaNavigate(stepUrl) : (window.location.href = stepUrl);
 }
 
 function goToCategory(anchor, cat) {
@@ -147,24 +148,6 @@ function goToCategory(anchor, cat) {
     }
     return false;
 }
-
-// Handle browser back button for AMC wizard steps
-window.addEventListener('popstate', function(e) {
-    var catBlock = document.getElementById('category-block');
-    if (catBlock && catBlock.style.display === 'block') {
-        // Go back from step 2 (category) to step 1 (work type only)
-        catBlock.style.display = 'none';
-        document.getElementById('step2').classList.remove('active');
-        document.getElementById('card-original').classList.remove('active');
-        document.getElementById('card-repair').classList.remove('active');
-        selectedWorkType = null;
-        return;
-    }
-    // If on step 1, let the SPA router handle it (go back to dashboard)
-});
-
-// Mark step 1 in history
-history.replaceState({ amcStep: 1 }, '', window.location.href);
 </script>
 
 {% endblock %}
