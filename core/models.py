@@ -661,7 +661,7 @@ class SavedWork(models.Model):
     - A Workslip can generate a Bill (parent = Workslip)
     """
     WORK_TYPE_CHOICES = (
-        ("new_estimate", "New Estimate"),
+        ("new_estimate", "Estimate"),
         ("workslip", "Workslip"),
         ("bill", "Bill"),
         ("temporary_works", "Temporary Works"),

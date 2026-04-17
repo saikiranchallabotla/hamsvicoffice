@@ -2908,10 +2908,10 @@ def workslip(request):
         "category": category,
         "work_type": ws_work_type,
         "work_type_display": {
-            'new_estimate': 'New Estimate',
+            'new_estimate': 'Estimate',
             'amc': 'AMC',
             'tempworks': 'Temporary Works'
-        }.get(ws_work_type, 'New Estimate'),
+        }.get(ws_work_type, 'Estimate'),
         "work_mode": ws_work_mode,
         "work_mode_display": {
             'original': 'Original',
