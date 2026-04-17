@@ -66,7 +66,7 @@ class SubscriptionService:
             has_used_trial = UserModuleSubscription.objects.filter(
                 user=user,
                 module=module,
-                status='trial'
+                pricing__isnull=True,  # trial subs have no pricing
             ).exists()
             
             return cls._fail(

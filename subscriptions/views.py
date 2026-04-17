@@ -49,12 +49,17 @@ def module_access_view(request, module_code):
     current_sub = existing_sub  # Already fetched above
     
     # Check if trial available
-    # If admin extended trial_days, re-offer remaining time to users whose trial expired
+    # A user has "used" their trial if they have any subscription record
+    # for this module that was a trial (pricing is NULL for trials).
+    # This covers status='trial' (active/expired) AND revoked trials (status='cancelled' with no pricing).
     existing_trial = UserModuleSubscription.objects.filter(
         user=request.user,
         module=module,
-        status='trial'
+        pricing__isnull=True,  # trial subscriptions have no pricing
     ).first()
+
+    # Also check for a currently active trial specifically
+    has_used_trial = existing_trial is not None
 
     trial_available = False
     trial_remaining_delta = None
@@ -183,8 +188,13 @@ def start_trial_view(request, module_code):
             messages.error(request, f'You have already used your free trial for {module.name}.')
             return redirect('module_access', module_code=module_code)
 
-        # Expired/cancelled paid subscription — allow a fresh trial by reusing the record
+        # Expired/cancelled paid subscription (has pricing) — allow a fresh trial
+        # But NOT if this was a revoked trial (no pricing = was a trial)
         if existing_sub.status in ('expired', 'cancelled', 'suspended'):
+            if existing_sub.pricing is None:
+                # This was a trial that got revoked — don't allow another trial
+                messages.error(request, f'You have already used your free trial for {module.name}.')
+                return redirect('module_access', module_code=module_code)
             trial_expires = timezone.now() + module.trial_duration_timedelta
             existing_sub.status = 'trial'
             existing_sub.started_at = timezone.now()
