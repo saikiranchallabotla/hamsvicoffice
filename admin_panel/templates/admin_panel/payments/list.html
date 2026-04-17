@@ -83,8 +83,8 @@
                         <a href="{% url 'admin_payment_detail' payment.id %}" class="text-decoration-none fw-medium">
                             {{ payment.order_id|truncatechars:15 }}
                         </a>
-                        {% if payment.payment_id %}
-                        <div class="small text-muted">{{ payment.payment_id|truncatechars:20 }}</div>
+                        {% if payment.gateway_payment_id %}
+                        <div class="small text-muted">{{ payment.gateway_payment_id|truncatechars:20 }}</div>
                         {% endif %}
                     </td>
                     <td>
@@ -92,16 +92,18 @@
                             {{ payment.user.get_full_name|default:payment.user.username }}
                         </a>
                     </td>
-                    <td>{{ payment.module.name|default:"-" }}</td>
                     <td>
-                        <span class="fw-semibold">₹{{ payment.amount|floatformat:0 }}</span>
+                        {% for m in payment.modules.all %}{{ m.name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}
+                    </td>
+                    <td>
+                        <span class="fw-semibold">₹{{ payment.total_amount|floatformat:0 }}</span>
                     </td>
                     <td>
                         <span class="badge {% if payment.status == 'completed' %}bg-success{% elif payment.status == 'pending' %}bg-warning text-dark{% elif payment.status == 'failed' %}bg-danger{% else %}bg-secondary{% endif %}">
                             {{ payment.get_status_display }}
                         </span>
                     </td>
-                    <td>{{ payment.gateway|default:"Razorpay"|title }}</td>
+                    <td>{{ payment.get_gateway_display|default:"Razorpay" }}</td>
                     <td>{{ payment.created_at|date:"d M Y, h:i A" }}</td>
                     <td>
                         <a href="{% url 'admin_payment_detail' payment.id %}" class="btn btn-sm btn-outline-primary">

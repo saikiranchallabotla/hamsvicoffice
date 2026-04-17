@@ -1210,7 +1210,7 @@ def payment_list(request):
     """
     List all payments.
     """
-    payments = Payment.objects.select_related('user').order_by('-created_at')
+    payments = Payment.objects.select_related('user').prefetch_related('modules').order_by('-created_at')
     
     # Filter by status
     status = request.GET.get('status')
@@ -1223,7 +1223,7 @@ def payment_list(request):
         payments = payments.filter(
             Q(user__username__icontains=search) |
             Q(order_id__icontains=search) |
-            Q(payment_id__icontains=search)
+            Q(gateway_payment_id__icontains=search)
         )
     
     # Pagination
@@ -1231,10 +1231,20 @@ def payment_list(request):
     page = request.GET.get('page', 1)
     payments_page = paginator.get_page(page)
     
+    # Revenue stats (live payments only)
+    live_completed = Payment.objects.filter(status='completed').exclude(gateway_order_id__startswith='order_mock_')
+    total_revenue = live_completed.aggregate(total=Sum('total_amount'))['total'] or 0
+    monthly_revenue = live_completed.filter(
+        created_at__date__gte=timezone.now().date() - timedelta(days=30)
+    ).aggregate(total=Sum('total_amount'))['total'] or 0
+
     context = {
         'payments': payments_page,
         'status': status,
         'search': search,
+        'total_revenue': total_revenue,
+        'monthly_revenue': monthly_revenue,
+        'modules': Module.objects.filter(is_active=True),
     }
     
     return render(request, 'admin_panel/payments/list.html', context)

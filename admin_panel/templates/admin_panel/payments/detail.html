@@ -27,15 +27,15 @@
                             </tr>
                             <tr>
                                 <td class="text-muted">Payment ID</td>
-                                <td><code>{{ payment.payment_id|default:"-" }}</code></td>
+                                <td><code>{{ payment.gateway_payment_id|default:"-" }}</code></td>
                             </tr>
                             <tr>
                                 <td class="text-muted">Gateway</td>
-                                <td>{{ payment.gateway|default:"Razorpay"|title }}</td>
+                                <td>{{ payment.get_gateway_display|default:"Razorpay" }}</td>
                             </tr>
                             <tr>
                                 <td class="text-muted">Method</td>
-                                <td>{{ payment.method|default:"-"|title }}</td>
+                                <td>{{ payment.gateway_response.method|default:"-"|title }}</td>
                             </tr>
                         </table>
                     </div>
@@ -43,11 +43,11 @@
                         <table class="table table-borderless mb-0">
                             <tr>
                                 <td class="text-muted" style="width:40%;">Amount</td>
-                                <td><span class="fs-4 fw-bold text-success">₹{{ payment.amount|floatformat:0 }}</span></td>
+                                <td><span class="fs-4 fw-bold text-success">₹{{ payment.total_amount|floatformat:0 }}</span></td>
                             </tr>
                             <tr>
                                 <td class="text-muted">Currency</td>
-                                <td>{{ payment.currency|default:"INR" }}</td>
+                                <td>INR</td>
                             </tr>
                             <tr>
                                 <td class="text-muted">Created</td>
@@ -156,14 +156,14 @@
                 <div class="modal-body">
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle me-1"></i>
-                        This will refund ₹{{ payment.amount|floatformat:0 }} to the user's original payment method.
+                        This will refund ₹{{ payment.total_amount|floatformat:0 }} to the user's original payment method.
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Refund Amount</label>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
-                            <input type="number" name="refund_amount" class="form-control" value="{{ payment.amount|floatformat:0 }}" max="{{ payment.amount|floatformat:0 }}" min="1" required>
+                            <input type="number" name="refund_amount" class="form-control" value="{{ payment.total_amount|floatformat:0 }}" max="{{ payment.total_amount|floatformat:0 }}" min="1" required>
                         </div>
                     </div>
                     
