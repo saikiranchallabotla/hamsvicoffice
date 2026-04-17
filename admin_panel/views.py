@@ -74,18 +74,20 @@ def admin_dashboard(request):
         expires_at__gt=timezone.now()
     ).count()
     
-    # Revenue stats
-    month_revenue = Payment.objects.filter(
+    # Revenue stats (exclude test/mock payments)
+    live_payments = Payment.objects.filter(
         status='completed',
+    ).exclude(gateway_order_id__startswith='order_mock_')
+    month_revenue = live_payments.filter(
         created_at__date__gte=month_ago
     ).aggregate(total=Sum('total_amount'))['total'] or 0
-    
+
     # Support stats
     open_tickets = SupportTicket.objects.filter(status__in=['open', 'pending']).count()
-    
+
     # Recent activity
     recent_users = User.objects.order_by('-date_joined')[:5]
-    recent_payments = Payment.objects.filter(status='completed').order_by('-created_at')[:5]
+    recent_payments = live_payments.order_by('-created_at')[:5]
     recent_tickets = SupportTicket.objects.order_by('-created_at')[:5]
     
     context = {

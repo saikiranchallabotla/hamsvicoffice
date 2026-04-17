@@ -135,23 +135,21 @@ def analytics_dashboard(request):
         usage_chart['jobs'].append(job_counts.get(d, 0))
     
     # -------------------------------------------------------------------------
-    # REVENUE STATS
+    # REVENUE STATS (exclude test/mock payments)
     # -------------------------------------------------------------------------
-    total_revenue = Payment.objects.filter(status='completed').aggregate(total=Sum('total_amount'))['total'] or 0
-    revenue_this_month = Payment.objects.filter(
-        status='completed',
+    live_payments_qs = Payment.objects.filter(status='completed').exclude(gateway_order_id__startswith='order_mock_')
+    total_revenue = live_payments_qs.aggregate(total=Sum('total_amount'))['total'] or 0
+    revenue_this_month = live_payments_qs.filter(
         created_at__date__gte=month_ago
     ).aggregate(total=Sum('total_amount'))['total'] or 0
-    revenue_last_month = Payment.objects.filter(
-        status='completed',
+    revenue_last_month = live_payments_qs.filter(
         created_at__date__gte=(month_ago - timedelta(days=30)),
         created_at__date__lt=month_ago
     ).aggregate(total=Sum('total_amount'))['total'] or 0
-    
+
     # Monthly revenue for last 6 months
     revenue_by_month = (
-        Payment.objects.filter(
-            status='completed',
+        live_payments_qs.filter(
             created_at__date__gte=(today - timedelta(days=180))
         )
         .annotate(month=TruncMonth('created_at'))
@@ -255,7 +253,7 @@ def user_analytics(request, user_id):
     
     # User's payments
     payments = Payment.objects.filter(user=user).order_by('-created_at')
-    total_paid = payments.filter(status='completed').aggregate(total=Sum('amount'))['total'] or 0
+    total_paid = payments.filter(status='completed').exclude(gateway_order_id__startswith='order_mock_').aggregate(total=Sum('amount'))['total'] or 0
     
     # Activity timeline
     activity = []
@@ -363,7 +361,7 @@ def analytics_api(request):
             Payment.objects.filter(
                 status='completed',
                 created_at__date__gte=start_date
-            )
+            ).exclude(gateway_order_id__startswith='order_mock_')
             .annotate(day=TruncDate('created_at'))
             .values('day')
             .annotate(total=Sum('total_amount'))
@@ -568,8 +566,8 @@ def export_analytics(request, export_type):
         # Revenue Statistics
         ws_summary.cell(row=row, column=1, value='REVENUE STATISTICS').font = subtitle_font
         row += 1
-        total_revenue = Payment.objects.filter(status='completed').aggregate(total=Sum('total_amount'))['total'] or 0
-        month_revenue = Payment.objects.filter(status='completed', created_at__date__gte=today.date() - timedelta(days=30)).aggregate(total=Sum('total_amount'))['total'] or 0
+        total_revenue = Payment.objects.filter(status='completed').exclude(gateway_order_id__startswith='order_mock_').aggregate(total=Sum('total_amount'))['total'] or 0
+        month_revenue = Payment.objects.filter(status='completed', created_at__date__gte=today.date() - timedelta(days=30)).exclude(gateway_order_id__startswith='order_mock_').aggregate(total=Sum('total_amount'))['total'] or 0
         stats = [
             ['Total Revenue', f'₹{total_revenue:,.2f}'],
             ['Revenue (Last 30 Days)', f'₹{month_revenue:,.2f}'],
