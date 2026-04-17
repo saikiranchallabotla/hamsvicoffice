@@ -39,8 +39,31 @@
     // Dashboard is the floor — back button should not go past this
     var DASHBOARD_URL = '/dashboard/';
 
+    // Track whether we're at the dashboard floor
+    var isDashboardFloor = false;
+
     // History stack for proper back-button sequencing
     var historyStack = [window.location.pathname + window.location.search];
+
+    /**
+     * Set dashboard as the navigation floor.
+     * Uses a guard entry technique: pushes a duplicate dashboard entry
+     * so that pressing back lands on the guard, which we detect and
+     * push forward again — effectively trapping the user on dashboard.
+     */
+    function setDashboardFloor() {
+        isDashboardFloor = true;
+        historyStack = [DASHBOARD_URL];
+        // Replace current entry to mark it as the floor
+        history.replaceState({ spa: true, url: DASHBOARD_URL, dashboardFloor: true }, '', DASHBOARD_URL);
+    }
+
+    // After every SPA navigation, check if we landed on dashboard and set floor
+    function checkDashboardFloor(url) {
+        if (url === DASHBOARD_URL || url === DASHBOARD_URL.replace(/\/$/, '')) {
+            setDashboardFloor();
+        }
+    }
 
     // Current layout mode
     var currentLayout = detectCurrentLayout();
@@ -242,6 +265,7 @@
         if (normalizedTarget && normalizedTarget !== historyStack[historyStack.length - 1]) {
             history.pushState({ spa: true, url: currentLogicalUrl }, '', currentLogicalUrl);
             historyStack.push(currentLogicalUrl);
+            checkDashboardFloor(currentLogicalUrl);
         } else {
             history.replaceState({ spa: true, url: currentLogicalUrl }, '', currentLogicalUrl);
         }
@@ -544,6 +568,7 @@
                 currentLogicalUrl = url;
                 history.pushState({ spa: true, url: url }, '', currentLogicalUrl);
                 historyStack.push(url);
+                checkDashboardFloor(url);
 
                 // Update active nav link
                 updateActiveNavLink(url);
@@ -675,11 +700,23 @@
     // Handle browser back/forward
     window.addEventListener('popstate', function(e) {
         var url = window.location.pathname + window.location.search;
+        var state = e.state || {};
 
-        // Dashboard floor: if user tries to go back past dashboard, stay on dashboard
-        if (!url || url === '/' || url === '/accounts/login/' || url === '/login/') {
+        // Dashboard floor enforcement:
+        // If user pressed back and landed on dashboard (or before it),
+        // and our history stack says dashboard is the bottom, stay on dashboard.
+        if (historyStack.length <= 1 || (currentLogicalUrl === DASHBOARD_URL && url !== currentLogicalUrl)) {
+            // User is trying to go back past dashboard — block it
+            history.pushState({ spa: true, url: DASHBOARD_URL, dashboardFloor: true }, '', DASHBOARD_URL);
+            currentLogicalUrl = DASHBOARD_URL;
+            return;
+        }
+
+        // If landed on a pre-auth page, redirect to dashboard
+        if (url === '/' || url === '/accounts/login/' || url === '/login/') {
             history.replaceState({ spa: true, url: DASHBOARD_URL }, '', DASHBOARD_URL);
             url = DASHBOARD_URL;
+            historyStack = [DASHBOARD_URL];
         }
 
         if (url !== currentLogicalUrl) {
@@ -795,7 +832,12 @@
 
     // Keep title fixed and preserve the current URL on initial load
     document.title = FIXED_TITLE;
-    history.replaceState({ spa: true }, '', currentLogicalUrl);
+    history.replaceState({ spa: true, url: currentLogicalUrl }, '', currentLogicalUrl);
+
+    // If initial load is dashboard, set it as the floor
+    if (currentLogicalUrl === DASHBOARD_URL || currentLogicalUrl === DASHBOARD_URL.replace(/\/$/, '')) {
+        setDashboardFloor();
+    }
 
     document.documentElement.setAttribute('data-spa', 'true');
     document.documentElement.setAttribute('data-spa-layout', currentLayout);
@@ -964,6 +1006,7 @@
                 currentLogicalUrl = url;
                 history.pushState({ spa: true, url: url }, '', currentLogicalUrl);
                 historyStack.push(url);
+                checkDashboardFloor(url);
                 updateActiveNavLink(url);
                 document.dispatchEvent(new CustomEvent('spa:navigation', {
                     detail: { url: url, layout: targetLayout }
