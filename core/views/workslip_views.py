@@ -189,7 +189,11 @@ def workslip(request):
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
     groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
-    current_group = request.GET.get("group") or (groups[0] if groups else "")
+    current_group = request.GET.get("group") or request.session.get("ws_current_group") or (groups[0] if groups else "")
+    # Validate the group still exists (backend may have changed)
+    if current_group and groups and current_group not in groups:
+        current_group = groups[0]
+    request.session["ws_current_group"] = current_group
 
     group_items = groups_map.get(current_group, []) if current_group else []
     detected_names = {i["name"] for i in items_list}
@@ -1549,6 +1553,7 @@ def workslip(request):
             request.session["ws_previous_phases"] = []
             request.session["ws_previous_supp_items"] = []
             request.session["ws_previous_ae_data"] = []
+            request.session["ws_current_group"] = ""
             return redirect("workslip_main")
 
         # D2) Upload Previous Workslip for Next Phase
