@@ -3009,9 +3009,15 @@ def workslip_ajax_toggle_supp(request):
         item_info = None
         if action_taken == "added":
             try:
-                # Load backend for the default category
-                category = "original"
-                items_list, groups_map, units_map, ws_data, filepath = load_backend(category, settings.BASE_DIR)
+                # Load backend using session category and backend ID
+                category = request.session.get("ws_category", "electrical") or "electrical"
+                ws_selected_backend_id = request.session.get("ws_selected_backend_id")
+                items_list, groups_map, units_map, ws_data, filepath = load_backend(
+                    category, settings.BASE_DIR,
+                    backend_id=ws_selected_backend_id,
+                    module_code='workslip',
+                    user=request.user,
+                )
                 
                 # Get rate
                 wb_vals = load_workbook(filepath, data_only=True)
