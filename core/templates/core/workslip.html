@@ -1938,6 +1938,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Ensure only one IIFE for all logic
 (function() {
     var ajaxGroupItemsUrl = "{% url 'workslip_ajax_group_items' %}";
+    var workslipMainUrl = "{% url 'workslip_main' %}";
 
     // --- Re-render items panel from AJAX data ---
     function renderItemsPanel(data) {
@@ -2003,7 +2004,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Rebuild form + items list
-        container.innerHTML = '<form id="supp-form" method="post" action="{% url \'workslip_main\' %}">' +
+        container.innerHTML = '<form id="supp-form" method="post" action="' + workslipMainUrl + '">' +
             '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">' +
             '<input type="hidden" name="action" value="add_supplemental">' +
             '<input type="hidden" name="exec_map" id="supp-exec-map-field">' +
