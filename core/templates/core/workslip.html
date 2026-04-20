@@ -10,6 +10,8 @@
 {% block content %}
 
 <style>
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
     /* 3-Panel Layout */
     .layout-3panel {
         display: grid;
@@ -1953,24 +1955,10 @@ document.addEventListener('DOMContentLoaded', function() {
             header.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + group;
         }
 
-        // Update active group in sidebar
-        document.querySelectorAll('.group-link').forEach(function(link) {
-            var li = link.closest('li');
-            var gName = li ? li.getAttribute('data-group-name') : '';
-            if (gName === group.toLowerCase()) {
-                link.classList.add('active');
-                link.querySelector('i').className = 'bi bi-folder-fill me-2';
-            } else {
-                link.classList.remove('active');
-                link.querySelector('i').className = 'bi bi-folder me-2';
-            }
-        });
-
-        // Build items list HTML
-        var panelBody = document.querySelector('#items-list');
-        if (!panelBody) return;
-
-        var container = panelBody.closest('.panel-body');
+        // Find the items panel body (middle panel, second .panel-card)
+        var panels = document.querySelectorAll('.layout-3panel > .panel-card');
+        var container = panels.length >= 2 ? panels[1].querySelector('.panel-body') : null;
+        if (!container) return;
 
         if (!itemsInfo || itemsInfo.length === 0) {
             container.innerHTML = '<div class="empty-state"><i class="bi bi-inbox"></i><p>No items found in this group.</p></div>';
@@ -2137,7 +2125,32 @@ document.addEventListener('DOMContentLoaded', function() {
             // Skip if already on this group
             if (clickedLink.classList.contains('active')) return;
 
-            // Collect ALL quantities (both base and supplemental)
+            // --- INSTANT visual feedback ---
+            // 1) Switch active group immediately
+            document.querySelectorAll('.group-link').forEach(function(gl) {
+                gl.classList.remove('active');
+                gl.querySelector('i').className = 'bi bi-folder me-2';
+            });
+            clickedLink.classList.add('active');
+            clickedLink.querySelector('i').className = 'bi bi-folder-fill me-2';
+
+            // 2) Show loading in items panel immediately
+            var header = document.querySelector('.items-header');
+            if (header) header.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
+
+            var container = document.querySelector('#items-list');
+            if (container) container = container.closest('.panel-body');
+            if (container) {
+                container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:2rem;color:#94a3b8;"><i class="bi bi-arrow-repeat" style="animation:spin .6s linear infinite;margin-right:0.5rem;"></i> Loading items...</div>';
+            }
+
+            // 3) Update URL immediately
+            var newUrl = new URL(window.location);
+            newUrl.searchParams.set('group', groupName);
+            newUrl.searchParams.set('preserve', '1');
+            history.replaceState(null, '', newUrl.toString());
+
+            // Collect quantities for save
             var allMap = {};
             document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
                 if (row.classList.contains("supp-heading-row")) return;
@@ -2152,45 +2165,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            // Get TP values
             var tpPercentInput = document.getElementById("tp-percent-input");
             var tpTypeSelect = document.getElementById("tp-type-select");
             var tpPercent = tpPercentInput ? tpPercentInput.value : "";
             var tpType = tpTypeSelect ? tpTypeSelect.value : "Excess";
 
-            // Save to session via AJAX, then fetch new group items
-            var formData = new FormData();
-            formData.append('action', 'update_preview');
-            formData.append('exec_map', JSON.stringify(allMap));
-            formData.append('tp_percent', tpPercent);
-            formData.append('tp_type', tpType);
-            formData.append('csrfmiddlewaretoken', csrfToken);
+            // Fire save and group fetch in PARALLEL
+            var saveData = new FormData();
+            saveData.append('action', 'update_preview');
+            saveData.append('exec_map', JSON.stringify(allMap));
+            saveData.append('tp_percent', tpPercent);
+            saveData.append('tp_type', tpType);
+            saveData.append('csrfmiddlewaretoken', csrfToken);
 
-            fetch('{% url "workslip_main" %}', {
+            var savePromise = fetch('{% url "workslip_main" %}', {
                 method: 'POST',
-                body: formData,
+                body: saveData,
                 headers: { 'X-CSRFToken': csrfToken },
                 redirect: 'manual'
-            })
-            .then(function() {
-                // Fetch items for the new group via AJAX
-                return fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
-                    headers: { 'X-CSRFToken': csrfToken }
-                });
-            })
-            .then(function(response) { return response.json(); })
-            .then(function(data) {
+            });
+
+            var fetchPromise = fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
+                headers: { 'X-CSRFToken': csrfToken }
+            }).then(function(response) { return response.json(); });
+
+            // Wait for group fetch only (save can finish in background)
+            fetchPromise.then(function(data) {
                 if (data.status === 'ok') {
                     renderItemsPanel(data);
-                    // Update URL without reload
-                    var newUrl = new URL(window.location);
-                    newUrl.searchParams.set('group', groupName);
-                    newUrl.searchParams.set('preserve', '1');
-                    history.replaceState(null, '', newUrl.toString());
                 }
             })
             .catch(function(err) {
                 console.error('Error loading group:', err);
+                if (container) {
+                    container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Failed to load items. Click the group again.</p></div>';
+                }
             });
         });
     });
