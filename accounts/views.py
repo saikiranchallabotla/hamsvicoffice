@@ -10,6 +10,7 @@ Flows:
 
 import json
 from django.conf import settings
+from django.db import models
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib.auth import login, logout
@@ -691,10 +692,12 @@ def _handle_login_success(request, identifier):
         messages.error(request, 'Account not found.')
         return redirect('login')
     
-    # Check for active sessions on other devices
+    # Check for active sessions on other devices (exclude expired ones)
     active_sessions = UserSession.objects.filter(
         user=user,
         is_active=True
+    ).filter(
+        models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
     ).order_by('-last_activity')
     
     if active_sessions.exists():

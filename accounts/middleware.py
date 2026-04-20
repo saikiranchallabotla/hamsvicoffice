@@ -80,8 +80,10 @@ class SessionTrackingMiddleware:
                 session_key=session_key
             ).first()
             
-            # If session doesn't exist or is marked inactive, kick them out
-            if not user_session or not user_session.is_active:
+            # Only kick out if the session record exists but was explicitly invalidated.
+            # A missing record means it's a brand-new session that _track_session
+            # hasn't written yet — do not treat that as an eviction.
+            if user_session and not user_session.is_active:
                 logger.info(f"User {request.user.username} kicked out - session invalidated by login on another device")
                 
                 # Logout the user
