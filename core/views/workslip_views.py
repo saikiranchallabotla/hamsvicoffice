@@ -3066,7 +3066,82 @@ def workslip_ajax_toggle_supp(request):
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
 
 
-# Provide placeholder views for any names expected by URLConf but not yet
+# -----------------------
+# WORKSLIP AJAX GET GROUP ITEMS
+# -----------------------
+@login_required(login_url='login')
+def workslip_ajax_group_items(request):
+    """
+    AJAX endpoint to get items for a group without full page reload.
+    GET with ?group=GroupName
+    Returns JSON with items_info, subtypes data, and current supp selections.
+    """
+    import re as _re
+    group_name = request.GET.get("group", "").strip()
+    if not group_name:
+        return JsonResponse({"status": "error", "message": "No group specified"}, status=400)
+
+    # Save group to session
+    request.session["ws_current_group"] = group_name
+
+    try:
+        category = request.session.get("ws_category", "electrical") or "electrical"
+        ws_selected_backend_id = request.session.get("ws_selected_backend_id")
+        items_list, groups_map, units_map, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=ws_selected_backend_id,
+            module_code='workslip',
+            user=request.user,
+        )
+    except Exception:
+        items_list, groups_map, ws_data, filepath = [], {}, None, ""
+
+    group_items = groups_map.get(group_name, [])
+    detected_names = {i["name"] for i in items_list}
+    items_in_group = [name for name in group_items if name in detected_names]
+
+    # Build subtypes map
+    _colon_re = _re.compile(r'\s*:\s*')
+    item_subtypes = {}
+    for name in items_in_group:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            if parent_name not in item_subtypes:
+                item_subtypes[parent_name] = []
+            item_subtypes[parent_name].append(name)
+
+    items_info = []
+    seen_parents = set()
+    for name in items_in_group:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": subtypes_list,
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": [],
+                "subtypes_count": 0,
+            })
+
+    ws_supp_items = request.session.get("ws_supp_items", []) or []
+    has_estimate = bool(request.session.get("ws_estimate_rows"))
+
+    return JsonResponse({
+        "status": "ok",
+        "group": group_name,
+        "items_info": items_info,
+        "supp_items_selected": ws_supp_items,
+        "has_estimate": has_estimate,
+    })
 # implemented during the ongoing refactor. This uses module-level
 # __getattr__ (PEP 562) so imports like `from core import views` succeed.
 _placeholder_views = {}

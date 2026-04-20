@@ -120,6 +120,7 @@ urlpatterns = [
     path('workslip/', views.workslip_home, name='workslip'),  # Landing page for work type selection
     path('workslip/main/', views.workslip, name='workslip_main'),  # Main workslip 3-panel interface
     path('workslip/ajax-toggle-supp/', views.workslip_ajax_toggle_supp, name='workslip_ajax_toggle_supp'),
+    path('workslip/ajax-group-items/', views.workslip_ajax_group_items, name='workslip_ajax_group_items'),
     
     # -------------------------
     # Workslip Entry (Sequential UI without file uploads)

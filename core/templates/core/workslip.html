@@ -1937,13 +1937,205 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Ensure only one IIFE for all logic
 (function() {
-    // --- Auto-save quantities and TP on group navigation ---
+    var ajaxGroupItemsUrl = "{% url 'workslip_ajax_group_items' %}";
+
+    // --- Re-render items panel from AJAX data ---
+    function renderItemsPanel(data) {
+        var group = data.group;
+        var itemsInfo = data.items_info;
+        var suppSelected = data.supp_items_selected || [];
+        var hasEstimate = data.has_estimate;
+
+        // Update header
+        var header = document.querySelector('.items-header');
+        if (header) {
+            header.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + group;
+        }
+
+        // Update active group in sidebar
+        document.querySelectorAll('.group-link').forEach(function(link) {
+            var li = link.closest('li');
+            var gName = li ? li.getAttribute('data-group-name') : '';
+            if (gName === group.toLowerCase()) {
+                link.classList.add('active');
+                link.querySelector('i').className = 'bi bi-folder-fill me-2';
+            } else {
+                link.classList.remove('active');
+                link.querySelector('i').className = 'bi bi-folder me-2';
+            }
+        });
+
+        // Build items list HTML
+        var panelBody = document.querySelector('#items-list');
+        if (!panelBody) return;
+
+        var container = panelBody.closest('.panel-body');
+
+        if (!itemsInfo || itemsInfo.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-inbox"></i><p>No items found in this group.</p></div>';
+            return;
+        }
+
+        // Rebuild subtypesData for the modal
+        subtypesData = {};
+
+        var html = '';
+        itemsInfo.forEach(function(info, idx) {
+            html += '<li data-item-name="' + info.name.toLowerCase() + '">';
+            if (info.has_subtypes) {
+                subtypesData[idx] = info.subtypes;
+                html += '<label class="item-label has-subtypes" data-parent-name="' + info.name + '" data-subtypes-index="' + idx + '" onclick="openSubtypesModal(this)">';
+                html += '<span class="item-name">' + info.name + '</span>';
+                html += '<span class="subtype-badge" id="subtype-badge-' + idx + '">' + info.subtypes_count + ' types</span>';
+                html += '</label>';
+            } else {
+                var isChecked = suppSelected.indexOf(info.name) !== -1;
+                var isDisabled = !hasEstimate;
+                html += '<label class="item-label">';
+                html += '<input type="checkbox" class="item-checkbox supp-item-checkbox" name="supp_items" value="' + info.name + '" data-item-name="' + info.name + '"';
+                if (isChecked) html += ' checked';
+                if (isDisabled) html += ' disabled';
+                html += '>';
+                html += '<span class="item-name">' + info.name + '</span>';
+                html += '</label>';
+            }
+            html += '</li>';
+        });
+
+        // Rebuild form + items list
+        container.innerHTML = '<form id="supp-form" method="post" action="{% url \'workslip_main\' %}">' +
+            '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">' +
+            '<input type="hidden" name="action" value="add_supplemental">' +
+            '<input type="hidden" name="exec_map" id="supp-exec-map-field">' +
+            '<input type="hidden" name="rate_map" id="supp-rate-map-field">' +
+            '<input type="hidden" name="tp_percent" id="supp-tp-percent-field">' +
+            '<input type="hidden" name="tp_type" id="supp-tp-type-field">' +
+            '<div id="subtype-hidden-inputs"></div>' +
+            '<ul class="items-list" id="items-list">' + html + '</ul>' +
+            '<button type="submit" class="btn-action btn-add-supp" id="btn-add-supp" style="margin-top: 1rem; width: 100%;"' +
+            (hasEstimate ? '' : ' disabled') + '>' +
+            '<i class="bi bi-plus-lg"></i> Add Supplemental Items</button>' +
+            '</form>';
+
+        // Re-attach checkbox handlers for uncheck removal
+        document.querySelectorAll('.supp-item-checkbox').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                var itemName = this.getAttribute('data-item-name');
+                if (!this.checked) {
+                    var key = "supp:" + itemName;
+                    var existingRow = document.querySelector('#ws-table tbody tr[data-row-key="' + key + '"]');
+                    if (existingRow) {
+                        suppToggleQueue.push({ checkbox: this, item: itemName, action: 'remove' });
+                        processSuppQueue();
+                    }
+                }
+            });
+        });
+
+        // Re-attach supplemental form AJAX handler
+        reattachSuppFormHandler();
+
+        // Clear items search
+        var itemsSearch = document.getElementById('items-search');
+        if (itemsSearch) itemsSearch.value = '';
+    }
+
+    // --- Reusable: attach AJAX submit to supp-form ---
+    function reattachSuppFormHandler() {
+        var suppForm = document.getElementById("supp-form");
+        if (!suppForm) return;
+        suppForm.addEventListener("submit", function(e) {
+            e.preventDefault();
+            var selectedItems = [];
+            suppForm.querySelectorAll('input[name="supp_items"]').forEach(function(inp) {
+                if (inp.type === 'hidden' || inp.checked) {
+                    selectedItems.push(inp.value);
+                }
+            });
+            if (selectedItems.length === 0) return;
+
+            var addBtn = document.getElementById("btn-add-supp");
+            if (addBtn) {
+                addBtn.disabled = true;
+                addBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Adding...';
+            }
+
+            var execMap = {};
+            document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
+                if (row.classList.contains("supp-heading-row")) return;
+                var rowKey = row.getAttribute("data-row-key");
+                if (!rowKey) return;
+                var qtyInput = row.querySelector(".qty-exec-input");
+                if (qtyInput && qtyInput.value !== "") execMap[rowKey] = qtyInput.value;
+            });
+
+            var saveData = new FormData();
+            saveData.append('action', 'update_preview');
+            saveData.append('exec_map', JSON.stringify(execMap));
+            saveData.append('csrfmiddlewaretoken', csrfToken);
+            var tpPI = document.getElementById("tp-percent-input");
+            var tpTS = document.getElementById("tp-type-select");
+            if (tpPI) saveData.append('tp_percent', tpPI.value);
+            if (tpTS) saveData.append('tp_type', tpTS.value);
+
+            fetch('{% url "workslip_main" %}', {
+                method: 'POST', body: saveData,
+                headers: { 'X-CSRFToken': csrfToken }, redirect: 'manual'
+            }).then(function() {
+                var addPromises = selectedItems.map(function(itemName) {
+                    return fetch(ajaxToggleSuppUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+                        body: JSON.stringify({ item: itemName, action: "add" })
+                    }).then(function(r) { return r.json(); });
+                });
+                return Promise.all(addPromises);
+            }).then(function(results) {
+                results.forEach(function(data) {
+                    if (data.status === 'ok' && data.action_taken === 'added' && data.item_info) {
+                        addSuppItemToTable(data.item_info);
+                    }
+                    var cb = document.querySelector('.supp-item-checkbox[data-item-name="' + data.item + '"]');
+                    if (cb) cb.checked = true;
+                });
+                var hc = document.getElementById('subtype-hidden-inputs');
+                if (hc) hc.innerHTML = '';
+                document.querySelectorAll('[id^="subtype-badge-"]').forEach(function(badge) {
+                    var idx = badge.id.replace('subtype-badge-', '');
+                    var st = subtypesData[idx] || [];
+                    badge.textContent = st.length + ' types';
+                    badge.style.background = '';
+                });
+                updateSuppSerialNumbers();
+                recalcTotal();
+                if (addBtn) {
+                    addBtn.disabled = false;
+                    addBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Add Supplemental Items';
+                }
+            }).catch(function(err) {
+                console.error('Error adding supplemental items:', err);
+                if (addBtn) {
+                    addBtn.disabled = false;
+                    addBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Add Supplemental Items';
+                }
+            });
+        });
+    }
+
+    // --- Auto-save quantities and TP on group navigation (AJAX, no page reload) ---
     document.querySelectorAll('.group-link').forEach(function(link) {
         link.addEventListener('click', function(e) {
-            e.preventDefault();  // Prevent immediate navigation
-            
-            var targetUrl = this.href;
-            
+            e.preventDefault();
+
+            var clickedLink = this;
+            // Extract group name from URL
+            var url = new URL(clickedLink.href);
+            var groupName = url.searchParams.get('group') || '';
+            if (!groupName) return;
+
+            // Skip if already on this group
+            if (clickedLink.classList.contains('active')) return;
+
             // Collect ALL quantities (both base and supplemental)
             var allMap = {};
             document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
@@ -1958,37 +2150,46 @@ document.addEventListener('DOMContentLoaded', function() {
                     allMap[rowKey] = val;
                 }
             });
-            
+
             // Get TP values
             var tpPercentInput = document.getElementById("tp-percent-input");
             var tpTypeSelect = document.getElementById("tp-type-select");
             var tpPercent = tpPercentInput ? tpPercentInput.value : "";
             var tpType = tpTypeSelect ? tpTypeSelect.value : "Excess";
-            
-            // Save to session via AJAX before navigating
+
+            // Save to session via AJAX, then fetch new group items
             var formData = new FormData();
             formData.append('action', 'update_preview');
             formData.append('exec_map', JSON.stringify(allMap));
             formData.append('tp_percent', tpPercent);
             formData.append('tp_type', tpType);
             formData.append('csrfmiddlewaretoken', csrfToken);
-            
+
             fetch('{% url "workslip_main" %}', {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-CSRFToken': csrfToken
-                },
+                headers: { 'X-CSRFToken': csrfToken },
                 redirect: 'manual'
             })
             .then(function() {
-                // Navigate to the group URL after saving
-                window.location.replace(targetUrl);
+                // Fetch items for the new group via AJAX
+                return fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
+                    headers: { 'X-CSRFToken': csrfToken }
+                });
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.status === 'ok') {
+                    renderItemsPanel(data);
+                    // Update URL without reload
+                    var newUrl = new URL(window.location);
+                    newUrl.searchParams.set('group', groupName);
+                    newUrl.searchParams.set('preserve', '1');
+                    history.replaceState(null, '', newUrl.toString());
+                }
             })
             .catch(function(err) {
-                console.error('Error saving quantities:', err);
-                // Navigate anyway even if save failed
-                window.location.replace(targetUrl);
+                console.error('Error loading group:', err);
             });
         });
     });
@@ -2251,113 +2452,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // --- Supplemental form: use AJAX to add items without page reload ---
-    var suppForm = document.getElementById("supp-form");
-        if (suppForm) {
-            suppForm.addEventListener("submit", function(e) {
-                e.preventDefault();
-
-                // Collect selected items from checkboxes and hidden subtype inputs
-                var selectedItems = [];
-                suppForm.querySelectorAll('input[name="supp_items"]').forEach(function(inp) {
-                    if (inp.type === 'hidden' || inp.checked) {
-                        selectedItems.push(inp.value);
-                    }
-                });
-
-                if (selectedItems.length === 0) return;
-
-                var addBtn = document.getElementById("btn-add-supp");
-                if (addBtn) {
-                    addBtn.disabled = true;
-                    addBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Adding...';
-                }
-
-                // Save current exec_map and rate_map to session first
-                var execMap = {};
-                var rateMap = {};
-                document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
-                    if (row.classList.contains("supp-heading-row")) return;
-                    var rowType = row.getAttribute("data-row-type");
-                    var rowKey  = row.getAttribute("data-row-key");
-                    if (!rowType || !rowKey) return;
-                    var qtyInput = row.querySelector(".qty-exec-input");
-                    if (qtyInput && qtyInput.value !== "") {
-                        execMap[rowKey] = qtyInput.value;
-                    }
-                    var rateInput = row.querySelector(".rate-edit-input");
-                    if (rateInput && rateInput.value !== "") {
-                        rateMap[rowKey] = rateInput.value;
-                    }
-                });
-
-                // Save session state first
-                var saveData = new FormData();
-                saveData.append('action', 'update_preview');
-                saveData.append('exec_map', JSON.stringify(execMap));
-                saveData.append('csrfmiddlewaretoken', csrfToken);
-                var tpPercentInput = document.getElementById("tp-percent-input");
-                var tpTypeSelect = document.getElementById("tp-type-select");
-                if (tpPercentInput) saveData.append('tp_percent', tpPercentInput.value);
-                if (tpTypeSelect) saveData.append('tp_type', tpTypeSelect.value);
-
-                fetch('{% url "workslip_main" %}', {
-                    method: 'POST',
-                    body: saveData,
-                    headers: { 'X-CSRFToken': csrfToken },
-                    redirect: 'manual'
-                }).then(function() {
-                    // Now add each item via AJAX
-                    var addPromises = selectedItems.map(function(itemName) {
-                        return fetch(ajaxToggleSuppUrl, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "X-CSRFToken": csrfToken
-                            },
-                            body: JSON.stringify({ item: itemName, action: "add" })
-                        }).then(function(r) { return r.json(); });
-                    });
-
-                    return Promise.all(addPromises);
-                }).then(function(results) {
-                    results.forEach(function(data) {
-                        if (data.status === 'ok' && data.action_taken === 'added' && data.item_info) {
-                            addSuppItemToTable(data.item_info);
-                        }
-                        // Mark checkbox as checked if visible
-                        var cb = document.querySelector('.supp-item-checkbox[data-item-name="' + data.item + '"]');
-                        if (cb) cb.checked = true;
-                    });
-
-                    // Clear subtype hidden inputs after adding
-                    var hiddenContainer = document.getElementById('subtype-hidden-inputs');
-                    if (hiddenContainer) hiddenContainer.innerHTML = '';
-
-                    // Reset subtype badges
-                    document.querySelectorAll('[id^="subtype-badge-"]').forEach(function(badge) {
-                        var idx = badge.id.replace('subtype-badge-', '');
-                        var subtypes = subtypesData[idx] || [];
-                        badge.textContent = subtypes.length + ' types';
-                        badge.style.background = '';
-                    });
-
-                    updateSuppSerialNumbers();
-                    recalcTotal();
-
-                    if (addBtn) {
-                        addBtn.disabled = false;
-                        addBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Add Supplemental Items';
-                    }
-                }).catch(function(err) {
-                    console.error('Error adding supplemental items:', err);
-                    if (addBtn) {
-                        addBtn.disabled = false;
-                        addBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Add Supplemental Items';
-                    }
-                });
-            });
-        }
+    // --- Attach initial supplemental form handler ---
+    reattachSuppFormHandler();
 
 })();
 
