@@ -370,6 +370,9 @@ class OTPService:
 
         # MSG91 expects mobile in international format without '+' (e.g. 919876543210)
         mobile = phone.lstrip('+')
+        # If 10-digit Indian mobile (starts with 6-9), prepend country code 91
+        if len(mobile) == 10 and mobile[0] in '6789':
+            mobile = '91' + mobile
 
         try:
             import requests
