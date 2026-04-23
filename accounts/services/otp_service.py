@@ -98,10 +98,7 @@ class OTPService:
         cls._audit_log(identifier, "otp_requested", {"channel": channel})
         
         # Check if we're in development mode (no SMS/email services configured)
-        sms_configured = all([
-            getattr(settings, 'MSG91_AUTH_KEY', ''),
-            getattr(settings, 'MSG91_TEMPLATE_ID', ''),
-        ])
+        sms_configured = bool(getattr(settings, 'FAST2SMS_API_KEY', ''))
         # Email requires host, user, AND password to be properly configured
         email_host = getattr(settings, 'EMAIL_HOST', '')
         email_user = getattr(settings, 'EMAIL_HOST_USER', '')
@@ -346,48 +343,39 @@ class OTPService:
     @classmethod
     def _send_sms_otp(cls, phone: str, otp: str) -> bool:
         """
-        Send OTP via MSG91 OTP API.
+        Send OTP via Fast2SMS.
 
         Requires in settings.py:
-        - MSG91_AUTH_KEY       (auth key from MSG91 dashboard)
-        - MSG91_TEMPLATE_ID    (template ID from SendOTP > Templates)
-        - MSG91_SENDER_ID      (optional, sender ID)
+        - FAST2SMS_API_KEY  (API key from fast2sms.com dashboard)
         """
         from django.conf import settings
 
-        auth_key = getattr(settings, 'MSG91_AUTH_KEY', '')
-        template_id = getattr(settings, 'MSG91_TEMPLATE_ID', '')
-        sender_id = getattr(settings, 'MSG91_SENDER_ID', '')
+        api_key = getattr(settings, 'FAST2SMS_API_KEY', '')
 
-        if not all([auth_key, template_id]):
+        if not api_key:
             if settings.DEBUG:
                 logger.info(f"[OTP] DEV MODE - SMS to {phone}: {otp}")
                 return True
-            logger.error("MSG91 not configured. Set MSG91_AUTH_KEY and MSG91_TEMPLATE_ID")
+            logger.error("Fast2SMS not configured. Set FAST2SMS_API_KEY")
             return False
 
-        # MSG91 expects mobile in international format without '+' (e.g. 919876543210)
+        # Fast2SMS expects 10-digit Indian mobile without country code
         mobile = phone.lstrip('+')
-        # If 10-digit Indian mobile (starts with 6-9), prepend country code 91
-        if len(mobile) == 10 and mobile[0] in '6789':
-            mobile = '91' + mobile
+        if mobile.startswith('91') and len(mobile) == 12:
+            mobile = mobile[2:]  # strip 91 prefix
 
         try:
             import requests
 
-            params = {
-                "authkey": auth_key,
-                "mobile": mobile,
-                "otp": otp,
-                "template_id": template_id,
-                "otp_expiry": 5,
-            }
-            if sender_id:
-                params["sender"] = sender_id
-
             response = requests.post(
-                "https://control.msg91.com/api/v5/otp",
-                params=params,
+                "https://www.fast2sms.com/dev/bulkV2",
+                headers={"authorization": api_key},
+                json={
+                    "route": "otp",
+                    "variables_values": otp,
+                    "numbers": mobile,
+                    "flash": 0,
+                },
                 timeout=10,
             )
 
@@ -396,21 +384,15 @@ class OTPService:
             except ValueError:
                 body = {"raw": response.text}
 
-            if response.status_code == 200 and str(body.get("type", "")).lower() == "success":
-                logger.info(f"[OTP] MSG91 SMS sent to {phone}, request_id: {body.get('request_id')}")
+            if body.get("return") is True:
+                logger.info(f"[OTP] Fast2SMS sent to {phone}, request_id: {body.get('request_id')}")
                 return True
 
-            logger.error(f"[OTP] MSG91 SMS failed to {phone}: {response.status_code} {body}")
+            logger.error(f"[OTP] Fast2SMS failed to {phone}: {body}")
             return False
 
-        except ImportError:
-            logger.error("requests package not installed. Run: pip install requests")
-            if settings.DEBUG:
-                logger.info(f"[OTP] DEV MODE (no requests) - SMS to {phone}: {otp}")
-                return True
-            return False
         except Exception as e:
-            logger.error(f"[OTP] MSG91 SMS failed to {phone}: {str(e)}")
+            logger.error(f"[OTP] Fast2SMS failed to {phone}: {str(e)}")
             return False
     
     @classmethod
