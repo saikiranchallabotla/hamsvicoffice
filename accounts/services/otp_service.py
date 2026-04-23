@@ -346,20 +346,18 @@ class OTPService:
     @classmethod
     def _send_sms_otp(cls, phone: str, otp: str) -> bool:
         """
-        Send OTP via MSG91 Flow API.
+        Send OTP via MSG91 OTP API.
 
         Requires in settings.py:
         - MSG91_AUTH_KEY       (auth key from MSG91 dashboard)
-        - MSG91_TEMPLATE_ID    (DLT-approved flow/template ID)
-        - MSG91_SENDER_ID      (optional, 6-char DLT-registered sender ID)
-        - MSG91_OTP_VAR        (optional, template variable name; defaults to 'otp')
+        - MSG91_TEMPLATE_ID    (template ID from SendOTP > Templates)
+        - MSG91_SENDER_ID      (optional, sender ID)
         """
         from django.conf import settings
 
         auth_key = getattr(settings, 'MSG91_AUTH_KEY', '')
         template_id = getattr(settings, 'MSG91_TEMPLATE_ID', '')
         sender_id = getattr(settings, 'MSG91_SENDER_ID', '')
-        otp_var = getattr(settings, 'MSG91_OTP_VAR', 'otp')
 
         if not all([auth_key, template_id]):
             if settings.DEBUG:
@@ -377,23 +375,19 @@ class OTPService:
         try:
             import requests
 
-            recipient = {"mobiles": mobile, otp_var: otp}
-            payload = {
+            params = {
+                "authkey": auth_key,
+                "mobile": mobile,
+                "otp": otp,
                 "template_id": template_id,
-                "short_url": "0",
-                "recipients": [recipient],
+                "otp_expiry": 5,
             }
             if sender_id:
-                payload["sender"] = sender_id
+                params["sender"] = sender_id
 
             response = requests.post(
-                "https://control.msg91.com/api/v5/flow/",
-                json=payload,
-                headers={
-                    "authkey": auth_key,
-                    "Content-Type": "application/json",
-                    "accept": "application/json",
-                },
+                "https://control.msg91.com/api/v5/otp",
+                params=params,
                 timeout=10,
             )
 
