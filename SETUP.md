@@ -84,8 +84,9 @@ For persistent file storage, configure S3 or Cloudflare R2:
 - Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
 
 ### 6. (Optional) Set Up OTP Verification
-- Create a [Twilio](https://twilio.com) account
-- Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`
+- Create a [MSG91](https://msg91.com) account
+- Get your auth key and create a DLT-approved flow/template that contains an `{{otp}}` variable
+- Set `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID` (and optionally `MSG91_SENDER_ID`)
 
 ---
 

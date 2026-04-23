@@ -61,10 +61,11 @@ dev_mode = not (sms_configured or email_configured)
 **File:** `settings.py` / `.env`
 
 ```env
-# Twilio Configuration (for SMS)
-TWILIO_ACCOUNT_SID=your_account_sid
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_PHONE_NUMBER=+1234567890
+# MSG91 Configuration (for SMS)
+MSG91_AUTH_KEY=your_msg91_auth_key
+MSG91_TEMPLATE_ID=your_dlt_template_id
+MSG91_SENDER_ID=HMSVIC          # optional, 6-char DLT sender ID
+MSG91_OTP_VAR=otp               # optional, template variable name
 
 # Email Configuration (for Email OTP)
 EMAIL_HOST=smtp.gmail.com
@@ -86,13 +87,21 @@ def _send_otp(cls, identifier: str, otp: str, channel: str) -> dict:
     """Send OTP via SMS or Email"""
     try:
         if channel == 'sms':
-            # Use Twilio
-            from twilio.rest import Client
-            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-            message = client.messages.create(
-                body=f"Your Hamsvic OTP is: {otp}",
-                from_=settings.TWILIO_PHONE_NUMBER,
-                to=identifier
+            # Use MSG91 Flow API
+            import requests
+            mobile = identifier.lstrip('+')
+            payload = {
+                "template_id": settings.MSG91_TEMPLATE_ID,
+                "short_url": "0",
+                "recipients": [{"mobiles": mobile, settings.MSG91_OTP_VAR: otp}],
+            }
+            if settings.MSG91_SENDER_ID:
+                payload["sender"] = settings.MSG91_SENDER_ID
+            requests.post(
+                "https://control.msg91.com/api/v5/flow/",
+                json=payload,
+                headers={"authkey": settings.MSG91_AUTH_KEY, "Content-Type": "application/json"},
+                timeout=10,
             )
             return {'ok': True, 'channel': 'sms'}
         
@@ -214,7 +223,7 @@ Keep the form fields for users to manually enter OTP.
    - Registration flow at line 191
 
 5. **settings.py**
-   - Add Twilio credentials (when SMS purchased)
+   - Add MSG91 credentials (when SMS purchased)
    - Add Email credentials (when Email OTP purchased)
 
 ---

@@ -40,9 +40,10 @@ DEFAULT_FROM_EMAIL=noreply@hamsvic.com
 ### 5️⃣ SMS Configuration (for OTP via SMS)
 Leave empty for DEV MODE (OTP shown on screen):
 ```
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_PHONE_NUMBER=
+MSG91_AUTH_KEY=
+MSG91_TEMPLATE_ID=
+MSG91_SENDER_ID=
+MSG91_OTP_VAR=otp
 ```
 
 ### 6️⃣ Payment Gateway (for subscriptions)

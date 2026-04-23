@@ -99,9 +99,8 @@ class OTPService:
         
         # Check if we're in development mode (no SMS/email services configured)
         sms_configured = all([
-            getattr(settings, 'TWILIO_ACCOUNT_SID', ''),
-            getattr(settings, 'TWILIO_AUTH_TOKEN', ''),
-            getattr(settings, 'TWILIO_PHONE_NUMBER', '')
+            getattr(settings, 'MSG91_AUTH_KEY', ''),
+            getattr(settings, 'MSG91_TEMPLATE_ID', ''),
         ])
         # Email requires host, user, AND password to be properly configured
         email_host = getattr(settings, 'EMAIL_HOST', '')
@@ -332,10 +331,10 @@ class OTPService:
     @classmethod
     def _send_otp(cls, identifier: str, otp: str, channel: str) -> bool:
         """
-        Send OTP via SMS (Twilio) or email (Django mail).
-        
+        Send OTP via SMS (MSG91) or email (Django mail).
+
         Configured providers:
-        - SMS: Twilio
+        - SMS: MSG91 (DLT-compliant, India-focused)
         - Email: Django email backend (AWS SES, SMTP, etc.)
         """
         if channel == 'sms':
@@ -343,53 +342,78 @@ class OTPService:
         elif channel == 'email':
             return cls._send_email_otp(identifier, otp)
         return False
-    
+
     @classmethod
     def _send_sms_otp(cls, phone: str, otp: str) -> bool:
         """
-        Send OTP via Twilio SMS.
-        
+        Send OTP via MSG91 Flow API.
+
         Requires in settings.py:
-        - TWILIO_ACCOUNT_SID
-        - TWILIO_AUTH_TOKEN
-        - TWILIO_PHONE_NUMBER
+        - MSG91_AUTH_KEY       (auth key from MSG91 dashboard)
+        - MSG91_TEMPLATE_ID    (DLT-approved flow/template ID)
+        - MSG91_SENDER_ID      (optional, 6-char DLT-registered sender ID)
+        - MSG91_OTP_VAR        (optional, template variable name; defaults to 'otp')
         """
         from django.conf import settings
-        
-        # Get Twilio credentials
-        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
-        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
-        from_number = getattr(settings, 'TWILIO_PHONE_NUMBER', '')
-        
-        # In DEBUG mode without Twilio configured, just log
-        if not all([account_sid, auth_token, from_number]):
+
+        auth_key = getattr(settings, 'MSG91_AUTH_KEY', '')
+        template_id = getattr(settings, 'MSG91_TEMPLATE_ID', '')
+        sender_id = getattr(settings, 'MSG91_SENDER_ID', '')
+        otp_var = getattr(settings, 'MSG91_OTP_VAR', 'otp')
+
+        if not all([auth_key, template_id]):
             if settings.DEBUG:
                 logger.info(f"[OTP] DEV MODE - SMS to {phone}: {otp}")
                 return True
-            logger.error("Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER")
+            logger.error("MSG91 not configured. Set MSG91_AUTH_KEY and MSG91_TEMPLATE_ID")
             return False
-        
+
+        # MSG91 expects mobile in international format without '+' (e.g. 919876543210)
+        mobile = phone.lstrip('+')
+
         try:
-            from twilio.rest import Client
-            client = Client(account_sid, auth_token)
-            
-            message = client.messages.create(
-                body=f"Your Hamsvic verification code is: {otp}. Valid for 5 minutes. Do not share this code.",
-                from_=from_number,
-                to=phone
+            import requests
+
+            recipient = {"mobiles": mobile, otp_var: otp}
+            payload = {
+                "template_id": template_id,
+                "short_url": "0",
+                "recipients": [recipient],
+            }
+            if sender_id:
+                payload["sender"] = sender_id
+
+            response = requests.post(
+                "https://control.msg91.com/api/v5/flow/",
+                json=payload,
+                headers={
+                    "authkey": auth_key,
+                    "Content-Type": "application/json",
+                    "accept": "application/json",
+                },
+                timeout=10,
             )
-            
-            logger.info(f"[OTP] SMS sent to {phone}, SID: {message.sid}")
-            return True
-            
+
+            try:
+                body = response.json()
+            except ValueError:
+                body = {"raw": response.text}
+
+            if response.status_code == 200 and str(body.get("type", "")).lower() == "success":
+                logger.info(f"[OTP] MSG91 SMS sent to {phone}, request_id: {body.get('request_id')}")
+                return True
+
+            logger.error(f"[OTP] MSG91 SMS failed to {phone}: {response.status_code} {body}")
+            return False
+
         except ImportError:
-            logger.error("Twilio package not installed. Run: pip install twilio")
+            logger.error("requests package not installed. Run: pip install requests")
             if settings.DEBUG:
-                logger.info(f"[OTP] DEV MODE (no twilio) - SMS to {phone}: {otp}")
+                logger.info(f"[OTP] DEV MODE (no requests) - SMS to {phone}: {otp}")
                 return True
             return False
         except Exception as e:
-            logger.error(f"[OTP] Twilio SMS failed to {phone}: {str(e)}")
+            logger.error(f"[OTP] MSG91 SMS failed to {phone}: {str(e)}")
             return False
     
     @classmethod

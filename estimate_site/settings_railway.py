@@ -304,11 +304,12 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@hamsvic.com')
 
 # ==============================================================================
-# TWILIO SMS CONFIGURATION (for OTP)
+# MSG91 SMS CONFIGURATION (for OTP)
 # ==============================================================================
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
-TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
+MSG91_AUTH_KEY = os.environ.get('MSG91_AUTH_KEY', '')
+MSG91_TEMPLATE_ID = os.environ.get('MSG91_TEMPLATE_ID', '')  # DLT-approved flow/template ID
+MSG91_SENDER_ID = os.environ.get('MSG91_SENDER_ID', '')  # Optional 6-char DLT sender ID
+MSG91_OTP_VAR = os.environ.get('MSG91_OTP_VAR', 'otp')  # Template variable name for the OTP
 
 # Logging
 LOGGING = {
