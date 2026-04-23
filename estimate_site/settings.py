@@ -545,12 +545,13 @@ RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
 
 
 # ==============================================================================
-# TWILIO SMS CONFIGURATION
+# MSG91 SMS CONFIGURATION (for OTP)
 # ==============================================================================
 
-TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
-TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
-TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '')  # Format: +1234567890
+MSG91_AUTH_KEY = os.getenv('MSG91_AUTH_KEY', '')
+MSG91_TEMPLATE_ID = os.getenv('MSG91_TEMPLATE_ID', '')  # DLT-approved flow/template ID
+MSG91_SENDER_ID = os.getenv('MSG91_SENDER_ID', '')  # Optional 6-char DLT sender ID
+MSG91_OTP_VAR = os.getenv('MSG91_OTP_VAR', 'otp')  # Template variable name for the OTP
 
 
 # ==============================================================================
