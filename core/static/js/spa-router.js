@@ -466,7 +466,7 @@
         }
 
         // Skip navigation if already on same page (GET requests only)
-        if (method === 'GET' && url === currentLogicalUrl) {
+        if (method === 'GET' && url === currentLogicalUrl && !options.force) {
             return;
         }
 
@@ -548,7 +548,7 @@
 
                 // Handle redirect
                 if (data.type === 'redirect') {
-                    navigate(data.url);
+                    navigate(data.url, {force: true});
                     return;
                 }
 
