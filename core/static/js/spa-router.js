@@ -1003,7 +1003,7 @@
                 return originalNavigate(url, options);
             }
 
-            if (entry && entry.status === 'ready' && entry.data) {
+            if (entry && entry.status === 'ready' && entry.data && !options.force) {
                 var data = entry.data;
 
                 // Skip if same page
