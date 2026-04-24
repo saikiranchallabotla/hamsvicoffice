@@ -407,7 +407,7 @@
         </div>
         
         <div class="field">
-            <label>Phone Number <span class="req">*</span></label>
+            <label>Phone Number <span style="color:#94a3b8;font-weight:400;text-transform:none">(optional)</span></label>
             <div class="phone-input-wrapper">
                 <div class="country-wrapper" id="countryWrapper">
                     <button type="button" class="country-btn" id="countryBtn">
@@ -530,7 +530,6 @@
                     value="{{ phone|default:'' }}"
                     placeholder="98765 43210"
                     autocomplete="tel"
-                    required
                 >
             </div>
             <span class="hint">We'll verify this with a secure OTP</span>

@@ -69,14 +69,19 @@ def login_view(request):
         if not user:
             messages.error(request, 'No account found with this phone/email. Please register.')
             return render(request, 'accounts/login.html', {'identifier': identifier})
-        
-        # Store identifier in session for OTP verification
-        request.session['otp_identifier'] = identifier
+
+        # Always send OTP to the user's registered email
+        email = user.email
+        if not email:
+            messages.error(request, 'No email address on file. Please contact support.')
+            return render(request, 'accounts/login.html', {'identifier': identifier})
+
+        # Store email as OTP identifier (OTP verified against email)
+        request.session['otp_identifier'] = email
         request.session['otp_purpose'] = 'login'
-        
-        # Request OTP
-        channel = 'email' if '@' in identifier else 'sms'
-        result = OTPService.request_otp(identifier, channel)
+
+        # Request OTP via email
+        result = OTPService.request_otp(email, 'email')
         
         if result['ok']:
             # Get OTP for display in dev mode
@@ -218,8 +223,8 @@ def register_view(request):
         errors = []
         if not first_name:
             errors.append('First name is required.')
-        if not phone:
-            errors.append('Phone number is required.')
+        if not email:
+            errors.append('Email address is required.')
         if email:
             try:
                 validate_email(email)
@@ -249,11 +254,11 @@ def register_view(request):
             'phone': phone,
             'company': company,
         }
-        request.session['otp_identifier'] = phone
+        request.session['otp_identifier'] = email
         request.session['otp_purpose'] = 'register'
-        
+
         # Request OTP
-        result = OTPService.request_otp(phone, 'sms')
+        result = OTPService.request_otp(email, 'email')
         
         if result['ok']:
             # Get OTP for display in dev mode
@@ -265,7 +270,7 @@ def register_view(request):
                 request.session['show_otp'] = otp
                 messages.success(request, f'OTP sent! Use the code shown below.')
             else:
-                messages.success(request, f'OTP sent to {_mask_identifier(phone)}')
+                messages.success(request, f'OTP sent to {_mask_identifier(email)}')
             # Ensure session is saved before redirect
             request.session.save()
             return redirect('verify_otp')
@@ -611,35 +616,44 @@ def _create_user(identifier: str, data: dict):
     """
     from django.db import transaction, IntegrityError
     import logging
-    
-    phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
-    email = data.get('email', '')
+
+    # identifier may be email (new flow) or phone (legacy)
+    if '@' in identifier:
+        email = identifier
+        phone = data.get('phone', '')
+    else:
+        phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
+        email = data.get('email', '')
+
     first_name = data.get('first_name', '')
     last_name = data.get('last_name', '')
     company = data.get('company', '')
     
     try:
         with transaction.atomic():
-            # Double-check phone is not already registered (race condition prevention)
-            existing_profile = UserProfile.objects.filter(phone=phone).select_for_update().first()
-            if existing_profile:
-                logging.warning(f"Phone {phone} already registered (race condition caught)")
-                return existing_profile.user
-            
-            # Double-check email is not already registered
+            # Double-check email is not already registered (race condition prevention)
             if email:
-                existing_user = User.objects.filter(email=email).first()
+                existing_user = User.objects.filter(email=email).select_for_update().first()
                 if existing_user:
                     logging.warning(f"Email {email} already registered (race condition caught)")
-                    # If email exists but phone doesn't, could be a conflict
-                    # For now, return None to show error to user
-                    return None
+                    return existing_user
+
+            # Double-check phone is not already registered
+            if phone:
+                existing_profile = UserProfile.objects.filter(phone=phone).select_for_update().first()
+                if existing_profile:
+                    logging.warning(f"Phone {phone} already registered (race condition caught)")
+                    return existing_profile.user
             
-            # Generate username from phone
-            username = f"user_{phone[-10:]}"
+            # Generate username from email local part or phone
+            if email:
+                base = email.split('@')[0][:12]
+            else:
+                base = phone[-10:] if phone else 'user'
+            username = f"user_{base}"
             counter = 1
             while User.objects.filter(username=username).exists():
-                username = f"user_{phone[-10:]}_{counter}"
+                username = f"user_{base}_{counter}"
                 counter += 1
             
             # Create user
@@ -672,12 +686,16 @@ def _create_user(identifier: str, data: dict):
             return user
             
     except IntegrityError as e:
-        # Handle database constraint violations (duplicate phone/email)
+        # Handle database constraint violations (duplicate email/phone)
         logging.error(f"IntegrityError creating user: {e}")
-        # Try to find and return existing user by phone
-        profile = UserProfile.objects.filter(phone=phone).select_related('user').first()
-        if profile:
-            return profile.user
+        if email:
+            existing = User.objects.filter(email=email).first()
+            if existing:
+                return existing
+        if phone:
+            profile = UserProfile.objects.filter(phone=phone).select_related('user').first()
+            if profile:
+                return profile.user
         return None
     except Exception as e:
         logging.error(f"Failed to create user: {e}")
