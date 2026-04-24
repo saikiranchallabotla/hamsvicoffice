@@ -903,7 +903,7 @@
                 <span>Help Center</span>
             </a>
             
-            {% if user.is_staff or user.is_superuser %}
+            {% if user.is_superuser or user.account_profile.role == 'admin' or user.account_profile.role == 'superadmin' %}
             <div class="nav-section">Administration</div>
             <a href="{% url 'admin_dashboard' %}" class="nav-link">
                 <i class="bi bi-shield-lock"></i>
