@@ -495,19 +495,19 @@ function copyOtpCode() {
         {% csrf_token %}
         
         <div class="form-group">
-            <label>Phone Number or Email</label>
+            <label>Email Address</label>
             <input
-                type="text"
+                type="email"
                 name="identifier"
                 id="identifier"
                 class="email-input"
-                placeholder="98765 43210 or you@example.com"
-                autocomplete="username"
+                placeholder="you@example.com"
+                autocomplete="email"
                 autofocus
                 required
                 value="{{ identifier|default:'' }}"
             >
-            <span class="hint-text">OTP will be sent to your registered email</span>
+            <span class="hint-text">OTP will be sent to this email</span>
         </div>
 
 
