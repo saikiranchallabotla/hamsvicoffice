@@ -70,18 +70,34 @@ def login_view(request):
             messages.error(request, 'No account found with this phone/email. Please register.')
             return render(request, 'accounts/login.html', {'identifier': identifier})
 
-        # Always send OTP to the user's registered email
-        email = user.email
-        if not email:
-            messages.error(request, 'No email address on file. Please contact support.')
+        # Determine OTP channel and identifier based on settings
+        otp_channel = getattr(settings, 'OTP_CHANNEL', 'email')
+
+        if otp_channel == 'sms':
+            # SMS mode: send OTP to user's registered phone number
+            profile = getattr(user, 'account_profile', None)
+            phone = profile.phone if profile else None
+
+            if phone:
+                otp_identifier = phone
+            else:
+                # Fallback: user has no phone yet, fall back to email
+                otp_channel = 'email'
+                otp_identifier = user.email
+                messages.info(request, 'No phone number on file — sending OTP to your email instead.')
+        else:
+            # Email mode (default)
+            otp_identifier = user.email
+
+        if not otp_identifier:
+            messages.error(request, 'No contact info on file. Please contact support.')
             return render(request, 'accounts/login.html', {'identifier': identifier})
 
-        # Store email as OTP identifier (OTP verified against email)
-        request.session['otp_identifier'] = email
+        request.session['otp_identifier'] = otp_identifier
         request.session['otp_purpose'] = 'login'
 
-        # Request OTP via email
-        result = OTPService.request_otp(email, 'email')
+        # Request OTP via the selected channel
+        result = OTPService.request_otp(otp_identifier, otp_channel)
         
         if result['ok']:
             # Get OTP for display in dev mode
@@ -216,7 +232,8 @@ def register_view(request):
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
         email = request.POST.get('email', '').strip().lower()
-        phone = request.POST.get('phone', '').strip()
+        # Strip everything except digits from phone (users enter digits only, e.g. 9876543210)
+        phone = ''.join(c for c in request.POST.get('phone', '') if c.isdigit())
         company = request.POST.get('company', '').strip()
         
         # Validate
@@ -574,39 +591,22 @@ def api_check_session(request):
 
 def _find_user(identifier: str):
     """Find user by phone or email."""
-    identifier = identifier.strip().lower()
-    
+    identifier = identifier.strip()
+
     # Check by email
     if '@' in identifier:
-        return User.objects.filter(email=identifier).first()
-    
-    # Check by phone - normalize and try multiple formats
-    phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
-    
-    # Try exact match first
-    profile = UserProfile.objects.filter(phone=phone).select_related('user').first()
-    if profile:
-        return profile.user
-    
-    # Try without country code (strip common prefixes: +91, +1, +44, etc.)
-    # Handle formats: +919848389501 -> 9848389501
-    if phone.startswith('+'):
-        # Remove + and try stripping 1-4 digit country codes
-        digits_only = phone[1:]  # Remove +
-        for prefix_len in [1, 2, 3, 4]:
-            if len(digits_only) > prefix_len:
-                phone_without_prefix = digits_only[prefix_len:]
-                profile = UserProfile.objects.filter(phone=phone_without_prefix).select_related('user').first()
-                if profile:
-                    return profile.user
-    
-    # Try adding +91 prefix if not present (for Indian numbers)
-    if not phone.startswith('+') and len(phone) == 10:
-        profile = UserProfile.objects.filter(phone='+91' + phone).select_related('user').first()
-        if profile:
-            return profile.user
-    
-    return None
+        return User.objects.filter(email=identifier.lower()).first()
+
+    # Check by phone — strip everything except digits, use last 10
+    digits = ''.join(c for c in identifier if c.isdigit())
+    if len(digits) > 10:
+        digits = digits[-10:]  # strip country code prefix (e.g. 91XXXXXXXXXX → XXXXXXXXXX)
+
+    if not digits:
+        return None
+
+    profile = UserProfile.objects.filter(phone=digits).select_related('user').first()
+    return profile.user if profile else None
 
 
 def _create_user(identifier: str, data: dict):
@@ -620,9 +620,10 @@ def _create_user(identifier: str, data: dict):
     # identifier may be email (new flow) or phone (legacy)
     if '@' in identifier:
         email = identifier
-        phone = data.get('phone', '')
+        # Normalize: strip everything except digits
+        phone = ''.join(c for c in data.get('phone', '') if c.isdigit())
     else:
-        phone = ''.join(c for c in identifier if c.isdigit() or c == '+')
+        phone = ''.join(c for c in identifier if c.isdigit())
         email = data.get('email', '')
 
     first_name = data.get('first_name', '')

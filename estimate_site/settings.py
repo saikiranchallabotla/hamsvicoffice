@@ -545,7 +545,25 @@ RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
 
 
 # ==============================================================================
-# FAST2SMS CONFIGURATION (for OTP)
+# OTP CHANNEL CONFIGURATION
+# ==============================================================================
+#
+# Controls which channel is used to deliver login OTPs.
+#
+#   'email'  — OTP sent to user's registered email  (CURRENT — default)
+#   'sms'    — OTP sent to user's registered phone  (FUTURE — when SMS is ready)
+#
+# To migrate to SMS OTPs:
+#   1. Ensure all/most users have a phone number saved (check UserProfile.phone)
+#   2. Set FAST2SMS_API_KEY (or your SMS provider key) in environment
+#   3. Change OTP_CHANNEL to 'sms' below (or set env var OTP_CHANNEL=sms)
+#   4. Users without a phone will still get OTP via email as fallback
+#
+OTP_CHANNEL = os.getenv('OTP_CHANNEL', 'email')  # 'email' or 'sms'
+
+
+# ==============================================================================
+# FAST2SMS CONFIGURATION (for OTP via SMS)
 # ==============================================================================
 
 FAST2SMS_API_KEY = os.getenv('FAST2SMS_API_KEY', '')

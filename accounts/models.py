@@ -23,8 +23,8 @@ from django.core.validators import RegexValidator
 # ==============================================================================
 
 phone_validator = RegexValidator(
-    regex=r'^\+?[1-9]\d{9,14}$',
-    message="Phone number must be 10-15 digits with optional + prefix"
+    regex=r'^\d{10}$',
+    message="Phone number must be 10 digits (e.g. 9876543210)"
 )
 
 gstin_validator = RegexValidator(

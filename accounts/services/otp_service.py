@@ -359,9 +359,11 @@ class OTPService:
             logger.error("Fast2SMS not configured. Set FAST2SMS_API_KEY")
             return False
 
-        # Fast2SMS expects 10-digit Indian mobile without country code
-        mobile = phone.lstrip('+')
-        if mobile.startswith('91') and len(mobile) == 12:
+        # Fast2SMS expects 10-digit Indian mobile number
+        # Numbers are stored as plain digits (e.g. 9876543210)
+        # Handle if someone passes with country code (e.g. 919876543210 or +919876543210)
+        mobile = ''.join(c for c in phone if c.isdigit())
+        if len(mobile) == 12 and mobile.startswith('91'):
             mobile = mobile[2:]  # strip 91 prefix
 
         try:

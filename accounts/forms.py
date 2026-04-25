@@ -103,30 +103,31 @@ class ProfileForm(forms.ModelForm):
 
 class ChangePhoneForm(forms.Form):
     """Form to request phone number change."""
-    
+
     new_phone = forms.CharField(
         max_length=15,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': '+91 98765 43210',
+            'placeholder': '98765 43210',
             'autocomplete': 'tel',
+            'inputmode': 'numeric',
         }),
-        help_text='Enter your new phone number'
+        help_text='Enter your 10-digit mobile number'
     )
-    
+
     def clean_new_phone(self):
         phone = self.cleaned_data['new_phone']
-        # Normalize phone number
-        phone = ''.join(c for c in phone if c.isdigit() or c == '+')
-        
-        if len(phone) < 10:
-            raise forms.ValidationError('Please enter a valid phone number.')
-        
+        # Strip everything except digits
+        phone = ''.join(c for c in phone if c.isdigit())
+
+        if len(phone) != 10:
+            raise forms.ValidationError('Please enter a valid 10-digit mobile number.')
+
         # Check if already in use
         from accounts.models import UserProfile
         if UserProfile.objects.filter(phone=phone).exists():
             raise forms.ValidationError('This phone number is already registered.')
-        
+
         return phone
 
 
