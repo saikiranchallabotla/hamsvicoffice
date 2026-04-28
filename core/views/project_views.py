@@ -1512,7 +1512,7 @@ def download_specification_report(request, estimate_id):
             fy_end = today.year % 100
         financial_year = f"{fy_start}-{fy_end:02d}"
 
-        footer_text = (f'The rates proposed in the estimate are as per SQR {financial_year} and Approved rates. L.S. Provision is made in the '
+        footer_text = (f'The rates proposed in the estimate are as per SOR {financial_year} and Approved rates. L.S. Provision is made in the '
                       'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
         footer_para = doc.add_paragraph(footer_text)
         footer_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -1642,7 +1642,7 @@ def download_specification_report_live(request, category):
             fy_end = today.year % 100
         financial_year = f"{fy_start}-{fy_end:02d}"
 
-        footer_text = (f'The rates proposed in the estimate are as per SQR {financial_year} and Approved rates. L.S. Provision is made in the '
+        footer_text = (f'The rates proposed in the estimate are as per SOR {financial_year} and Approved rates. L.S. Provision is made in the '
                       'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
                       'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
         footer_para = doc.add_paragraph(footer_text)
