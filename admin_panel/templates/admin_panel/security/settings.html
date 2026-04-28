@@ -1,0 +1,66 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Admin Panel Security{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Security</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <i class="bi bi-shield-lock-fill me-2 text-primary"></i>
+                <h5 class="mb-0">Admin Panel Password</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-4">
+                    This password gates access to <code>/admin-panel/</code> after a user has
+                    logged in. The session auto-locks after
+                    <strong>{{ inactivity_minutes }} minutes</strong> of inactivity.
+                    Only Super Admins can change it.
+                </p>
+
+                {% if error %}
+                    <div class="alert alert-danger py-2 small">{{ error }}</div>
+                {% endif %}
+
+                <form method="post" autocomplete="off">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Current password</label>
+                        <input type="password" class="form-control" id="current_password"
+                               name="current_password" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New password</label>
+                        <input type="password" class="form-control" id="new_password"
+                               name="new_password" minlength="{{ min_length }}" required>
+                        <div class="form-text">Minimum {{ min_length }} characters.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm new password</label>
+                        <input type="password" class="form-control" id="confirm_password"
+                               name="confirm_password" minlength="{{ min_length }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-key-fill me-1"></i> Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body small text-muted">
+                <div><strong>Last updated:</strong>
+                    {% if security.updated_at %}{{ security.updated_at|date:"d M Y, H:i" }}{% else %}—{% endif %}
+                </div>
+                <div><strong>Updated by:</strong>
+                    {% if security.updated_by %}{{ security.updated_by.get_full_name|default:security.updated_by.username }}{% else %}System (env){% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
