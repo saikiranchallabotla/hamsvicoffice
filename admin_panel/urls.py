@@ -7,8 +7,15 @@ from django.urls import path
 from admin_panel import views
 from admin_panel import analytics_views
 from admin_panel import data_management_views
+from admin_panel import security_views
 
 urlpatterns = [
+    # Security gate (admin-panel password)
+    path('unlock/', security_views.unlock, name='admin_panel_unlock'),
+    path('lock/', security_views.lock, name='admin_panel_lock'),
+    path('security/setup/', security_views.setup, name='admin_panel_setup'),
+    path('security/', security_views.security_settings, name='admin_panel_security_settings'),
+
     # Dashboard
     path('', views.admin_dashboard, name='admin_dashboard'),
     

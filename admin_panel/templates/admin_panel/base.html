@@ -754,9 +754,22 @@
                 <i class="bi bi-clock-history"></i>
                 <span>Audit Logs</span>
             </a>
+            {% if user.is_superuser or user.account_profile.role == 'superadmin' %}
+            <a href="{% url 'admin_panel_security_settings' %}" class="nav-link {% if 'admin_panel_security' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-shield-lock-fill"></i>
+                <span>Security</span>
+            </a>
+            {% endif %}
         </nav>
-        
+
         <div class="sidebar-footer">
+            <form method="post" action="{% url 'admin_panel_lock' %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="nav-link" style="background:none;border:none;width:100%;text-align:left;color:#fbbf24;cursor:pointer;">
+                    <i class="bi bi-lock-fill"></i>
+                    <span>Lock Panel</span>
+                </button>
+            </form>
             <a href="{% url 'dashboard' %}" class="nav-link">
                 <i class="bi bi-arrow-left-circle"></i>
                 <span>Back to App</span>
