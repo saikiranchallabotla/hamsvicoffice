@@ -610,7 +610,7 @@ def amc_download_specification_report(request, category):
         financial_year = f"{fy_start}-{fy_end:02d}"
         
         footer_text = (f'The rates proposed in the estimate are as per SQR {financial_year} and Approved rates. L.S. Provision is made in the '
-                      'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
+                      'estimate towards GST at 18%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
                       'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
         footer_para = doc.add_paragraph(footer_text)
         for run in footer_para.runs:

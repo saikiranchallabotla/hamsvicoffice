@@ -805,37 +805,50 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             ws_est.cell(row=excess_tp_row, column=8, value=f"=ROUND(H{ecv_row}*{excess_tp_percent/100},2)")
         
         # LC, QC, NAC rows - calculations based on finalized ECV only
+        # AMC estimates do not include QC, so row layout differs
+        is_amc = (module_code == 'amc')
         lc_row = current_row + 1
-        qc_row = current_row + 2
-        nac_row = current_row + 3
-        sub_row = current_row + 4
-        gst_row = current_row + 5
-        ls_row = current_row + 6
-        
+        if is_amc:
+            qc_row = None
+            nac_row = current_row + 2
+            sub_row = current_row + 3
+            gst_row = current_row + 4
+            ls_row = current_row + 5
+        else:
+            qc_row = current_row + 2
+            nac_row = current_row + 3
+            sub_row = current_row + 4
+            gst_row = current_row + 5
+            ls_row = current_row + 6
+
         # L.S Provision towards Special Items row (if enabled, comes before Grand Total)
         ls_special_row = None
         if ls_special_name and ls_special_amount is not None and ls_special_amount > 0:
-            ls_special_row = current_row + 7
-            gt_row = current_row + 8
+            ls_special_row = ls_row + 1
+            gt_row = ls_row + 2
         else:
-            gt_row = current_row + 7
-        
+            gt_row = ls_row + 1
+
         # LC, QC, NAC are calculated based on ECV only (not including Excess T.P)
         ws_est.cell(row=lc_row, column=4, value="Add LC @ 1 %")
         ws_est.cell(row=lc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
-        
-        ws_est.cell(row=qc_row, column=4, value="Add QC @ 1 %")
-        ws_est.cell(row=qc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
-        
+
+        if not is_amc:
+            ws_est.cell(row=qc_row, column=4, value="Add QC @ 1 %")
+            ws_est.cell(row=qc_row, column=8, value=f"=ROUND(H{ecv_row}*0.01,2)")
+
         ws_est.cell(row=nac_row, column=4, value="Add NAC @ 0.1 %")
         ws_est.cell(row=nac_row, column=8, value=f"=ROUND(H{ecv_row}*0.001,2)")
-        
+
         ws_est.cell(row=sub_row, column=4, value="Sub Total")
-        # Sub Total = ECV + Excess T.P (if any) + LC + QC + NAC
+        # Sub Total = ECV + Excess T.P (if any) + LC + QC (if not AMC) + NAC
         sub_total_parts = [f"H{ecv_row}"]
         if excess_tp_row:
             sub_total_parts.append(f"H{excess_tp_row}")
-        sub_total_parts.extend([f"H{lc_row}", f"H{qc_row}", f"H{nac_row}"])
+        sub_total_parts.append(f"H{lc_row}")
+        if not is_amc:
+            sub_total_parts.append(f"H{qc_row}")
+        sub_total_parts.append(f"H{nac_row}")
         ws_est.cell(row=sub_row, column=8, value=f"=ROUND({'+'.join(sub_total_parts)},2)")
         
         ws_est.cell(row=gst_row, column=4, value="Add GST@18 %")
