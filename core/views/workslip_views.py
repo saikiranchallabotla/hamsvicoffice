@@ -2475,13 +2475,24 @@ def workslip(request):
             tp_row    = current_row + 1
             sub1_row  = current_row + 2
             lc_row    = current_row + 3
-            qc_row    = current_row + 4
-            nac_row   = current_row + 5
-            sub2_row  = current_row + 6
-            gst_row   = current_row + 7
-            unused_row= current_row + 8
-            ls_row    = current_row + 9
-            grand_row = current_row + 10
+            # AMC estimates have no QC charge
+            is_amc_ws = (ws_work_type == 'amc')
+            if is_amc_ws:
+                qc_row    = None
+                nac_row   = current_row + 4
+                sub2_row  = current_row + 5
+                gst_row   = current_row + 6
+                unused_row= current_row + 7
+                ls_row    = current_row + 8
+                grand_row = current_row + 9
+            else:
+                qc_row    = current_row + 4
+                nac_row   = current_row + 5
+                sub2_row  = current_row + 6
+                gst_row   = current_row + 7
+                unused_row= current_row + 8
+                ls_row    = current_row + 9
+                grand_row = current_row + 10
             
             # Column letters for dynamic formulas
             EST_AMT_COL = col_letter(COL_EST_AMT)
@@ -2577,16 +2588,17 @@ def workslip(request):
             ws_ws.cell(lc_row, COL_LESS, f"=IF({EST_AMT_COL}{lc_row}>{CURR_AMT_COL}{lc_row},{EST_AMT_COL}{lc_row}-{CURR_AMT_COL}{lc_row},\"\")")
 
             # iv) Add QC @ 1%
-            ws_ws.cell(qc_row, COL_DESC, "Add QC @ 1%")
-            ws_ws.cell(qc_row, COL_EST_AMT, f"={EST_AMT_COL}{sub1_row}*0.01")
-            for p_idx in range(num_previous_phases):
-                p_amt_col = COL_PHASE_START + (p_idx * 2) + 1
-                p_amt_letter = phase_amt_letter(p_idx)
-                ws_ws.cell(qc_row, p_amt_col, f"={p_amt_letter}{sub1_row}*0.01")
-                ws_ws.cell(qc_row, p_amt_col).fill = phase_fill
-            ws_ws.cell(qc_row, COL_CURR_AMT, f"={CURR_AMT_COL}{sub1_row}*0.01")
-            ws_ws.cell(qc_row, COL_MORE, f"=IF({CURR_AMT_COL}{qc_row}>{EST_AMT_COL}{qc_row},{CURR_AMT_COL}{qc_row}-{EST_AMT_COL}{qc_row},\"\")")
-            ws_ws.cell(qc_row, COL_LESS, f"=IF({EST_AMT_COL}{qc_row}>{CURR_AMT_COL}{qc_row},{EST_AMT_COL}{qc_row}-{CURR_AMT_COL}{qc_row},\"\")")
+            if not is_amc_ws:
+                ws_ws.cell(qc_row, COL_DESC, "Add QC @ 1%")
+                ws_ws.cell(qc_row, COL_EST_AMT, f"={EST_AMT_COL}{sub1_row}*0.01")
+                for p_idx in range(num_previous_phases):
+                    p_amt_col = COL_PHASE_START + (p_idx * 2) + 1
+                    p_amt_letter = phase_amt_letter(p_idx)
+                    ws_ws.cell(qc_row, p_amt_col, f"={p_amt_letter}{sub1_row}*0.01")
+                    ws_ws.cell(qc_row, p_amt_col).fill = phase_fill
+                ws_ws.cell(qc_row, COL_CURR_AMT, f"={CURR_AMT_COL}{sub1_row}*0.01")
+                ws_ws.cell(qc_row, COL_MORE, f"=IF({CURR_AMT_COL}{qc_row}>{EST_AMT_COL}{qc_row},{CURR_AMT_COL}{qc_row}-{EST_AMT_COL}{qc_row},\"\")")
+                ws_ws.cell(qc_row, COL_LESS, f"=IF({EST_AMT_COL}{qc_row}>{CURR_AMT_COL}{qc_row},{EST_AMT_COL}{qc_row}-{CURR_AMT_COL}{qc_row},\"\")")
 
             # v) Add NAC chargers @ 0.1%
             ws_ws.cell(nac_row, COL_DESC, "Add NAC chargers @ 0.1 %")
@@ -2602,13 +2614,22 @@ def workslip(request):
 
             # vi) Sub Total 2
             ws_ws.cell(sub2_row, COL_DESC, "Sub Total 2")
-            ws_ws.cell(sub2_row, COL_EST_AMT, f"={EST_AMT_COL}{sub1_row}+{EST_AMT_COL}{lc_row}+{EST_AMT_COL}{qc_row}+{EST_AMT_COL}{nac_row}")
-            for p_idx in range(num_previous_phases):
-                p_amt_col = COL_PHASE_START + (p_idx * 2) + 1
-                p_amt_letter = phase_amt_letter(p_idx)
-                ws_ws.cell(sub2_row, p_amt_col, f"={p_amt_letter}{sub1_row}+{p_amt_letter}{lc_row}+{p_amt_letter}{qc_row}+{p_amt_letter}{nac_row}")
-                ws_ws.cell(sub2_row, p_amt_col).fill = phase_fill
-            ws_ws.cell(sub2_row, COL_CURR_AMT, f"={CURR_AMT_COL}{sub1_row}+{CURR_AMT_COL}{lc_row}+{CURR_AMT_COL}{qc_row}+{CURR_AMT_COL}{nac_row}")
+            if is_amc_ws:
+                ws_ws.cell(sub2_row, COL_EST_AMT, f"={EST_AMT_COL}{sub1_row}+{EST_AMT_COL}{lc_row}+{EST_AMT_COL}{nac_row}")
+                for p_idx in range(num_previous_phases):
+                    p_amt_col = COL_PHASE_START + (p_idx * 2) + 1
+                    p_amt_letter = phase_amt_letter(p_idx)
+                    ws_ws.cell(sub2_row, p_amt_col, f"={p_amt_letter}{sub1_row}+{p_amt_letter}{lc_row}+{p_amt_letter}{nac_row}")
+                    ws_ws.cell(sub2_row, p_amt_col).fill = phase_fill
+                ws_ws.cell(sub2_row, COL_CURR_AMT, f"={CURR_AMT_COL}{sub1_row}+{CURR_AMT_COL}{lc_row}+{CURR_AMT_COL}{nac_row}")
+            else:
+                ws_ws.cell(sub2_row, COL_EST_AMT, f"={EST_AMT_COL}{sub1_row}+{EST_AMT_COL}{lc_row}+{EST_AMT_COL}{qc_row}+{EST_AMT_COL}{nac_row}")
+                for p_idx in range(num_previous_phases):
+                    p_amt_col = COL_PHASE_START + (p_idx * 2) + 1
+                    p_amt_letter = phase_amt_letter(p_idx)
+                    ws_ws.cell(sub2_row, p_amt_col, f"={p_amt_letter}{sub1_row}+{p_amt_letter}{lc_row}+{p_amt_letter}{qc_row}+{p_amt_letter}{nac_row}")
+                    ws_ws.cell(sub2_row, p_amt_col).fill = phase_fill
+                ws_ws.cell(sub2_row, COL_CURR_AMT, f"={CURR_AMT_COL}{sub1_row}+{CURR_AMT_COL}{lc_row}+{CURR_AMT_COL}{qc_row}+{CURR_AMT_COL}{nac_row}")
             # (NO More/Less formulas in Sub Total 2 as per requirement)
 
             # vii) Add GST @ 18%
@@ -2660,8 +2681,10 @@ def workslip(request):
             ws_ws.cell(grand_row, COL_LESS, f"=SUM({LESS_COL}{sub_row}:{LESS_COL}{ls_row})")
 
             # style all total rows
-            rows_to_style = [tp_row, sub1_row, lc_row, qc_row, nac_row,
+            rows_to_style = [tp_row, sub1_row, lc_row, nac_row,
                         sub2_row, gst_row, unused_row, ls_row, grand_row]
+            if not is_amc_ws:
+                rows_to_style.insert(3, qc_row)  # insert QC after LC for non-AMC
             if deduct_row:
                 rows_to_style.insert(0, deduct_row)  # Add deduct row at the beginning
             for r_i in rows_to_style:
