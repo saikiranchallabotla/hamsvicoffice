@@ -403,7 +403,33 @@ def module_edit(request, module_id=0):
                 module.backend_sheet_file = request.FILES['backend_sheet_file']
             
             module.save()
-            messages.success(request, f'Module "{name}" updated.')
+
+            # Recalculate trial expiry for all unsubscribed users when trial duration changes.
+            # Only affects trial/expired trial records (pricing=NULL). Paid subscriptions are untouched.
+            new_duration = timedelta(days=trial_days, hours=trial_hours)
+            trial_subs = module.subscriptions.filter(
+                pricing__isnull=True,
+                status__in=['trial', 'expired'],
+            )
+            reactivated = 0
+            for sub in trial_subs:
+                new_expires = sub.started_at + new_duration
+                new_status = 'trial' if new_expires > timezone.now() else 'expired'
+                sub.expires_at = new_expires
+                sub.status = new_status
+                sub.save(update_fields=['expires_at', 'status', 'updated_at'])
+                if new_status == 'trial':
+                    reactivated += 1
+
+            if trial_subs.count() > 0:
+                msg = f'Module "{name}" updated. {trial_subs.count()} trial subscription(s) recalculated'
+                if reactivated:
+                    msg += f', {reactivated} reactivated.'
+                else:
+                    msg += '.'
+                messages.success(request, msg)
+            else:
+                messages.success(request, f'Module "{name}" updated.')
         else:
             module = Module.objects.create(
                 code=code,
