@@ -134,6 +134,37 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- Set Password (Superadmin Only, for admin/superadmin users) -->
+        {% if request.user.is_superuser or request.user.account_profile.role == 'superadmin' %}
+        {% if profile.role == 'admin' or profile.role == 'superadmin' or target_user.is_superuser %}
+        <div class="admin-card">
+            <div class="card-header">
+                <h5><i class="bi bi-key-fill me-2"></i>Set Password</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Set a new login password for this admin. Share it with them via email or phone.
+                    Their active sessions will be terminated.
+                </p>
+                <form action="{% url 'admin_set_user_password' target_user.id %}" method="post" autocomplete="off">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <label class="form-label">New password</label>
+                        <input type="text" name="new_password" class="form-control" minlength="8" required placeholder="Min 8 characters">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirm password</label>
+                        <input type="text" name="confirm_password" class="form-control" minlength="8" required placeholder="Repeat password">
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="bi bi-key-fill me-1"></i> Set Password &amp; Share
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
     </div>
     
     <!-- Subscriptions & Payments -->

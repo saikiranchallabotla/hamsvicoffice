@@ -1624,39 +1624,30 @@ def invoice_detail(request, invoice_id):
 
 
 # =============================================================================
-# CHANGE MY PASSWORD
+# SET USER PASSWORD (superadmin only)
 # =============================================================================
 
-@admin_required
-@require_http_methods(["GET", "POST"])
-def change_my_password(request):
-    """Allow any admin or superadmin to change their own account password."""
-    from django.contrib.auth import update_session_auth_hash
+@superadmin_required
+@require_POST
+def set_user_password(request, user_id):
+    """Superadmin sets a new password for an admin/superadmin user."""
+    target = get_object_or_404(User, id=user_id)
+    new_pw = request.POST.get('new_password', '').strip()
+    confirm = request.POST.get('confirm_password', '').strip()
 
-    error = None
-    success = False
+    if len(new_pw) < 8:
+        messages.error(request, "Password must be at least 8 characters.")
+    elif new_pw != confirm:
+        messages.error(request, "Passwords do not match.")
+    else:
+        target.set_password(new_pw)
+        target.save()
+        # Invalidate all active sessions for that user
+        UserSession.objects.filter(user=target, is_active=True).update(is_active=False)
+        messages.success(
+            request,
+            f"Password for {target.get_full_name() or target.username} has been set. "
+            f"New password: {new_pw}"
+        )
 
-    if request.method == 'POST':
-        current_pw = request.POST.get('current_password', '')
-        new_pw = request.POST.get('new_password', '')
-        confirm = request.POST.get('confirm_password', '')
-
-        if not request.user.check_password(current_pw):
-            error = "Current password is incorrect."
-        elif len(new_pw) < 8:
-            error = "New password must be at least 8 characters."
-        elif new_pw == current_pw:
-            error = "New password must be different from the current password."
-        elif new_pw != confirm:
-            error = "New passwords do not match."
-        else:
-            request.user.set_password(new_pw)
-            request.user.save()
-            update_session_auth_hash(request, request.user)
-            messages.success(request, "Password updated successfully.")
-            success = True
-
-    return render(request, 'admin_panel/security/change_password.html', {
-        'error': error,
-        'success': success,
-    })
+    return redirect('admin_user_detail', user_id=user_id)
