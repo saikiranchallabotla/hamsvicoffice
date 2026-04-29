@@ -100,4 +100,7 @@ urlpatterns = [
     # Invoice Management
     path('invoices/', views.invoice_list, name='admin_invoice_list'),
     path('invoices/<uuid:invoice_id>/', views.invoice_detail, name='admin_invoice_detail'),
+
+    # Change My Password
+    path('change-password/', views.change_my_password, name='admin_change_my_password'),
 ]

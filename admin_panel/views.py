@@ -1621,3 +1621,42 @@ def invoice_detail(request, invoice_id):
         'invoice': invoice,
     }
     return render(request, 'admin_panel/invoices/detail.html', context)
+
+
+# =============================================================================
+# CHANGE MY PASSWORD
+# =============================================================================
+
+@admin_required
+@require_http_methods(["GET", "POST"])
+def change_my_password(request):
+    """Allow any admin or superadmin to change their own account password."""
+    from django.contrib.auth import update_session_auth_hash
+
+    error = None
+    success = False
+
+    if request.method == 'POST':
+        current_pw = request.POST.get('current_password', '')
+        new_pw = request.POST.get('new_password', '')
+        confirm = request.POST.get('confirm_password', '')
+
+        if not request.user.check_password(current_pw):
+            error = "Current password is incorrect."
+        elif len(new_pw) < 8:
+            error = "New password must be at least 8 characters."
+        elif new_pw == current_pw:
+            error = "New password must be different from the current password."
+        elif new_pw != confirm:
+            error = "New passwords do not match."
+        else:
+            request.user.set_password(new_pw)
+            request.user.save()
+            update_session_auth_hash(request, request.user)
+            messages.success(request, "Password updated successfully.")
+            success = True
+
+    return render(request, 'admin_panel/security/change_password.html', {
+        'error': error,
+        'success': success,
+    })

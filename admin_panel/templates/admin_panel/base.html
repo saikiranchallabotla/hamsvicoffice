@@ -774,6 +774,10 @@
                     <span>Lock Panel</span>
                 </button>
             </form>
+            <a href="{% url 'admin_change_my_password' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_change_my_password' %}active{% endif %}">
+                <i class="bi bi-key-fill"></i>
+                <span>Change Password</span>
+            </a>
             <a href="{% url 'dashboard' %}" class="nav-link">
                 <i class="bi bi-arrow-left-circle"></i>
                 <span>Back to App</span>
