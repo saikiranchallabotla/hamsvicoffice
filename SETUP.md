@@ -56,34 +56,26 @@ This starts Django, PostgreSQL, and Redis together.
 
 ---
 
-## Production Deployment (Railway)
+## Production Deployment (AWS EC2)
 
-### 1. Create a Railway Project
-- Go to [railway.app](https://railway.app) and create a new project
-- Add PostgreSQL and Redis services
+The app is deployed on AWS EC2 with Nginx + Gunicorn. See `deploy/` for deployment scripts and configuration.
 
-### 2. Set Environment Variables
-Copy all variables from `.env.production.example` and set actual values in Railway's dashboard.
-
-**Required variables:**
+### Key Environment Variables
 - `DJANGO_SECRET_KEY` - Generate with: `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` - Your admin login credentials
 - `ALLOWED_HOSTS` - Your domain name
-- Database variables (auto-set by Railway if using their PostgreSQL)
+- Database: set `DB_ENGINE=postgresql` with `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
 
-### 3. Deploy
-Railway auto-deploys on `git push`. The `Procfile` handles startup.
-
-### 4. (Optional) Set Up File Storage
-For persistent file storage, configure S3 or Cloudflare R2:
-- Set `STORAGE_TYPE=s3` or `STORAGE_TYPE=r2`
+### (Optional) Set Up File Storage
+For persistent file storage, configure S3:
+- Set `STORAGE_TYPE=s3`
 - Set AWS credentials (see `.env.production.example`)
 
-### 5. (Optional) Set Up Payments
+### (Optional) Set Up Payments
 - Create a [Razorpay](https://razorpay.com) account
 - Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
 
-### 6. (Optional) Set Up OTP Verification
+### (Optional) Set Up OTP Verification
 - Create a [MSG91](https://msg91.com) account
 - Get your auth key and create a DLT-approved flow/template that contains an `{{otp}}` variable
 - Set `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID` (and optionally `MSG91_SENDER_ID`)

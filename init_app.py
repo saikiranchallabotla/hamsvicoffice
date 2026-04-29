@@ -9,7 +9,7 @@ import django
 from django.core.management import call_command
 
 # Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'estimate_site.settings_railway')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'estimate_site.settings')
 django.setup()
 
 from django.contrib.auth import get_user_model
@@ -422,9 +422,8 @@ def check_storage_status():
         print(f'[INIT] ✅ Uploaded files will persist across deploys')
     else:
         print(f'[INIT] ⚠️  File storage: Local filesystem')
-        if os.environ.get('RAILWAY_ENVIRONMENT'):
-            print(f'[INIT] ⚠️  WARNING: Files may be lost on Railway redeploy!')
-            print(f'[INIT] ⚠️  Consider configuring S3/R2 storage for production')
+        if not settings.DEBUG:
+            print(f'[INIT] ⚠️  WARNING: Files may be lost on redeploy - consider S3 storage for production')
 
 
 def check_data_persistence():
@@ -439,7 +438,7 @@ def check_data_persistence():
     print('[INIT] DATA PERSISTENCE STATUS CHECK')
     print('[INIT] ================================================')
     
-    is_production = os.environ.get('RAILWAY_ENVIRONMENT') or not settings.DEBUG
+    is_production = not settings.DEBUG
     all_ok = True
     
     # Check 1: Database type
@@ -469,10 +468,8 @@ def check_data_persistence():
     else:
         print('[INIT] ❌ DATABASE: SQLite (EPHEMERAL - DATA WILL BE LOST!)')
         if is_production:
-            print('[INIT]    ACTION REQUIRED: Add PostgreSQL to your Railway project')
-            print('[INIT]    1. Go to Railway dashboard > Your project')
-            print('[INIT]    2. Click "+ Add" > "PostgreSQL"')
-            print('[INIT]    3. Redeploy - DATABASE_URL will be set automatically')
+            print('[INIT]    ACTION REQUIRED: Configure PostgreSQL database')
+            print('[INIT]    Set DB_ENGINE=postgresql with DB_HOST, DB_NAME, DB_USER, DB_PASSWORD')
         all_ok = False
     
     # Check 2: File storage type

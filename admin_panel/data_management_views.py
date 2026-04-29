@@ -76,7 +76,7 @@ def get_excel_preview(filepath, max_rows=10):
         return {'error': str(e)}
 
 
-@superadmin_required
+@admin_required
 def data_management(request):
     """
     Main data management page showing current backend files.
@@ -181,7 +181,7 @@ def data_management(request):
     return render(request, 'admin_panel/data/management.html', context)
 
 
-@superadmin_required
+@admin_required
 def preview_file(request, category):
     """
     Preview contents of a backend Excel file.
@@ -218,7 +218,7 @@ def preview_file(request, category):
     return render(request, 'admin_panel/data/preview.html', context)
 
 
-@superadmin_required
+@admin_required
 @require_http_methods(["GET", "POST"])
 def upload_file(request, category):
     """
@@ -333,7 +333,7 @@ def upload_file(request, category):
     return render(request, 'admin_panel/data/upload.html', context)
 
 
-@superadmin_required
+@admin_required
 def download_file(request, category):
     """
     Download current backend Excel file.
@@ -361,7 +361,7 @@ def download_file(request, category):
     )
 
 
-@superadmin_required
+@admin_required
 def download_backup(request, filename):
     """
     Download a backup file.
@@ -381,7 +381,7 @@ def download_backup(request, filename):
     )
 
 
-@superadmin_required
+@admin_required
 @require_POST
 def restore_backup(request, filename):
     """
@@ -438,7 +438,7 @@ def restore_backup(request, filename):
     return redirect('admin_data_management')
 
 
-@superadmin_required
+@admin_required
 @require_POST
 def delete_backup(request, filename):
     """
@@ -472,7 +472,7 @@ def delete_backup(request, filename):
     return redirect('admin_data_management')
 
 
-@superadmin_required
+@admin_required
 def preview_upload(request):
     """
     AJAX endpoint to preview an uploaded file before confirming.
@@ -539,7 +539,7 @@ def preview_upload(request):
 # MODULE BACKEND VIEWS (Multi-State SOR Support)
 # ==============================================================================
 
-@superadmin_required
+@admin_required
 @require_http_methods(["GET", "POST"])
 def add_module_backend(request, module_code):
     """
@@ -640,7 +640,7 @@ def add_module_backend(request, module_code):
     return render(request, 'admin_panel/data/add_backend.html', context)
 
 
-@superadmin_required
+@admin_required
 @require_http_methods(["GET", "POST"])
 def edit_module_backend(request, backend_id):
     """
@@ -720,7 +720,7 @@ def edit_module_backend(request, backend_id):
     return render(request, 'admin_panel/data/edit_backend.html', context)
 
 
-@superadmin_required
+@admin_required
 @require_POST
 def delete_module_backend(request, backend_id):
     """
@@ -758,7 +758,7 @@ def delete_module_backend(request, backend_id):
     return redirect('admin_data_management')
 
 
-@superadmin_required
+@admin_required
 def preview_module_backend(request, backend_id):
     """
     Preview a module backend's Excel file contents.
@@ -803,7 +803,7 @@ def preview_module_backend(request, backend_id):
         return redirect('admin_data_management')
 
 
-@superadmin_required
+@admin_required
 def download_module_backend(request, backend_id):
     """
     Download a module backend's Excel file.
@@ -829,7 +829,7 @@ def download_module_backend(request, backend_id):
         return redirect('admin_data_management')
 
 
-@superadmin_required
+@admin_required
 @require_POST
 def toggle_backend_default(request, backend_id):
     """

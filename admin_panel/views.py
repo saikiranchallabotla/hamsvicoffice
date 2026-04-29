@@ -21,7 +21,7 @@ from django.db.models import Count, Sum, Q
 from django.utils import timezone
 
 
-@admin_required
+@superadmin_required
 def module_list(request):
     """
     List all modules for admin panel with subscription stats.
@@ -54,7 +54,13 @@ def module_list(request):
 def admin_dashboard(request):
     """
     Admin dashboard with key metrics and recent activity.
+    Redirects non-superadmin users to backend data management.
     """
+    from admin_panel.decorators import _is_superadmin
+    from django.urls import reverse
+    if not _is_superadmin(request.user):
+        return redirect(reverse('admin_data_management'))
+
     today = timezone.now().date()
     week_ago = today - timedelta(days=7)
     month_ago = today - timedelta(days=30)
@@ -112,7 +118,7 @@ def admin_dashboard(request):
 # USER MANAGEMENT
 # =============================================================================
 
-@admin_required
+@superadmin_required
 def user_list(request):
     """
     List all users with search and filters.
@@ -157,7 +163,7 @@ def user_list(request):
     return render(request, 'admin_panel/users/list.html', context)
 
 
-@admin_required
+@superadmin_required
 def user_detail(request, user_id):
     """
     View user details and subscriptions.
@@ -183,7 +189,7 @@ def user_detail(request, user_id):
     return render(request, 'admin_panel/users/detail.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def user_edit(request, user_id):
     """
@@ -249,7 +255,7 @@ def user_edit(request, user_id):
     return render(request, 'admin_panel/users/edit.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_POST
 def user_toggle_status(request, user_id):
     """
@@ -345,7 +351,7 @@ def user_change_role(request, user_id):
 
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def module_edit(request, module_id=0):
     """
@@ -465,7 +471,7 @@ def module_edit(request, module_id=0):
     return render(request, 'admin_panel/modules/edit.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def pricing_edit(request, module_id, pricing_id=None):
     """
@@ -548,7 +554,7 @@ def pricing_edit(request, module_id, pricing_id=None):
     return render(request, 'admin_panel/modules/pricing_edit.html', context)
 
 
-@admin_required
+@superadmin_required
 def bundle_pricing_edit(request, bundle_id):
     """
     Edit pricing tiers for a module bundle.
@@ -629,7 +635,7 @@ def bundle_pricing_edit(request, bundle_id):
 # SUBSCRIPTION MANAGEMENT
 # =============================================================================
 
-@admin_required
+@superadmin_required
 def subscription_list(request):
     """
     List all subscriptions grouped by user.
@@ -699,7 +705,7 @@ def subscription_list(request):
     return render(request, 'admin_panel/subscriptions/list.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def grant_subscription(request, user_id):
     """
@@ -830,7 +836,7 @@ def grant_subscription(request, user_id):
     return render(request, 'admin_panel/subscriptions/grant.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_POST
 def revoke_subscription(request, subscription_id):
     """
@@ -851,7 +857,7 @@ def revoke_subscription(request, subscription_id):
 # SUPPORT TICKET MANAGEMENT
 # =============================================================================
 
-@admin_required
+@superadmin_required
 def ticket_list(request):
     """
     List all support tickets.
@@ -892,7 +898,7 @@ def ticket_list(request):
     return render(request, 'admin_panel/tickets/list.html', context)
 
 
-@admin_required
+@superadmin_required
 def ticket_detail(request, ticket_id):
     """
     View ticket details and reply.
@@ -1092,7 +1098,7 @@ def announcement_delete(request, announcement_id):
 # FAQ MANAGEMENT
 # =============================================================================
 
-@admin_required
+@superadmin_required
 def faq_list(request):
     """
     List all FAQ categories and items.
@@ -1106,7 +1112,7 @@ def faq_list(request):
     return render(request, 'admin_panel/faq/list.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def faq_category_edit(request, category_id=0):
     """
@@ -1151,7 +1157,7 @@ def faq_category_edit(request, category_id=0):
     return render(request, 'admin_panel/faq/category_edit.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def faq_item_edit(request, item_id=0):
     """
@@ -1215,7 +1221,7 @@ def faq_item_edit(request, item_id=0):
     return render(request, 'admin_panel/faq/item_edit.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_POST
 def faq_item_delete(request, item_id):
     """
@@ -1231,7 +1237,7 @@ def faq_item_delete(request, item_id):
 # PAYMENT MANAGEMENT
 # =============================================================================
 
-@admin_required
+@superadmin_required
 def payment_list(request):
     """
     List all payments.
@@ -1276,7 +1282,7 @@ def payment_list(request):
     return render(request, 'admin_panel/payments/list.html', context)
 
 
-@admin_required
+@superadmin_required
 def payment_detail(request, payment_id):
     """
     View payment details.
@@ -1296,7 +1302,7 @@ def payment_detail(request, payment_id):
 
 from subscriptions.models import Coupon, Invoice
 
-@admin_required
+@superadmin_required
 def coupon_list(request):
     """List all coupons with search/filter."""
     coupons = Coupon.objects.all()
@@ -1325,7 +1331,7 @@ def coupon_list(request):
     return render(request, 'admin_panel/coupons/list.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_http_methods(["GET", "POST"])
 def coupon_edit(request, coupon_id=0):
     """Create or edit a coupon."""
@@ -1419,7 +1425,7 @@ def coupon_edit(request, coupon_id=0):
     return render(request, 'admin_panel/coupons/edit.html', context)
 
 
-@admin_required
+@superadmin_required
 @require_POST
 def coupon_toggle(request, coupon_id):
     """Toggle coupon active status."""
@@ -1431,7 +1437,7 @@ def coupon_toggle(request, coupon_id):
     return redirect('admin_coupon_list')
 
 
-@admin_required
+@superadmin_required
 @require_POST
 def coupon_delete(request, coupon_id):
     """Delete a coupon."""
@@ -1448,7 +1454,7 @@ def coupon_delete(request, coupon_id):
 
 from datasets.models import AuditLog
 
-@admin_required
+@superadmin_required
 def audit_log_list(request):
     """View audit logs with filtering."""
     logs = AuditLog.objects.select_related('user').all()
@@ -1567,7 +1573,7 @@ def force_logout_all(request, user_id):
 # INVOICE MANAGEMENT
 # =============================================================================
 
-@admin_required
+@superadmin_required
 def invoice_list(request):
     """List all invoices."""
     invoices = Invoice.objects.select_related('user', 'payment').all()
@@ -1606,7 +1612,7 @@ def invoice_list(request):
     return render(request, 'admin_panel/invoices/list.html', context)
 
 
-@admin_required
+@superadmin_required
 def invoice_detail(request, invoice_id):
     """View invoice details."""
     invoice = get_object_or_404(Invoice.objects.select_related('user', 'payment'), id=invoice_id)

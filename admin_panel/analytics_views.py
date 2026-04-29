@@ -25,7 +25,7 @@ from subscriptions.models import Module, UserModuleSubscription, Payment
 from core.models import Estimate, Job, Upload, SavedWork
 
 
-@admin_required
+@superadmin_required
 def analytics_dashboard(request):
     """
     Comprehensive analytics dashboard with charts data.
@@ -229,7 +229,7 @@ def analytics_dashboard(request):
     return render(request, 'admin_panel/analytics/dashboard.html', context)
 
 
-@admin_required
+@superadmin_required
 def user_analytics(request, user_id):
     """
     Detailed analytics for a specific user.
@@ -288,7 +288,7 @@ def user_analytics(request, user_id):
     return render(request, 'admin_panel/analytics/user_detail.html', context)
 
 
-@admin_required
+@superadmin_required
 def analytics_api(request):
     """
     API endpoint for live chart data.
@@ -381,7 +381,7 @@ def analytics_api(request):
     return JsonResponse({'error': 'Invalid chart type'}, status=400)
 
 
-@admin_required
+@superadmin_required
 def export_analytics(request, export_type):
     """
     Export analytics data as Excel with multiple sheets and formatting.
