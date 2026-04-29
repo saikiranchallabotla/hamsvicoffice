@@ -667,12 +667,20 @@ def edit_module_backend(request, backend_id):
                 # Validate Excel file
                 with pd.ExcelFile(uploaded_file) as xl:
                     pass  # Just validate it's a valid Excel file
-                
-                # Delete old file if exists
+
+                # Backup old file before replacing
                 if backend.file:
-                    old_path = Path(backend.file.path)
-                    if old_path.exists():
-                        old_path.unlink()
+                    try:
+                        old_path = Path(backend.file.path)
+                        if old_path.exists():
+                            BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+                            timestamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+                            safe_name = backend.name.replace(' ', '_').replace('/', '-')
+                            backup_name = f'{safe_name}_{backend.category}_{timestamp}.xlsx'
+                            shutil.copy2(old_path, BACKUP_DIR / backup_name)
+                            old_path.unlink()
+                    except Exception:
+                        pass  # Backup is best-effort; proceed with replacement
                 
                 # Save file bytes to DB for persistence
                 uploaded_file.seek(0)
