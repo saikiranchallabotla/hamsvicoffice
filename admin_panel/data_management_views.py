@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 from django.conf import settings
 import pandas as pd
 
-from admin_panel.decorators import superadmin_required
+from admin_panel.decorators import admin_required, superadmin_required
 from subscriptions.models import Module, ModuleBackend
 
 

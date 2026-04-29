@@ -19,7 +19,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-from admin_panel.decorators import admin_required
+from admin_panel.decorators import admin_required, superadmin_required
 from accounts.models import UserProfile, UserSession
 from subscriptions.models import Module, UserModuleSubscription, Payment
 from core.models import Estimate, Job, Upload, SavedWork
