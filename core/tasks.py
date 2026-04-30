@@ -391,7 +391,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -594,7 +594,10 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     desc_cell.value = f"{prefix} {base_str}" if base_str else prefix
 
             cursor += (src_max - src_min + 1)
-        
+
+        # Fix formulas in Output sheet: remove 'Master Datas'! qualifiers and [N] workbook-index artifacts
+        fix_cross_sheet_refs(ws_out, src_sheet_name='Master Datas')
+
         job.progress = 70
         job.current_step = "Building Estimate sheet..."
         job.save()

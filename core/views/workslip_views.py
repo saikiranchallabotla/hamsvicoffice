@@ -1969,6 +1969,9 @@ def workslip(request):
                                 if not base_str.startswith(prefix):
                                     desc_cell_block.value = f"{prefix} {base_str}" if base_str else prefix
                         current_row += (end_row - start_row + 1)  # No blank row between blocks
+                # Fix formulas in ItemBlocks: remove 'Master Datas'! qualifiers and [N] workbook-index artifacts
+                from ..utils_excel import fix_cross_sheet_refs
+                fix_cross_sheet_refs(ws_blocks, src_sheet_name='Master Datas')
             else:
                 # no supplemental items â†’ remove default sheet so only WorkSlip will exist
                 default_sheet = wb_out.active

@@ -584,6 +584,27 @@ def copy_block_with_styles_and_formulas(
         )
 
 
+def fix_cross_sheet_refs(ws, src_sheet_name='Master Datas'):
+    """
+    After copying blocks from a source sheet into a destination sheet (e.g. Output/ItemBlocks),
+    fix two classes of broken formula references:
+      1. 'src_sheet_name'!CellRef  — the block is now local, so strip the sheet qualifier.
+      2. [N]SheetName!CellRef      — external-workbook index artifacts; strip the [N] prefix.
+    """
+    import re
+    quoted = f"'{src_sheet_name}'!"
+    unquoted = f"{src_sheet_name}!"
+    for row in ws.iter_rows():
+        for cell in row:
+            if not (cell.value and isinstance(cell.value, str) and cell.value.startswith('=')):
+                continue
+            v = cell.value
+            v = v.replace(quoted, '').replace(unquoted, '')
+            v = re.sub(r'\[\d+\]', '', v)
+            if v != cell.value:
+                cell.value = v
+
+
 def copy_sheet_to_workbook(src_wb, sheet_name, dst_wb):
     """Copy a full sheet from src_wb into dst_wb, preserving values, formulas, styles, and dimensions."""
     from openpyxl.cell.cell import MergedCell
