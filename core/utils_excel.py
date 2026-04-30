@@ -453,7 +453,8 @@ def copy_block_with_styles_and_formulas(
     col_start,
     col_end,
     dst_start_row,
-    dst_start_col=1
+    dst_start_col=1,
+    external_sheets=None,
 ):
     """
     Copies a rectangular block including:
@@ -463,6 +464,9 @@ def copy_block_with_styles_and_formulas(
       - merged ranges (replicated with offset)
 
     Safely handles merged cells (does not write into MergedCell).
+
+    external_sheets: list of sheet names (e.g. ['INPUT', 'LEAD']) whose cross-sheet
+      references should be treated as absolute and NOT shifted during translation.
     """
 
     row_offset = dst_start_row - src_min_row
@@ -524,6 +528,17 @@ def copy_block_with_styles_and_formulas(
             # If formula, translate it to new position (origin is actual src coordinate)
             if isinstance(v, str) and v.startswith("="):
                 try:
+                    # Make external-sheet references absolute BEFORE translation so
+                    # Translator doesn't shift them (e.g. INPUT!F53 → INPUT!$F$53).
+                    if external_sheets:
+                        import re as _re
+                        for _sheet in external_sheets:
+                            # matches optional [N] prefix, optional quotes, sheet name, !ColRow
+                            v = _re.sub(
+                                r'(\[\d+\])?\'?' + _re.escape(_sheet) + r"'?!([A-Za-z]+)(\d+)",
+                                lambda m: (m.group(1) or '') + _sheet + '!$' + m.group(2) + '$' + m.group(3),
+                                v,
+                            )
                     v = Translator(v, origin=src_cell.coordinate).translate_formula(
                         row_delta=row_offset + (src_r - r),
                         col_delta=col_offset + (src_c - c)

@@ -575,7 +575,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 src_max_row=src_max,
                 dst_start_row=dst_start,
                 col_start=1,
-                col_end=10
+                col_end=10,
+                external_sheets=['INPUT', 'LEAD'],
             )
 
             ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"

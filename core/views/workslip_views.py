@@ -1955,6 +1955,7 @@ def workslip(request):
                             dst_start_row=current_row,
                             col_start=1,
                             col_end=10,
+                            external_sheets=['INPUT', 'LEAD'],
                         )
                         # Add Data serial number to column A of block header row
                         ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
