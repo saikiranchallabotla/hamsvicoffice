@@ -584,6 +584,65 @@ def copy_block_with_styles_and_formulas(
         )
 
 
+def copy_sheet_to_workbook(src_wb, sheet_name, dst_wb):
+    """Copy a full sheet from src_wb into dst_wb, preserving values, formulas, styles, and dimensions."""
+    from openpyxl.cell.cell import MergedCell
+    if sheet_name not in src_wb.sheetnames:
+        return None
+
+    ws_src = src_wb[sheet_name]
+    ws_dst = dst_wb.create_sheet(sheet_name)
+
+    # Column dimensions
+    for col_letter, dim in ws_src.column_dimensions.items():
+        if dim.width:
+            ws_dst.column_dimensions[col_letter].width = dim.width
+
+    # Row dimensions
+    for row_idx, dim in ws_src.row_dimensions.items():
+        if dim.height:
+            ws_dst.row_dimensions[row_idx].height = dim.height
+
+    # Merged cells (must be done before writing values)
+    for merged in ws_src.merged_cells.ranges:
+        ws_dst.merge_cells(str(merged))
+
+    # Cell values and styles
+    for row in ws_src.iter_rows():
+        for cell in row:
+            if isinstance(cell, MergedCell):
+                continue
+            dst_cell = ws_dst.cell(row=cell.row, column=cell.column)
+            dst_cell.value = cell.value
+            try:
+                if cell.font:
+                    dst_cell.font = copy(cell.font)
+            except Exception:
+                pass
+            try:
+                if cell.fill:
+                    dst_cell.fill = copy(cell.fill)
+            except Exception:
+                pass
+            try:
+                if cell.border:
+                    dst_cell.border = copy(cell.border)
+            except Exception:
+                pass
+            try:
+                if cell.alignment:
+                    dst_cell.alignment = copy(cell.alignment)
+            except Exception:
+                pass
+            try:
+                if cell.number_format:
+                    dst_cell.number_format = cell.number_format
+            except Exception:
+                pass
+
+    return ws_dst
+
+
 
 def get_item_description_and_rate(ws_data, item_info):
     """

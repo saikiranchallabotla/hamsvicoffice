@@ -2723,6 +2723,18 @@ def workslip(request):
                 if ws_idx > 0:
                     wb_out.move_sheet("WorkSlip", offset=-ws_idx)
 
+            # Copy INPUT and LEAD sheets from backend if present (supplemental item blocks may reference them)
+            if ws_supp_items and filepath:
+                try:
+                    from openpyxl import load_workbook as _lw
+                    from ..utils_excel import copy_sheet_to_workbook
+                    _backend_linked = _lw(filepath, data_only=False)
+                    for _sheet_name in ('INPUT', 'LEAD'):
+                        if _sheet_name in _backend_linked.sheetnames:
+                            copy_sheet_to_workbook(_backend_linked, _sheet_name, wb_out)
+                except Exception as _e:
+                    logger.warning(f"Workslip: Could not copy INPUT/LEAD sheets from backend: {_e}")
+
             # Apply print settings: Landscape, A4, fit columns, Times New Roman
             _apply_print_settings(wb_out, landscape=True)
 

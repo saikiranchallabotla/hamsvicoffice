@@ -391,7 +391,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -894,6 +894,16 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             est_idx = wb.sheetnames.index("Estimate")
             if est_idx > 0:
                 wb.move_sheet("Estimate", offset=-est_idx)
+
+        # Copy INPUT and LEAD sheets from backend if present (cells in Output/Estimate may reference them)
+        if filepath:
+            try:
+                _backend_linked = load_workbook(filepath, data_only=False)
+                for _sheet_name in ('INPUT', 'LEAD'):
+                    if _sheet_name in _backend_linked.sheetnames:
+                        copy_sheet_to_workbook(_backend_linked, _sheet_name, wb)
+            except Exception as _e:
+                logger.warning(f"Job {job_id}: Could not copy INPUT/LEAD sheets from backend: {_e}")
 
         # Apply print settings: Portrait, A4, fit columns, Times New Roman
         from core.views import _apply_print_settings
