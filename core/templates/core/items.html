@@ -1826,6 +1826,7 @@ document.addEventListener('keydown', function(e) {
                 "Content-Type": "application/json",
                 "X-CSRFToken": csrfToken
             },
+            keepalive: true,
             body: JSON.stringify({
                 item: current.item,
                 action: current.action,
@@ -2045,14 +2046,14 @@ document.addEventListener('keydown', function(e) {
         formData.append("deduct_old_material", deductInput ? deductInput.value : "");
         formData.append("csrfmiddlewaretoken", csrfToken);
 
-        fetch(saveQtyMapUrl, { method: "POST", body: formData }).catch(function() {});
+        fetch(saveQtyMapUrl, { method: "POST", body: formData, keepalive: true }).catch(function() {});
         _autoSaveDirty = false;
     }
 
     function debouncedAutoSave() {
         _autoSaveDirty = true;
         if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
-        _autoSaveTimer = setTimeout(saveToSession, 2000);
+        _autoSaveTimer = setTimeout(saveToSession, 400);
     }
 
     // Auto-save on any input change in the estimate table and option fields
