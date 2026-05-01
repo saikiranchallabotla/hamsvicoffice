@@ -834,52 +834,83 @@ _XLSX_MAX_ROW = 1048576
 
 def trim_to_xlsx_limits(wb):
     """
-    Defensively clamp every sheet to Excel's column/row limits and to its actual
-    populated range. Removes phantom cells / column_dimensions / row_dimensions
-    that can otherwise cause viewers (Trio Office, LibreOffice) to warn about
-    'maximum number of columns per sheet exceeded' when opening the file.
+    Defensively clamp every sheet to its actual populated content range and to
+    Excel's hard limits. Source backends often carry a default <col min=1
+    max=16384> that openpyxl materializes into 16,384 ColumnDimension entries;
+    when written out, viewers like Trio Office (which has a smaller column
+    cap than Excel) warn about exceeding the column limit. Strip phantom
+    cells / column / row dimensions so the saved sheet stays tight.
     """
     from openpyxl.utils import column_index_from_string
 
     for ws in wb.worksheets:
-        # 1) Drop any cells beyond Excel's limits.
+        # 1) Drop cells beyond Excel's limits and find the true max column /
+        #    row that actually carries a value.
+        max_data_col = 1
+        max_data_row = 1
         try:
-            bad_keys = [k for k in list(ws._cells.keys())
-                        if k[0] > _XLSX_MAX_ROW or k[1] > _XLSX_MAX_COL]
-            for k in bad_keys:
-                del ws._cells[k]
+            for key in list(ws._cells.keys()):
+                r, c = key
+                if r > _XLSX_MAX_ROW or c > _XLSX_MAX_COL:
+                    del ws._cells[key]
+                    continue
+                cell = ws._cells.get(key)
+                if cell is not None and cell.value not in (None, ""):
+                    if c > max_data_col:
+                        max_data_col = c
+                    if r > max_data_row:
+                        max_data_row = r
         except Exception:
             pass
 
-        # 2) Drop column_dimensions whose letter is beyond XFD or whose
-        #    column has no actual data and no width set.
+        # Small buffer so we don't accidentally clip a column the user is
+        # about to type into / a sheet's right-most blank padding column.
+        col_keep = min(max_data_col + 4, _XLSX_MAX_COL)
+        row_keep = min(max_data_row + 4, _XLSX_MAX_ROW)
+
+        # 2) Drop column_dimensions whose index exceeds the kept range.
         try:
-            populated_cols = {c for (_r, c) in ws._cells.keys()}
             for letter in list(ws.column_dimensions.keys()):
                 try:
                     idx = column_index_from_string(letter)
                 except Exception:
                     del ws.column_dimensions[letter]
                     continue
-                if idx > _XLSX_MAX_COL:
-                    del ws.column_dimensions[letter]
-                    continue
-                dim = ws.column_dimensions[letter]
-                if idx not in populated_cols and not getattr(dim, 'width', None):
+                if idx > col_keep:
                     del ws.column_dimensions[letter]
         except Exception:
             pass
 
-        # 3) Drop row_dimensions beyond row limit or rows with no data and no height.
+        # 3) Drop row_dimensions beyond kept range.
         try:
-            populated_rows = {r for (r, _c) in ws._cells.keys()}
             for r in list(ws.row_dimensions.keys()):
-                if r > _XLSX_MAX_ROW:
+                if r > row_keep:
                     del ws.row_dimensions[r]
-                    continue
-                dim = ws.row_dimensions[r]
-                if r not in populated_rows and not getattr(dim, 'height', None):
-                    del ws.row_dimensions[r]
+        except Exception:
+            pass
+
+        # 4) Drop merged_cells ranges that extend beyond kept range — leaving
+        #    them can re-introduce phantom dimension references.
+        try:
+            for mr in list(ws.merged_cells.ranges):
+                if mr.max_col > col_keep or mr.max_row > row_keep:
+                    ws.merged_cells.ranges.remove(mr)
+        except Exception:
+            pass
+
+        # 5) Reset auto_filter / print_area refs that may span the full sheet.
+        try:
+            if ws.auto_filter and ws.auto_filter.ref:
+                ref = str(ws.auto_filter.ref)
+                if ':' in ref:
+                    end = ref.split(':')[1]
+                    end_col = ''.join(ch for ch in end if ch.isalpha())
+                    if end_col and column_index_from_string(end_col) > col_keep:
+                        ws.auto_filter.ref = None
+        except Exception:
+            pass
+        try:
+            ws.print_area = None
         except Exception:
             pass
 
