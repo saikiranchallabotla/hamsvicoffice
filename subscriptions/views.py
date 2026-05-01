@@ -374,37 +374,31 @@ def verify_payment_view(request):
     Verify payment after Razorpay callback.
     """
     from subscriptions.services.payment_service import PaymentService
-    from subscriptions.services.subscription_service import SubscriptionService
     import json
-    
+
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'ok': False, 'reason': 'Invalid JSON.'}, status=400)
-    
+
     razorpay_order_id = data.get('razorpay_order_id')
     razorpay_payment_id = data.get('razorpay_payment_id')
     razorpay_signature = data.get('razorpay_signature')
-    
-    # Verify payment
+
+    # Verify payment (also creates/extends subscriptions on success)
     result = PaymentService.verify_payment(
         razorpay_order_id=razorpay_order_id,
         razorpay_payment_id=razorpay_payment_id,
         razorpay_signature=razorpay_signature
     )
-    
+
     if result['ok']:
-        payment = result.get('payment')
-        if payment:
-            # Activate subscription
-            SubscriptionService.sync_after_payment_success(payment)
-        
         return JsonResponse({
             'ok': True,
             'reason': 'Payment successful!',
             'redirect': '/dashboard/',
         })
-    
+
     return JsonResponse({'ok': False, 'reason': result.get('reason', 'Payment verification failed.')}, status=400)
 
 
