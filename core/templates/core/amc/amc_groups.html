@@ -65,6 +65,18 @@
         </div>
     </div>
 </div>
+
+<div class="card mt-3">
+    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <strong><i class="bi bi-plus-circle me-1"></i> Don't see your group or items?</strong>
+            <div class="text-muted" style="font-size:0.85rem;">Upload your own Excel and the items will appear here.</div>
+        </div>
+        <a href="{% url 'custom_backend_upload' %}?module=amc&amp;category={{ category }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-cloud-upload me-1"></i> Upload Custom Items
+        </a>
+    </div>
+</div>
 {% endif %}
 
 {% endblock %}

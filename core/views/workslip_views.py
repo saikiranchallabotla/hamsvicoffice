@@ -180,8 +180,11 @@ def workslip(request):
             for info in items_list:
                 item_name = info["name"]
                 start_row = info["start_row"]
-                desc_cell = ws_data.cell(row=start_row + 2, column=4).value
-                desc_text = str(desc_cell or "").strip()
+                if info.get('_is_custom'):
+                    desc_text = info.get('_cached_desc', '') or ''
+                else:
+                    desc_cell = ws_data.cell(row=start_row + 2, column=4).value
+                    desc_text = str(desc_cell or "").strip()
                 if desc_text:
                     desc_to_item.setdefault(desc_text, item_name)
                     item_name_to_desc[item_name] = desc_text
@@ -1903,6 +1906,15 @@ def workslip(request):
                 start_row = info["start_row"]
                 end_row = info["end_row"]
                 # Description: 2nd row below yellow header in col D
+                if info.get('_is_custom'):
+                    supp_desc_map[name] = info.get('_cached_desc', '') or ''
+                    rate_val = 0.0
+                    try:
+                        rate_val = float(info.get('_cached_rate') or 0)
+                    except Exception:
+                        rate_val = 0.0
+                    supp_rate_map[name] = rate_val
+                    continue
                 desc_cell = ws_data.cell(row=start_row + 2, column=4).value
                 supp_desc_map[name] = str(desc_cell or "").strip()
                 # Rate from Master Datas col J
@@ -1947,8 +1959,9 @@ def workslip(request):
                             continue
                         start_row = info["start_row"]
                         end_row = info["end_row"]
+                        _src_ws = info.get('_source_ws') or ws_data
                         copy_block_with_styles_and_formulas(
-                            ws_src=ws_data,
+                            ws_src=_src_ws,
                             ws_dst=ws_blocks,
                             src_min_row=start_row,
                             src_max_row=end_row,
@@ -2811,14 +2824,20 @@ def workslip(request):
             start_row = info["start_row"]
             end_row = info["end_row"]
             rate_val = 0.0
-            for r in range(end_row, start_row - 1, -1):
-                v = ws_vals.cell(row=r, column=10).value
-                if v not in (None, ""):
-                    try:
-                        rate_val = float(v)
-                    except Exception:
-                        rate_val = 0.0
-                    break
+            if info.get('_is_custom'):
+                try:
+                    rate_val = float(info.get('_cached_rate') or 0)
+                except Exception:
+                    rate_val = 0.0
+            else:
+                for r in range(end_row, start_row - 1, -1):
+                    v = ws_vals.cell(row=r, column=10).value
+                    if v not in (None, ""):
+                        try:
+                            rate_val = float(v)
+                        except Exception:
+                            rate_val = 0.0
+                        break
             unit_pl, _ = units_for(name)
             key = f"supp:{name}"
             supp_details.append({
@@ -3056,20 +3075,40 @@ def workslip_ajax_toggle_supp(request):
                 # Load backend using session category and backend ID
                 category = request.session.get("ws_category", "electrical") or "electrical"
                 ws_selected_backend_id = request.session.get("ws_selected_backend_id")
+                # Derive the module's own code so user's custom items get loaded too
+                _wt = request.session.get("ws_work_type") or "new_estimate"
+                if _wt == 'amc':
+                    _mc = 'amc'
+                elif _wt == 'tempworks':
+                    _mc = 'temp_works'
+                else:
+                    _mc = 'new_estimate'
+                # Use base category for custom-backend matching when work_type prefixes the path
+                _base_cat = category
+                if category.startswith('temp_'):
+                    _base_cat = category.replace('temp_', '')
+                elif category.startswith('amc_'):
+                    _base_cat = category.replace('amc_', '')
                 items_list, groups_map, units_map, ws_data, filepath = load_backend(
                     category, settings.BASE_DIR,
                     backend_id=ws_selected_backend_id,
-                    module_code='workslip',
+                    module_code=_mc,
                     user=request.user,
                 )
-                
+
                 # Get rate
                 wb_vals = load_workbook(filepath, data_only=True)
                 ws_vals = wb_vals["Master Datas"]
-                
+
                 item_rate = None
                 for info in items_list:
                     if info["name"] == item:
+                        if info.get('_is_custom'):
+                            try:
+                                item_rate = float(info.get('_cached_rate') or 0) or None
+                            except Exception:
+                                item_rate = info.get('_cached_rate') or None
+                            break
                         start_row = info["start_row"]
                         end_row = info["end_row"]
                         for r in range(end_row, start_row - 1, -1):

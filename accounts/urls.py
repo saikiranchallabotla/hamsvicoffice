@@ -5,6 +5,7 @@ URL patterns for accounts app.
 
 from django.urls import path
 from accounts import views
+from accounts import custom_backends_views
 
 urlpatterns = [
     # Template-based auth
@@ -36,6 +37,13 @@ urlpatterns = [
     path('preferences/backends/', views.backend_preferences_view, name='backend_preferences'),
     path('preferences/backends/set/', views.set_backend_preference_view, name='set_backend_preference'),
     path('preferences/backends/clear/', views.clear_backend_preference_view, name='clear_backend_preference'),
+
+    # User-uploaded custom backends (per-user groups/items)
+    path('custom-backends/', custom_backends_views.custom_backend_list_view, name='custom_backend_list'),
+    path('custom-backends/upload/', custom_backends_views.custom_backend_upload_view, name='custom_backend_upload'),
+    path('custom-backends/<int:backend_id>/units/', custom_backends_views.custom_backend_edit_units_view, name='custom_backend_edit_units'),
+    path('custom-backends/<int:backend_id>/delete/', custom_backends_views.custom_backend_delete_view, name='custom_backend_delete'),
+    path('custom-backends/<int:backend_id>/toggle/', custom_backends_views.custom_backend_toggle_view, name='custom_backend_toggle'),
     
     # API endpoints
     path('api/auth/request-otp/', views.api_request_otp, name='api_request_otp'),

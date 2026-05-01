@@ -293,6 +293,12 @@ def datas_items(request, category, group):
         name = info["name"]
         start_row = info["start_row"]
         end_row = info["end_row"]
+        if info.get('_is_custom'):
+            item_rates[name] = info.get('_cached_rate') or None
+            d = info.get('_cached_desc') or ''
+            if d:
+                item_descs[name] = d
+            continue
         rate = None
         for r in range(end_row, start_row - 1, -1):
             val = ws_vals.cell(row=r, column=10).value  # column J
@@ -598,6 +604,12 @@ def ajax_toggle_item(request, category):
                 item_rate = None
                 for info in items_list:
                     if info["name"] == item:
+                        if info.get('_is_custom'):
+                            try:
+                                item_rate = float(info.get('_cached_rate') or 0) or None
+                            except Exception:
+                                item_rate = info.get('_cached_rate') or None
+                            break
                         start_row = info["start_row"]
                         end_row = info["end_row"]
                         for r in range(end_row, start_row - 1, -1):
@@ -1326,6 +1338,7 @@ def build_fetched_details(category, base_dir, fetched_names):
         ]
 
     block_map = {it["name"]: (it["start_row"], it["end_row"]) for it in items_list}
+    info_by_name = {it["name"]: it for it in items_list}
 
     try:
         wb_vals = load_workbook(filepath, data_only=True)
@@ -1339,8 +1352,17 @@ def build_fetched_details(category, base_dir, fetched_names):
         rate_value = ""
         rate_display = ""
         block = block_map.get(name)
+        info = info_by_name.get(name)
 
-        if block and ws_vals is not None:
+        if info and info.get('_is_custom'):
+            cr = info.get('_cached_rate')
+            if cr not in (None, ""):
+                rate_display = cr
+                try:
+                    rate_value = float(cr)
+                except Exception:
+                    rate_value = ""
+        elif block and ws_vals is not None:
             start_row, end_row = block
             for r in range(end_row, start_row - 1, -1):
                 val = ws_vals.cell(row=r, column=10).value

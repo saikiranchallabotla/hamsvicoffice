@@ -594,3 +594,82 @@ class UserBackendPreference(models.Model):
             for p in prefs
         }
 
+
+# ==============================================================================
+# USER CUSTOM BACKEND (per-user uploaded items/groups)
+# ==============================================================================
+
+def _user_custom_backend_path(instance, filename):
+    return f"user_custom_backends/{instance.user_id}/{filename}"
+
+
+class UserCustomBackend(models.Model):
+    """
+    A user-uploaded Excel file containing additional items.
+    The user assigns a Group name in the UI; item blocks are detected from
+    ALL sheets (any sheet name) by yellow-fill + red-text headings.
+    Units for each detected item are also stored so the user can override
+    the auto-heuristic.
+    """
+    CATEGORY_CHOICES = (
+        ('electrical', 'Electrical'),
+        ('civil', 'Civil'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='custom_backends'
+    )
+
+    name = models.CharField(max_length=120)
+    group_name = models.CharField(max_length=120, default='')
+    file = models.FileField(upload_to=_user_custom_backend_path)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+
+    applies_estimate = models.BooleanField(default=True)
+    applies_tempworks = models.BooleanField(default=False)
+    applies_amc = models.BooleanField(default=False)
+
+    # { item_name: unit }
+    units_override = models.JSONField(default=dict, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['user', 'category', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} / {self.name} ({self.category})"
+
+    def applies_to_module(self, module_code):
+        if module_code == 'new_estimate':
+            return self.applies_estimate
+        if module_code == 'temp_works':
+            return self.applies_tempworks
+        if module_code == 'amc':
+            return self.applies_amc
+        return False
+
+    @classmethod
+    def for_user_module(cls, user, module_code, base_category):
+        """
+        Return active custom backends for a user that apply to the given
+        module + base category (electrical/civil).
+        """
+        if not user or not getattr(user, 'is_authenticated', False):
+            return cls.objects.none()
+        qs = cls.objects.filter(user=user, is_active=True, category=base_category)
+        if module_code == 'new_estimate':
+            return qs.filter(applies_estimate=True)
+        if module_code == 'temp_works':
+            return qs.filter(applies_tempworks=True)
+        if module_code == 'amc':
+            return qs.filter(applies_amc=True)
+        return cls.objects.none()
+

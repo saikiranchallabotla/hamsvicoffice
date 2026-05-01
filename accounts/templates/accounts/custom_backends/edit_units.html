@@ -1,0 +1,72 @@
+{% extends "accounts/auth_base.html" %}
+{% load static %}
+
+{% block title %}Set Units{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="mb-4">
+                <a href="{% url 'custom_backend_list' %}" class="text-decoration-none text-muted">
+                    <i class="bi bi-arrow-left me-2"></i>Back to My Custom Items
+                </a>
+                <h2 class="mt-3 mb-1"><i class="bi bi-rulers me-2"></i>Set Units for Detected Items</h2>
+                <p class="text-muted">
+                    <strong>{{ backend.name }}</strong>
+                    &nbsp;&middot;&nbsp; Group: <strong>{{ backend.group_name }}</strong>
+                    &nbsp;&middot;&nbsp; Category: {{ backend.get_category_display }}
+                </p>
+                <p class="text-muted">Confirm or change the unit for each detected item. The defaults are auto-detected from the heading text.</p>
+            </div>
+
+            {% if messages %}
+                {% for m in messages %}
+                <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+                {% endfor %}
+            {% endif %}
+
+            {% if not items %}
+            <div class="alert alert-warning">No items detected in this file.</div>
+            {% else %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="card shadow-sm">
+                    <div class="table-responsive">
+                    <table class="table mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:40px;">#</th>
+                                <th>Item</th>
+                                <th>Sheet</th>
+                                <th style="width:200px;">Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for it in items %}
+                            <tr>
+                                <td class="text-muted">{{ forloop.counter }}</td>
+                                <td>{{ it.name }}</td>
+                                <td><small class="text-muted">{{ it.sheet }}</small></td>
+                                <td>
+                                    <input type="text" name="unit__{{ it.name }}" class="form-control form-control-sm"
+                                           value="{{ it.unit }}" placeholder="Nos / Mtr / Pts / kg ...">
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2 me-1"></i> Save Units
+                    </button>
+                    <a href="{% url 'custom_backend_list' %}" class="btn btn-outline-secondary">Skip for now</a>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

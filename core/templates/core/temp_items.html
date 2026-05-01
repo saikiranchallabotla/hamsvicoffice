@@ -666,7 +666,7 @@
             <ul class="groups-list" id="groups-list">
                 {% for g in groups %}
                     <li data-group-name="{{ g|lower }}">
-                        <a href="#" 
+                        <a href="#"
                            data-nav-url="{% url 'temp_items' category g %}"
                            onclick="saveAndNavigate(this.getAttribute('data-nav-url')); return false;"
                            class="group-link {% if g == group %}active{% endif %}">
@@ -676,6 +676,15 @@
                     </li>
                 {% endfor %}
             </ul>
+            <div style="padding:0.75rem;border-top:1px dashed #e5e7eb;margin-top:0.5rem;">
+                <a href="{% url 'custom_backend_upload' %}?module=tempworks&amp;category={{ category }}"
+                   class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-cloud-upload me-1"></i> Upload Custom Items
+                </a>
+                <div class="text-muted" style="font-size:0.75rem;text-align:center;margin-top:0.4rem;">
+                    Add your own group &amp; items
+                </div>
+            </div>
         </div>
     </div>
 

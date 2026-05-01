@@ -211,6 +211,9 @@ def amc_items(request, category, group):
         name = info["name"]
         start_row = info["start_row"]
         end_row = info["end_row"]
+        if info.get('_is_custom'):
+            item_rates[name] = info.get('_cached_rate') or None
+            continue
         rate = None
         for r in range(end_row, start_row - 1, -1):
             val = ws_vals.cell(row=r, column=10).value  # column J
@@ -421,6 +424,12 @@ def amc_ajax_toggle_item(request, category):
                 item_rate = None
                 for info in items_list:
                     if info["name"] == item:
+                        if info.get('_is_custom'):
+                            try:
+                                item_rate = float(info.get('_cached_rate') or 0) or None
+                            except Exception:
+                                item_rate = info.get('_cached_rate') or None
+                            break
                         start_row = info["start_row"]
                         end_row = info["end_row"]
                         for r in range(end_row, start_row - 1, -1):

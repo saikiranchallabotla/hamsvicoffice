@@ -663,6 +663,7 @@ def temp_download_output(request, category):
 
         src_min = info["start_row"]
         src_max = info["end_row"]
+        _src_ws = info.get('_source_ws') or ws_src
 
         # find row that matches "Hire charges per X day(s)" nearest this days
         target_row = None
@@ -670,7 +671,7 @@ def temp_download_output(request, category):
         search2 = f"per {days} days"
 
         for r in range(src_min, src_max + 1):
-            txt = str(ws_src.cell(row=r, column=4).value or "").lower()
+            txt = str(_src_ws.cell(row=r, column=4).value or "").lower()
             if "hire charges per" in txt and (search1 in txt or search2 in txt):
                 target_row = r
                 break
@@ -680,7 +681,7 @@ def temp_download_output(request, category):
             effective_end = src_max
             rate_src_row = None
             for r in range(src_max, src_min - 1, -1):
-                v = ws_src.cell(row=r, column=10).value
+                v = _src_ws.cell(row=r, column=10).value
                 if v not in (None, ""):
                     rate_src_row = r
                     break
@@ -691,7 +692,7 @@ def temp_download_output(request, category):
         dst_start = cursor
 
         copy_block_with_styles_and_formulas(
-            ws_src=ws_src,
+            ws_src=_src_ws,
             ws_dst=ws_out,
             src_min_row=src_min,
             src_max_row=effective_end,

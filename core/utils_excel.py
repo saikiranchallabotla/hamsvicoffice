@@ -393,7 +393,101 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     items_list = detect_items(ws_data)
     groups_map, units_map = read_groups(ws_groups)
 
+    # ---- Merge in user's custom backends (per-user uploaded items/groups) ----
+    if user is not None and getattr(user, 'is_authenticated', False) and module_code in ('new_estimate', 'temp_works', 'amc'):
+        try:
+            from accounts.models import UserCustomBackend
+            customs = UserCustomBackend.for_user_module(user, module_code, base_category)
+            for cb in customs:
+                cb_path = _resolve_backend_path(cb)
+                if not cb_path or not os.path.exists(cb_path):
+                    continue
+                try:
+                    cb_wb = load_workbook(cb_path, data_only=False)
+                    # data_only workbook for cached numeric rates
+                    try:
+                        cb_wb_vals = load_workbook(cb_path, data_only=True)
+                    except Exception:
+                        cb_wb_vals = None
+
+                    cb_group = (cb.group_name or cb.name or 'Custom').strip()
+                    cb_units = dict(cb.units_override or {})
+                    custom_item_names = []
+
+                    # Scan EVERY sheet for item blocks
+                    for sheet_name in cb_wb.sheetnames:
+                        try:
+                            cb_ws_data = cb_wb[sheet_name]
+                            cb_items = detect_items(cb_ws_data)
+                        except Exception:
+                            continue
+                        if not cb_items:
+                            continue
+                        cb_ws_vals = None
+                        if cb_wb_vals is not None and sheet_name in cb_wb_vals.sheetnames:
+                            try:
+                                cb_ws_vals = cb_wb_vals[sheet_name]
+                            except Exception:
+                                cb_ws_vals = None
+
+                        for it in cb_items:
+                            it['_source_ws'] = cb_ws_data
+                            it['_source_filepath'] = cb_path
+                            it['_source_wb'] = cb_wb
+                            it['_source_sheet'] = sheet_name
+                            it['_is_custom'] = True
+                            # cache description (row+2 col D)
+                            try:
+                                d = cb_ws_data.cell(row=it['start_row'] + 2, column=4).value
+                                it['_cached_desc'] = str(d).strip() if d else ''
+                            except Exception:
+                                it['_cached_desc'] = ''
+                            # cache rate
+                            rate_val = ''
+                            ws_for_rate = cb_ws_vals if cb_ws_vals is not None else cb_ws_data
+                            try:
+                                for r in range(it['end_row'], it['start_row'] - 1, -1):
+                                    v = ws_for_rate.cell(row=r, column=10).value
+                                    if v not in (None, ''):
+                                        rate_val = v
+                                        break
+                            except Exception:
+                                pass
+                            it['_cached_rate'] = rate_val
+                            items_list.append(it)
+                            custom_item_names.append(it['name'])
+
+                    # Append all custom items under user-specified group name
+                    if custom_item_names:
+                        existing = groups_map.setdefault(cb_group, [])
+                        for n in custom_item_names:
+                            if n not in existing:
+                                existing.append(n)
+
+                    # Apply user-supplied units (UI takes precedence)
+                    for itname, unit in cb_units.items():
+                        if unit:
+                            units_map[itname] = unit
+                except Exception:
+                    continue
+        except (OperationalError, ProgrammingError, Exception):
+            pass
+
     return items_list, groups_map, units_map, ws_data, filepath
+
+
+def get_ws_for_item(item_info, default_ws):
+    """Return the worksheet that owns this item — custom item's own ws if present, else default."""
+    if isinstance(item_info, dict) and item_info.get('_source_ws') is not None:
+        return item_info['_source_ws']
+    return default_ws
+
+
+def get_filepath_for_item(item_info, default_filepath):
+    """Return the file path of the workbook that owns this item."""
+    if isinstance(item_info, dict) and item_info.get('_source_filepath'):
+        return item_info['_source_filepath']
+    return default_filepath
 
 
 def get_available_backends_for_module(module_code, category):
@@ -424,9 +518,10 @@ def get_available_backends_for_module(module_code, category):
 
 # ---------- Extract full cell objects for a block ----------
 def extract_item_block(ws_data, item_info):
+    ws = get_ws_for_item(item_info, ws_data)
     rows = []
     for r in range(item_info["start_row"], item_info["end_row"] + 1):
-        row_cells = [ws_data.cell(row=r, column=c) for c in range(SCAN_COL_START, SCAN_COL_END + 1)]
+        row_cells = [ws.cell(row=r, column=c) for c in range(SCAN_COL_START, SCAN_COL_END + 1)]
         rows.append(row_cells)
     return rows
 
@@ -686,13 +781,16 @@ def get_item_description_and_rate(ws_data, item_info):
       - Description from 2 rows below header in col D
       - Rate as last non-empty cell in column J (inside block only)
     """
-    desc = ws_data.cell(item_info["start_row"] + 2, 4).value
+    if isinstance(item_info, dict) and item_info.get('_is_custom'):
+        return item_info.get('_cached_desc', ''), item_info.get('_cached_rate', '')
+    ws = get_ws_for_item(item_info, ws_data)
+    desc = ws.cell(item_info["start_row"] + 2, 4).value
     desc = str(desc).strip() if desc else ""
 
     rate = ""
     # iterate from end_row down to start_row (inclusive)
     for r in range(item_info["end_row"], item_info["start_row"] - 1, -1):
-        val = ws_data.cell(r, 10).value
+        val = ws.cell(r, 10).value
         if val not in (None, ""):
             rate = val
             break

@@ -1780,36 +1780,44 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
             start_row = info["start_row"]
             end_row = info["end_row"]
             rate = 0
-            
-            # Find rate from bottom up (last value in column J)
-            # Try data_only workbook first (has calculated values), then formula workbook
-            for r in range(end_row, start_row - 1, -1):
-                val = ws_data_only.cell(row=r, column=10).value  # column J (data_only)
-                if val not in (None, ""):
-                    try:
-                        rate = float(val)
-                    except (ValueError, TypeError):
-                        rate = 0
-                    break
-            
-            # If rate is still 0, try the formula workbook (ws_data)
-            # Some Excel files may only have literal values, not formula results
-            if rate == 0 and ws_data is not None:
+
+            if info.get('_is_custom'):
+                cr = info.get('_cached_rate')
+                try:
+                    rate = float(cr) if cr not in (None, '') else 0
+                except Exception:
+                    rate = 0
+                desc = info.get('_cached_desc') or name
+            else:
+                # Find rate from bottom up (last value in column J)
+                # Try data_only workbook first (has calculated values), then formula workbook
                 for r in range(end_row, start_row - 1, -1):
-                    val = ws_data.cell(row=r, column=10).value
+                    val = ws_data_only.cell(row=r, column=10).value  # column J (data_only)
                     if val not in (None, ""):
                         try:
                             rate = float(val)
                         except (ValueError, TypeError):
                             rate = 0
                         break
-            
-            # Get description from row start_row + 2, column D (4)
-            desc = name  # default to item name
-            if ws_data is not None:
-                desc_cell = ws_data.cell(row=start_row + 2, column=4).value
-                if desc_cell and str(desc_cell).strip():
-                    desc = str(desc_cell).strip()
+
+                # If rate is still 0, try the formula workbook (ws_data)
+                # Some Excel files may only have literal values, not formula results
+                if rate == 0 and ws_data is not None:
+                    for r in range(end_row, start_row - 1, -1):
+                        val = ws_data.cell(row=r, column=10).value
+                        if val not in (None, ""):
+                            try:
+                                rate = float(val)
+                            except (ValueError, TypeError):
+                                rate = 0
+                            break
+
+                # Get description from row start_row + 2, column D (4)
+                desc = name  # default to item name
+                if ws_data is not None:
+                    desc_cell = ws_data.cell(row=start_row + 2, column=4).value
+                    if desc_cell and str(desc_cell).strip():
+                        desc = str(desc_cell).strip()
             
             # Determine unit from units_map (Column D of Groups sheet) — authoritative source
             unit = _units_map.get(name, "")

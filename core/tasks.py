@@ -422,7 +422,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         items_list, groups_map, backend_units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=backend_id,
-            module_code=module_code
+            module_code=module_code,
+            user=job.user
         )
         name_to_info = {it["name"]: it for it in items_list}
         
@@ -557,7 +558,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     continue
                 src_min = info["start_row"]
                 src_max = info["end_row"]
-                src_ws = ws_src
+                src_ws = info.get('_source_ws') or ws_src
 
             rate_src_row = None
             for r in range(src_max, src_min, -1):
@@ -1017,7 +1018,8 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json, backend_
         items_list, groups_map, _, ws_src, _ = load_backend(
             category, settings.BASE_DIR,
             backend_id=backend_id,
-            module_code=module_code
+            module_code=module_code,
+            user=job.user
         )
         name_to_block = {it["name"]: it for it in items_list}
         blocks = [name_to_block[n] for n in fetched if n in name_to_block]

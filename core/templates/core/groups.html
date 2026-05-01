@@ -174,5 +174,15 @@
             <p>No groups were detected in this category.</p>
         </div>
     {% endif %}
+
+    <div class="custom-upload-cta" style="margin-top:1.5rem;padding:1.25rem;border:1px dashed #c7d2fe;border-radius:12px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <div>
+            <strong><i class="bi bi-plus-circle me-1"></i> Don't see your group or items here?</strong>
+            <div class="text-muted" style="font-size:0.85rem;">Upload your own Excel and the items will appear in this module.</div>
+        </div>
+        <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-cloud-upload me-1"></i> Upload Custom Items
+        </a>
+    </div>
 </div>
 {% endblock %}
