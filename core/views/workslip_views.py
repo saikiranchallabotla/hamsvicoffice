@@ -2796,6 +2796,14 @@ def workslip(request):
                             except Exception as _e:
                                 logger.warning(f"Workslip: Could not copy referenced sheet '{_sheet_name}': {_e}")
 
+            # Rewrite any external/indexed sheet refs in copied formulas to
+            # local refs now that the referenced sheets live in wb_out.
+            try:
+                from ..utils_excel import normalize_external_sheet_refs
+                normalize_external_sheet_refs(wb_out)
+            except Exception as _e:
+                logger.warning(f"Workslip: normalize_external_sheet_refs failed: {_e}")
+
             # Apply print settings: Landscape, A4, fit columns, Times New Roman
             _apply_print_settings(wb_out, landscape=True)
 

@@ -391,7 +391,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively, normalize_external_sheet_refs
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -963,6 +963,14 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                         copy_sheet_to_workbook(_wb_local, _sheet_name, wb)
                     except Exception as _e:
                         logger.warning(f"Job {job_id}: Could not copy referenced sheet '{_sheet_name}': {_e}")
+
+        # Rewrite any external/indexed sheet refs (e.g. '[1]lead 2025-26'!M31)
+        # in copied formulas to local refs (LEAD!M31) now that the referenced
+        # sheets live in the output workbook.
+        try:
+            normalize_external_sheet_refs(wb)
+        except Exception as _e:
+            logger.warning(f"Job {job_id}: normalize_external_sheet_refs failed: {_e}")
 
         # Apply print settings: Portrait, A4, fit columns, Times New Roman
         from core.views import _apply_print_settings

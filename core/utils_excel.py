@@ -701,15 +701,46 @@ _SHEET_REF_RE = re.compile(
     r"(?:\[\d+\])?(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_\. ]*))!\$?[A-Za-z]+\$?\d+"
 )
 
+# Same but no trailing cell ref — used when rewriting formulas (we substitute
+# only the "Sheet!" portion and let the rest of the formula stay put).
+_SHEET_PREFIX_RE = re.compile(
+    r"(?:'((?:\[\d+\])?[^']+)'|((?:\[\d+\])?[A-Za-z_][A-Za-z0-9_\. ]*))!"
+)
+
+
+def _resolve_sheet_name_in_wb(captured, wb):
+    """
+    Map a captured sheet-name token (possibly prefixed with [N], possibly
+    case-mismatched, possibly carrying extra qualifier text like
+    'lead 2025-26') to a real sheet that exists in `wb`. Returns the actual
+    sheet name from wb.sheetnames, or None.
+    """
+    if not captured:
+        return None
+    s = re.sub(r'^\[\d+\]', '', str(captured)).strip()
+    if not s:
+        return None
+    lookup = {n.lower(): n for n in wb.sheetnames}
+    low = s.lower()
+    if low in lookup:
+        return lookup[low]
+    for tok in re.split(r'[\s\-_]+', low):
+        if tok and tok in lookup:
+            return lookup[tok]
+    return None
+
 
 def find_referenced_sheets(ws, src_min_row, src_max_row, col_start, col_end, exclude=None):
     """
     Scan formulas in the given block of `ws` and return the set of sheet names
-    referenced from other sheets (e.g. INPUT, LEAD, 'My Sheet').
+    referenced from other sheets (e.g. INPUT, LEAD, 'My Sheet'). External or
+    indexed refs (e.g. '[1]lead 2025-26'!) are resolved to a same-named sheet
+    in ws.parent when possible.
     Self-references (to ws.title) and any name in `exclude` are filtered out.
     """
     exclude = set(exclude or ())
     exclude.add(ws.title)
+    wb = ws.parent
     found = set()
     for r in range(src_min_row, src_max_row + 1):
         for c in range(col_start, col_end + 1):
@@ -721,13 +752,16 @@ def find_referenced_sheets(ws, src_min_row, src_max_row, col_start, col_end, exc
                 continue
             for m in _SHEET_REF_RE.finditer(v):
                 name = m.group(1) or m.group(2)
-                if name and name not in exclude:
-                    found.add(name)
+                resolved = _resolve_sheet_name_in_wb(name, wb)
+                if resolved and resolved not in exclude:
+                    found.add(resolved)
     return found
 
 
 def _scan_sheet_for_sheet_refs(ws):
-    """Return the set of sheet names referenced by formulas anywhere in `ws`."""
+    """Return the set of sheet names (resolved against ws.parent) referenced
+    by formulas anywhere in `ws`."""
+    wb = ws.parent
     found = set()
     for row in ws.iter_rows():
         for cell in row:
@@ -736,9 +770,37 @@ def _scan_sheet_for_sheet_refs(ws):
                 continue
             for m in _SHEET_REF_RE.finditer(v):
                 name = m.group(1) or m.group(2)
-                if name:
-                    found.add(name)
+                resolved = _resolve_sheet_name_in_wb(name, wb)
+                if resolved:
+                    found.add(resolved)
     return found
+
+
+def normalize_external_sheet_refs(wb):
+    """
+    For every formula in every sheet of `wb`, rewrite external/indexed sheet
+    refs (e.g. '[1]lead 2025-26'!M31) to local refs (LEAD!M31) when the
+    captured name resolves to a sheet that exists in `wb`. Leaves
+    already-local refs untouched.
+    """
+    def _replace(m):
+        captured = m.group(1) or m.group(2)
+        real = _resolve_sheet_name_in_wb(captured, wb)
+        if not real or real == captured:
+            return m.group(0)
+        if re.search(r"[\s\-!']", real):
+            return "'" + real.replace("'", "''") + "'!"
+        return real + "!"
+
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                v = cell.value
+                if not (isinstance(v, str) and v.startswith('=')):
+                    continue
+                new_v = _SHEET_PREFIX_RE.sub(_replace, v)
+                if new_v != v:
+                    cell.value = new_v
 
 
 def expand_referenced_sheets_transitively(wb, initial_sheets, exclude=None):
