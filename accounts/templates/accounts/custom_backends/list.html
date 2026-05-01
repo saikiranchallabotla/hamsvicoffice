@@ -5,104 +5,227 @@
 {% block page_title %}<i class="bi bi-collection me-2"></i>My Custom Items{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="mb-4 d-flex justify-content-between align-items-center">
-                <div>
-                    <a href="{% url 'settings' %}" class="text-decoration-none text-muted">
-                        <i class="bi bi-arrow-left me-2"></i>Back to Settings
-                    </a>
-                    <h2 class="mt-3 mb-1"><i class="bi bi-collection me-2"></i>My Custom Items</h2>
-                    <p class="text-muted">Upload your own Excel of groups/items to use in Estimate, Temporary Works, AMC, and Workslip modules.</p>
-                </div>
-                <a href="{% url 'custom_backend_upload' %}" class="btn btn-primary">
-                    <i class="bi bi-cloud-upload me-1"></i> Upload Excel
-                </a>
-            </div>
+<style>
+    .cb-wrap { max-width: 1100px; margin: 0 auto; padding: 1rem 0 3rem; font-size: 0.875rem; }
+    .cb-wrap, .cb-wrap input, .cb-wrap button, .cb-wrap a { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .cb-back {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        color: #64748b; text-decoration: none; font-size: 0.82rem;
+        margin-bottom: 0.85rem;
+    }
+    .cb-back:hover { color: #6366f1; }
 
-            {% if messages %}
-                {% for m in messages %}
-                <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
-                {% endfor %}
-            {% endif %}
+    .cb-head {
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 0.85rem;
+        margin-bottom: 1.2rem;
+    }
+    .cb-head h1 {
+        font-size: 1.25rem; font-weight: 700; color: #1e293b;
+        margin: 0 0 0.2rem; display: inline-flex; align-items: center; gap: 0.5rem;
+    }
+    .cb-head h1 i {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .cb-head p { color: #64748b; font-size: 0.82rem; margin: 0; max-width: 580px; }
 
-            {% if not backends %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                You haven't uploaded any custom backends yet. Click "Upload Excel" to add groups and items
-                that will appear in your Estimate, Temporary Works, AMC, and Workslip dropdowns.
-            </div>
-            {% else %}
-            <div class="card shadow-sm">
-                <div class="table-responsive">
-                <table class="table mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Name</th>
-                            <th>Group</th>
-                            <th>Category</th>
-                            <th>Applies To</th>
-                            <th>Status</th>
-                            <th>Uploaded</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for b in backends %}
-                        <tr>
-                            <td>
-                                <strong>{{ b.name }}</strong><br>
-                                <small class="text-muted">{{ b.file.name|cut:"user_custom_backends/" }}</small>
-                            </td>
-                            <td><span class="badge bg-info text-dark">{{ b.group_name }}</span></td>
-                            <td>
-                                {% if b.category == 'electrical' %}
-                                <span class="badge bg-primary">Electrical</span>
-                                {% else %}
-                                <span class="badge bg-warning text-dark">Civil</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if b.applies_estimate %}<span class="badge bg-secondary me-1">Estimate</span>{% endif %}
-                                {% if b.applies_tempworks %}<span class="badge bg-secondary me-1">Temp Works</span>{% endif %}
-                                {% if b.applies_amc %}<span class="badge bg-secondary me-1">AMC</span>{% endif %}
-                            </td>
-                            <td>
-                                <form method="post" action="{% url 'custom_backend_toggle' b.pk %}" class="d-inline">
-                                    {% csrf_token %}
-                                    {% if b.is_active %}
-                                    <button class="btn btn-sm btn-success" type="submit" title="Active - click to disable">
-                                        <i class="bi bi-check-circle"></i> Active
-                                    </button>
-                                    {% else %}
-                                    <button class="btn btn-sm btn-outline-secondary" type="submit" title="Disabled - click to enable">
-                                        <i class="bi bi-slash-circle"></i> Disabled
-                                    </button>
-                                    {% endif %}
-                                </form>
-                            </td>
-                            <td><small class="text-muted">{{ b.uploaded_at|date:"d M Y" }}</small></td>
-                            <td class="text-end">
-                                <a href="{% url 'custom_backend_edit_units' b.pk %}" class="btn btn-sm btn-outline-primary me-1" title="Edit units">
-                                    <i class="bi bi-rulers"></i>
-                                </a>
-                                <form method="post" action="{% url 'custom_backend_delete' b.pk %}" class="d-inline"
-                                      onsubmit="return confirm('Delete this custom backend? Items in saved works will still reference its data until re-saved.');">
-                                    {% csrf_token %}
-                                    <button class="btn btn-sm btn-outline-danger" type="submit">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                </div>
-            </div>
-            {% endif %}
+    .cb-btn-primary {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+        border: none; padding: 0.55rem 1.15rem; border-radius: 9px;
+        font-weight: 600; font-size: 0.85rem; text-decoration: none;
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.28);
+        transition: all 0.15s;
+    }
+    .cb-btn-primary:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.38); }
+
+    .cb-table-card {
+        background: #fff; border-radius: 14px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+        border: 1px solid #eef2f7;
+        overflow: hidden;
+    }
+    .cb-table { width: 100%; border-collapse: collapse; }
+    .cb-table thead th {
+        background: #f8fafc;
+        font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.04em; color: #64748b;
+        padding: 0.7rem 0.95rem; text-align: left;
+        border-bottom: 1px solid #eef2f7;
+    }
+    .cb-table tbody td {
+        padding: 0.75rem 0.95rem;
+        font-size: 0.84rem; color: #1e293b;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+    .cb-table tbody tr:last-child td { border-bottom: none; }
+    .cb-table tbody tr:hover { background: #fafbff; }
+
+    .cb-name { font-weight: 600; color: #1e293b; }
+    .cb-name-sub { font-size: 0.74rem; color: #94a3b8; margin-top: 0.15rem; }
+
+    .cb-pill {
+        display: inline-block; padding: 0.18rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem; font-weight: 600;
+        white-space: nowrap;
+    }
+    .cb-pill-group { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
+    .cb-pill-electrical { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+    .cb-pill-civil { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .cb-pill-mod {
+        background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+        margin-right: 0.25rem;
+    }
+
+    .cb-toggle {
+        display: inline-flex; align-items: center; gap: 0.3rem;
+        padding: 0.3rem 0.7rem; border-radius: 999px;
+        font-size: 0.74rem; font-weight: 600; cursor: pointer;
+        border: none;
+        transition: all 0.15s;
+    }
+    .cb-toggle-on {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.28);
+    }
+    .cb-toggle-off {
+        background: #f1f5f9; color: #64748b;
+        border: 1px solid #e2e8f0;
+    }
+    .cb-toggle:hover { transform: translateY(-1px); }
+
+    .cb-icon-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 32px; height: 32px;
+        border-radius: 8px; border: 1.3px solid #e2e8f0;
+        background: #fff; color: #475569;
+        text-decoration: none; cursor: pointer;
+        transition: all 0.15s;
+        margin-left: 0.3rem;
+    }
+    .cb-icon-btn:hover { transform: translateY(-1px); }
+    .cb-icon-edit:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+    .cb-icon-del:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+
+    .cb-empty {
+        background: #fff; border-radius: 14px;
+        padding: 2.2rem; text-align: center;
+        border: 1px dashed #cbd5e1;
+    }
+    .cb-empty i { font-size: 2.6rem; color: #cbd5e1; }
+    .cb-empty h3 { font-size: 0.98rem; color: #334155; margin: 0.55rem 0 0.3rem; font-weight: 600; }
+    .cb-empty p { color: #64748b; font-size: 0.82rem; margin: 0 0 1rem; }
+
+    @media (max-width: 720px) {
+        .cb-table thead { display: none; }
+        .cb-table tbody td { display: block; padding: 0.4rem 0.95rem; border: none; }
+        .cb-table tbody tr {
+            display: block; padding: 0.7rem 0;
+            border-bottom: 1px solid #eef2f7;
+        }
+    }
+</style>
+
+<div class="cb-wrap">
+    <a href="{% url 'settings' %}" class="cb-back">
+        <i class="bi bi-arrow-left"></i> Back to Settings
+    </a>
+
+    <div class="cb-head">
+        <div>
+            <h1><i class="bi bi-collection-fill"></i> My Custom Items</h1>
+            <p>Upload your own Excel of groups/items to use in Estimate, Temporary Works, AMC, and Workslip modules.</p>
         </div>
+        <a href="{% url 'custom_backend_upload' %}" class="cb-btn-primary">
+            <i class="bi bi-cloud-upload"></i> Upload Excel
+        </a>
     </div>
+
+    {% if messages %}
+        {% for m in messages %}
+        <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not backends %}
+        <div class="cb-empty">
+            <i class="bi bi-cloud-upload"></i>
+            <h3>No uploads yet</h3>
+            <p>Add your own Excel of groups and items &mdash; they'll appear in your modules right after upload.</p>
+            <a href="{% url 'custom_backend_upload' %}" class="cb-btn-primary">
+                <i class="bi bi-plus-circle"></i> Upload Your First File
+            </a>
+        </div>
+    {% else %}
+        <div class="cb-table-card">
+            <table class="cb-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Group</th>
+                        <th>Category</th>
+                        <th>Applies To</th>
+                        <th>Status</th>
+                        <th>Uploaded</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for b in backends %}
+                    <tr>
+                        <td>
+                            <div class="cb-name">{{ b.name }}</div>
+                            <div class="cb-name-sub">{{ b.file.name|cut:"user_custom_backends/" }}</div>
+                        </td>
+                        <td><span class="cb-pill cb-pill-group">{{ b.group_name }}</span></td>
+                        <td>
+                            {% if b.category == 'electrical' %}
+                                <span class="cb-pill cb-pill-electrical"><i class="bi bi-lightning-charge-fill"></i> Electrical</span>
+                            {% else %}
+                                <span class="cb-pill cb-pill-civil"><i class="bi bi-bricks"></i> Civil</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if b.applies_estimate %}<span class="cb-pill cb-pill-mod">Estimate</span>{% endif %}
+                            {% if b.applies_tempworks %}<span class="cb-pill cb-pill-mod">Temp Works</span>{% endif %}
+                            {% if b.applies_amc %}<span class="cb-pill cb-pill-mod">AMC</span>{% endif %}
+                        </td>
+                        <td>
+                            <form method="post" action="{% url 'custom_backend_toggle' b.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                {% if b.is_active %}
+                                <button class="cb-toggle cb-toggle-on" type="submit" title="Active &mdash; click to disable">
+                                    <i class="bi bi-check-circle-fill"></i> Active
+                                </button>
+                                {% else %}
+                                <button class="cb-toggle cb-toggle-off" type="submit" title="Disabled &mdash; click to enable">
+                                    <i class="bi bi-slash-circle"></i> Disabled
+                                </button>
+                                {% endif %}
+                            </form>
+                        </td>
+                        <td><span style="color:#64748b;font-size:0.8rem;">{{ b.uploaded_at|date:"d M Y" }}</span></td>
+                        <td style="text-align:right; white-space:nowrap;">
+                            <a href="{% url 'custom_backend_edit_units' b.pk %}" class="cb-icon-btn cb-icon-edit" title="Set units &amp; prefixes">
+                                <i class="bi bi-rulers"></i>
+                            </a>
+                            <form method="post" action="{% url 'custom_backend_delete' b.pk %}" style="display:inline;"
+                                  onsubmit="return confirm('Delete this custom upload? Items in saved works will still reference its data until re-saved.');">
+                                {% csrf_token %}
+                                <button class="cb-icon-btn cb-icon-del" type="submit" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
 </div>
 {% endblock %}

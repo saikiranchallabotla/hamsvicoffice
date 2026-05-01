@@ -633,6 +633,8 @@ class UserCustomBackend(models.Model):
 
     # { item_name: unit }
     units_override = models.JSONField(default=dict, blank=True)
+    # { item_name: prefix } - applied to descriptions in repair works
+    repair_prefixes = models.JSONField(default=dict, blank=True)
 
     is_active = models.BooleanField(default=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)

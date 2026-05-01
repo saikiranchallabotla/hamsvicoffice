@@ -146,23 +146,43 @@ def custom_backend_edit_units_view(request, backend_id):
     if cb_path:
         try:
             found, _wb = _scan_all_sheets_for_items(cb_path)
-            items = [{'sheet': s, 'name': n, 'unit': backend.units_override.get(n, '')} for s, n in found]
+            items = [{
+                'sheet': s,
+                'name': n,
+                'unit': backend.units_override.get(n, ''),
+                'prefix': (backend.repair_prefixes or {}).get(n, ''),
+            } for s, n in found]
         except Exception:
             items = []
 
     if request.method == 'POST':
         new_units = {}
+        new_prefixes = {}
         for it in items:
-            key = f"unit__{it['name']}"
-            val = (request.POST.get(key) or '').strip()
-            if val:
-                new_units[it['name']] = val
-        # Preserve any units that weren't in scanned items (e.g., file changed)
-        merged = dict(backend.units_override or {})
-        merged.update(new_units)
-        backend.units_override = merged
-        backend.save(update_fields=['units_override', 'updated_at'])
-        messages.success(request, "Units updated.")
+            uval = (request.POST.get(f"unit__{it['name']}") or '').strip()
+            if uval:
+                new_units[it['name']] = uval
+            pval = (request.POST.get(f"prefix__{it['name']}") or '').strip()
+            if pval:
+                new_prefixes[it['name']] = pval
+        merged_units = dict(backend.units_override or {})
+        merged_units.update(new_units)
+        backend.units_override = merged_units
+
+        merged_prefixes = dict(backend.repair_prefixes or {})
+        # Allow clearing: only items whose key is present in POST get touched
+        for it in items:
+            key = f"prefix__{it['name']}"
+            if key in request.POST:
+                val = (request.POST.get(key) or '').strip()
+                if val:
+                    merged_prefixes[it['name']] = val
+                else:
+                    merged_prefixes.pop(it['name'], None)
+        backend.repair_prefixes = merged_prefixes
+
+        backend.save(update_fields=['units_override', 'repair_prefixes', 'updated_at'])
+        messages.success(request, "Saved.")
         return redirect('custom_backend_list')
 
     return render(request, 'accounts/custom_backends/edit_units.html', {

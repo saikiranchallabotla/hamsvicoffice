@@ -1863,6 +1863,7 @@ def load_prefix_map(category, backend_id=None, user=None, module_code='new_estim
     from django.conf import settings
     logger = logging.getLogger(__name__)
 
+    prefix_map = {}
     try:
         from openpyxl import load_workbook as _load_wb
         from core.utils_excel import load_backend
@@ -1873,36 +1874,43 @@ def load_prefix_map(category, backend_id=None, user=None, module_code='new_estim
             user=user,
             module_code=module_code,
         )
-        if not filepath or not os.path.exists(filepath):
-            return {}
-
-        backend_wb = _load_wb(filepath, data_only=False)
-        ws_groups = backend_wb["Groups"]
-        header_row_g = None
-        col_item_g = None
-        col_prefix_g = None
-        for r in range(1, ws_groups.max_row + 1):
-            for c in range(1, ws_groups.max_column + 1):
-                val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
-                if val == "item name":
-                    header_row_g = r
-                    col_item_g = c
-                elif val == "prefix":
-                    col_prefix_g = c
-            if header_row_g:
-                break
-        if not (header_row_g and col_item_g and col_prefix_g):
-            return {}
-        prefix_map = {}
-        for r in range(header_row_g + 1, ws_groups.max_row + 1):
-            nm = ws_groups.cell(r, col_item_g).value
-            px = ws_groups.cell(r, col_prefix_g).value
-            if nm and px not in (None, ""):
-                prefix_map[str(nm).strip()] = str(px).strip()
-        return prefix_map
+        if filepath and os.path.exists(filepath):
+            backend_wb = _load_wb(filepath, data_only=False)
+            if "Groups" in backend_wb.sheetnames:
+                ws_groups = backend_wb["Groups"]
+                header_row_g = None
+                col_item_g = None
+                col_prefix_g = None
+                for r in range(1, ws_groups.max_row + 1):
+                    for c in range(1, ws_groups.max_column + 1):
+                        val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
+                        if val == "item name":
+                            header_row_g = r
+                            col_item_g = c
+                        elif val == "prefix":
+                            col_prefix_g = c
+                    if header_row_g:
+                        break
+                if header_row_g and col_item_g and col_prefix_g:
+                    for r in range(header_row_g + 1, ws_groups.max_row + 1):
+                        nm = ws_groups.cell(r, col_item_g).value
+                        px = ws_groups.cell(r, col_prefix_g).value
+                        if nm and px not in (None, ""):
+                            prefix_map[str(nm).strip()] = str(px).strip()
     except Exception:
-        logger.debug("[LOAD_PREFIX_MAP] Error loading prefix map", exc_info=True)
-        return {}
+        logger.debug("[LOAD_PREFIX_MAP] Error loading prefix map from backend", exc_info=True)
+
+    # Merge user's custom-backend prefixes (override defaults)
+    try:
+        from accounts.models import UserCustomBackend
+        for cb in UserCustomBackend.for_user_module(user, module_code, category):
+            for nm, px in (cb.repair_prefixes or {}).items():
+                if nm and px:
+                    prefix_map[str(nm).strip()] = str(px).strip()
+    except Exception:
+        logger.debug("[LOAD_PREFIX_MAP] Error merging custom prefixes", exc_info=True)
+
+    return prefix_map
 
 
 def apply_prefix_to_desc(desc, item_name, prefix_map):

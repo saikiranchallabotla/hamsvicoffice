@@ -5,69 +5,206 @@
 {% block page_title %}<i class="bi bi-rulers me-2"></i>Set Units{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-9">
-            <div class="mb-4">
-                <a href="{% url 'custom_backend_list' %}" class="text-decoration-none text-muted">
-                    <i class="bi bi-arrow-left me-2"></i>Back to My Custom Items
-                </a>
-                <h2 class="mt-3 mb-1"><i class="bi bi-rulers me-2"></i>Set Units for Detected Items</h2>
-                <p class="text-muted">
-                    <strong>{{ backend.name }}</strong>
-                    &nbsp;&middot;&nbsp; Group: <strong>{{ backend.group_name }}</strong>
-                    &nbsp;&middot;&nbsp; Category: {{ backend.get_category_display }}
-                </p>
-                <p class="text-muted">Confirm or change the unit for each detected item. The defaults are auto-detected from the heading text.</p>
-            </div>
+<style>
+    .cb-wrap { max-width: 1000px; margin: 0 auto; padding: 1rem 0 3rem; font-size: 0.875rem; }
+    .cb-wrap, .cb-wrap input, .cb-wrap button, .cb-wrap a { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .cb-back {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        color: #64748b; text-decoration: none; font-size: 0.82rem;
+        margin-bottom: 0.85rem;
+    }
+    .cb-back:hover { color: #6366f1; }
 
-            {% if messages %}
-                {% for m in messages %}
-                <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
-                {% endfor %}
-            {% endif %}
+    .cb-hero {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: #fff; border-radius: 14px; padding: 1.1rem 1.4rem;
+        display: flex; align-items: center; gap: 1rem;
+        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+        margin-bottom: 1rem;
+    }
+    .cb-hero-icon {
+        width: 46px; height: 46px; flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem;
+    }
+    .cb-hero h1 { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.15rem; color: #fff; line-height: 1.2; }
+    .cb-hero p { margin: 0; opacity: 0.9; font-size: 0.78rem; }
 
-            {% if not items %}
-            <div class="alert alert-warning">No items detected in this file.</div>
-            {% else %}
-            <form method="post">
-                {% csrf_token %}
-                <div class="card shadow-sm">
-                    <div class="table-responsive">
-                    <table class="table mb-0 align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width:40px;">#</th>
-                                <th>Item</th>
-                                <th>Sheet</th>
-                                <th style="width:200px;">Unit</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for it in items %}
-                            <tr>
-                                <td class="text-muted">{{ forloop.counter }}</td>
-                                <td>{{ it.name }}</td>
-                                <td><small class="text-muted">{{ it.sheet }}</small></td>
-                                <td>
-                                    <input type="text" name="unit__{{ it.name }}" class="form-control form-control-sm"
-                                           value="{{ it.unit }}" placeholder="Nos / Mtr / Pts / kg ...">
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                    </div>
-                </div>
-                <div class="d-flex gap-2 mt-3">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check2 me-1"></i> Save Units
-                    </button>
-                    <a href="{% url 'custom_backend_list' %}" class="btn btn-outline-secondary">Skip for now</a>
-                </div>
-            </form>
-            {% endif %}
+    .cb-meta {
+        display: flex; flex-wrap: wrap; gap: 0.4rem;
+        margin-bottom: 0.9rem;
+    }
+    .cb-chip {
+        background: #fff; border: 1px solid #e2e8f0;
+        border-radius: 999px; padding: 0.25rem 0.7rem;
+        font-size: 0.74rem; color: #475569; font-weight: 500;
+    }
+    .cb-chip strong { color: #1e293b; font-weight: 600; }
+    .cb-chip i { color: #6366f1; margin-right: 0.3rem; }
+
+    .cb-help {
+        font-size: 0.78rem; color: #64748b; margin-bottom: 0.9rem;
+    }
+
+    .cb-table-card {
+        background: #fff; border-radius: 14px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+        border: 1px solid #eef2f7;
+        overflow: hidden;
+    }
+    .cb-table { width: 100%; border-collapse: collapse; }
+    .cb-table thead th {
+        background: #f8fafc;
+        font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.04em; color: #64748b;
+        padding: 0.65rem 0.85rem; text-align: left;
+        border-bottom: 1px solid #eef2f7;
+    }
+    .cb-table tbody td {
+        padding: 0.55rem 0.85rem;
+        font-size: 0.84rem; color: #1e293b;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+    .cb-table tbody tr:last-child td { border-bottom: none; }
+    .cb-table tbody tr:hover { background: #fafbff; }
+    .cb-num {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px;
+        background: #eef2ff; color: #4f46e5;
+        border-radius: 6px;
+        font-size: 0.7rem; font-weight: 600;
+    }
+    .cb-sheet-pill {
+        display: inline-block; padding: 0.18rem 0.55rem;
+        background: #f1f5f9; color: #475569;
+        border-radius: 6px; font-size: 0.72rem; font-weight: 500;
+    }
+    .cb-cell-input {
+        width: 100%;
+        padding: 0.42rem 0.65rem;
+        border: 1.3px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        background: #f8fafc;
+        transition: all 0.15s ease;
+    }
+    .cb-cell-input:focus {
+        outline: none; border-color: #6366f1; background: #fff;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
+    .cb-col-unit { width: 150px; }
+    .cb-col-prefix { width: 200px; }
+
+    .cb-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+    .cb-btn-primary {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+        border: none; padding: 0.6rem 1.3rem; border-radius: 9px;
+        font-weight: 600; font-size: 0.85rem; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.28);
+        transition: all 0.15s;
+    }
+    .cb-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.38); }
+    .cb-btn-secondary {
+        background: #fff; color: #475569;
+        border: 1.3px solid #e2e8f0; padding: 0.6rem 1.1rem; border-radius: 9px;
+        font-weight: 600; font-size: 0.85rem; text-decoration: none;
+        display: inline-flex; align-items: center;
+    }
+    .cb-btn-secondary:hover { border-color: #cbd5e1; color: #1e293b; }
+
+    .cb-empty {
+        background: #fff; border-radius: 14px;
+        padding: 2rem; text-align: center;
+        border: 1px solid #eef2f7;
+    }
+    .cb-empty i { font-size: 2.4rem; color: #cbd5e1; }
+    .cb-empty p { color: #64748b; margin: 0.5rem 0 0; font-size: 0.85rem; }
+
+    @media (max-width: 640px) {
+        .cb-table thead { display: none; }
+        .cb-table tbody td { display: block; padding: 0.4rem 0.85rem; }
+        .cb-table tbody tr { padding: 0.4rem 0; border-bottom: 1px solid #eef2f7; }
+        .cb-col-unit, .cb-col-prefix { width: auto; }
+    }
+</style>
+
+<div class="cb-wrap">
+    <a href="{% url 'custom_backend_list' %}" class="cb-back">
+        <i class="bi bi-arrow-left"></i> Back to My Custom Items
+    </a>
+
+    <div class="cb-hero">
+        <div class="cb-hero-icon"><i class="bi bi-rulers"></i></div>
+        <div>
+            <h1>Set Units &amp; Repair Prefixes</h1>
+            <p>Confirm the unit for each detected item, and add a prefix that will be prepended in repair-work descriptions.</p>
         </div>
     </div>
+
+    <div class="cb-meta">
+        <span class="cb-chip"><i class="bi bi-tag"></i><strong>{{ backend.name }}</strong></span>
+        <span class="cb-chip"><i class="bi bi-folder"></i>Group: <strong>{{ backend.group_name }}</strong></span>
+        <span class="cb-chip"><i class="bi bi-grid"></i>{{ backend.get_category_display }}</span>
+    </div>
+
+    {% if messages %}
+        {% for m in messages %}
+        <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not items %}
+        <div class="cb-empty">
+            <i class="bi bi-clipboard-x"></i>
+            <p>No items detected in this file.</p>
+        </div>
+    {% else %}
+        <div class="cb-help">
+            Defaults are auto-detected from item headings. Repair prefixes are optional &mdash; they're applied only when generating repair-work descriptions.
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="cb-table-card">
+                <table class="cb-table">
+                    <thead>
+                        <tr>
+                            <th style="width:48px;">#</th>
+                            <th>Item</th>
+                            <th style="width:100px;">Sheet</th>
+                            <th class="cb-col-unit">Unit</th>
+                            <th class="cb-col-prefix">Prefix (Repair)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for it in items %}
+                        <tr>
+                            <td><span class="cb-num">{{ forloop.counter }}</span></td>
+                            <td>{{ it.name }}</td>
+                            <td><span class="cb-sheet-pill">{{ it.sheet }}</span></td>
+                            <td>
+                                <input type="text" class="cb-cell-input" name="unit__{{ it.name }}"
+                                       value="{{ it.unit }}" placeholder="Nos / Mtr / Pts / kg">
+                            </td>
+                            <td>
+                                <input type="text" class="cb-cell-input" name="prefix__{{ it.name }}"
+                                       value="{{ it.prefix }}" placeholder="e.g. Repairing of, Replacing of">
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="cb-actions">
+                <button type="submit" class="cb-btn-primary">
+                    <i class="bi bi-check2"></i> Save
+                </button>
+                <a href="{% url 'custom_backend_list' %}" class="cb-btn-secondary">Skip for now</a>
+            </div>
+        </form>
+    {% endif %}
 </div>
 {% endblock %}
