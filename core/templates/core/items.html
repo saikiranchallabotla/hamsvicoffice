@@ -1675,18 +1675,21 @@ document.addEventListener('keydown', function(e) {
         }
     })();
 
-    // Handle file selection for custom items upload
-    document.getElementById('custom-items-file').addEventListener('change', function(e) {
-        if (!this.files || !this.files.length) return;
-        var file = this.files[0];
-        if (!file.name.endsWith('.xlsx')) {
-            alert('Please select a .xlsx file');
+    // Handle file selection for custom items upload (legacy in-page uploader; element removed)
+    var _customItemsFileEl = document.getElementById('custom-items-file');
+    if (_customItemsFileEl) {
+        _customItemsFileEl.addEventListener('change', function(e) {
+            if (!this.files || !this.files.length) return;
+            var file = this.files[0];
+            if (!file.name.endsWith('.xlsx')) {
+                alert('Please select a .xlsx file');
+                this.value = '';
+                return;
+            }
+            handleCustomItemUpload(file);
             this.value = '';
-            return;
-        }
-        handleCustomItemUpload(file);
-        this.value = '';
-    });
+        });
+    }
 
     function handleCustomItemUpload(file) {
         var statusEl = document.getElementById('upload-status');
