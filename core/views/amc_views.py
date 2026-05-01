@@ -18,6 +18,8 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
+
+from accounts.models import UserCustomBackend
 from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
 from django.db import transaction
@@ -326,6 +328,7 @@ def amc_items(request, category, group):
         "grand_total": grand_total,
         "available_backends": available_backends,
         "selected_backend_id": amc_selected_backend_id,
+        "custom_groups": UserCustomBackend.custom_group_names(request.user, 'amc', base_category),
     })
 
 

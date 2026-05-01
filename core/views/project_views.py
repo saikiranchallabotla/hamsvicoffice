@@ -21,6 +21,8 @@ from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
 from django.db import transaction
 
+from accounts.models import UserCustomBackend
+
 import io
 from io import BytesIO
 from difflib import SequenceMatcher
@@ -485,6 +487,7 @@ def datas_items(request, category, group):
         "selected_backend_id": selected_backend_id,
         "item_descs_json": json.dumps(item_descs),
         "uploaded_items_json": json.dumps(list(uploaded_items_in_session)),
+        "custom_groups": UserCustomBackend.custom_group_names(request.user, 'new_estimate', category),
     })
 
 

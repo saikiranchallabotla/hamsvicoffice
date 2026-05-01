@@ -139,6 +139,13 @@
 </style>
 
 <div class="groups-container">
+    <div class="d-flex justify-content-end mb-2">
+        <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}"
+           class="btn-ribbon-upload">
+            <i class="bi bi-cloud-upload"></i>
+            <span>Upload Custom Items</span>
+        </a>
+    </div>
     <div class="intro-card">
         <h3>
             <i class="bi bi-info-circle-fill"></i>
@@ -146,7 +153,7 @@
         </h3>
         <p>Choose a group below to view and select items for your estimate.</p>
     </div>
-    
+
     {% if groups %}
         <div class="groups-grid">
             {% for g in groups %}
@@ -155,14 +162,17 @@
                         <i class="bi bi-folder-fill"></i>
                     </div>
                     <div class="group-info">
-                        <div class="group-name">{{ g }}</div>
-                        <div class="group-hint">Click to view items</div>
+                        <div class="group-name">
+                            {{ g }}
+                            {% if g in custom_groups %}<span class="group-custom-tag" title="Your custom group">C</span>{% endif %}
+                        </div>
+                        <div class="group-hint">{% if g in custom_groups %}Your uploaded group{% else %}Click to view items{% endif %}</div>
                     </div>
                     <i class="bi bi-arrow-right group-arrow"></i>
                 </a>
             {% endfor %}
         </div>
-        
+
         <div class="stats-badge">
             <i class="bi bi-database-check"></i>
             {{ count_items_detected }} items detected in Master Datas
@@ -174,15 +184,40 @@
             <p>No groups were detected in this category.</p>
         </div>
     {% endif %}
-
-    <div class="custom-upload-cta" style="margin-top:1.5rem;padding:1.25rem;border:1px dashed #c7d2fe;border-radius:12px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
-        <div>
-            <strong><i class="bi bi-plus-circle me-1"></i> Don't see your group or items here?</strong>
-            <div class="text-muted" style="font-size:0.85rem;">Upload your own Excel and the items will appear in this module.</div>
-        </div>
-        <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-cloud-upload me-1"></i> Upload Custom Items
-        </a>
-    </div>
 </div>
+
+<style>
+.btn-ribbon-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.05rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border: none;
+    border-radius: 10px;
+    text-decoration: none;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+    transition: all 0.2s ease;
+}
+.btn-ribbon-upload:hover {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+}
+.group-custom-tag {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 1px 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    vertical-align: middle;
+}
+</style>
 {% endblock %}

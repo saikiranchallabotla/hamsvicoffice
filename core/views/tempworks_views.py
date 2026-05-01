@@ -21,6 +21,8 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
 
+from accounts.models import UserCustomBackend
+
 import io
 from io import BytesIO
 from difflib import SequenceMatcher
@@ -295,6 +297,7 @@ def temp_items(request, category, group):
         "grand_total": grand_total,
         "available_backends": available_backends,
         "selected_backend_id": temp_selected_backend_id,
+        "custom_groups": UserCustomBackend.custom_group_names(request.user, 'temp_works', base_category),
     }
     return render(request, "core/temp_items.html", context)
 

@@ -673,3 +673,14 @@ class UserCustomBackend(models.Model):
             return qs.filter(applies_amc=True)
         return cls.objects.none()
 
+    @classmethod
+    def custom_group_names(cls, user, module_code, base_category):
+        """Return a set of group names the user has uploaded for this module/category."""
+        qs = cls.for_user_module(user, module_code, base_category)
+        names = set()
+        for cb in qs:
+            g = (cb.group_name or cb.name or '').strip()
+            if g:
+                names.add(g)
+        return names
+
