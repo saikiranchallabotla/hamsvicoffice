@@ -463,10 +463,12 @@ def datas_items(request, category, group):
     request.session.modified = True
 
     work_type = request.session.get("work_type", "original") or "original"
-    excess_tp_percent = request.session.get("excess_tp_percent", "") or ""
-    ls_special_name = request.session.get("ls_special_name", "") or ""
-    ls_special_amount = request.session.get("ls_special_amount", "") or ""
-    deduct_old_material = request.session.get("deduct_old_material", "") or ""
+    # Additional options (Excess T.P, L.S Provision, deduct-old-material) are
+    # opt-in per estimate — do NOT carry values over from a previous download.
+    excess_tp_percent = ""
+    ls_special_name = ""
+    ls_special_amount = ""
+    deduct_old_material = ""
     
     return render(request, "core/items.html", {
         "category": category,

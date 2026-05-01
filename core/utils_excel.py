@@ -828,6 +828,62 @@ def expand_referenced_sheets_transitively(wb, initial_sheets, exclude=None):
     return closure
 
 
+_XLSX_MAX_COL = 16384  # Excel column limit (XFD)
+_XLSX_MAX_ROW = 1048576
+
+
+def trim_to_xlsx_limits(wb):
+    """
+    Defensively clamp every sheet to Excel's column/row limits and to its actual
+    populated range. Removes phantom cells / column_dimensions / row_dimensions
+    that can otherwise cause viewers (Trio Office, LibreOffice) to warn about
+    'maximum number of columns per sheet exceeded' when opening the file.
+    """
+    from openpyxl.utils import column_index_from_string
+
+    for ws in wb.worksheets:
+        # 1) Drop any cells beyond Excel's limits.
+        try:
+            bad_keys = [k for k in list(ws._cells.keys())
+                        if k[0] > _XLSX_MAX_ROW or k[1] > _XLSX_MAX_COL]
+            for k in bad_keys:
+                del ws._cells[k]
+        except Exception:
+            pass
+
+        # 2) Drop column_dimensions whose letter is beyond XFD or whose
+        #    column has no actual data and no width set.
+        try:
+            populated_cols = {c for (_r, c) in ws._cells.keys()}
+            for letter in list(ws.column_dimensions.keys()):
+                try:
+                    idx = column_index_from_string(letter)
+                except Exception:
+                    del ws.column_dimensions[letter]
+                    continue
+                if idx > _XLSX_MAX_COL:
+                    del ws.column_dimensions[letter]
+                    continue
+                dim = ws.column_dimensions[letter]
+                if idx not in populated_cols and not getattr(dim, 'width', None):
+                    del ws.column_dimensions[letter]
+        except Exception:
+            pass
+
+        # 3) Drop row_dimensions beyond row limit or rows with no data and no height.
+        try:
+            populated_rows = {r for (r, _c) in ws._cells.keys()}
+            for r in list(ws.row_dimensions.keys()):
+                if r > _XLSX_MAX_ROW:
+                    del ws.row_dimensions[r]
+                    continue
+                dim = ws.row_dimensions[r]
+                if r not in populated_rows and not getattr(dim, 'height', None):
+                    del ws.row_dimensions[r]
+        except Exception:
+            pass
+
+
 def fix_cross_sheet_refs(ws, src_sheet_name='Master Datas'):
     """
     After copying blocks from a source sheet into a destination sheet (e.g. Output/ItemBlocks),

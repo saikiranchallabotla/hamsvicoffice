@@ -391,7 +391,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively, normalize_external_sheet_refs
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively, normalize_external_sheet_refs, trim_to_xlsx_limits
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -975,6 +975,13 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         # Apply print settings: Portrait, A4, fit columns, Times New Roman
         from core.views import _apply_print_settings
         _apply_print_settings(wb)
+
+        # Strip phantom cells / dimensions that exceed Excel's column limits
+        # so viewers don't warn about "maximum number of columns exceeded".
+        try:
+            trim_to_xlsx_limits(wb)
+        except Exception as _e:
+            logger.warning(f"Job {job_id}: trim_to_xlsx_limits failed: {_e}")
 
         # Save to file
         output_buffer = BytesIO()

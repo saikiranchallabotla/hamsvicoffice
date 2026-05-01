@@ -2807,6 +2807,13 @@ def workslip(request):
             # Apply print settings: Landscape, A4, fit columns, Times New Roman
             _apply_print_settings(wb_out, landscape=True)
 
+            # Strip phantom cells/dimensions exceeding Excel's column limits
+            try:
+                from ..utils_excel import trim_to_xlsx_limits
+                trim_to_xlsx_limits(wb_out)
+            except Exception as _e:
+                logger.warning(f"Workslip: trim_to_xlsx_limits failed: {_e}")
+
             # return file
             resp = HttpResponse(
                 content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
