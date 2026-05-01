@@ -826,6 +826,13 @@
                     </li>
                 {% endfor %}
             </ul>
+            <div style="padding:0.75rem;border-top:1px dashed #e5e7eb;margin-top:0.5rem;">
+                <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}"
+                   class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-cloud-upload me-1"></i> Upload Custom Items
+                </a>
+                <div class="text-muted" style="font-size:0.75rem;margin-top:0.25rem;text-align:center;">Add your own group &amp; items</div>
+            </div>
         </div>
     </div>
 
