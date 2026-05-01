@@ -726,6 +726,46 @@ def find_referenced_sheets(ws, src_min_row, src_max_row, col_start, col_end, exc
     return found
 
 
+def _scan_sheet_for_sheet_refs(ws):
+    """Return the set of sheet names referenced by formulas anywhere in `ws`."""
+    found = set()
+    for row in ws.iter_rows():
+        for cell in row:
+            v = cell.value
+            if not (isinstance(v, str) and v.startswith('=')):
+                continue
+            for m in _SHEET_REF_RE.finditer(v):
+                name = m.group(1) or m.group(2)
+                if name:
+                    found.add(name)
+    return found
+
+
+def expand_referenced_sheets_transitively(wb, initial_sheets, exclude=None):
+    """
+    Given an initial set of sheet names referenced by item blocks, walk the
+    workbook to find every sheet they reference (and that those sheets
+    reference, recursively). Returns the closure as a set of sheet names that
+    actually exist in `wb`. `exclude` names are removed from the result and
+    are not traversed (typical: {'Master Datas'}).
+    """
+    exclude = set(exclude or ())
+    closure = set()
+    pending = [n for n in initial_sheets if n in wb.sheetnames and n not in exclude]
+    while pending:
+        name = pending.pop()
+        if name in closure or name in exclude:
+            continue
+        closure.add(name)
+        try:
+            for ref in _scan_sheet_for_sheet_refs(wb[name]):
+                if ref in wb.sheetnames and ref not in closure and ref not in exclude:
+                    pending.append(ref)
+        except Exception:
+            continue
+    return closure
+
+
 def fix_cross_sheet_refs(ws, src_sheet_name='Master Datas'):
     """
     After copying blocks from a source sheet into a destination sheet (e.g. Output/ItemBlocks),

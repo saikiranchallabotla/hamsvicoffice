@@ -29,7 +29,7 @@ from ..decorators import org_required, role_required
 
 logger = logging.getLogger(__name__)
 from ..tasks import process_excel_upload, generate_bill_pdf, generate_workslip_pdf, generate_bill_document_task
-from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, find_referenced_sheets
+from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, find_referenced_sheets, expand_referenced_sheets_transitively
 
 p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
@@ -1964,6 +1964,19 @@ def workslip(request):
                             ws_referenced_by_wb[_key][1].update(_refs)
                         else:
                             ws_referenced_by_wb[_key] = (_wb_local, set(_refs))
+
+                # Transitively expand so sheets reached only via another sheet
+                # (e.g. LEAD reached via INPUT) are also copied.
+                for _key, (_wb_local, _refs) in list(ws_referenced_by_wb.items()):
+                    try:
+                        ws_referenced_by_wb[_key] = (
+                            _wb_local,
+                            expand_referenced_sheets_transitively(
+                                _wb_local, _refs, exclude={'Master Datas'},
+                            ),
+                        )
+                    except Exception:
+                        pass
             ws_external_sheets_all = sorted({
                 _n for _, _refs in ws_referenced_by_wb.values() for _n in _refs
             })

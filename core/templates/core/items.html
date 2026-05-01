@@ -1517,8 +1517,7 @@ function selectSubtype(subtypeName, buttonElement) {
             if (typeof window.recalcTotal === 'function') {
                 window.recalcTotal();
             }
-            // Close modal after successful selection
-            closeSubtypesModal();
+            // Keep modal open so user can pick more subtypes; click backdrop or Esc to close.
         } else {
             // Restore original state
             icon.className = originalClass;

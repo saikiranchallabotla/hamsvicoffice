@@ -391,7 +391,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -548,6 +548,20 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     referenced_by_wb[_key][1].update(_refs)
                 else:
                     referenced_by_wb[_key] = (_wb_local, set(_refs))
+
+        # Expand each workbook's referenced-sheet set transitively, so sheets
+        # reached only via another sheet (e.g. LEAD reached via INPUT) are
+        # also copied.
+        for _key, (_wb_local, _refs) in list(referenced_by_wb.items()):
+            try:
+                referenced_by_wb[_key] = (
+                    _wb_local,
+                    expand_referenced_sheets_transitively(
+                        _wb_local, _refs, exclude={'Master Datas'},
+                    ),
+                )
+            except Exception:
+                pass
         external_sheets_all = sorted({
             _n for _, _refs in referenced_by_wb.values() for _n in _refs
         })
