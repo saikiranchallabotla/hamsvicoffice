@@ -1,4 +1,5 @@
 import os
+import re
 from copy import copy
 
 from openpyxl import load_workbook
@@ -692,6 +693,37 @@ def copy_block_with_styles_and_formulas(
             start_column=min_col + col_offset,
             end_column=max_col + col_offset,
         )
+
+
+# Matches sheet-qualified refs in a formula:  [N]'Sheet Name'!A1  or  Sheet!$A$1
+# Sheet name is captured from group(1) (quoted) or group(2) (unquoted).
+_SHEET_REF_RE = re.compile(
+    r"(?:\[\d+\])?(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_\. ]*))!\$?[A-Za-z]+\$?\d+"
+)
+
+
+def find_referenced_sheets(ws, src_min_row, src_max_row, col_start, col_end, exclude=None):
+    """
+    Scan formulas in the given block of `ws` and return the set of sheet names
+    referenced from other sheets (e.g. INPUT, LEAD, 'My Sheet').
+    Self-references (to ws.title) and any name in `exclude` are filtered out.
+    """
+    exclude = set(exclude or ())
+    exclude.add(ws.title)
+    found = set()
+    for r in range(src_min_row, src_max_row + 1):
+        for c in range(col_start, col_end + 1):
+            try:
+                v = ws.cell(row=r, column=c).value
+            except Exception:
+                continue
+            if not (isinstance(v, str) and v.startswith('=')):
+                continue
+            for m in _SHEET_REF_RE.finditer(v):
+                name = m.group(1) or m.group(2)
+                if name and name not in exclude:
+                    found.add(name)
+    return found
 
 
 def fix_cross_sheet_refs(ws, src_sheet_name='Master Datas'):

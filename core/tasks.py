@@ -391,7 +391,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -515,6 +515,43 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         job.current_step = "Building Output sheet..."
         job.save()
 
+        # Pre-pass: discover external-sheet references in every fetched item block
+        # so we can (a) keep those refs absolute during translation and
+        # (b) copy each referenced sheet from its source workbook into the output.
+        # `referenced_by_wb` maps id(workbook) -> (workbook, set(sheet_names)).
+        referenced_by_wb = {}
+        for _name in fetched:
+            if _name in uploaded_items_set:
+                _blk = uploaded_item_blocks.get(_name)
+                if not _blk or not ws_upload_src:
+                    continue
+                _src_ws_scan = ws_upload_src
+                _src_min, _src_max = _blk[0], _blk[1]
+            else:
+                _info = name_to_info.get(_name)
+                if not _info:
+                    continue
+                _src_ws_scan = _info.get('_source_ws') or ws_src
+                _src_min = _info["start_row"]
+                _src_max = _info["end_row"]
+            try:
+                _refs = find_referenced_sheets(
+                    _src_ws_scan, _src_min, _src_max, 1, 10,
+                    exclude={'Master Datas'},
+                )
+            except Exception:
+                _refs = set()
+            if _refs:
+                _wb_local = _src_ws_scan.parent
+                _key = id(_wb_local)
+                if _key in referenced_by_wb:
+                    referenced_by_wb[_key][1].update(_refs)
+                else:
+                    referenced_by_wb[_key] = (_wb_local, set(_refs))
+        external_sheets_all = sorted({
+            _n for _, _refs in referenced_by_wb.values() for _n in _refs
+        })
+
         # Create workbook
         wb = Workbook()
         ws_out = wb.active
@@ -577,7 +614,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 dst_start_row=dst_start,
                 col_start=1,
                 col_end=10,
-                external_sheets=['INPUT', 'LEAD'],
+                external_sheets=external_sheets_all,
             )
 
             ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"
@@ -900,15 +937,18 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             if est_idx > 0:
                 wb.move_sheet("Estimate", offset=-est_idx)
 
-        # Copy INPUT and LEAD sheets from backend if present (cells in Output/Estimate may reference them)
-        if filepath:
-            try:
-                _backend_linked = load_workbook(filepath, data_only=False)
-                for _sheet_name in ('INPUT', 'LEAD'):
-                    if _sheet_name in _backend_linked.sheetnames:
-                        copy_sheet_to_workbook(_backend_linked, _sheet_name, wb)
-            except Exception as _e:
-                logger.warning(f"Job {job_id}: Could not copy INPUT/LEAD sheets from backend: {_e}")
+        # Copy every externally-referenced sheet from each source workbook into
+        # the output, so cross-sheet formulas in copied item blocks resolve.
+        # First-occurrence wins on sheet-name collisions across workbooks.
+        for _wb_local, _refs in referenced_by_wb.values():
+            for _sheet_name in _refs:
+                if _sheet_name in wb.sheetnames:
+                    continue
+                if _sheet_name in _wb_local.sheetnames:
+                    try:
+                        copy_sheet_to_workbook(_wb_local, _sheet_name, wb)
+                    except Exception as _e:
+                        logger.warning(f"Job {job_id}: Could not copy referenced sheet '{_sheet_name}': {_e}")
 
         # Apply print settings: Portrait, A4, fit columns, Times New Roman
         from core.views import _apply_print_settings

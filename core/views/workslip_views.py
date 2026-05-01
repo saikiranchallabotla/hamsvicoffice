@@ -29,7 +29,7 @@ from ..decorators import org_required, role_required
 
 logger = logging.getLogger(__name__)
 from ..tasks import process_excel_upload, generate_bill_pdf, generate_workslip_pdf, generate_bill_document_task
-from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates
+from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, find_referenced_sheets
 
 p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
@@ -1940,6 +1940,34 @@ def workslip(request):
             # ---------- create workbook ----------
             wb_out = Workbook()
 
+            # Pre-pass: discover external-sheet references in supplemental item
+            # blocks so we can keep refs absolute and copy each referenced sheet
+            # from its source workbook into the output.
+            ws_referenced_by_wb = {}  # id(wb) -> (wb, set(sheet_names))
+            if ws_supp_items and ws_data is not None:
+                for _name in ws_supp_items:
+                    _info = item_to_info.get(_name)
+                    if not _info:
+                        continue
+                    _src_ws_scan = _info.get('_source_ws') or ws_data
+                    try:
+                        _refs = find_referenced_sheets(
+                            _src_ws_scan, _info["start_row"], _info["end_row"], 1, 10,
+                            exclude={'Master Datas'},
+                        )
+                    except Exception:
+                        _refs = set()
+                    if _refs:
+                        _wb_local = _src_ws_scan.parent
+                        _key = id(_wb_local)
+                        if _key in ws_referenced_by_wb:
+                            ws_referenced_by_wb[_key][1].update(_refs)
+                        else:
+                            ws_referenced_by_wb[_key] = (_wb_local, set(_refs))
+            ws_external_sheets_all = sorted({
+                _n for _, _refs in ws_referenced_by_wb.values() for _n in _refs
+            })
+
             # Sheet 1: ItemBlocks (only if supplemental items exist)
             if ws_supp_items:
                 ws_blocks = wb_out.active
@@ -1968,7 +1996,7 @@ def workslip(request):
                             dst_start_row=current_row,
                             col_start=1,
                             col_end=10,
-                            external_sheets=['INPUT', 'LEAD'],
+                            external_sheets=ws_external_sheets_all,
                         )
                         # Add Data serial number to column A of block header row
                         ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
@@ -2740,17 +2768,20 @@ def workslip(request):
                 if ws_idx > 0:
                     wb_out.move_sheet("WorkSlip", offset=-ws_idx)
 
-            # Copy INPUT and LEAD sheets from backend if present (supplemental item blocks may reference them)
-            if ws_supp_items and filepath:
-                try:
-                    from openpyxl import load_workbook as _lw
-                    from ..utils_excel import copy_sheet_to_workbook
-                    _backend_linked = _lw(filepath, data_only=False)
-                    for _sheet_name in ('INPUT', 'LEAD'):
-                        if _sheet_name in _backend_linked.sheetnames:
-                            copy_sheet_to_workbook(_backend_linked, _sheet_name, wb_out)
-                except Exception as _e:
-                    logger.warning(f"Workslip: Could not copy INPUT/LEAD sheets from backend: {_e}")
+            # Copy every externally-referenced sheet from each source workbook
+            # into the output, so cross-sheet formulas in supplemental item
+            # blocks resolve. First-occurrence wins on sheet-name collisions.
+            if ws_supp_items and ws_referenced_by_wb:
+                from ..utils_excel import copy_sheet_to_workbook
+                for _wb_local, _refs in ws_referenced_by_wb.values():
+                    for _sheet_name in _refs:
+                        if _sheet_name in wb_out.sheetnames:
+                            continue
+                        if _sheet_name in _wb_local.sheetnames:
+                            try:
+                                copy_sheet_to_workbook(_wb_local, _sheet_name, wb_out)
+                            except Exception as _e:
+                                logger.warning(f"Workslip: Could not copy referenced sheet '{_sheet_name}': {_e}")
 
             # Apply print settings: Landscape, A4, fit columns, Times New Roman
             _apply_print_settings(wb_out, landscape=True)
