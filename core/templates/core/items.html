@@ -1557,7 +1557,52 @@ document.addEventListener('keydown', function(e) {
     var form = document.getElementById("estimate-form");
     if (!form) return;
 
+    // Inject a styled "no items" warning modal once.
+    function ensureNoItemsModal() {
+        if (document.getElementById('no-items-modal')) return;
+        var html = ''
+            + '<div id="no-items-modal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.55);align-items:center;justify-content:center;backdrop-filter:blur(2px);">'
+            + '  <div style="background:#fff;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.25);width:min(92vw,420px);overflow:hidden;font-family:inherit;animation:noItemsPop 0.18s ease-out;">'
+            + '    <div style="padding:18px 20px;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);display:flex;align-items:center;gap:12px;border-bottom:1px solid #fcd34d;">'
+            + '      <div style="width:40px;height:40px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.25rem;flex-shrink:0;"><i class="bi bi-exclamation-triangle-fill"></i></div>'
+            + '      <div style="font-size:1rem;font-weight:600;color:#78350f;">No items selected</div>'
+            + '    </div>'
+            + '    <div style="padding:18px 22px;color:#475569;font-size:0.875rem;line-height:1.5;">'
+            + '      Please tick at least one item from the list on the left before downloading the estimate.'
+            + '    </div>'
+            + '    <div style="padding:12px 20px 18px;display:flex;justify-content:flex-end;">'
+            + '      <button type="button" id="no-items-modal-ok" style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);color:#fff;border:none;padding:8px 22px;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;box-shadow:0 4px 10px rgba(217,119,6,0.3);">OK</button>'
+            + '    </div>'
+            + '  </div>'
+            + '</div>'
+            + '<style>@keyframes noItemsPop{from{opacity:0;transform:scale(0.94);}to{opacity:1;transform:scale(1);}}</style>';
+        var wrap = document.createElement('div');
+        wrap.innerHTML = html;
+        while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+        var modal = document.getElementById('no-items-modal');
+        function close() { modal.style.display = 'none'; }
+        document.getElementById('no-items-modal-ok').addEventListener('click', close);
+        modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modal.style.display === 'flex') close();
+        });
+    }
+
+    window.showNoItemsWarning = function() {
+        ensureNoItemsModal();
+        var modal = document.getElementById('no-items-modal');
+        modal.style.display = 'flex';
+    };
+
     form.addEventListener("submit", function(e) {
+        // Guard: must have at least one item in the estimate table.
+        var rowCount = document.querySelectorAll("#estimate-table tbody tr[data-item-name]").length;
+        if (rowCount === 0) {
+            e.preventDefault();
+            showNoItemsWarning();
+            return;
+        }
+
         // Build qty map before submission
         var m = buildQtyMap();
         document.getElementById("qty-map-field").value = JSON.stringify(m);
