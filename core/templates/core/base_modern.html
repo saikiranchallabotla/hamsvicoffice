@@ -886,6 +886,10 @@
                 <i class="bi bi-folder2-open"></i>
                 <span>My Saved Works</span>
             </a>
+            <a href="{% url 'custom_backend_list' %}" class="nav-link {% block nav_custom_items %}{% endblock %}">
+                <i class="bi bi-collection"></i>
+                <span>My Custom Items</span>
+            </a>
             
             <div class="nav-section">Account</div>
             <a href="{% url 'settings' %}" class="nav-link">

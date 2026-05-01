@@ -214,7 +214,7 @@
                                 <i class="bi bi-rulers"></i>
                             </a>
                             <form method="post" action="{% url 'custom_backend_delete' b.pk %}" style="display:inline;"
-                                  onsubmit="return confirm('Delete this custom upload? Items in saved works will still reference its data until re-saved.');">
+                                  data-cb-delete-form data-cb-name="{{ b.name }}">
                                 {% csrf_token %}
                                 <button class="cb-icon-btn cb-icon-del" type="submit" title="Delete">
                                     <i class="bi bi-trash"></i>
@@ -228,4 +228,125 @@
         </div>
     {% endif %}
 </div>
+
+<div class="cb-modal-backdrop" id="cb-del-modal" aria-hidden="true">
+    <div class="cb-modal" role="dialog" aria-modal="true" aria-labelledby="cb-del-title">
+        <div class="cb-modal-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <h3 id="cb-del-title">Delete this custom upload?</h3>
+        <p>
+            <strong id="cb-del-name"></strong> will be removed.
+            Items already saved in your works will still reference its data until those works are re-saved.
+        </p>
+        <div class="cb-modal-actions">
+            <button type="button" class="cb-modal-cancel" id="cb-del-cancel">Cancel</button>
+            <button type="button" class="cb-modal-confirm" id="cb-del-confirm">
+                <i class="bi bi-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .cb-modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(2px);
+        display: none; align-items: center; justify-content: center;
+        z-index: 1080;
+        padding: 1rem;
+    }
+    .cb-modal-backdrop.show { display: flex; animation: cb-fade 0.15s ease; }
+    @keyframes cb-fade { from { opacity: 0; } to { opacity: 1; } }
+    .cb-modal {
+        background: #fff; border-radius: 14px;
+        max-width: 420px; width: 100%;
+        padding: 1.5rem 1.4rem 1.2rem;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+        text-align: center;
+        animation: cb-pop 0.18s ease;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    @keyframes cb-pop { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .cb-modal-icon {
+        width: 56px; height: 56px;
+        margin: 0 auto 0.85rem;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
+        display: flex; align-items: center; justify-content: center;
+        color: #dc2626; font-size: 1.7rem;
+    }
+    .cb-modal h3 {
+        font-size: 1.05rem; font-weight: 700; color: #1e293b;
+        margin: 0 0 0.5rem;
+    }
+    .cb-modal p {
+        font-size: 0.84rem; color: #64748b;
+        margin: 0 0 1.2rem; line-height: 1.5;
+    }
+    .cb-modal p strong { color: #1e293b; font-weight: 600; }
+    .cb-modal-actions {
+        display: flex; gap: 0.5rem; justify-content: center;
+    }
+    .cb-modal-cancel, .cb-modal-confirm {
+        flex: 1; padding: 0.6rem 1rem;
+        border-radius: 9px; font-weight: 600; font-size: 0.85rem;
+        cursor: pointer; border: none;
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 0.35rem;
+        transition: all 0.15s;
+    }
+    .cb-modal-cancel {
+        background: #f1f5f9; color: #475569;
+        border: 1.3px solid #e2e8f0;
+    }
+    .cb-modal-cancel:hover { background: #e2e8f0; color: #1e293b; }
+    .cb-modal-confirm {
+        background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.28);
+    }
+    .cb-modal-confirm:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4); }
+</style>
+
+<script>
+(function () {
+    var modal = document.getElementById('cb-del-modal');
+    var nameEl = document.getElementById('cb-del-name');
+    var cancelBtn = document.getElementById('cb-del-cancel');
+    var confirmBtn = document.getElementById('cb-del-confirm');
+    var pendingForm = null;
+
+    function openModal(form) {
+        pendingForm = form;
+        nameEl.textContent = form.getAttribute('data-cb-name') || 'This upload';
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+    function closeModal() {
+        pendingForm = null;
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.querySelectorAll('form[data-cb-delete-form]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (form.dataset.cbConfirmed === '1') return;
+            e.preventDefault();
+            openModal(form);
+        });
+    });
+
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('show')) closeModal();
+    });
+    confirmBtn.addEventListener('click', function () {
+        if (pendingForm) {
+            pendingForm.dataset.cbConfirmed = '1';
+            pendingForm.submit();
+        }
+        closeModal();
+    });
+})();
+</script>
 {% endblock %}
