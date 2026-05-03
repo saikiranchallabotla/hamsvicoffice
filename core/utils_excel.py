@@ -868,7 +868,11 @@ def trim_to_xlsx_limits(wb):
         col_keep = min(max_data_col + 4, _XLSX_MAX_COL)
         row_keep = min(max_data_row + 4, _XLSX_MAX_ROW)
 
-        # 2) Drop column_dimensions whose index exceeds the kept range.
+        # 2) Drop column_dimensions whose index exceeds the kept range, and
+        #    clamp `min`/`max` of the surviving ones. A single ColumnDimension
+        #    with min=1 max=16384 (openpyxl's default for backends) will
+        #    otherwise write out as a giant <col> range and trigger Excel's
+        #    "we found a problem with some content" repair prompt.
         try:
             for letter in list(ws.column_dimensions.keys()):
                 try:
@@ -878,6 +882,15 @@ def trim_to_xlsx_limits(wb):
                     continue
                 if idx > col_keep:
                     del ws.column_dimensions[letter]
+                    continue
+                dim = ws.column_dimensions[letter]
+                try:
+                    if dim.max is not None and dim.max > col_keep:
+                        dim.max = col_keep
+                    if dim.min is not None and dim.min > col_keep:
+                        del ws.column_dimensions[letter]
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -893,8 +906,14 @@ def trim_to_xlsx_limits(wb):
         #    them can re-introduce phantom dimension references.
         try:
             for mr in list(ws.merged_cells.ranges):
-                if mr.max_col > col_keep or mr.max_row > row_keep:
-                    ws.merged_cells.ranges.remove(mr)
+                try:
+                    if mr.max_col > col_keep or mr.max_row > row_keep:
+                        ws.merged_cells.ranges.remove(mr)
+                except Exception:
+                    try:
+                        ws.merged_cells.ranges.remove(mr)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -913,6 +932,31 @@ def trim_to_xlsx_limits(wb):
             ws.print_area = None
         except Exception:
             pass
+
+    # 6) Strip workbook-level defined names whose value is broken
+    #    (#REF!, external [N] workbook indexes). Backend Excel files
+    #    (e.g. core/data/civil.xlsx, amc_civil.xlsx) ship dozens of such
+    #    dangling names; when carried into the output they make Excel pop
+    #    the "we found a problem with some content" recovery prompt.
+    try:
+        import re as _re
+        _bad_name_re = _re.compile(r'#REF!|\[\d+\]')
+        try:
+            _names = list(wb.defined_names)
+        except Exception:
+            _names = []
+        for _dn in _names:
+            try:
+                _val = wb.defined_names[_dn].value
+            except Exception:
+                _val = None
+            if not _val or _bad_name_re.search(str(_val)):
+                try:
+                    del wb.defined_names[_dn]
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
 
 def fix_cross_sheet_refs(ws, src_sheet_name='Master Datas'):
@@ -939,24 +983,63 @@ def fix_cross_sheet_refs(ws, src_sheet_name='Master Datas'):
 def copy_sheet_to_workbook(src_wb, sheet_name, dst_wb):
     """Copy a full sheet from src_wb into dst_wb, preserving values, formulas, styles, and dimensions."""
     from openpyxl.cell.cell import MergedCell
+    from openpyxl.utils import column_index_from_string
     if sheet_name not in src_wb.sheetnames:
         return None
 
     ws_src = src_wb[sheet_name]
     ws_dst = dst_wb.create_sheet(sheet_name)
 
-    # Column dimensions
+    # Determine actual data extent of the source sheet so we don't carry
+    # phantom merged ranges / column dimensions that span the full sheet
+    # (Excel flags those as content corruption when opening).
+    _src_max_col = 1
+    _src_max_row = 1
+    try:
+        for (r, c), cell in ws_src._cells.items():
+            if cell is not None and cell.value not in (None, ""):
+                if c > _src_max_col:
+                    _src_max_col = c
+                if r > _src_max_row:
+                    _src_max_row = r
+    except Exception:
+        _src_max_col = ws_src.max_column or 1
+        _src_max_row = ws_src.max_row or 1
+    _col_cap = min(_src_max_col + 4, _XLSX_MAX_COL)
+    _row_cap = min(_src_max_row + 4, _XLSX_MAX_ROW)
+
+    # Column dimensions — skip phantom ranges and clamp `max`.
     for col_letter, dim in ws_src.column_dimensions.items():
-        if dim.width:
-            ws_dst.column_dimensions[col_letter].width = dim.width
+        if not dim.width:
+            continue
+        try:
+            idx = column_index_from_string(col_letter)
+        except Exception:
+            continue
+        if idx > _col_cap:
+            continue
+        new_dim = ws_dst.column_dimensions[col_letter]
+        new_dim.width = dim.width
+        try:
+            if dim.max is not None:
+                new_dim.max = min(dim.max, _col_cap)
+            if dim.min is not None:
+                new_dim.min = min(dim.min, _col_cap)
+        except Exception:
+            pass
 
     # Row dimensions
     for row_idx, dim in ws_src.row_dimensions.items():
-        if dim.height:
+        if dim.height and row_idx <= _row_cap:
             ws_dst.row_dimensions[row_idx].height = dim.height
 
-    # Merged cells (must be done before writing values)
+    # Merged cells (must be done before writing values) — filter to data extent.
     for merged in ws_src.merged_cells.ranges:
+        try:
+            if merged.max_col > _col_cap or merged.max_row > _row_cap:
+                continue
+        except Exception:
+            continue
         ws_dst.merge_cells(str(merged))
 
     # Cell values and styles
