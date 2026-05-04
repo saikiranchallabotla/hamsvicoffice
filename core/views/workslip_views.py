@@ -198,7 +198,10 @@ def workslip(request):
     # Validate the group still exists (backend may have changed)
     if current_group and groups and current_group not in groups:
         current_group = groups[0]
-    request.session["ws_current_group"] = current_group
+    # Only write if changed — unconditional writes mark session.modified=True
+    # and cause concurrent GETs to overwrite freshly-saved POST data under gevent.
+    if request.session.get("ws_current_group") != current_group:
+        request.session["ws_current_group"] = current_group
 
     group_items = groups_map.get(current_group, []) if current_group else []
     detected_names = {i["name"] for i in items_list}
