@@ -1053,9 +1053,10 @@ def workslip(request):
                         logger.info(f"[MULTI-WORKSLIP] Workslip-{ws_file_num}: Using active sheet: '{ws_sheet.title}'")
                     
                     # Find Workslip Items Blocks sheet (for supplemental item names - yellow+red rows)
+                    # Match both "Items Blocks" (with space) and "ItemBlocks" (single word, app-generated).
                     ws_blocks_sheet = None
                     for sh in wb_ws_formulas.worksheets:
-                        if "items" in sh.title.lower() and "block" in sh.title.lower():
+                        if "item" in sh.title.lower() and "block" in sh.title.lower():
                             found = False
                             for r in range(1, min(sh.max_row, 200) + 1):
                                 if get_heading_name_from_sheet(sh, r):
