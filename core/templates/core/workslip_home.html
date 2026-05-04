@@ -405,7 +405,7 @@ function proceedToWorkslip() {
     }
     
     // Build URL with parameters
-    const url = `{% url 'workslip_main' %}?work_type=${selectedWorkType}&work_mode=${selectedWorkMode}&category=${selectedCategory}`;
+    const url = `{% url 'workslip_main' %}?work_type=${selectedWorkType}&work_mode=${selectedWorkMode}&category=${selectedCategory}&fresh=1`;
     window.spaNavigate ? spaNavigate(url) : (window.location.href = url);
 }
 

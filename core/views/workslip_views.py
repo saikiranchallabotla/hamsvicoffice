@@ -44,8 +44,10 @@ from .utils import (_apply_print_settings, _format_indian_number,
 def workslip(request):
     from core.utils_excel import get_available_backends_for_module
     
-    # ---- Clear session data on fresh page load (GET without preserve param) ----
-    if request.method == "GET" and not request.GET.get("preserve") and not request.GET.get("group"):
+    # ---- Clear session data only on explicit fresh entry (?fresh=1) ----
+    # Previously cleared on any parameter-less GET, which raced with SPA
+    # prefetches/AJAX under gevent and wiped freshly-uploaded estimates.
+    if request.method == "GET" and request.GET.get("fresh"):
         # Clear all workslip session data for a fresh start
         request.session["ws_estimate_rows"] = []
         request.session["ws_exec_map"] = {}
