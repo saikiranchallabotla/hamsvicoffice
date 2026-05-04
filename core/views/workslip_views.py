@@ -2370,8 +2370,8 @@ def workslip(request):
                     for supp in phase_supps:
                         supp_name = supp.get("name", "")
                         supp_qty = round(float(supp.get("qty", 0) or 0), 2)
-                        # Use description from row+2 (stored in 'desc'), fallback to item name
-                        supp_desc = supp.get("desc", supp_name) or supp_name
+                        # Workslip 2+: display only the yellow-header item name, not full description
+                        supp_desc = supp_name
                         # Apply repair prefix to previous phase supplemental items
                         if ws_work_mode == 'repair' and item_to_prefix_ws:
                             prefix = item_to_prefix_ws.get(supp_name, "")
@@ -2457,7 +2457,11 @@ def workslip(request):
 
                 # actual supplemental rows
                 for name in ws_supp_items:
-                    desc_supp = supp_desc_map.get(name, name)
+                    # Workslip 2+: display only the yellow-header item name; workslip 1: full description from backend
+                    if ws_current_phase > 1:
+                        desc_supp = name
+                    else:
+                        desc_supp = supp_desc_map.get(name, name)
                     if ws_work_mode == 'repair' and item_to_prefix_ws:
                         prefix = item_to_prefix_ws.get(name, "")
                         if prefix and not desc_supp.startswith(prefix):
