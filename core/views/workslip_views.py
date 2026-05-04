@@ -1068,16 +1068,20 @@ def workslip(request):
                     # Parse Workslip Items Blocks for supplemental item names
                     ws_supp_item_names = []  # Supplemental items from this workslip
                     if ws_blocks_sheet:
-                        in_supplemental_section = False
+                        # Collect every yellow+red heading name. If a "SUPPLEMENTAL"
+                        # divider exists, only names after it are supplemental; otherwise
+                        # the whole sheet is supplemental (this app generates ItemBlocks
+                        # containing only supp blocks, with no SUPPLEMENTAL divider).
+                        all_names = []
+                        supp_start_idx = None
                         for r in range(1, ws_blocks_sheet.max_row + 1):
                             nm = get_heading_name_from_sheet(ws_blocks_sheet, r)
                             if nm:
-                                nm_upper = nm.upper()
-                                if "SUPPLEMENTAL" in nm_upper:
-                                    in_supplemental_section = True
+                                if "SUPPLEMENTAL" in nm.upper():
+                                    supp_start_idx = len(all_names)
                                     continue
-                                if in_supplemental_section:
-                                    ws_supp_item_names.append(nm)
+                                all_names.append(nm)
+                        ws_supp_item_names = all_names[supp_start_idx:] if supp_start_idx is not None else all_names
                         logger.info(f"[MULTI-WORKSLIP] Workslip-{ws_file_num}: Found {len(ws_supp_item_names)} supplemental items")
                     
                     phase_count, col_map = detect_workslip_phase_and_columns(ws_sheet)
