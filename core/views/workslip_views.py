@@ -1053,10 +1053,13 @@ def workslip(request):
                         logger.info(f"[MULTI-WORKSLIP] Workslip-{ws_file_num}: Using active sheet: '{ws_sheet.title}'")
                     
                     # Find Workslip Items Blocks sheet (for supplemental item names - yellow+red rows)
-                    # Match both "Items Blocks" (with space) and "ItemBlocks" (single word, app-generated).
+                    # Match legacy "Items Blocks" / "ItemBlocks" and current "Supplement Datas N".
                     ws_blocks_sheet = None
                     for sh in wb_ws_formulas.worksheets:
-                        if "item" in sh.title.lower() and "block" in sh.title.lower():
+                        title_lc = sh.title.lower()
+                        is_legacy = ("item" in title_lc and "block" in title_lc)
+                        is_current = ("supplement" in title_lc and "data" in title_lc)
+                        if is_legacy or is_current:
                             found = False
                             for r in range(1, min(sh.max_row, 200) + 1):
                                 if get_heading_name_from_sheet(sh, r):
@@ -1071,8 +1074,9 @@ def workslip(request):
                     if ws_blocks_sheet:
                         # Collect every yellow+red heading name. If a "SUPPLEMENTAL"
                         # divider exists, only names after it are supplemental; otherwise
-                        # the whole sheet is supplemental (this app generates ItemBlocks
-                        # containing only supp blocks, with no SUPPLEMENTAL divider).
+                        # the whole sheet is supplemental (this app generates a
+                        # "Supplement Datas N" sheet containing only supp blocks, with
+                        # no SUPPLEMENTAL divider).
                         all_names = []
                         supp_start_idx = None
                         for r in range(1, ws_blocks_sheet.max_row + 1):
@@ -1991,10 +1995,10 @@ def workslip(request):
                 _n for _, _refs in ws_referenced_by_wb.values() for _n in _refs
             })
 
-            # Sheet 1: ItemBlocks (only if supplemental items exist)
+            # Sheet 1: Supplement Datas N (only if supplemental items exist)
             if ws_supp_items:
                 ws_blocks = wb_out.active
-                ws_blocks.title = "ItemBlocks"
+                ws_blocks.title = f"Supplement Datas {target_workslip}"
                 # Add "Name of Work" header
                 ws_blocks.merge_cells("A1:J1")
                 hdr = ws_blocks["A1"]
@@ -2034,7 +2038,7 @@ def workslip(request):
                                 if not base_str.startswith(prefix):
                                     desc_cell_block.value = f"{prefix} {base_str}" if base_str else prefix
                         current_row += (end_row - start_row + 1)  # No blank row between blocks
-                # Fix formulas in ItemBlocks: remove 'Master Datas'! qualifiers and [N] workbook-index artifacts
+                # Fix formulas in Supplement Datas: remove 'Master Datas'! qualifiers and [N] workbook-index artifacts
                 from ..utils_excel import fix_cross_sheet_refs
                 fix_cross_sheet_refs(ws_blocks, src_sheet_name='Master Datas')
             else:
@@ -2042,7 +2046,7 @@ def workslip(request):
                 default_sheet = wb_out.active
                 wb_out.remove(default_sheet)
 
-            # Sheet 2 (or 1 if no ItemBlocks): WorkSlip
+            # Sheet 2 (or 1 if no Supplement Datas): WorkSlip
             ws_ws = wb_out.create_sheet("WorkSlip")
 
             thin = Side(border_style="thin", color="000000")
@@ -2785,7 +2789,7 @@ def workslip(request):
                 for c in qty_cols:
                     ws_ws.cell(r, c).number_format = fmt_qty
 
-            # Reorder sheets: WorkSlip first, then ItemBlocks
+            # Reorder sheets: WorkSlip first, then Supplement Datas
             if "WorkSlip" in wb_out.sheetnames:
                 ws_idx = wb_out.sheetnames.index("WorkSlip")
                 if ws_idx > 0:
