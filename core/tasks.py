@@ -729,7 +729,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     desc = base_desc_str
 
             rr = rate_pos.get(name)
-            rate_formula = f"=Output!J{rr}" if rr else ""
+            rate_formula = f"=Datas!J{rr}" if rr else ""
 
             # Priority for unit: 1) user-entered unit_map, 2) saved/backend unit, 3) group-based default
             custom_unit = unit_map.get(name, "").strip()
