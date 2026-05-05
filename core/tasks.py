@@ -569,7 +569,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         # Create workbook
         wb = Workbook()
         ws_out = wb.active
-        ws_out.title = "Output"
+        ws_out.title = "Datas"
 
         thin = Side(border_style="thin", color="000000")
         border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
@@ -656,7 +656,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         job.save()
         
         # Create Estimate sheet
-        ws_est = wb.create_sheet("Datas")
+        ws_est = wb.create_sheet("Estimate")
         
         ws_est.merge_cells("A1:H1")
         c1 = ws_est["A1"]
@@ -945,7 +945,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         job.current_step = "Saving Excel file..."
         job.save()
         
-        # Reorder sheets: Estimate first, then Output (ItemBlocks)
+        # Reorder sheets: Estimate first, then Datas
         if "Estimate" in wb.sheetnames:
             est_idx = wb.sheetnames.index("Estimate")
             if est_idx > 0:
