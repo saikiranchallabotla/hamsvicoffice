@@ -1983,4 +1983,13 @@ document.addEventListener('click', function(e) {
 <!-- Include Save Work Modal -->
 {% include 'core/saved_works/save_modal.html' with work_type='temporary_works' category=category %}
 
+<script src="{% static 'js/group_reorder.js' %}"></script>
+<script>
+(function () {
+  var token = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+  var url = "{% url 'temp_ajax_save_group_order' category %}";
+  if (window.initGroupReorder) window.initGroupReorder({ saveUrl: url, csrfToken: token });
+})();
+</script>
+
 {% endblock %}

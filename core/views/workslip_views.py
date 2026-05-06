@@ -30,6 +30,7 @@ from ..decorators import org_required, role_required
 logger = logging.getLogger(__name__)
 from ..tasks import process_excel_upload, generate_bill_pdf, generate_workslip_pdf, generate_bill_document_task
 from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, find_referenced_sheets, expand_referenced_sheets_transitively
+from ..utils_group_order import apply_group_order, save_group_order
 
 p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
@@ -193,7 +194,9 @@ def workslip(request):
     except Exception:
         items_list, groups_map, ws_data, filepath = [], {}, None, ""
 
-    groups = sorted(groups_map.keys(), key=lambda s: s.lower()) if groups_map else []
+    _scope_map = {'amc': 'amc', 'tempworks': 'temp'}
+    _ws_scope = _scope_map.get(ws_work_type, 'estimate')
+    groups = apply_group_order(request.user, _ws_scope, ws_category, groups_map.keys()) if groups_map else []
     current_group = request.GET.get("group") or request.session.get("ws_current_group") or (groups[0] if groups else "")
     # Validate the group still exists (backend may have changed)
     if current_group and groups and current_group not in groups:

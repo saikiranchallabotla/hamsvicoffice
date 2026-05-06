@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
 
 from accounts.models import UserCustomBackend
+from core.utils_group_order import apply_group_order, save_group_order
 
 import io
 from io import BytesIO
@@ -108,7 +109,7 @@ def temp_groups(request, category):
             "error_message": f"Could not load temporary works data: {str(e)}",
         })
         
-    groups = sorted(groups_map.keys(), key=lambda s: s.lower())
+    groups = apply_group_order(request.user, 'temp', category, groups_map.keys())
 
     if not groups:
         return render(
@@ -185,7 +186,7 @@ def temp_items(request, category, group):
             "error_message": f"Could not load temporary works data: {str(e)}",
         })
 
-    groups = sorted(groups_map.keys(), key=lambda s: s.lower())
+    groups = apply_group_order(request.user, 'temp', category, groups_map.keys())
     group_items = groups_map.get(group, [])
 
     detected_names = {i["name"] for i in items_list}
@@ -1388,3 +1389,18 @@ def temp_download_forwarding_letter(request, category):
         return redirect('temp_groups', category=category)
 
 
+
+
+@login_required(login_url='login')
+@require_POST
+def temp_ajax_save_group_order(request, category):
+    """Save the user's custom group order for the temporary works scope."""
+    try:
+        data = json.loads(request.body.decode('utf-8') or '{}')
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'invalid json'}, status=400)
+    order = data.get('order') or []
+    if not isinstance(order, list):
+        return JsonResponse({'ok': False, 'error': 'order must be a list'}, status=400)
+    save_group_order(request.user, 'temp', category, order)
+    return JsonResponse({'ok': True})

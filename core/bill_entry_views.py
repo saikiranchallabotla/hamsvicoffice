@@ -633,23 +633,37 @@ def _bill_entry_save_logic(request, work_id):
             'work_mode': work_data.get('ws_work_mode', 'original') if source_work.work_type == 'workslip' else work_data.get('work_type', 'original'),
         }
         
-        # Use update_or_create to avoid duplicate bill records
+        # Find existing bill row(s) and tolerate duplicates if any slipped in.
         bill_name = f"Bill-{bill_number} from {source_work.name}"
-        
-        saved_bill, created = SavedWork.objects.update_or_create(
-            organization=org,
-            user=user,
-            parent=source_work,
-            work_type='bill',
-            bill_number=bill_number,
-            defaults={
-                'name': bill_name,
-                'work_data': bill_data,
-                'category': source_work.category,
-                'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
-                'status': 'in_progress',  # Mark as in_progress (draft) until downloaded
-            }
+        defaults = {
+            'name': bill_name,
+            'work_data': bill_data,
+            'category': source_work.category,
+            'bill_type': 'first_part' if bill_number == 1 else 'nth_part',
+            'status': 'in_progress',  # Mark as in_progress (draft) until downloaded
+        }
+        existing = list(
+            SavedWork.objects.filter(
+                organization=org, user=user, parent=source_work,
+                work_type='bill', bill_number=bill_number,
+            ).order_by('-updated_at', '-id')
         )
+        if existing:
+            saved_bill = existing[0]
+            if len(existing) > 1:
+                SavedWork.objects.filter(
+                    id__in=[w.id for w in existing[1:]]
+                ).delete()
+            for k, v in defaults.items():
+                setattr(saved_bill, k, v)
+            saved_bill.save()
+            created = False
+        else:
+            saved_bill = SavedWork.objects.create(
+                organization=org, user=user, parent=source_work,
+                work_type='bill', bill_number=bill_number, **defaults,
+            )
+            created = True
 
         action_msg = 'created' if created else 'updated'
         messages.success(request, f'Bill-{bill_number} {action_msg} successfully!')

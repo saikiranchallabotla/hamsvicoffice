@@ -175,6 +175,7 @@ urlpatterns = [
     # AJAX endpoints for New Estimate module (queued item selection & drag-drop reorder)
     path('datas/<str:category>/ajax_toggle_item/', views.ajax_toggle_item, name='ajax_toggle_item'),
     path('datas/<str:category>/ajax_reorder_items/', views.ajax_reorder_items, name='ajax_reorder_items'),
+    path('datas/<str:category>/ajax_save_group_order/', views.ajax_save_group_order, name='ajax_save_group_order'),
     path('datas/<str:category>/ajax_upload_custom_items/', views.ajax_upload_custom_items, name='ajax_upload_custom_items'),
 
     # -------------------------
@@ -259,6 +260,11 @@ urlpatterns = [
         name="temp_ajax_reorder_items",
     ),
     path(
+        "tempdatas/<str:category>/ajax_save_group_order/",
+        views.temp_ajax_save_group_order,
+        name="temp_ajax_save_group_order",
+    ),
+    path(
         "tempdatas/<str:category>/group/<str:group>/clear/",
         views.temp_clear_items,
         name="temp_clear_items",
@@ -326,6 +332,11 @@ urlpatterns = [
         "amc/<str:category>/ajax_reorder_items/",
         views.amc_ajax_reorder_items,
         name="amc_ajax_reorder_items",
+    ),
+    path(
+        "amc/<str:category>/ajax_save_group_order/",
+        views.amc_ajax_save_group_order,
+        name="amc_ajax_save_group_order",
     ),
 
     # ========================

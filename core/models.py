@@ -970,3 +970,28 @@ class LetterSettings(models.Model):
         if self.recipient_address:
             parts.append(self.recipient_address)
         return parts
+
+
+class UserGroupOrder(models.Model):
+    """Per-user custom ordering of groups in the three-panel views.
+
+    Scope distinguishes estimate / amc / temp because each loads a
+    different backend with a different group set. Category (civil,
+    electrical, ...) further partitions because group names differ.
+    """
+    SCOPE_CHOICES = (
+        ('estimate', 'Estimate'),
+        ('amc', 'AMC'),
+        ('temp', 'Temporary Works'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='group_orders')
+    scope = models.CharField(max_length=16, choices=SCOPE_CHOICES)
+    category = models.CharField(max_length=32)
+    order = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('user', 'scope', 'category')]
+
+    def __str__(self):
+        return f'{self.user_id}/{self.scope}/{self.category} ({len(self.order)})'

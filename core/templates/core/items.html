@@ -3098,4 +3098,13 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
 })();
 </script>
 
+<script src="{% static 'js/group_reorder.js' %}"></script>
+<script>
+(function () {
+  var token = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+  var url = "{% url 'ajax_save_group_order' category %}";
+  if (window.initGroupReorder) window.initGroupReorder({ saveUrl: url, csrfToken: token });
+})();
+</script>
+
 {% endblock %}

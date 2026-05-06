@@ -20,6 +20,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 
 from accounts.models import UserCustomBackend
+from core.utils_group_order import apply_group_order, save_group_order
 from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
 from django.db import transaction
@@ -131,7 +132,7 @@ def amc_groups(request, category):
             "error": str(e),
         })
     
-    groups = sorted(groups_map.keys(), key=lambda s: s.lower())
+    groups = apply_group_order(request.user, 'amc', category, groups_map.keys())
 
     if not groups:
         return render(request, "core/amc/amc_groups.html", {
@@ -199,7 +200,7 @@ def amc_items(request, category, group):
             "error": str(e),
         })
 
-    groups = sorted(groups_map.keys(), key=lambda s: s.lower())
+    groups = apply_group_order(request.user, 'amc', category, groups_map.keys())
 
     group_items = groups_map.get(group, [])
     detected_names = {i["name"] for i in items_list}
@@ -1128,3 +1129,18 @@ def amc_download_output(request, category):
     except Exception as e:
         logger.error(f"Failed to generate AMC output Excel: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url='login')
+@require_POST
+def amc_ajax_save_group_order(request, category):
+    """Save the user's custom group order for the AMC scope."""
+    try:
+        data = json.loads(request.body.decode('utf-8') or '{}')
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'invalid json'}, status=400)
+    order = data.get('order') or []
+    if not isinstance(order, list):
+        return JsonResponse({'ok': False, 'error': 'order must be a list'}, status=400)
+    save_group_order(request.user, 'amc', category, order)
+    return JsonResponse({'ok': True})
