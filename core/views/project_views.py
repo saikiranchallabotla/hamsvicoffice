@@ -1745,10 +1745,10 @@ def download_forwarding_letter_live(request, category):
 
         sections = doc.sections
         for section in sections:
-            section.top_margin = Inches(0.8)
-            section.bottom_margin = Inches(0.8)
-            section.left_margin = Inches(1)
-            section.right_margin = Inches(1)
+            section.top_margin = Inches(0.6)
+            section.bottom_margin = Inches(0.6)
+            section.left_margin = Inches(0.8)
+            section.right_margin = Inches(0.8)
 
         # Header - Government/Organization name
         header1 = doc.add_paragraph()
@@ -1762,7 +1762,6 @@ def download_forwarding_letter_live(request, category):
             run1.font.bold = True
             run1.font.size = Pt(14)
             run1.font.color.rgb = placeholder_color
-            run1.font.italic = True
 
         # Header - Department name
         header2 = doc.add_paragraph()
@@ -1776,7 +1775,6 @@ def download_forwarding_letter_live(request, category):
             run2.font.bold = True
             run2.font.size = Pt(13)
             run2.font.color.rgb = placeholder_color
-            run2.font.italic = True
 
         doc.add_paragraph()
 
@@ -1797,14 +1795,12 @@ def download_forwarding_letter_live(request, category):
         else:
             from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
             from_run1.font.color.rgb = placeholder_color
-            from_run1.font.italic = True
 
         if letter_settings and letter_settings.officer_designation:
             from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
         else:
             from_run2 = from_para.add_run('[Designation],\n')
             from_run2.font.color.rgb = placeholder_color
-            from_run2.font.italic = True
 
         if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
             sub_addr = letter_settings.sub_division
@@ -1814,7 +1810,6 @@ def download_forwarding_letter_live(request, category):
         else:
             from_run3 = from_para.add_run('[Sub Division, Office Address].')
             from_run3.font.color.rgb = placeholder_color
-            from_run3.font.italic = True
 
         # To section
         to_cell = from_to_table.cell(0, 1)
@@ -1827,21 +1822,18 @@ def download_forwarding_letter_live(request, category):
         else:
             to_run1 = to_para.add_run('[Officer Designation],\n')
             to_run1.font.color.rgb = placeholder_color
-            to_run1.font.italic = True
 
         if letter_settings and letter_settings.recipient_division:
             to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
         else:
             to_run2 = to_para.add_run('[Division Name],\n')
             to_run2.font.color.rgb = placeholder_color
-            to_run2.font.italic = True
 
         if letter_settings and letter_settings.recipient_address:
             to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
         else:
             to_run3 = to_para.add_run('[Address].')
             to_run3.font.color.rgb = placeholder_color
-            to_run3.font.italic = True
 
         doc.add_paragraph()
 
@@ -1857,7 +1849,6 @@ def download_forwarding_letter_live(request, category):
         else:
             lr_placeholder = lr_para.add_run('[Office Code]')
             lr_placeholder.font.color.rgb = placeholder_color
-            lr_placeholder.font.italic = True
             lr_placeholder.font.underline = True
             lr_placeholder.font.bold = True
         lr_fy = lr_para.add_run(f'/{financial_year}/          ')
@@ -1865,6 +1856,7 @@ def download_forwarding_letter_live(request, category):
         lr_fy.font.underline = True
         lr_date = lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
         lr_date.font.bold = True
+        lr_date.font.underline = True
 
         doc.add_paragraph()
 
@@ -1891,21 +1883,15 @@ def download_forwarding_letter_live(request, category):
         ref_para.add_run('\tMemo No.')
         ref_placeholder = ref_para.add_run('[Reference Number]')
         ref_placeholder.font.color.rgb = placeholder_color
-        ref_placeholder.font.italic = True
         ref_placeholder.font.underline = True
         ref_para.add_run(f'/{financial_year} Dt.')
         ref_date_placeholder = ref_para.add_run('[DD.MM.YYYY]')
         ref_date_placeholder.font.color.rgb = placeholder_color
-        ref_date_placeholder.font.italic = True
         ref_date_placeholder.font.underline = True
-
-        doc.add_paragraph()
 
         stars_para = doc.add_paragraph()
         stars_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         stars_para.add_run('**.**')
-
-        doc.add_paragraph()
 
         body_para = doc.add_paragraph()
         body_para.add_run('With reference to the subject cited, I submit here ')
@@ -1961,7 +1947,6 @@ def download_forwarding_letter_live(request, category):
         else:
             req_placeholder = request_para.add_run('[Superior Officer Designation]')
             req_placeholder.font.color.rgb = placeholder_color
-            req_placeholder.font.italic = True
         request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
 
         doc.add_paragraph()
@@ -1971,13 +1956,11 @@ def download_forwarding_letter_live(request, category):
         doc.add_paragraph('Estimate  - 1 No.')
 
         doc.add_paragraph()
-        doc.add_paragraph()
 
         sign_para = doc.add_paragraph()
         sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         sign_para.add_run('Yours faithfully,')
 
-        doc.add_paragraph()
         doc.add_paragraph()
 
         title_para = doc.add_paragraph()
@@ -1990,21 +1973,18 @@ def download_forwarding_letter_live(request, category):
             run_title = title_para.add_run('[Officer Designation]\n')
             run_title.font.bold = True
             run_title.font.color.rgb = placeholder_color
-            run_title.font.italic = True
 
         if letter_settings and letter_settings.sub_division:
             sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
         else:
             sub_div_run = title_para.add_run('[Sub Division Name],\n')
             sub_div_run.font.color.rgb = placeholder_color
-            sub_div_run.font.italic = True
 
         if letter_settings and letter_settings.office_address:
             addr_run = title_para.add_run(f'{letter_settings.office_address}.')
         else:
             addr_run = title_para.add_run('[Office Address].')
             addr_run.font.color.rgb = placeholder_color
-            addr_run.font.italic = True
 
         doc.add_paragraph()
 
@@ -2018,7 +1998,6 @@ def download_forwarding_letter_live(request, category):
         else:
             copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
             copy_placeholder.font.color.rgb = placeholder_color
-            copy_placeholder.font.italic = True
         copy_para.add_run(' for information.')
 
         filename = 'Fwd_Letter.docx'
