@@ -170,15 +170,7 @@ def custom_backend_edit_units_view(request, backend_id):
         backend.units_override = merged_units
 
         merged_prefixes = dict(backend.repair_prefixes or {})
-        # Allow clearing: only items whose key is present in POST get touched
-        for it in items:
-            key = f"prefix__{it['name']}"
-            if key in request.POST:
-                val = (request.POST.get(key) or '').strip()
-                if val:
-                    merged_prefixes[it['name']] = val
-                else:
-                    merged_prefixes.pop(it['name'], None)
+        merged_prefixes.update(new_prefixes)
         backend.repair_prefixes = merged_prefixes
 
         backend.save(update_fields=['units_override', 'repair_prefixes', 'updated_at'])
