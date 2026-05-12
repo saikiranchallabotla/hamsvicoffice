@@ -716,7 +716,6 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 # Fallback: re-read from workbook cell
                 _cell_desc = normalize_text(str(_ws_item.cell(row=start + 2, column=4).value or "").strip())
                 base_desc_str = saved_item_descs.get(name) or _cell_desc or name
-                logger.info(f"Job {job_id}: custom item '{name}' start={start} saved_desc={repr(saved_item_descs.get(name))} cell_desc={repr(_cell_desc)} final={repr(base_desc_str)}")
                 desc = base_desc_str
             else:
                 info = name_to_info.get(name)
@@ -724,7 +723,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     continue
 
                 start = info["start_row"]
-                base_desc = ws_src.cell(row=start + 2, column=4).value or ""
+                _desc_ws = info.get('_source_ws') or ws_src
+                base_desc = _desc_ws.cell(row=start + 2, column=4).value or ""
                 base_desc_str = normalize_text(base_desc).strip()
 
                 prefix = item_to_prefix.get(name, "") if is_repair else ""
