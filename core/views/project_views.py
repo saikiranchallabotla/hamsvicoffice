@@ -1743,6 +1743,11 @@ def download_forwarding_letter_live(request, category):
 
         placeholder_color = RGBColor(169, 169, 169)
 
+        # Tight spacing throughout
+        normal_style = doc.styles['Normal']
+        normal_style.paragraph_format.space_after = Pt(4)
+        normal_style.paragraph_format.space_before = Pt(0)
+
         sections = doc.sections
         for section in sections:
             section.top_margin = Inches(0.6)
@@ -1766,6 +1771,7 @@ def download_forwarding_letter_live(request, category):
         # Header - Department name
         header2 = doc.add_paragraph()
         header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        header2.paragraph_format.space_after = Pt(8)
         if letter_settings and letter_settings.department_name:
             run2 = header2.add_run(letter_settings.department_name.upper())
             run2.font.bold = True
@@ -1775,8 +1781,6 @@ def download_forwarding_letter_live(request, category):
             run2.font.bold = True
             run2.font.size = Pt(13)
             run2.font.color.rgb = placeholder_color
-
-        doc.add_paragraph()
 
         # From/To section in a table
         from_to_table = doc.add_table(rows=1, cols=2)
@@ -1835,10 +1839,9 @@ def download_forwarding_letter_live(request, category):
             to_run3 = to_para.add_run('[Address].')
             to_run3.font.color.rgb = placeholder_color
 
-        doc.add_paragraph()
-
         # Letter number and date
         lr_para = doc.add_paragraph()
+        lr_para.paragraph_format.space_before = Pt(8)
         lr_run = lr_para.add_run('Lr No. ')
         lr_run.font.bold = True
         lr_run.font.underline = True
@@ -1858,23 +1861,19 @@ def download_forwarding_letter_live(request, category):
         lr_date.font.bold = True
         lr_date.font.underline = True
 
-        doc.add_paragraph()
-
         sir_para = doc.add_paragraph()
+        sir_para.paragraph_format.space_before = Pt(6)
         sir_para.add_run('Sir,')
-
-        doc.add_paragraph()
 
         # Subject
         subject_para = doc.add_paragraph()
+        subject_para.paragraph_format.space_before = Pt(6)
         subj_run = subject_para.add_run('Sub:-')
         subj_run.font.underline = True
         subject_para.add_run('\t')
         subj_work = subject_para.add_run(f'{work_name} ')
         subj_work.font.bold = True
         subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
-
-        doc.add_paragraph()
 
         # Reference
         ref_para = doc.add_paragraph()
@@ -1898,8 +1897,6 @@ def download_forwarding_letter_live(request, category):
         with_run = body_para.add_run('with  1')
         with_run.font.underline = True
         body_para.add_run(' No. estimate for the following work for the amount specified.')
-
-        doc.add_paragraph()
 
         # Create table for estimate
         table = doc.add_table(rows=2, cols=3)
@@ -1933,12 +1930,9 @@ def download_forwarding_letter_live(request, category):
         row_cells[2].text = f"Rs.{formatted_amount}"
         row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-        doc.add_paragraph()
-
         spec_para = doc.add_paragraph()
+        spec_para.paragraph_format.space_before = Pt(6)
         spec_para.add_run("Specification report accompanying the estimate explains the necessity and provisions made therein in detail.")
-
-        doc.add_paragraph()
 
         request_para = doc.add_paragraph()
         request_para.add_run('I request the ')
@@ -1949,22 +1943,19 @@ def download_forwarding_letter_live(request, category):
             req_placeholder.font.color.rgb = placeholder_color
         request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
 
-        doc.add_paragraph()
-
         enc_para = doc.add_paragraph()
+        enc_para.paragraph_format.space_before = Pt(6)
         enc_para.add_run('Enclosure: -')
         doc.add_paragraph('Estimate  - 1 No.')
 
-        doc.add_paragraph()
-
         sign_para = doc.add_paragraph()
         sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        sign_para.paragraph_format.space_before = Pt(14)
         sign_para.add_run('Yours faithfully,')
-
-        doc.add_paragraph()
 
         title_para = doc.add_paragraph()
         title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        title_para.paragraph_format.space_before = Pt(18)
 
         if letter_settings and letter_settings.officer_designation:
             run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
@@ -1986,9 +1977,8 @@ def download_forwarding_letter_live(request, category):
             addr_run = title_para.add_run('[Office Address].')
             addr_run.font.color.rgb = placeholder_color
 
-        doc.add_paragraph()
-
         copy_para = doc.add_paragraph()
+        copy_para.paragraph_format.space_before = Pt(8)
         copy_para.add_run('Copy to the ')
         if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
             copy_text = letter_settings.copy_to_designation or ''
