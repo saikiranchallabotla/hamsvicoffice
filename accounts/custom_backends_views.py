@@ -158,13 +158,12 @@ def custom_backend_edit_units_view(request, backend_id):
     if request.method == 'POST':
         new_units = {}
         new_prefixes = {}
-        for it in items:
-            uval = (request.POST.get(f"unit__{it['name']}") or '').strip()
-            if uval:
-                new_units[it['name']] = uval
-            pval = (request.POST.get(f"prefix__{it['name']}") or '').strip()
-            if pval:
-                new_prefixes[it['name']] = pval
+        for key, val in request.POST.items():
+            val = val.strip()
+            if key.startswith('unit__') and val:
+                new_units[key[len('unit__'):]] = val
+            elif key.startswith('prefix__') and val:
+                new_prefixes[key[len('prefix__'):]] = val
         merged_units = dict(backend.units_override or {})
         merged_units.update(new_units)
         backend.units_override = merged_units
