@@ -712,9 +712,9 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     continue
                 start = block[0]
                 _ws_item = (upload_ws_by_sheet.get(block[2]) if len(block) > 2 else None) or ws_upload_src
-                base_desc = _ws_item.cell(row=start + 2, column=4).value or ""
-                base_desc_str = normalize_text(str(base_desc).strip()) or saved_item_descs.get(name, name)
-                # No prefix for uploaded items
+                base_desc_str = saved_item_descs.get(name) or normalize_text(
+                    str(_ws_item.cell(row=start + 2, column=4).value or "").strip()
+                ) or name
                 desc = base_desc_str
             else:
                 info = name_to_info.get(name)

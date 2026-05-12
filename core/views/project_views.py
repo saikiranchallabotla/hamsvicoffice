@@ -795,7 +795,7 @@ def ajax_upload_custom_items(request, category):
                         break
 
                 unit = _determine_unit_from_heading(item_name, upload_units_map)
-                desc = str(ws_src.cell(row=src_min + 2, column=4).value or "").strip()
+                desc = str(ws_vals.cell(row=src_min + 2, column=4).value or "").strip()
 
                 all_items.append({
                     "name": item_name,
