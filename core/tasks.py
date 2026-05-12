@@ -712,17 +712,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     continue
                 start, end = block[0], block[1]
                 _ws_item = (upload_ws_by_sheet.get(block[2]) if len(block) > 2 else None) or ws_upload_src
-                # Prefer description captured at upload time; fall back to multi-row/col scan
-                if saved_item_descs.get(name) and saved_item_descs[name] != name:
-                    base_desc_str = saved_item_descs[name]
-                else:
-                    _desc_candidates = []
-                    for _dr in range(1, min(end - start + 1, 4)):
-                        for _dc in (4, 2):
-                            _txt = str(_ws_item.cell(row=start + _dr, column=_dc).value or "").strip()
-                            if _txt and len(_txt) > 5 and not _txt.replace('.', '').replace(',', '').isdigit():
-                                _desc_candidates.append(_txt)
-                    base_desc_str = normalize_text(max(_desc_candidates, key=len)) if _desc_candidates else (saved_item_descs.get(name) or name)
+                # Primary: description saved at upload time (read via data_only=True)
+                # Fallback: re-read from workbook cell
+                _cell_desc = normalize_text(str(_ws_item.cell(row=start + 2, column=4).value or "").strip())
+                base_desc_str = saved_item_descs.get(name) or _cell_desc or name
+                logger.info(f"Job {job_id}: custom item '{name}' start={start} saved_desc={repr(saved_item_descs.get(name))} cell_desc={repr(_cell_desc)} final={repr(base_desc_str)}")
                 desc = base_desc_str
             else:
                 info = name_to_info.get(name)

@@ -795,15 +795,7 @@ def ajax_upload_custom_items(request, category):
                         break
 
                 unit = _determine_unit_from_heading(item_name, upload_units_map)
-
-                # Scan rows +1..+3 below header, columns D then B, pick longest non-numeric text
-                desc_candidates = []
-                for dr in range(1, min(src_max - src_min + 1, 4)):
-                    for dc in (4, 2):
-                        txt = str(ws_vals.cell(row=src_min + dr, column=dc).value or "").strip()
-                        if txt and len(txt) > 5 and not txt.replace('.', '').replace(',', '').isdigit():
-                            desc_candidates.append(txt)
-                desc = max(desc_candidates, key=len) if desc_candidates else ""
+                desc = str(ws_vals.cell(row=src_min + 2, column=4).value or "").strip()
 
                 all_items.append({
                     "name": item_name,
