@@ -448,9 +448,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     user=job.user,
                     module_code=module_code,
                 )
-                logger.info(f"Job {job_id}: prefix map loaded {len(item_to_prefix)} entries: {list(item_to_prefix.items())[:5]}")
             except Exception as e:
-                logger.warning(f"Job {job_id}: load_prefix_map failed: {e}", exc_info=True)
+                logger.warning(f"Job {job_id}: load_prefix_map failed: {e}")
 
         # For now, we get it from the session-based workflow
         # In future, this should be stored in Job.result as input data
@@ -711,7 +710,6 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 base_desc_str = normalize_text(base_desc).strip()
 
                 prefix = item_to_prefix.get(name, "") if is_repair else ""
-                logger.info(f"Job {job_id}: item '{name}' is_custom={info.get('_is_custom')} is_repair={is_repair} prefix={repr(prefix)} desc={repr(base_desc_str)}")
                 if prefix:
                     desc = f"{prefix} {base_desc_str}" if base_desc_str else prefix
                 else:
