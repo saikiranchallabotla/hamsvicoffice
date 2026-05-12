@@ -709,51 +709,76 @@ def self_formatted_progress_report(request):
 
 def _extract_estimate_sheet_for_covering_letter(ws):
     """
-    Inspect a single worksheet and return (work_name, amount) if it looks like
-    an estimate summary sheet, or None if it should be skipped (Datas/items sheets).
+    Returns (work_name, amount) only if this sheet is an ESTIMATE format sheet:
+      1. Has "ESTIMATE" as a heading in the first ~10 rows.
+      2. Has a column-header row containing Sl.No / Item Description / Rate / Amount.
 
-    Sheet-skip rules:
-      - Sheet name contains 'datas', 'data', 'groups', 'group', 'master', 'item'.
-    Content-skip rule:
-      - If no recognisable estimate label (name_of_work) is found.
+    All other sheets (Datas, Groups, forwarding slip, etc.) return None.
 
-    Amount logic: rightmost filled column, bottommost row that holds a numeric value.
+    Amount: rightmost filled column, bottommost row with a positive numeric value.
     """
-    sheet_name_lower = (ws.title or '').lower().strip()
-    _SKIP_NAMES = ('datas', 'data', 'groups', 'group', 'master', 'items', 'item')
-    if any(sheet_name_lower == k or sheet_name_lower.startswith(k) for k in _SKIP_NAMES):
-        return None
-
-    max_r = min(ws.max_row or 0, 150)
+    max_r = min(ws.max_row or 0, 300)
     max_c = min(ws.max_column or 0, 20)
     if max_r == 0:
         return None
 
-    # Build text lines for label extraction (same logic as _extract_labels_per_work)
-    lines = []
-    for r in range(1, max_r + 1):
-        vals = []
+    # ── 1. Look for "ESTIMATE" heading in first 10 rows ────────────────────────
+    has_estimate_heading = False
+    for r in range(1, min(max_r, 10) + 1):
         for c in range(1, max_c + 1):
             v = ws.cell(row=r, column=c).value
-            if v is not None:
-                vals.append(str(v).strip())
-        if vals:
-            if len(vals) == 2:
-                lbl = vals[0].lower().strip()
-                if any(x in lbl for x in ['name', 'work', 'sanction', 'amount', 'contractor',
-                                           'nit', 'estimate', 'period', 'address', 'premium']):
-                    lines.append(f"{vals[0]}: {vals[1]}")
-                else:
-                    lines.append(' '.join(vals))
+            if v and 'estimate' in str(v).lower():
+                has_estimate_heading = True
+                break
+        if has_estimate_heading:
+            break
+
+    if not has_estimate_heading:
+        return None
+
+    # ── 2. Look for items-table header row (Sl.No + Description + Rate + Amount) ─
+    has_items_header = False
+    for r in range(1, min(max_r, 40) + 1):
+        row_text = ' '.join(
+            str(ws.cell(row=r, column=c).value or '').lower()
+            for c in range(1, max_c + 1)
+        )
+        hits = sum([
+            1 if ('sl' in row_text or 'no.' in row_text or 'sno' in row_text) else 0,
+            1 if ('description' in row_text or 'item' in row_text) else 0,
+            1 if 'rate' in row_text else 0,
+            1 if 'amount' in row_text else 0,
+            1 if ('quantity' in row_text or 'qty' in row_text) else 0,
+        ])
+        if hits >= 3:
+            has_items_header = True
+            break
+
+    if not has_items_header:
+        return None
+
+    # ── 3. Extract work name from header rows above the items table ─────────────
+    lines = []
+    for r in range(1, min(max_r, 40) + 1):
+        vals = [str(ws.cell(row=r, column=c).value).strip()
+                for c in range(1, max_c + 1)
+                if ws.cell(row=r, column=c).value is not None]
+        if not vals:
+            continue
+        if len(vals) == 2:
+            lbl = vals[0].lower()
+            if any(x in lbl for x in ['name', 'work', 'sanction', 'amount', 'contractor',
+                                       'nit', 'estimate', 'period', 'address', 'premium']):
+                lines.append(f"{vals[0]}: {vals[1]}")
             else:
                 lines.append(' '.join(vals))
+        else:
+            lines.append(' '.join(vals))
 
     labels = _extract_labels_from_lines(lines)
-    work_name = labels.get('name_of_work', '').strip()
-    if not work_name:
-        return None  # No estimate label found — skip this sheet
+    work_name = labels.get('name_of_work', '').strip() or ws.title
 
-    # Amount: scan bottom-up, right-to-left for the first positive numeric value
+    # ── 4. Amount: bottom-up, right-to-left — first positive numeric value ──────
     amount = 0.0
     for r in range(max_r, 0, -1):
         for c in range(max_c, 0, -1):
