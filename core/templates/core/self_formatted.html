@@ -10,11 +10,30 @@
 {% block content %}
 
 <style>
-    /* Two Column Layout */
-    .sf-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.75rem;
+    /* Tab Buttons */
+    .sf-tab-btn {
+        padding: 0.5rem 0.9rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        color: rgba(255,255,255,0.55);
+        border-bottom: 2px solid transparent;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: all 0.18s;
+        white-space: nowrap;
+    }
+    .sf-tab-btn.active {
+        color: white;
+        border-bottom: 2px solid #68d391;
+        background: rgba(255,255,255,0.07);
+    }
+    .sf-tab-btn:hover:not(.active) {
+        color: rgba(255,255,255,0.85);
+        background: rgba(255,255,255,0.05);
     }
     
     /* Card Styles */
@@ -655,11 +674,8 @@
         font-size: 0.75rem;
     }
     
-    @media (max-width: 900px) {
-        .sf-grid {
-            grid-template-columns: 1fr;
-            height: auto;
-        }
+    @media (max-width: 600px) {
+        .sf-tab-btn { padding: 0.4rem 0.6rem; font-size: 0.72rem; }
     }
 </style>
 
@@ -669,240 +685,206 @@
 </div>
 {% endif %}
 
-<div class="sf-grid">
-    <!-- LEFT: Generate Document -->
-    <div class="sf-card">
-        <div class="sf-card-header">
-            <i class="bi bi-magic"></i>
-            Quick Generate
+<div class="sf-card">
+    <!-- Merged Tab Header -->
+    <div style="display:flex; align-items:stretch; background:#2d3748; border-radius:8px 8px 0 0; overflow:hidden; flex-shrink:0;">
+        <button id="tab-generate" class="sf-tab-btn active" onclick="switchSFTab('generate')">
+            <i class="bi bi-magic"></i> Quick Generate
+        </button>
+        <button id="tab-save" class="sf-tab-btn" onclick="switchSFTab('save')">
+            <i class="bi bi-save"></i> Save Reusable Format
+        </button>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:0.4rem; padding:0 0.75rem;">
+            <button type="button" class="sf-btn sf-btn-purple" style="padding:0.2rem 0.5rem; font-size:0.65rem;" onclick="toggleHelpPopup()">
+                <i class="bi bi-lightbulb"></i> Placeholders
+            </button>
+            <button type="button" class="sf-btn" style="background:rgba(255,255,255,0.15);color:white;padding:0.2rem 0.5rem;font-size:0.65rem;" onclick="toggleGuide()">
+                <i class="bi bi-question-circle"></i> How it works?
+            </button>
         </div>
-        <div class="sf-card-body">
-            <form id="generate-form" method="POST" action="{% url 'self_formatted_generate' %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                
-                <div class="sf-row">
+    </div>
+
+    <!-- Pane: Quick Generate -->
+    <div id="pane-generate" class="sf-card-body">
+        <form id="generate-form" method="POST" action="{% url 'self_formatted_generate' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                <div class="sf-row" style="margin-bottom:0;">
                     <div class="sf-row-title"><span class="num">1</span> Source File</div>
                     <p class="sf-hint">Excel/Word/PDF/Image with data to extract (supports blurred scans)</p>
-                    <input type="file" name="source_file" class="sf-input" id="source-file" 
+                    <input type="file" name="source_file" class="sf-input" id="source-file"
                            accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
                 </div>
-                
-                <div class="sf-row">
+
+                <div class="sf-row" style="margin-bottom:0;">
                     <div class="sf-row-title"><span class="num">2</span> Template File</div>
                     <p class="sf-hint">Template with {% verbatim %}{{PLACEHOLDERS}}{% endverbatim %}</p>
                     <input type="file" name="template_file" class="sf-input" required>
                 </div>
-                
-                <div class="sf-row">
-                    <div class="sf-row-title"><span class="num">3</span> Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></div>
-                    <p class="sf-hint" style="margin-bottom:0.3rem;">Name your placeholder + write the label text to find in source file</p>
-                    <div id="placeholder-rows">
-                        <div class="placeholder-row">
-                            <input type="text" class="sf-input ph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
-                            <input type="text" class="sf-input ph-label" placeholder="e.g. Name of Division">
-                            <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
-                            <button type="button" class="btn-remove-row" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
-                        </div>
+            </div>
+
+            <div class="sf-row" style="margin-top:0.5rem;">
+                <div class="sf-row-title"><span class="num">3</span> Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></div>
+                <p class="sf-hint" style="margin-bottom:0.3rem;">Name your placeholder + write the label text to find in source file</p>
+                <div id="placeholder-rows">
+                    <div class="placeholder-row">
+                        <input type="text" class="sf-input ph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
+                        <input type="text" class="sf-input ph-label" placeholder="e.g. Name of Division">
+                        <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
+                        <button type="button" class="btn-remove-row" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
                     </div>
-                    <button type="button" class="btn-add-row" onclick="addPlaceholderRow()">
-                        <i class="bi bi-plus"></i> Add
-                    </button>
-                    <textarea name="custom_placeholders" class="hidden-textarea" id="combined-placeholders"></textarea>
                 </div>
-                
-                <div class="sf-btn-group">
-                    <button type="submit" class="sf-btn sf-btn-primary">
-                        <i class="bi bi-download"></i> Generate
-                    </button>
-                    <button type="button" id="btn-preview" class="sf-btn sf-btn-secondary">
-                        <i class="bi bi-eye" id="preview-icon"></i>
-                        <span id="preview-text">Preview</span>
-                        <span id="preview-loading" style="display:none;">
-                            <i class="bi bi-hourglass-split"></i> Processing...
-                        </span>
-                    </button>
-                    <button type="button" class="sf-btn sf-btn-purple" onclick="toggleHelpPopup()">
-                        <i class="bi bi-lightbulb"></i> Placeholders
-                    </button>
-                    <button type="button" class="sf-btn" style="background:#e2e8f0;color:#2d3748;" onclick="toggleGuide()">
-                        <i class="bi bi-question-circle"></i> How it works?
-                    </button>
+                <button type="button" class="btn-add-row" onclick="addPlaceholderRow()">
+                    <i class="bi bi-plus"></i> Add
+                </button>
+                <textarea name="custom_placeholders" class="hidden-textarea" id="combined-placeholders"></textarea>
+            </div>
+
+            <div class="sf-btn-group">
+                <button type="submit" class="sf-btn sf-btn-primary">
+                    <i class="bi bi-download"></i> Generate
+                </button>
+                <button type="button" id="btn-preview" class="sf-btn sf-btn-secondary">
+                    <i class="bi bi-eye" id="preview-icon"></i>
+                    <span id="preview-text">Preview</span>
+                    <span id="preview-loading" style="display:none;">
+                        <i class="bi bi-hourglass-split"></i> Processing...
+                    </span>
+                </button>
+            </div>
+
+            <div id="preview-results" class="sf-preview">
+                <div id="preview-table"></div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Pane: Save Reusable Format -->
+    <div id="pane-save" class="sf-card-body" style="display:none;">
+        <form method="POST" action="{% url 'self_formatted_save_format' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="sf-row">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                    <div>
+                        <label class="sf-label">Format Name</label>
+                        <input type="text" name="format_name" class="sf-input" required placeholder="e.g., Bill Format">
+                    </div>
+                    <div>
+                        <label class="sf-label">Description</label>
+                        <input type="text" name="format_description" class="sf-input" placeholder="Optional">
+                    </div>
                 </div>
-                
-                <div id="preview-results" class="sf-preview">
-                    <div id="preview-table"></div>
+            </div>
+
+            <div class="sf-row">
+                <label class="sf-label">Template File</label>
+                <input type="file" name="format_template_file" class="sf-input" required>
+            </div>
+
+            <div class="sf-row">
+                <label class="sf-label">Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></label>
+                <p class="sf-hint" style="margin-bottom:0.3rem;">Name your placeholder + write the label text to find in source file</p>
+                <div id="format-placeholder-rows">
+                    <div class="placeholder-row">
+                        <input type="text" class="sf-input fph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
+                        <input type="text" class="sf-input fph-label" placeholder="e.g. Name of Division">
+                        <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
+                        <button type="button" class="btn-remove-row" onclick="removeFormatRow(this)"><i class="bi bi-x"></i></button>
+                    </div>
                 </div>
-            </form>
+                <button type="button" class="btn-add-row" onclick="addFormatPlaceholderRow()">
+                    <i class="bi bi-plus"></i> Add
+                </button>
+                <textarea name="format_custom_placeholders" class="hidden-textarea" id="format-combined-placeholders"></textarea>
+            </div>
+
+            <button type="submit" class="sf-btn sf-btn-teal" onclick="combineFormatPlaceholders()">
+                <i class="bi bi-save"></i> Save Format
+            </button>
+        </form>
+
+        <!-- Saved Formats List -->
+        <div class="sf-formats-section">
+            <div class="sf-formats-header">
+                <i class="bi bi-collection"></i> Saved Formats
+                <span style="font-size:0.7rem; color:#718096; margin-left:0.5rem;">
+                    <i class="bi bi-shield-check"></i> Formats are backed up in database - they persist across deployments
+                </span>
+            </div>
+            {% if saved_formats %}
+            <div class="sf-formats-grid">
+                {% for fmt in saved_formats %}
+                <div class="sf-format-chip" data-format-id="{{ fmt.pk }}" data-locked="{{ fmt.safe_is_locked|yesno:'true,false' }}">
+                    <div class="format-info">
+                        <span class="name">{{ fmt.name }}</span>
+                    </div>
+                    <div class="actions">
+                        <button type="button" class="lock-btn {% if fmt.safe_is_locked %}locked{% endif %}"
+                                onclick="toggleFormatLock('{{ fmt.pk }}')"
+                                title="{% if fmt.safe_is_locked %}Click to unlock (allows deletion){% else %}Click to lock (prevents deletion){% endif %}">
+                            <i class="bi {% if fmt.safe_is_locked %}bi-lock-fill{% else %}bi-unlock{% endif %}"></i>
+                        </button>
+                        <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
+                        <button type="button" class="edit" onclick="window.location.replace('{% url 'self_formatted_edit_format' fmt.pk %}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        {% if fmt.safe_is_locked %}
+                        <button type="button" class="del disabled" onclick="alert('Format is locked. Click the lock icon to unlock before deleting.')" title="Unlock first to delete">
+                            <i class="bi bi-x"></i>
+                        </button>
+                        {% else %}
+                        <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;"
+                              onsubmit="return confirm('Are you sure you want to permanently delete this format?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="confirm_delete" value="yes">
+                            <button type="submit" class="del" title="Delete format"><i class="bi bi-x"></i></button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <span class="sf-empty">No saved formats yet</span>
+            {% endif %}
         </div>
     </div>
-    
-    <!-- RIGHT: Save Format -->
-    <div class="sf-card">
-        <div class="sf-card-header teal">
-            <i class="bi bi-save"></i>
-            Save Reusable Format
-        </div>
-        <div class="sf-card-body">
-            <form method="POST" action="{% url 'self_formatted_save_format' %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                
-                <div class="sf-row">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
-                        <div>
-                            <label class="sf-label">Format Name</label>
-                            <input type="text" name="format_name" class="sf-input" required placeholder="e.g., Bill Format">
-                        </div>
-                        <div>
-                            <label class="sf-label">Description</label>
-                            <input type="text" name="format_description" class="sf-input" placeholder="Optional">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sf-row">
-                    <label class="sf-label">Template File</label>
-                    <input type="file" name="format_template_file" class="sf-input" required>
-                </div>
-                
-                <div class="sf-row">
-                    <label class="sf-label">Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(Optional)</span></label>
-                    <p class="sf-hint" style="margin-bottom:0.3rem;">Name your placeholder + write the label text to find in source file</p>
-                    <div id="format-placeholder-rows">
-                        <div class="placeholder-row">
-                            <input type="text" class="sf-input fph-name" placeholder="e.g. DIVISION_NAME" oninput="updateLivePreview(this)">
-                            <input type="text" class="sf-input fph-label" placeholder="e.g. Name of Division">
-                            <button type="button" class="ph-live-preview" onclick="copyLivePreview(this)" title="Click to copy"></button>
-                            <button type="button" class="btn-remove-row" onclick="removeFormatRow(this)"><i class="bi bi-x"></i></button>
-                        </div>
-                    </div>
-                    <button type="button" class="btn-add-row" onclick="addFormatPlaceholderRow()">
-                        <i class="bi bi-plus"></i> Add
-                    </button>
-                    <textarea name="format_custom_placeholders" class="hidden-textarea" id="format-combined-placeholders"></textarea>
-                </div>
-                
-                <button type="submit" class="sf-btn sf-btn-teal" onclick="combineFormatPlaceholders()">
-                    <i class="bi bi-save"></i> Save Format
-                </button>
-            </form>
-            
-            <!-- Saved Formats List -->
-            <div class="sf-formats-section">
-                <div class="sf-formats-header">
-                    <i class="bi bi-collection"></i> Saved Formats
-                    <span style="font-size:0.7rem; color:#718096; margin-left:0.5rem;">
-                        <i class="bi bi-shield-check"></i> Formats are backed up in database - they persist across deployments
-                    </span>
-                </div>
-                {% if saved_formats %}
-                <div class="sf-formats-grid">
-                    {% for fmt in saved_formats %}
-                    <div class="sf-format-chip" data-format-id="{{ fmt.pk }}" data-locked="{{ fmt.safe_is_locked|yesno:'true,false' }}">
-                        <div class="format-info">
-                            <span class="name">{{ fmt.name }}</span>
-                        </div>
-                        <div class="actions">
-                            <!-- Lock Toggle Button -->
-                            <button type="button" class="lock-btn {% if fmt.safe_is_locked %}locked{% endif %}" 
-                                    onclick="toggleFormatLock('{{ fmt.pk }}')" 
-                                    title="{% if fmt.safe_is_locked %}Click to unlock (allows deletion){% else %}Click to lock (prevents deletion){% endif %}">
-                                <i class="bi {% if fmt.safe_is_locked %}bi-lock-fill{% else %}bi-unlock{% endif %}"></i>
-                            </button>
-                            <button type="button" class="use" onclick="showUseFormatModal('{{ fmt.pk }}', '{{ fmt.name|escapejs }}')">Use</button>
-                            <button type="button" class="edit" onclick="window.location.replace('{% url 'self_formatted_edit_format' fmt.pk %}')">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            {% if fmt.safe_is_locked %}
-                            <!-- Locked: Show disabled delete with unlock hint -->
-                            <button type="button" class="del disabled" onclick="alert('Format is locked. Click the lock icon to unlock before deleting.')" title="Unlock first to delete">
-                                <i class="bi bi-x"></i>
-                            </button>
-                            {% else %}
-                            <!-- Unlocked: Allow delete with confirmation -->
-                            <form method="POST" action="{% url 'self_formatted_delete_format' fmt.pk %}" style="display:inline;" 
-                                  onsubmit="return confirm('Are you sure you want to permanently delete this format?');">
-                                {% csrf_token %}
-                                <input type="hidden" name="confirm_delete" value="yes">
-                                <button type="submit" class="del" title="Delete format"><i class="bi bi-x"></i></button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <span class="sf-empty">No saved formats yet</span>
-                {% endif %}
-            </div>
+</div>
 
-            <!-- Inline Use Format Modal -->
-            <div id="use-format-modal" style="display:none; margin-top:1rem; padding:0.75rem; background:#f7fafc; border-radius:8px; border:1px solid #e2e8f0;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-                    <h3 style="margin:0; font-size:0.85rem; font-weight:600; color:#2d3748;">
-                        Use Format: <span id="modal-format-name"></span>
-                    </h3>
-                    <button type="button" onclick="hideUseFormatModal()" style="background:none; border:none; cursor:pointer; color:#718096;">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-                
-                <form id="use-format-form" method="POST" enctype="multipart/form-data" onsubmit="submitUseFormatForm(event)">
-                    {% csrf_token %}
-                    <input type="hidden" id="format-pk" name="format_pk" value="">
-                    
-                    <div class="sf-row">
-                        <label class="sf-label">Upload Source File</label>
-                        <p class="sf-hint">Excel/Word/PDF/Image with data (supports blurred scans)</p>
-                        <input type="file" name="source_file" class="sf-input" id="use-source-file" 
-                               accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
-                    </div>
-                    
-                    <div style="display:flex; gap:0.5rem;">
-                        <button type="submit" class="sf-btn sf-btn-green">
-                            <i class="bi bi-download"></i> Generate Document
-                        </button>
-                        <button type="button" onclick="hideUseFormatModal()" class="sf-btn" style="background:#e2e8f0; color:#4a5568;">
-                            Cancel
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-<!-- Dialog Modal (Better UX) -->
+<!-- Dialog Modal for Use Format -->
 <dialog id="use-format-dialog" style="border:none; border-radius:16px; box-shadow:0 15px 50px rgba(0,0,0,0.25); padding:0; width:340px; position:fixed; bottom:30px; right:30px; margin:0; top:auto; left:auto;">
     <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:1.25rem; border-radius:16px 16px 0 0;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h2 style="margin:0; font-size:1rem; font-weight:700; color:white; display:flex; align-items:center; gap:0.5rem;">
                 ✨ <span id="dialog-format-name" style="font-weight:600;"></span>
             </h2>
-            <button onclick="document.getElementById('use-format-dialog').close()" style="background:none; border:none; cursor:pointer; color:white; font-size:1.3rem; opacity:0.9; transition:opacity 0.2s;">
+            <button onclick="document.getElementById('use-format-dialog').close()" style="background:none; border:none; cursor:pointer; color:white; font-size:1.3rem; opacity:0.9;">
                 ×
             </button>
         </div>
     </div>
-    
     <div style="padding:1.25rem; background:white;">
         <form id="dialog-use-format-form" onsubmit="submitUseFormatForm(event)">
             {% csrf_token %}
             <input type="hidden" id="dialog-format-pk" value="">
-            
             <div style="margin-bottom:1rem;">
                 <label style="display:block; font-weight:600; color:#2d3748; margin-bottom:0.4rem; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">
                     <i class="bi bi-file-earmark-arrow-up" style="color:#667eea; margin-right:0.3rem;"></i> Select File
                 </label>
                 <p style="font-size:0.7rem; color:#718096; margin:0 0 0.4rem 0;">PDF/Image/Excel/Word (supports blurred scans)</p>
-                <input type="file" id="dialog-use-source-file" class="sf-input" 
+                <input type="file" id="dialog-use-source-file" class="sf-input"
                        accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv"
-                       required style="padding:0.6rem; border:2px dashed #667eea; border-radius:8px; cursor:pointer; font-size:0.85rem; width:100%; box-sizing:border-box; transition:all 0.2s;">
+                       required style="padding:0.6rem; border:2px dashed #667eea; border-radius:8px; cursor:pointer; font-size:0.85rem; width:100%; box-sizing:border-box;">
             </div>
-            
             <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
-                <button type="button" onclick="document.getElementById('use-format-dialog').close()" 
-                    style="padding:0.5rem 1rem; background:#f0f0f0; color:#4a5568; border:none; border-radius:8px; cursor:pointer; font-weight:500; font-size:0.85rem; transition:all 0.2s;">
+                <button type="button" onclick="document.getElementById('use-format-dialog').close()"
+                    style="padding:0.5rem 1rem; background:#f0f0f0; color:#4a5568; border:none; border-radius:8px; cursor:pointer; font-weight:500; font-size:0.85rem;">
                     Close
                 </button>
-                <button type="submit" 
-                    style="padding:0.5rem 1rem; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; transition:all 0.2s; box-shadow:0 4px 12px rgba(102, 126, 234, 0.3);">
+                <button type="submit"
+                    style="padding:0.5rem 1rem; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; box-shadow:0 4px 12px rgba(102,126,234,0.3);">
                     <i class="bi bi-lightning-fill"></i> Generate
                 </button>
             </div>
@@ -911,43 +893,15 @@
 </dialog>
 
 <style>
-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.3);
-}
-
-#use-format-dialog {
-    animation: slideInBottomRight 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
+dialog::backdrop { background: rgba(0,0,0,0.3); }
+#use-format-dialog { animation: slideInBottomRight 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 @keyframes slideInBottomRight {
-    from {
-        opacity: 0;
-        transform: translateX(50px) translateY(50px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0) translateY(0);
-    }
+    from { opacity:0; transform:translateX(50px) translateY(50px); }
+    to   { opacity:1; transform:translateX(0) translateY(0); }
 }
-
-#dialog-use-source-file {
-    transition: all 0.2s ease;
-}
-
-#dialog-use-source-file:hover {
-    border-color: #764ba2 !important;
-    background-color: #f8f4ff !important;
-}
-
-#dialog-use-source-file:focus {
-    outline: none;
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
-}
+#dialog-use-source-file:hover  { border-color:#764ba2 !important; background-color:#f8f4ff !important; }
+#dialog-use-source-file:focus  { outline:none; border-color:#667eea !important; box-shadow:0 0 0 3px rgba(102,126,234,0.1) !important; }
 </style>
-        </div>
-    </div>
-</div>
 
 <!-- Progress Report Section -->
 <div class="sf-card" style="margin-top:0.75rem;">
@@ -1289,6 +1243,13 @@ dialog::backdrop {
 </div>
 
 <script>
+window.switchSFTab = function(tab) {
+    document.getElementById('tab-generate').classList.toggle('active', tab === 'generate');
+    document.getElementById('tab-save').classList.toggle('active', tab === 'save');
+    document.getElementById('pane-generate').style.display = tab === 'generate' ? '' : 'none';
+    document.getElementById('pane-save').style.display = tab === 'save' ? '' : 'none';
+};
+
 window.toggleHelpPopup = function() {
     document.getElementById('help-popup').classList.toggle('show');
     document.getElementById('help-overlay').classList.toggle('show');
