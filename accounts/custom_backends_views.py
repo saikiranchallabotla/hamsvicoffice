@@ -146,6 +146,8 @@ def custom_backend_edit_units_view(request, backend_id):
     if cb_path:
         try:
             found, _wb = _scan_all_sheets_for_items(cb_path)
+            import logging as _logging2
+            _logging2.getLogger(__name__).warning("CB edit GET cb_path=%r found names=%r", cb_path, [n for s, n in found])
             items = [{
                 'sheet': s,
                 'name': n,
