@@ -160,6 +160,8 @@ def custom_backend_edit_units_view(request, backend_id):
     if request.method == 'POST':
         import logging as _logging
         _log = _logging.getLogger(__name__)
+        _log.warning("CB edit raw body (first 500): %r", request.body[:500])
+        _log.warning("CB edit content_type: %r", request.content_type)
         _log.warning("CB edit POST keys: %r", list(request.POST.keys()))
         new_units = {}
         new_prefixes = {}
