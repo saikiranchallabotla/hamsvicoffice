@@ -1107,7 +1107,7 @@ def self_formatted_bulk_covering_letter(request):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     )
-    response['Content-Disposition'] = 'attachment; filename="Bulk_Covering_Letter.docx"'
+    response['Content-Disposition'] = 'attachment; filename="Multi_Estimate_Covering_Letter.docx"'
     doc.save(response)
     return response
 

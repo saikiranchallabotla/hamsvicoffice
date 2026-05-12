@@ -935,11 +935,11 @@ dialog::backdrop { background: rgba(0,0,0,0.3); }
     </div>
 </div>
 
-<!-- Bulk Covering Letter Section -->
+<!-- Multi Estimate Covering Letter Section -->
 <div class="sf-card" style="margin-top:0.75rem;">
     <div class="sf-card-header" style="background:linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);">
         <i class="bi bi-envelope-paper"></i>
-        Bulk Covering Letter
+        Multi Estimate Covering Letter
     </div>
     <div class="sf-card-body">
         <form id="bulk-covering-form" method="POST" action="{% url 'self_formatted_bulk_covering_letter' %}" enctype="multipart/form-data">
@@ -1690,7 +1690,7 @@ window.copyLivePreview = function(btn) {
     });
 })();
 
-// Bulk Covering Letter - accumulate files
+// Multi Estimate Covering Letter - accumulate files
 (function(){
     var browseInput = document.getElementById('bcl-source-browse');
     var fileList = document.getElementById('bcl-file-list');
@@ -1754,7 +1754,7 @@ window.copyLivePreview = function(btn) {
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
             a.href = url;
-            a.download = 'Bulk_Covering_Letter.docx';
+            a.download = 'Multi_Estimate_Covering_Letter.docx';
             document.body.appendChild(a);
             a.click();
             a.remove();
