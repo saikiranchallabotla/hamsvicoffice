@@ -710,11 +710,19 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 block = uploaded_item_blocks.get(name)
                 if not block or not ws_upload_src:
                     continue
-                start = block[0]
+                start, end = block[0], block[1]
                 _ws_item = (upload_ws_by_sheet.get(block[2]) if len(block) > 2 else None) or ws_upload_src
-                base_desc_str = saved_item_descs.get(name) or normalize_text(
-                    str(_ws_item.cell(row=start + 2, column=4).value or "").strip()
-                ) or name
+                # Prefer description captured at upload time; fall back to multi-row/col scan
+                if saved_item_descs.get(name) and saved_item_descs[name] != name:
+                    base_desc_str = saved_item_descs[name]
+                else:
+                    _desc_candidates = []
+                    for _dr in range(1, min(end - start + 1, 4)):
+                        for _dc in (4, 2):
+                            _txt = str(_ws_item.cell(row=start + _dr, column=_dc).value or "").strip()
+                            if _txt and len(_txt) > 5 and not _txt.replace('.', '').replace(',', '').isdigit():
+                                _desc_candidates.append(_txt)
+                    base_desc_str = normalize_text(max(_desc_candidates, key=len)) if _desc_candidates else (saved_item_descs.get(name) or name)
                 desc = base_desc_str
             else:
                 info = name_to_info.get(name)
