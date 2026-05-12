@@ -467,8 +467,40 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                             item_to_prefix[str(nm).strip()] = str(px).strip()
             except Exception:
                 pass  # Continue without prefixes
-        
-        # Assuming fetched_items is in job metadata or passed somehow
+
+        # Load prefixes from each custom backend workbook (_is_custom items)
+        if is_repair:
+            seen_custom_wbs = set()
+            for _info in name_to_info.values():
+                if not _info.get('_is_custom'):
+                    continue
+                src_wb = _info.get('_source_wb')
+                if src_wb is None or id(src_wb) in seen_custom_wbs:
+                    continue
+                seen_custom_wbs.add(id(src_wb))
+                try:
+                    if 'Groups' not in src_wb.sheetnames:
+                        continue
+                    ws_cb_grp = src_wb['Groups']
+                    cb_hr = cb_ci = cb_cp = None
+                    for r in range(1, ws_cb_grp.max_row + 1):
+                        for c in range(1, ws_cb_grp.max_column + 1):
+                            val = str(ws_cb_grp.cell(r, c).value or "").strip().lower()
+                            if val == "item name":
+                                cb_hr, cb_ci = r, c
+                            elif val == "prefix":
+                                cb_cp = c
+                        if cb_hr:
+                            break
+                    if cb_hr and cb_ci and cb_cp:
+                        for r in range(cb_hr + 1, ws_cb_grp.max_row + 1):
+                            nm = ws_cb_grp.cell(r, cb_ci).value
+                            px = ws_cb_grp.cell(r, cb_cp).value
+                            if nm and px not in (None, ""):
+                                item_to_prefix[str(nm).strip()] = str(px).strip()
+                except Exception:
+                    pass
+
         # For now, we get it from the session-based workflow
         # In future, this should be stored in Job.result as input data
         fetched_raw = job.result.get('fetched_items', []) if job.result else []
