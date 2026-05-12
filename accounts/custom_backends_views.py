@@ -156,6 +156,9 @@ def custom_backend_edit_units_view(request, backend_id):
             items = []
 
     if request.method == 'POST':
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+        _log.warning("CB edit POST keys: %r", list(request.POST.keys()))
         new_units = {}
         new_prefixes = {}
         for key, val in request.POST.items():
@@ -164,6 +167,7 @@ def custom_backend_edit_units_view(request, backend_id):
                 new_units[key[len('unit__'):]] = val
             elif key.startswith('prefix__') and val:
                 new_prefixes[key[len('prefix__'):]] = val
+        _log.warning("CB edit new_prefixes: %r", new_prefixes)
         merged_units = dict(backend.units_override or {})
         merged_units.update(new_units)
         backend.units_override = merged_units
