@@ -146,32 +146,36 @@ def custom_backend_edit_units_view(request, backend_id):
     if cb_path:
         try:
             found, _wb = _scan_all_sheets_for_items(cb_path)
-            import logging as _logging2
-            _logging2.getLogger(__name__).warning("CB edit GET cb_path=%r found names=%r", cb_path, [n for s, n in found])
+            import urllib.parse as _up
+            rp = backend.repair_prefixes or {}
+            uo = backend.units_override or {}
             items = [{
                 'sheet': s,
                 'name': n,
-                'unit': backend.units_override.get(n, ''),
-                'prefix': (backend.repair_prefixes or {}).get(n, ''),
-            } for s, n in found]
+                'idx': i,
+                'unit': uo.get(n, '') or uo.get(_up.quote(n, safe=' '), ''),
+                'prefix': rp.get(n, '') or rp.get(_up.quote(n, safe=' '), ''),
+            } for i, (s, n) in enumerate(found)]
         except Exception:
             items = []
 
     if request.method == 'POST':
-        import logging as _logging
-        _log = _logging.getLogger(__name__)
-        _log.warning("CB edit raw body (first 500): %r", request.body[:500])
-        _log.warning("CB edit content_type: %r", request.content_type)
-        _log.warning("CB edit POST keys: %r", list(request.POST.keys()))
+        import urllib.parse as _up2
         new_units = {}
         new_prefixes = {}
-        for key, val in request.POST.items():
-            val = val.strip()
-            if key.startswith('unit__') and val:
-                new_units[key[len('unit__'):]] = val
-            elif key.startswith('prefix__') and val:
-                new_prefixes[key[len('prefix__'):]] = val
-        _log.warning("CB edit new_prefixes: %r", new_prefixes)
+        i = 0
+        while True:
+            raw_name = request.POST.get(f'item_{i}')
+            if raw_name is None:
+                break
+            item_name = _up2.unquote(raw_name.strip())
+            uval = (request.POST.get(f'unit_{i}') or '').strip()
+            pval = (request.POST.get(f'prefix_{i}') or '').strip()
+            if item_name and uval:
+                new_units[item_name] = uval
+            if item_name and pval:
+                new_prefixes[item_name] = pval
+            i += 1
         merged_units = dict(backend.units_override or {})
         merged_units.update(new_units)
         backend.units_override = merged_units

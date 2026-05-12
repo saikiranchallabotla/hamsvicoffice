@@ -186,11 +186,12 @@
                             <td>{{ it.name }}</td>
                             <td><span class="cb-sheet-pill">{{ it.sheet }}</span></td>
                             <td>
-                                <input type="text" class="cb-cell-input" name="unit__{{ it.name }}"
+                                <input type="hidden" name="item_{{ it.idx }}" value="{{ it.name }}">
+                                <input type="text" class="cb-cell-input" name="unit_{{ it.idx }}"
                                        value="{{ it.unit }}" placeholder="Nos / Mtr / Pts / kg">
                             </td>
                             <td>
-                                <input type="text" class="cb-cell-input" name="prefix__{{ it.name }}"
+                                <input type="text" class="cb-cell-input" name="prefix_{{ it.idx }}"
                                        value="{{ it.prefix }}" placeholder="e.g. Repairing of, Replacing of">
                             </td>
                         </tr>

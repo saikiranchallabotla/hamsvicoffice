@@ -1902,11 +1902,12 @@ def load_prefix_map(category, backend_id=None, user=None, module_code='new_estim
 
     # Merge user's custom-backend prefixes (override defaults)
     try:
+        import urllib.parse as _up
         from accounts.models import UserCustomBackend
         for cb in UserCustomBackend.for_user_module(user, module_code, category):
             for nm, px in (cb.repair_prefixes or {}).items():
                 if nm and px:
-                    prefix_map[str(nm).strip()] = str(px).strip()
+                    prefix_map[_up.unquote(str(nm).strip())] = str(px).strip()
     except Exception:
         logger.debug("[LOAD_PREFIX_MAP] Error merging custom prefixes", exc_info=True)
 
