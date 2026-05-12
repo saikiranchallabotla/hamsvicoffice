@@ -36,7 +36,8 @@ p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
 _inflect_engine = inflect.engine()
 
-from .utils import get_org_from_request
+from .utils import (get_org_from_request, _get_letter_settings,
+    _get_current_financial_year, _format_indian_number)
 from .self_formatted_views import (_extract_labels_from_source_file,
     _build_placeholder_map, _fill_template_file,
     _replace_placeholders_in_docx_xml,
@@ -702,6 +703,319 @@ def self_formatted_progress_report(request):
     resp["Content-Disposition"] = 'attachment; filename="Progress_Report.xlsx"'
     wb.save(resp)
     return resp
+
+
+
+
+@login_required(login_url='login')
+def self_formatted_bulk_covering_letter(request):
+    """
+    Bulk Covering Letter: accept multiple source files (or multi-sheet Excel),
+    extract work name + amount from each, and produce a single forwarding letter
+    Word document with all estimates in the table.
+    """
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    files = request.FILES.getlist('source_files')
+    if not files:
+        return redirect(
+            f"{reverse('self_formatted_form_page')}?error=Please+upload+at+least+one+source+file"
+        )
+
+    # Extract one (work_name, amount) entry per file / per sheet
+    works = []
+    for f in files:
+        try:
+            per_work = _extract_labels_per_work(f)
+        except Exception as e:
+            logger.error(f"Bulk covering letter: failed to extract from {f.name}: {e}")
+            continue
+        for _src_name, labels in per_work:
+            name = (
+                labels.get('name_of_work') or
+                labels.get('cc_header') or
+                _src_name
+            ).strip()
+            raw_amount = (
+                labels.get('estimate_amount') or
+                labels.get('amount') or
+                labels.get('admin_sanction_amount') or
+                '0'
+            )
+            try:
+                amt = float(
+                    str(raw_amount).replace(',', '').replace('Rs.', '')
+                    .replace('\u20b9', '').strip()
+                )
+            except Exception:
+                amt = 0.0
+            works.append({'name': name, 'amount': amt})
+
+    if not works:
+        return redirect(
+            f"{reverse('self_formatted_form_page')}?error=Could+not+extract+data+from+uploaded+files"
+        )
+
+    financial_year = _get_current_financial_year()
+    today = timezone.now().date()
+    letter_settings = _get_letter_settings(request.user)
+    placeholder_color = RGBColor(169, 169, 169)
+    n = len(works)
+    grand_total = sum(w['amount'] for w in works)
+
+    doc = Document()
+
+    normal_style = doc.styles['Normal']
+    normal_style.paragraph_format.space_after = Pt(4)
+    normal_style.paragraph_format.space_before = Pt(0)
+
+    for section in doc.sections:
+        section.top_margin = Inches(0.6)
+        section.bottom_margin = Inches(0.6)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
+
+    # --- Header ---
+    h1 = doc.add_paragraph()
+    h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = h1.add_run((letter_settings.government_name.upper() if letter_settings and letter_settings.government_name else '[GOVERNMENT / ORGANIZATION NAME]'))
+    r.font.bold = True
+    r.font.size = Pt(14)
+    if not (letter_settings and letter_settings.government_name):
+        r.font.color.rgb = placeholder_color
+
+    h2 = doc.add_paragraph()
+    h2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    h2.paragraph_format.space_after = Pt(8)
+    r2 = h2.add_run((letter_settings.department_name.upper() if letter_settings and letter_settings.department_name else '[DEPARTMENT NAME]'))
+    r2.font.bold = True
+    r2.font.size = Pt(13)
+    if not (letter_settings and letter_settings.department_name):
+        r2.font.color.rgb = placeholder_color
+
+    # --- From / To table ---
+    ft = doc.add_table(rows=1, cols=2)
+    ft.autofit = True
+
+    from_para = ft.cell(0, 0).paragraphs[0]
+    from_para.add_run('From: -\n').font.bold = True
+    if letter_settings and letter_settings.officer_name:
+        nq = letter_settings.officer_name
+        if letter_settings.officer_qualification:
+            nq += f', {letter_settings.officer_qualification}'
+        from_para.add_run(f'{nq},\n')
+    else:
+        r_ = from_para.add_run('[Officer Name, Qualification],\n')
+        r_.font.color.rgb = placeholder_color
+    if letter_settings and letter_settings.officer_designation:
+        from_para.add_run(f'{letter_settings.officer_designation},\n')
+    else:
+        r_ = from_para.add_run('[Designation],\n')
+        r_.font.color.rgb = placeholder_color
+    if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
+        sub_addr = letter_settings.sub_division or ''
+        if letter_settings.office_address:
+            sub_addr += (f', {letter_settings.office_address}' if sub_addr else letter_settings.office_address)
+        from_para.add_run(f'{sub_addr}.')
+    else:
+        r_ = from_para.add_run('[Sub Division, Office Address].')
+        r_.font.color.rgb = placeholder_color
+
+    to_para = ft.cell(0, 1).paragraphs[0]
+    to_para.add_run('To,\n').font.bold = True
+    if letter_settings and letter_settings.recipient_designation:
+        to_para.add_run(f'{letter_settings.recipient_designation},\n')
+    else:
+        r_ = to_para.add_run('[Officer Designation],\n')
+        r_.font.color.rgb = placeholder_color
+    if letter_settings and letter_settings.recipient_division:
+        to_para.add_run(f'{letter_settings.recipient_division},\n')
+    else:
+        r_ = to_para.add_run('[Division Name],\n')
+        r_.font.color.rgb = placeholder_color
+    if letter_settings and letter_settings.recipient_address:
+        to_para.add_run(f'{letter_settings.recipient_address}.')
+    else:
+        r_ = to_para.add_run('[Address].')
+        r_.font.color.rgb = placeholder_color
+
+    # --- Lr. No. / Date ---
+    lr_para = doc.add_paragraph()
+    lr_para.paragraph_format.space_before = Pt(8)
+    lr_run = lr_para.add_run('Lr No. ')
+    lr_run.font.bold = True
+    lr_run.font.underline = True
+    if letter_settings and letter_settings.office_code:
+        r_ = lr_para.add_run(letter_settings.office_code)
+        r_.font.bold = True
+        r_.font.underline = True
+    else:
+        r_ = lr_para.add_run('[Office Code]')
+        r_.font.color.rgb = placeholder_color
+        r_.font.bold = True
+        r_.font.underline = True
+    r_ = lr_para.add_run(f'/{financial_year}/          ')
+    r_.font.bold = True
+    r_.font.underline = True
+    r_ = lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
+    r_.font.bold = True
+    r_.font.underline = True
+
+    sir_para = doc.add_paragraph()
+    sir_para.paragraph_format.space_before = Pt(6)
+    sir_para.add_run('Sir,')
+
+    # --- Subject ---
+    subj_para = doc.add_paragraph()
+    subj_para.paragraph_format.space_before = Pt(6)
+    r_ = subj_para.add_run('Sub:-')
+    r_.font.underline = True
+    subj_para.add_run('\t')
+    subj_para.add_run(f'Submission of Estimates for the year {financial_year}')
+    subj_para.add_run('  -  Request for obtaining Administrative Sanction  -  Regarding.')
+
+    # --- Reference ---
+    ref_para = doc.add_paragraph()
+    r_ = ref_para.add_run('Ref:-')
+    r_.font.underline = True
+    ref_para.add_run('\tMemo No.')
+    r_ = ref_para.add_run('[Reference Number]')
+    r_.font.color.rgb = placeholder_color
+    r_.font.underline = True
+    ref_para.add_run(f'/{financial_year} Dt.')
+    r_ = ref_para.add_run('[DD.MM.YYYY]')
+    r_.font.color.rgb = placeholder_color
+    r_.font.underline = True
+
+    stars = doc.add_paragraph()
+    stars.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    stars.add_run('**.**')
+
+    # --- Body ---
+    body_para = doc.add_paragraph()
+    body_para.add_run('With reference to the subject cited, I submit here ')
+    r_ = body_para.add_run(f'with  {n}')
+    r_.font.underline = True
+    body_para.add_run(' No. estimates for the following works for the amounts specified.')
+
+    # --- Estimates table ---
+    table = doc.add_table(rows=n + 2, cols=3)
+    table.style = 'Table Grid'
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    for cell in table.columns[0].cells:
+        cell.width = Inches(0.5)
+    for cell in table.columns[1].cells:
+        cell.width = Inches(4.5)
+    for cell in table.columns[2].cells:
+        cell.width = Inches(1.5)
+
+    # Header row
+    hdr = table.rows[0].cells
+    hdr[0].text = 'Sl.\nNo'
+    hdr[1].text = 'Name of work'
+    hdr[2].text = 'Amount'
+    for cell in hdr:
+        for para in cell.paragraphs:
+            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in para.runs:
+                run.font.bold = True
+
+    # Data rows
+    for i, w in enumerate(works, start=1):
+        row = table.rows[i].cells
+        row[0].text = str(i)
+        row[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        row[1].text = w['name']
+        row[2].text = f"Rs.{_format_indian_number(w['amount'])}"
+        row[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    # Total row
+    total_row = table.rows[n + 1].cells
+    total_row[0].merge(total_row[1])
+    total_para = total_row[0].paragraphs[0]
+    total_run = total_para.add_run('Total')
+    total_run.font.bold = True
+    total_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    total_row[2].text = f"Rs.{_format_indian_number(grand_total)}"
+    for run in total_row[2].paragraphs[0].runs:
+        run.font.bold = True
+    total_row[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    # --- Spec paragraph ---
+    spec_para = doc.add_paragraph()
+    spec_para.paragraph_format.space_before = Pt(6)
+    spec_para.add_run("Specification report accompanying the estimates explains the necessity and provisions made therein in detail.")
+
+    # --- Request paragraph ---
+    req_para = doc.add_paragraph()
+    req_para.add_run('I request the ')
+    if letter_settings and letter_settings.superior_designation:
+        req_para.add_run(letter_settings.superior_designation)
+    else:
+        r_ = req_para.add_run('[Superior Officer Designation]')
+        r_.font.color.rgb = placeholder_color
+    req_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimates and arrange to finalize the agencies at the earliest for taking up the works.')
+
+    # --- Enclosure ---
+    enc_para = doc.add_paragraph()
+    enc_para.paragraph_format.space_before = Pt(6)
+    enc_para.add_run('Enclosure: -')
+    doc.add_paragraph(f'Estimates  - {n} Nos.')
+
+    # --- Signature ---
+    sign_para = doc.add_paragraph()
+    sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    sign_para.paragraph_format.space_before = Pt(14)
+    sign_para.add_run('Yours faithfully,')
+
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    title_para.paragraph_format.space_before = Pt(18)
+    if letter_settings and letter_settings.officer_designation:
+        r_ = title_para.add_run(f'{letter_settings.officer_designation}\n')
+        r_.font.bold = True
+    else:
+        r_ = title_para.add_run('[Officer Designation]\n')
+        r_.font.bold = True
+        r_.font.color.rgb = placeholder_color
+    if letter_settings and letter_settings.sub_division:
+        title_para.add_run(f'{letter_settings.sub_division},\n')
+    else:
+        r_ = title_para.add_run('[Sub Division Name],\n')
+        r_.font.color.rgb = placeholder_color
+    if letter_settings and letter_settings.office_address:
+        title_para.add_run(f'{letter_settings.office_address}.')
+    else:
+        r_ = title_para.add_run('[Office Address].')
+        r_.font.color.rgb = placeholder_color
+
+    # --- Copy To ---
+    copy_para = doc.add_paragraph()
+    copy_para.paragraph_format.space_before = Pt(8)
+    copy_para.add_run('Copy to the ')
+    if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
+        copy_text = letter_settings.copy_to_designation or ''
+        if letter_settings.copy_to_section:
+            copy_text += (f', {letter_settings.copy_to_section}' if copy_text else letter_settings.copy_to_section)
+        copy_para.add_run(copy_text)
+    else:
+        r_ = copy_para.add_run('[Officer Designation, Section Name]')
+        r_.font.color.rgb = placeholder_color
+    copy_para.add_run(' for information.')
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    response['Content-Disposition'] = 'attachment; filename="Bulk_Covering_Letter.docx"'
+    doc.save(response)
+    return response
 
 
 # ==========================
