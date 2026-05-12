@@ -766,7 +766,7 @@ def ajax_upload_custom_items(request, category):
 
         # Find item blocks across all sheets
         all_items = []          # [{name, rate, unit, desc}]
-        all_item_blocks = {}    # {name: [start_row, end_row]}
+        all_item_blocks = {}    # {name: [start_row, end_row, sheet_name]}
         used_sheet_name = ""
 
         for sheet_name in wb_formulas.sheetnames:
@@ -803,7 +803,7 @@ def ajax_upload_custom_items(request, category):
                     "unit": unit,
                     "desc": desc or item_name,
                 })
-                all_item_blocks[item_name] = [src_min, src_max]
+                all_item_blocks[item_name] = [src_min, src_max, sheet_name]
 
         if not all_items:
             return JsonResponse({

@@ -492,12 +492,14 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
 
         # Load uploaded workbook if needed
         ws_upload_src = None
+        upload_ws_by_sheet = {}
         if uploaded_items_set and uploaded_file_id:
             try:
                 upload_obj = Upload.objects.get(id=uploaded_file_id)
                 upload_data = upload_obj.file.read()
                 upload_obj.file.seek(0)
                 wb_upload = load_workbook(BytesIO(upload_data), data_only=False)
+                upload_ws_by_sheet = {sn: wb_upload[sn] for sn in wb_upload.sheetnames}
                 if uploaded_sheet_name and uploaded_sheet_name in wb_upload.sheetnames:
                     ws_upload_src = wb_upload[uploaded_sheet_name]
                 else:
@@ -525,7 +527,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 _blk = uploaded_item_blocks.get(_name)
                 if not _blk or not ws_upload_src:
                     continue
-                _src_ws_scan = ws_upload_src
+                _src_ws_scan = (upload_ws_by_sheet.get(_blk[2]) if len(_blk) > 2 else None) or ws_upload_src
                 _src_min, _src_max = _blk[0], _blk[1]
             else:
                 _info = name_to_info.get(_name)
@@ -601,7 +603,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 if not block or not ws_upload_src:
                     continue
                 src_min, src_max = block[0], block[1]
-                src_ws = ws_upload_src
+                src_ws = (upload_ws_by_sheet.get(block[2]) if len(block) > 2 else None) or ws_upload_src
             else:
                 # Use backend workbook as source
                 info = name_to_info.get(name)
@@ -709,7 +711,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 if not block or not ws_upload_src:
                     continue
                 start = block[0]
-                base_desc = ws_upload_src.cell(row=start + 2, column=4).value or ""
+                _ws_item = (upload_ws_by_sheet.get(block[2]) if len(block) > 2 else None) or ws_upload_src
+                base_desc = _ws_item.cell(row=start + 2, column=4).value or ""
                 base_desc_str = normalize_text(str(base_desc).strip()) or saved_item_descs.get(name, name)
                 # No prefix for uploaded items
                 desc = base_desc_str
