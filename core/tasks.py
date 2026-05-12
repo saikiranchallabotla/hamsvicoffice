@@ -441,65 +441,15 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         item_to_prefix = {}
         if is_repair:
             try:
-                backend_wb = load_workbook(filepath, data_only=False)
-                ws_groups = backend_wb["Groups"]
-
-                header_row = None
-                col_item = None
-                col_prefix = None
-
-                for r in range(1, ws_groups.max_row + 1):
-                    for c in range(1, ws_groups.max_column + 1):
-                        val = str(ws_groups.cell(row=r, column=c).value or "").strip().lower()
-                        if val == "item name":
-                            header_row = r
-                            col_item = c
-                        elif val == "prefix":
-                            col_prefix = c
-                    if header_row:
-                        break
-
-                if header_row and col_item and col_prefix:
-                    for r in range(header_row + 1, ws_groups.max_row + 1):
-                        nm = ws_groups.cell(r, col_item).value
-                        px = ws_groups.cell(r, col_prefix).value
-                        if nm and px not in (None, ""):
-                            item_to_prefix[str(nm).strip()] = str(px).strip()
+                from core.saved_works_views import load_prefix_map
+                item_to_prefix = load_prefix_map(
+                    category,
+                    backend_id=backend_id,
+                    user=job.user,
+                    module_code=module_code,
+                )
             except Exception:
                 pass  # Continue without prefixes
-
-        # Load prefixes from each custom backend workbook (_is_custom items)
-        if is_repair:
-            seen_custom_wbs = set()
-            for _info in name_to_info.values():
-                if not _info.get('_is_custom'):
-                    continue
-                src_wb = _info.get('_source_wb')
-                if src_wb is None or id(src_wb) in seen_custom_wbs:
-                    continue
-                seen_custom_wbs.add(id(src_wb))
-                try:
-                    if 'Groups' not in src_wb.sheetnames:
-                        continue
-                    ws_cb_grp = src_wb['Groups']
-                    cb_hr = cb_ci = cb_cp = None
-                    for r in range(1, ws_cb_grp.max_row + 1):
-                        for c in range(1, ws_cb_grp.max_column + 1):
-                            val = str(ws_cb_grp.cell(r, c).value or "").strip().lower()
-                            if val == "item name":
-                                cb_hr, cb_ci = r, c
-                            elif val == "prefix":
-                                cb_cp = c
-                        if cb_hr:
-                            break
-                    if cb_hr and cb_ci and cb_cp:
-                        for r in range(cb_hr + 1, ws_cb_grp.max_row + 1):
-                            nm = ws_cb_grp.cell(r, cb_ci).value
-                            px = ws_cb_grp.cell(r, cb_cp).value
-                            if nm and px not in (None, ""):
-                                item_to_prefix[str(nm).strip()] = str(px).strip()
-                except Exception:
-                    pass
 
         # For now, we get it from the session-based workflow
         # In future, this should be stored in Job.result as input data
