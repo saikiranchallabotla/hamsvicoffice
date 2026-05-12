@@ -41,7 +41,8 @@ from .utils import (get_org_from_request, _get_letter_settings,
 from .self_formatted_views import (_extract_labels_from_source_file,
     _build_placeholder_map, _fill_template_file,
     _replace_placeholders_in_docx_xml,
-    _extract_labels_per_work)
+    _extract_labels_per_work,
+    _extract_labels_from_lines)
 
 # Pre-migration-safe columns for SelfFormattedTemplate queries.
 # Fields from migration 0022 (is_locked, template_file_backup, etc.) may not
@@ -706,6 +707,73 @@ def self_formatted_progress_report(request):
 
 
 
+def _extract_estimate_sheet_for_covering_letter(ws):
+    """
+    Inspect a single worksheet and return (work_name, amount) if it looks like
+    an estimate summary sheet, or None if it should be skipped (Datas/items sheets).
+
+    Sheet-skip rules:
+      - Sheet name contains 'datas', 'data', 'groups', 'group', 'master', 'item'.
+    Content-skip rule:
+      - If no recognisable estimate label (name_of_work) is found.
+
+    Amount logic: rightmost filled column, bottommost row that holds a numeric value.
+    """
+    sheet_name_lower = (ws.title or '').lower().strip()
+    _SKIP_NAMES = ('datas', 'data', 'groups', 'group', 'master', 'items', 'item')
+    if any(sheet_name_lower == k or sheet_name_lower.startswith(k) for k in _SKIP_NAMES):
+        return None
+
+    max_r = min(ws.max_row or 0, 150)
+    max_c = min(ws.max_column or 0, 20)
+    if max_r == 0:
+        return None
+
+    # Build text lines for label extraction (same logic as _extract_labels_per_work)
+    lines = []
+    for r in range(1, max_r + 1):
+        vals = []
+        for c in range(1, max_c + 1):
+            v = ws.cell(row=r, column=c).value
+            if v is not None:
+                vals.append(str(v).strip())
+        if vals:
+            if len(vals) == 2:
+                lbl = vals[0].lower().strip()
+                if any(x in lbl for x in ['name', 'work', 'sanction', 'amount', 'contractor',
+                                           'nit', 'estimate', 'period', 'address', 'premium']):
+                    lines.append(f"{vals[0]}: {vals[1]}")
+                else:
+                    lines.append(' '.join(vals))
+            else:
+                lines.append(' '.join(vals))
+
+    labels = _extract_labels_from_lines(lines)
+    work_name = labels.get('name_of_work', '').strip()
+    if not work_name:
+        return None  # No estimate label found — skip this sheet
+
+    # Amount: scan bottom-up, right-to-left for the first positive numeric value
+    amount = 0.0
+    for r in range(max_r, 0, -1):
+        for c in range(max_c, 0, -1):
+            v = ws.cell(row=r, column=c).value
+            if v is None:
+                continue
+            cleaned = re.sub(r'^Rs\.?\s*', '', str(v).strip(), flags=re.I)
+            cleaned = cleaned.replace(',', '').rstrip('/-').strip()
+            try:
+                num_val = float(cleaned)
+                if num_val > 0:
+                    amount = round(num_val, 2)
+                    break
+            except (ValueError, TypeError):
+                continue
+        if amount > 0:
+            break
+
+    return (work_name, amount)
+
 
 @login_required(login_url='login')
 def self_formatted_bulk_covering_letter(request):
@@ -728,34 +796,35 @@ def self_formatted_bulk_covering_letter(request):
             f"{reverse('self_formatted_form_page')}?error=Please+upload+at+least+one+source+file"
         )
 
-    # Extract one (work_name, amount) entry per file / per sheet
+    # Extract one (work_name, amount) entry per file / per sheet.
+    # For Excel: only process estimate-summary sheets (skip Datas/items sheets).
+    # Amount: rightmost filled column, bottommost numeric value.
     works = []
     for f in files:
         try:
-            per_work = _extract_labels_per_work(f)
+            filename = f.name or ''
+            ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
+            if ext in ('xlsx', 'xlsm'):
+                wb = load_workbook(f, data_only=True)
+                for ws in wb.worksheets:
+                    result = _extract_estimate_sheet_for_covering_letter(ws)
+                    if result is not None:
+                        works.append({'name': result[0], 'amount': result[1]})
+            else:
+                # Non-Excel: use existing label extraction
+                labels, _lines = _extract_labels_from_source_file(f)
+                name = (labels.get('name_of_work') or labels.get('cc_header') or filename).strip()
+                raw = (labels.get('estimate_amount') or labels.get('amount') or
+                       labels.get('admin_sanction_amount') or '0')
+                try:
+                    amt = float(str(raw).replace(',', '').replace('Rs.', '').replace('\u20b9', '').strip())
+                except Exception:
+                    amt = 0.0
+                if name:
+                    works.append({'name': name, 'amount': amt})
         except Exception as e:
             logger.error(f"Bulk covering letter: failed to extract from {f.name}: {e}")
             continue
-        for _src_name, labels in per_work:
-            name = (
-                labels.get('name_of_work') or
-                labels.get('cc_header') or
-                _src_name
-            ).strip()
-            raw_amount = (
-                labels.get('estimate_amount') or
-                labels.get('amount') or
-                labels.get('admin_sanction_amount') or
-                '0'
-            )
-            try:
-                amt = float(
-                    str(raw_amount).replace(',', '').replace('Rs.', '')
-                    .replace('\u20b9', '').strip()
-                )
-            except Exception:
-                amt = 0.0
-            works.append({'name': name, 'amount': amt})
 
     if not works:
         return redirect(
