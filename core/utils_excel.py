@@ -574,11 +574,17 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
     Remap every cell reference in *formula* for moving the containing cell
     from (src_r, src_c) to (dst_r, dst_c).
 
-    Each item block is treated as a self-contained unit. Only references
-    that point inside the block's own row range [src_min_row, src_max_row]
-    and column range [col_start, col_end] are shifted. Everything outside
-    those bounds (other item blocks, global headers, cross-sheet refs) is
-    left unchanged.
+    Item-block model: every absolute reference at or after src_min_row is
+    considered intra-block and shifted by the block's row delta.  References
+    to rows before src_min_row (global headers, lookup tables that sit above
+    all items) are preserved unchanged.
+
+    No upper-row bound is applied because detect_items may not always capture
+    the full structural extent of a block (e.g. tempworks blocks whose copied
+    range is truncated to a specific day-rate row still have formulas that
+    reference the tail of the block).  In practice, item formulas never
+    reference other items' internal rows, so shifting everything >= src_min_row
+    is safe.
 
     Remapping rules applied to each $?COL$?ROW token:
 
@@ -587,12 +593,7 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
 
       Absolute component ($):
         Column ($COL): shift if col_start <= COL <= col_end.
-        Row ($ROW):    shift if src_min_row <= ROW <= src_max_row.
-
-    For tempworks blocks where only a subset of rows is physically copied,
-    pass the full logical block span as block_max_row to
-    copy_block_with_styles_and_formulas so that src_max_row here reflects
-    the true block boundary, not the truncated copy boundary.
+        Row ($ROW):    shift if ROW >= src_min_row.
 
     Cross-sheet refs are excluded by the regex lookbehind and left intact.
     """
@@ -622,10 +623,9 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
 
         # --- Row ---
         if row_dollar:
-            # Absolute row: shift only if inside this block's row span.
-            # References to other item blocks, global headers, or rows before
-            # this block are left unchanged — each block is remapped independently.
-            new_row = row_num + row_delta if (src_min_row <= row_num <= src_max_row) else row_num
+            # Absolute row: shift if at or after the block's own start row.
+            # Refs to rows before src_min_row (headers, earlier items) stay put.
+            new_row = row_num + row_delta if row_num >= src_min_row else row_num
         else:
             new_row = row_num + row_delta   # relative: always shift
 
