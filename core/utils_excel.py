@@ -638,6 +638,7 @@ def copy_block_with_styles_and_formulas(
     dst_start_row,
     dst_start_col=1,
     external_sheets=None,
+    block_max_row=None,
 ):
     """
     Copies a rectangular block including:
@@ -648,12 +649,33 @@ def copy_block_with_styles_and_formulas(
 
     Safely handles merged cells (does not write into MergedCell).
 
-    external_sheets: list of sheet names (e.g. ['INPUT', 'LEAD']) whose cross-sheet
-      references should be treated as absolute and NOT shifted during translation.
+    external_sheets: kept for API compatibility; cross-sheet refs are excluded
+      automatically by the regex lookbehind in _remap_formula.
+
+    block_max_row: the logical end of the item block (row before next heading).
+      Defaults to src_max_row.  Pass the full block span here when only a
+      subset of rows is being physically copied (e.g. tempworks rate-row
+      truncation) so that absolute refs to the un-copied tail rows still get
+      shifted correctly.
     """
 
     row_offset = dst_start_row - src_min_row
     col_offset = dst_start_col - col_start
+
+    # Full logical block end for formula-ref bound checking.
+    # This must be >= src_max_row so that absolute refs to rows between
+    # src_max_row and block_max_row are recognised as intra-block.
+    _formula_max_row = block_max_row if (block_max_row is not None and block_max_row >= src_max_row) else src_max_row
+
+    # Precompile self-sheet qualifier pattern once for this call.
+    # Formulas in the backend sheet may reference their own sheet by name
+    # (e.g. ='Master Datas'!$B$105).  The regex lookbehind in _remap_formula
+    # rightly treats those as cross-sheet refs and leaves them alone.  We must
+    # strip the qualifier FIRST so the remapper sees them as plain local refs.
+    _self_sheet_name = ws_src.title
+    _self_sheet_re = re.compile(
+        r'(?:\[\d+\])?\'?' + re.escape(_self_sheet_name) + r'\'?!'
+    )
 
     # 1) Column widths
     for c in range(col_start, col_end + 1):
@@ -709,17 +731,20 @@ def copy_block_with_styles_and_formulas(
             v = src_cell.value
 
             # Remap all cell references in formula to the new block position.
-            # _remap_formula handles all four reference types in a single pass:
-            #   $COL$ROW, $COL ROW, COL$ROW, COL ROW
-            # Cross-sheet refs (SHEET!…) are excluded by the regex lookbehind
-            # and left unchanged, so external helper-sheet references stay intact.
             if isinstance(v, str) and v.startswith("="):
                 try:
+                    # Strip self-sheet qualifiers BEFORE remapping.
+                    # e.g. ='Master Datas'!$B$105  →  =$B$105
+                    # Without this the lookbehind in _remap_formula treats these
+                    # as cross-sheet refs and skips them; then fix_cross_sheet_refs
+                    # strips the qualifier later but the row is never shifted.
+                    v = _self_sheet_re.sub('', v)
+
                     v = _remap_formula(
                         v,
                         src_r=src_r, src_c=src_c,
                         dst_r=r + row_offset, dst_c=c + col_offset,
-                        src_min_row=src_min_row, src_max_row=src_max_row,
+                        src_min_row=src_min_row, src_max_row=_formula_max_row,
                         col_start=col_start, col_end=col_end,
                     )
                 except Exception:

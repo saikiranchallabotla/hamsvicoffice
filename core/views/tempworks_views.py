@@ -703,6 +703,7 @@ def temp_download_output(request, category):
             dst_start_row=dst_start,
             col_start=1,
             col_end=10,
+            block_max_row=src_max,
         )
 
         # Fix rate columns (I=9, J=10) where formulas reference cells outside copied block
