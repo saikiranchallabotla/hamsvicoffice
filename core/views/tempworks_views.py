@@ -63,21 +63,14 @@ def tempworks_home(request):
 @login_required(login_url='login')
 def tempworks_set_mode(request, mode):
     """
-    Persist the user's Single/Multiple choice.
-    - single: go straight to the category chooser
-    - multi: go to the events-setup screen first (enter all event names once)
+    Persist the user's Single/Multiple choice, then go to category chooser.
+    Events (for multi mode) are entered per-item, not globally.
     """
     mode = (mode or "").strip().lower()
     if mode not in ("single", "multi"):
         mode = "single"
     request.session["temp_mode"] = mode
-    # Reset entries when switching mode to avoid mixing shapes
     request.session["temp_entries"] = []
-    if mode == "multi":
-        # Keep any existing events list so user can re-enter the same screen and edit
-        request.session.setdefault("temp_events_list", [])
-        return redirect("tempworks_events_setup")
-    # single mode
     request.session["temp_events_list"] = []
     return render(request, "core/tempworks_category_select.html", {"temp_mode": mode})
 
@@ -389,27 +382,18 @@ def temp_items(request, category, group):
 
     temp_entries = request.session.get("temp_entries", []) or []
     temp_mode = request.session.get("temp_mode", "single")
-    temp_events_list = request.session.get("temp_events_list", []) or []
-    # Map event_name -> {id, name} for quick lookup when rendering checkboxes
-    event_name_to_id = {e["name"]: e["id"] for e in temp_events_list if isinstance(e, dict) and e.get("name")}
     display_entries = []
     for idx, ent in enumerate(temp_entries, start=1):
         plural, _singular = units_for(ent["name"])
         entry_mode = ent.get("mode", "single")
-        # For multi entries, build a per-event-list rendering: for each defined event,
-        # include the entry's stored days/qty if it had a selection, else default.
-        per_event_rows = []
+        # For multi entries, normalize event rows: [{event_name, days, qty}, ...]
+        event_rows = []
         if entry_mode == "multi":
-            stored = {(ev.get("event_name") or "").strip(): ev for ev in (ent.get("events") or [])}
-            for ev_def in temp_events_list:
-                ev_name = ev_def.get("name", "")
-                sel = stored.get(ev_name)
-                per_event_rows.append({
-                    "event_id": ev_def.get("id", ""),
-                    "event_name": ev_name,
-                    "selected": sel is not None,
-                    "days": (sel or {}).get("days", 1),
-                    "qty": (sel or {}).get("qty", ""),
+            for ev in (ent.get("events") or []):
+                event_rows.append({
+                    "event_name": (ev.get("event_name") or "").strip(),
+                    "days": ev.get("days", 1),
+                    "qty": ev.get("qty", ""),
                 })
         display_entries.append(
             {
@@ -418,11 +402,9 @@ def temp_items(request, category, group):
                 "name": ent["name"],
                 "unit": plural,
                 "mode": entry_mode,
-                # Single-mode fields (unchanged):
                 "qty": ent.get("qty", ""),
                 "days": ent.get("days", 1),
-                # Multi-mode: pre-built list of {event_id, event_name, selected, days, qty}
-                "event_rows": per_event_rows if entry_mode == "multi" else [],
+                "event_rows": event_rows,
             }
         )
 
@@ -447,7 +429,6 @@ def temp_items(request, category, group):
         "selected_backend_id": temp_selected_backend_id,
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'temp_works', base_category),
         "temp_mode": temp_mode,
-        "temp_events_list": temp_events_list,
     }
     return render(request, "core/temp_items.html", context)
 
@@ -1103,11 +1084,10 @@ def temp_download_output(request, category):
             header_desc = base_desc_str or name
             _write_row(header_desc, None, None, kind="header")
 
-            # Event rows with roman-numeral prefix and no item description
-            for i, ev in enumerate(valid_events, start=1):
-                roman = _to_roman_lower(i)
-                day_word = "day" if ev["days"] == 1 else "days"
-                desc = f"{roman}. {ev['name']} for {ev['days']} {day_word}"
+            # Event rows: "<EventName> For X Day(s)" — no item description repeated
+            for ev in valid_events:
+                day_word = "Day" if ev["days"] == 1 else "Days"
+                desc = f"{ev['name']} For {ev['days']} {day_word}"
                 rate_value = _rate_for_days(ev["days"])
                 _write_row(desc, ev["qty"], rate_value, kind="event")
         else:
