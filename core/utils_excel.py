@@ -538,62 +538,94 @@ from openpyxl.cell.cell import MergedCell
 
 from copy import copy
 from openpyxl.utils import get_column_letter, column_index_from_string
-from openpyxl.formula.translate import Translator
 from openpyxl.cell.cell import MergedCell
 
-# Matches any cell reference where the ROW is absolute (COL$ROW or $COL$ROW),
-# but NOT cross-sheet refs like SHEET!A$1 (excluded by the negative lookbehind).
-# Group 1: optional leading '$' for the column ('' or '$')
-# Group 2: column letter(s)
-# Group 3: row number (after the required '$')
-_ABS_ROW_IN_REF_RE = re.compile(r'(?<![!\w])(\$?)([A-Za-z]{1,3})\$(\d+)')
+# ---------------------------------------------------------------------------
+# Single-pass formula reference remapper for item-data block copying.
+#
+# Matches every plain cell reference  $?COL  $?ROW  inside a formula.
+# Four reference types are handled correctly in one pass:
+#
+#   $COL$ROW  – both absolute
+#   $COL ROW  – absolute col, relative row
+#    COL$ROW  – relative col, absolute row
+#    COL ROW  – both relative
+#
+# Cross-sheet refs (preceded by '!') are excluded by the lookbehind and are
+# NEVER modified — they always point to the same cell on the helper sheet.
+#
+# The trailing negative lookahead (?![A-Za-z\d]) prevents matching partial
+# tokens, e.g. the "A1" inside "A1B2".
+# ---------------------------------------------------------------------------
+_CELL_REF_RE = re.compile(
+    r'(?<![!\w])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z\d])'
+)
 
 
-def _adjust_absolute_block_refs(formula, src_min_row, src_max_row, col_start, col_end, row_offset, col_offset):
+def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
+                   src_min_row, src_max_row, col_start, col_end):
     """
-    After openpyxl Translator runs, fix any remaining absolute-row cell references
-    that still point to the source block position instead of the destination block.
+    Remap every cell reference in *formula* for moving the containing cell
+    from (src_r, src_c) to (dst_r, dst_c).
 
-    Translator intentionally skips:
-      - $COL$ROW  (both absolute)  → neither row nor col was shifted
-      - COL$ROW   (absolute row)   → col was shifted by Translator, but NOT the row
+    Remapping rules applied to each $?COL$?ROW token:
 
-    This function handles both patterns so that intra-block references remain
-    self-consistent no matter which row the block lands on in the output sheet
-    (e.g. $J$12 in backend becomes $J$57 when the block is placed at row 50).
+      Relative component (no $):
+          Always shift by the position delta (dst - src).
+          This preserves the relative offset from the new cell location,
+          regardless of whether the referenced cell is inside or outside the
+          source block.
 
-    Rules:
-      - Row  ($ROW): shift by row_offset  if  src_min_row <= ROW <= src_max_row
-      - Col  ($COL, absolute only): shift by col_offset if col_start <= COL <= col_end
-        Relative cols (no leading $) were already shifted by Translator — skip them.
+      Absolute component ($):
+          Shift ONLY when the referenced value falls INSIDE the source
+          item-block bounds (intra-block reference).
+          Absolute references that point OUTSIDE the block are intentional
+          anchors and must remain unchanged.
 
-    Cross-sheet refs (SHEET!$A$1, SHEET!A$1) are excluded by the lookbehind.
+    Cross-sheet refs are excluded by the regex lookbehind and left intact.
     """
-    if not formula or not formula.startswith('=') or (row_offset == 0 and col_offset == 0):
+    if not isinstance(formula, str) or not formula.startswith('='):
         return formula
 
-    def _replace(m):
-        has_col_dollar = m.group(1)   # '$' if absolute col, '' if relative col
-        col_letter = m.group(2)
-        row_num = int(m.group(3))
-        col_num = column_index_from_string(col_letter)
+    row_delta = dst_r - src_r
+    col_delta = dst_c - src_c
+    if row_delta == 0 and col_delta == 0:
+        return formula
 
-        # Absolute col ($COL): Translator did NOT shift it → shift now if within block.
-        # Relative col (COL):  Translator already shifted it → do NOT shift again.
-        if has_col_dollar and (col_start <= col_num <= col_end):
-            new_col = col_num + col_offset
-        else:
-            new_col = col_num
+    def _sub(m):
+        col_dollar = m.group(1)   # '$' or ''
+        col_str    = m.group(2)   # column letters, e.g. 'J', 'AB'
+        row_dollar = m.group(3)   # '$' or ''
+        row_str    = m.group(4)   # row digits, e.g. '12'
 
-        # Absolute row ($ROW): Translator never shifts these → shift if within block.
-        new_row = row_num + row_offset if (src_min_row <= row_num <= src_max_row) else row_num
+        col_num = column_index_from_string(col_str)
+        row_num = int(row_str)
 
-        new_row = max(1, new_row)
-        new_col = max(1, new_col)
-        col_prefix = '$' if has_col_dollar else ''
-        return f'{col_prefix}{get_column_letter(new_col)}${new_row}'
+        # --- Column ---
+        if col_dollar:                               # absolute col ($C)
+            if col_start <= col_num <= col_end:
+                new_col = col_num + col_delta        #   intra-block → shift
+            else:
+                new_col = col_num                    #   outside block → keep
+        else:                                        # relative col (C)
+            new_col = col_num + col_delta            #   always shift
 
-    return _ABS_ROW_IN_REF_RE.sub(_replace, formula)
+        # --- Row ---
+        if row_dollar:                               # absolute row ($12)
+            if src_min_row <= row_num <= src_max_row:
+                new_row = row_num + row_delta        #   intra-block → shift
+            else:
+                new_row = row_num                    #   outside block → keep
+        else:                                        # relative row (12)
+            new_row = row_num + row_delta            #   always shift
+
+        # Clamp to valid Excel limits
+        new_col = max(1, min(new_col, 16384))
+        new_row = max(1, min(new_row, 1048576))
+
+        return f'{col_dollar}{get_column_letter(new_col)}{row_dollar}{new_row}'
+
+    return _CELL_REF_RE.sub(_sub, formula)
 
 
 def copy_block_with_styles_and_formulas(
@@ -676,36 +708,19 @@ def copy_block_with_styles_and_formulas(
 
             v = src_cell.value
 
-            # If formula, translate it to new position (origin is actual src coordinate)
+            # Remap all cell references in formula to the new block position.
+            # _remap_formula handles all four reference types in a single pass:
+            #   $COL$ROW, $COL ROW, COL$ROW, COL ROW
+            # Cross-sheet refs (SHEET!…) are excluded by the regex lookbehind
+            # and left unchanged, so external helper-sheet references stay intact.
             if isinstance(v, str) and v.startswith("="):
                 try:
-                    # Make external-sheet references absolute BEFORE translation so
-                    # Translator doesn't shift them (e.g. INPUT!F53 → INPUT!$F$53).
-                    if external_sheets:
-                        import re as _re
-                        for _sheet in external_sheets:
-                            # matches optional [N] prefix, optional quotes, sheet name, !ColRow
-                            v = _re.sub(
-                                r'(\[\d+\])?\'?' + _re.escape(_sheet) + r"'?!([A-Za-z]+)(\d+)",
-                                lambda m: (m.group(1) or '') + _sheet + '!$' + m.group(2) + '$' + m.group(3),
-                                v,
-                            )
-                    v = Translator(v, origin=src_cell.coordinate).translate_formula(
-                        row_delta=row_offset + (src_r - r),
-                        col_delta=col_offset + (src_c - c)
-                    )
-                    # Shift intra-block absolute refs ($COL$ROW) that Translator
-                    # intentionally skips.  This ensures formulas in an item-data block
-                    # remain self-consistent no matter which row the block lands on in
-                    # the output (e.g. $J$12 in backend → $J$57 when block is at row 50).
-                    v = _adjust_absolute_block_refs(
+                    v = _remap_formula(
                         v,
-                        src_min_row=src_min_row,
-                        src_max_row=src_max_row,
-                        col_start=col_start,
-                        col_end=col_end,
-                        row_offset=row_offset,
-                        col_offset=col_offset,
+                        src_r=src_r, src_c=src_c,
+                        dst_r=r + row_offset, dst_c=c + col_offset,
+                        src_min_row=src_min_row, src_max_row=src_max_row,
+                        col_start=col_start, col_end=col_end,
                     )
                 except Exception:
                     pass
