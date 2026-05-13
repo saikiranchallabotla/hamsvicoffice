@@ -1,0 +1,41 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}Temporary Works - Select Mode{% endblock %}
+{% block page_title %}Temporary Works{% endblock %}
+{% block page_badge %}<span class="badge" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">Temp</span>{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-modern">
+    <a href="{% url 'dashboard' %}">Dashboard</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">Temporary Works</span>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-collection me-2"></i>
+        Select Estimate Mode
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-4">Choose how the temporary works estimate should be structured.</p>
+
+        <div class="action-grid" style="max-width: 600px;">
+            <a href="{% url 'tempworks_set_mode' 'single' %}" class="action-card">
+                <div class="icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+                    <i class="bi bi-1-square"></i>
+                </div>
+                <h3>Single Event</h3>
+                <p>One item, one duration, one quantity. Classic estimate format.</p>
+            </a>
+
+            <a href="{% url 'tempworks_set_mode' 'multi' %}" class="action-card">
+                <div class="icon" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);">
+                    <i class="bi bi-calendar-event"></i>
+                </div>
+                <h3>Multiple Events</h3>
+                <p>Same item used across several events (e.g., Republic Day, Diwali) with different days &amp; quantities.</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

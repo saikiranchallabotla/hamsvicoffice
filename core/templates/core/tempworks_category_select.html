@@ -1,0 +1,47 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}Temporary Works - Select Category{% endblock %}
+{% block page_title %}Temporary Works{% endblock %}
+{% block page_badge %}<span class="badge" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">Temp</span>{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-modern">
+    <a href="{% url 'dashboard' %}">Dashboard</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <a href="{% url 'tempworks_home' %}">Temporary Works</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">{% if temp_mode == 'multi' %}Multiple Events{% else %}Single Event{% endif %}</span>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-lightbulb me-2"></i>
+        Select Category
+        <span class="ms-2" style="font-size: 0.75rem; color: #6b7280;">
+            (Mode: <strong>{% if temp_mode == 'multi' %}Multiple Events{% else %}Single Event{% endif %}</strong>
+            &middot; <a href="{% url 'tempworks_home' %}">change</a>)
+        </span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-4">Choose a category to prepare temporary lighting or hiring estimates.</p>
+
+        <div class="action-grid" style="max-width: 500px;">
+            <a href="{% url 'temp_groups' 'temp_electrical' %}" class="action-card">
+                <div class="icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                    <i class="bi bi-lightning-charge"></i>
+                </div>
+                <h3>Temporary Electrical</h3>
+                <p>Temporary lighting &amp; electrical works</p>
+            </a>
+
+            <a href="{% url 'temp_groups' 'temp_civil' %}" class="action-card">
+                <div class="icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <i class="bi bi-cone-striped"></i>
+                </div>
+                <h3>Temporary Civil</h3>
+                <p>Temporary structures &amp; civil works</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -46,15 +46,33 @@ from .utils import (get_org_from_request, _apply_print_settings,
 @login_required(login_url='login')
 def tempworks_home(request):
     """
-    Landing page for Temporary Works:
-    - Just shows buttons to choose category (temp_electrical, temp_civil, etc.)
-    - Clears only the temp session keys.
+    Step 1 in Temporary Works flow: ask user to pick Single Event vs Multiple Events.
+    Stores the chosen mode in session, then user proceeds to category chooser.
+    Clears only the temp session keys.
     """
-    request.session["temp_entries"] = []  # list of {"id":..., "name":...}
+    request.session["temp_entries"] = []  # list of entries (single shape OR multi shape)
     request.session["temp_work_name"] = ""
-    request.session["temp_selected_backend_id"] = None  # Clear backend selection
-    request.session["current_saved_work_id"] = None  # Clear so save modal shows "Save" not "Update"
-    return render(request, "core/tempworks_home.html")
+    request.session["temp_selected_backend_id"] = None
+    request.session["current_saved_work_id"] = None
+    # Default mode: keep existing single-event behavior if user lands directly via legacy URL
+    if "temp_mode" not in request.session:
+        request.session["temp_mode"] = "single"
+    return render(request, "core/tempworks_mode_select.html")
+
+
+@login_required(login_url='login')
+def tempworks_set_mode(request, mode):
+    """
+    Persist the user's Single/Multiple choice, then send them to the category chooser.
+    Valid modes: 'single', 'multi'. Anything else falls back to 'single'.
+    """
+    mode = (mode or "").strip().lower()
+    if mode not in ("single", "multi"):
+        mode = "single"
+    request.session["temp_mode"] = mode
+    # Reset entries when switching mode to avoid mixing shapes
+    request.session["temp_entries"] = []
+    return render(request, "core/tempworks_category_select.html", {"temp_mode": mode})
 
 
 @login_required(login_url='login')
@@ -265,17 +283,23 @@ def temp_items(request, category, group):
             return ("Nos", "No")
 
     temp_entries = request.session.get("temp_entries", []) or []
+    temp_mode = request.session.get("temp_mode", "single")
     display_entries = []
     for idx, ent in enumerate(temp_entries, start=1):
         plural, _singular = units_for(ent["name"])
+        entry_mode = ent.get("mode", "single")
         display_entries.append(
             {
                 "id": ent["id"],
                 "sl": idx,
                 "name": ent["name"],
                 "unit": plural,
+                "mode": entry_mode,
+                # Single-mode fields (unchanged):
                 "qty": ent.get("qty", ""),
                 "days": ent.get("days", 1),
+                # Multi-mode events list: [{event_id, event_name, days, qty}, ...]
+                "events": ent.get("events", []) if entry_mode == "multi" else [],
             }
         )
 
@@ -299,6 +323,7 @@ def temp_items(request, category, group):
         "available_backends": available_backends,
         "selected_backend_id": temp_selected_backend_id,
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'temp_works', base_category),
+        "temp_mode": temp_mode,
     }
     return render(request, "core/temp_items.html", context)
 
@@ -366,10 +391,14 @@ def temp_ajax_add_item(request, category):
             return JsonResponse({"status": "error", "message": "No item specified"}, status=400)
         
         temp_entries = request.session.get("temp_entries", []) or []
+        temp_mode = request.session.get("temp_mode", "single")
         entry = {
             "id": get_random_string(8),
             "name": item,
         }
+        if temp_mode == "multi":
+            entry["mode"] = "multi"
+            entry["events"] = []  # filled by client via save_state
         temp_entries.append(entry)
         request.session["temp_entries"] = temp_entries
         
@@ -394,7 +423,8 @@ def temp_ajax_add_item(request, category):
             "entries": temp_entries,
             "entry_id": entry["id"],
             "item": item,
-            "item_info": item_info
+            "item_info": item_info,
+            "temp_mode": temp_mode,
         })
         
     except Exception as e:
@@ -652,14 +682,37 @@ def temp_download_output(request, category):
     hdr.alignment = Alignment(horizontal="left", vertical="center")
 
     cursor = 3  # start blocks after header + blank row
-    rate_rows = {}  # dict mapping entry_index -> row_in_output for rate
+    rate_rows = {}  # dict mapping entry_index -> row_in_output for rate (single mode only)
+
+    def _entry_mode(e):
+        m = (e or {}).get("mode", "single")
+        return "multi" if m == "multi" else "single"
+
+    def _entry_max_days(e):
+        """For multi: max days across events; for single: just entry.days."""
+        if _entry_mode(e) == "multi":
+            evs = e.get("events") or []
+            ds = []
+            for ev in evs:
+                try:
+                    d = int(ev.get("days") or 0)
+                    if d > 0:
+                        ds.append(d)
+                except (TypeError, ValueError):
+                    pass
+            return max(ds) if ds else 1
+        try:
+            return int(e.get("days") or 1)
+        except (TypeError, ValueError):
+            return 1
 
     # =====================================================
     # 1) OUTPUT SHEET: one block per entry (supports dupes)
     # =====================================================
     for idx, entry in enumerate(entries, start=1):
         name = entry.get("name")
-        days = int(entry.get("days") or 1)
+        # For multi: use MAX days among events; for single: entry.days
+        days = _entry_max_days(entry)
 
         info = name_to_info.get(name)
         if not info:
@@ -787,8 +840,7 @@ def temp_download_output(request, category):
 
     for idx, entry in enumerate(entries, start=1):
         name = entry.get("name")
-        qty_val = float(entry.get("qty") or 0) or None
-        days = int(entry.get("days") or 1)
+        mode = _entry_mode(entry)
 
         info = name_to_info.get(name)
         if not info:
@@ -797,85 +849,104 @@ def temp_download_output(request, category):
         # Get base description from row+2 (standard position in backend)
         start_row = info["start_row"]
         end_row = info["end_row"]
-        
+
         # Use data_only worksheet to get cached values
         desc_ws = ws_vals if ws_vals else ws_src
         base_desc = desc_ws.cell(row=start_row + 2, column=4).value or ""
         base_desc_str = str(base_desc).strip()
 
-        # suffix: "for X day(s)"
-        if days == 1:
-            suffix = f"for {days} day"
-        else:
-            suffix = f"for {days} days"
-
-        desc = f"{base_desc_str}, {suffix}" if base_desc_str else suffix
-
-        # Get actual rate value from day_rates (reliable, uses same logic as UI)
+        plural, singular = units_for(name)
         norm_name = _norm_name(name)
         item_day_rates = day_rates.get(norm_name, {})
-        
-        # Find matching rate for this day count
-        rate_value = item_day_rates.get(days, 0)
-        
-        # If exact day not found, try to find closest available day
-        if rate_value == 0 and item_day_rates:
-            # Keys are integers, sort numerically
-            available_days = sorted([int(k) for k in item_day_rates.keys()])
-            # Find closest day that's >= requested days, or the max available
-            closest_day = None
-            for d in available_days:
-                if d >= days:
-                    closest_day = d
-                    break
-            if closest_day is None and available_days:
-                closest_day = available_days[-1]  # Use max available
-            if closest_day:
-                rate_value = item_day_rates.get(closest_day, 0)
 
-        plural, singular = units_for(name)
+        def _rate_for_days(days):
+            r = item_day_rates.get(days, 0)
+            if r == 0 and item_day_rates:
+                available_days = sorted([int(k) for k in item_day_rates.keys()])
+                closest_day = None
+                for d in available_days:
+                    if d >= days:
+                        closest_day = d
+                        break
+                if closest_day is None and available_days:
+                    closest_day = available_days[-1]
+                if closest_day:
+                    r = item_day_rates.get(closest_day, 0)
+            return r
 
-        # Get the rate row reference from rate_rows (points to Output sheet)
-        rr = rate_rows.get(idx)
+        def _write_row(desc, qty_val, rate_value):
+            nonlocal row_est, slno
+            a = ws_est.cell(row=row_est, column=1, value=slno)
+            a.alignment = Alignment(horizontal="center", vertical="center")
+            a.border = border_all
 
-        a = ws_est.cell(row=row_est, column=1, value=slno)
-        a.alignment = Alignment(horizontal="center", vertical="center")
-        a.border = border_all
+            b = ws_est.cell(row=row_est, column=2, value=qty_val)
+            b.alignment = Alignment(horizontal="center", vertical="center")
+            b.border = border_all
 
-        b = ws_est.cell(row=row_est, column=2, value=qty_val)
-        b.alignment = Alignment(horizontal="center", vertical="center")
-        b.border = border_all
+            c = ws_est.cell(row=row_est, column=3, value=plural)
+            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.border = border_all
 
-        c = ws_est.cell(row=row_est, column=3, value=plural)
-        c.alignment = Alignment(horizontal="center", vertical="center")
-        c.border = border_all
+            d_cell = ws_est.cell(row=row_est, column=4, value=desc)
+            d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
+            d_cell.border = border_all
 
-        d_cell = ws_est.cell(row=row_est, column=4, value=desc)
-        d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
-        d_cell.border = border_all
+            e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
+            e.alignment = Alignment(horizontal="center", vertical="center")
+            e.border = border_all
+            e.number_format = '#,##0.00'
 
-        # Use actual rate value from day_rates (reliable cached values)
-        # This ensures correct rates even if Output formulas reference missing cells
-        e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
-        e.alignment = Alignment(horizontal="center", vertical="center")
-        e.border = border_all
-        e.number_format = '#,##0.00'
+            f_cell = ws_est.cell(row=row_est, column=6, value=1)
+            f_cell.alignment = Alignment(horizontal="center", vertical="center")
+            f_cell.border = border_all
 
-        f_cell = ws_est.cell(row=row_est, column=6, value=1)
-        f_cell.alignment = Alignment(horizontal="center", vertical="center")
-        f_cell.border = border_all
+            g = ws_est.cell(row=row_est, column=7, value=singular)
+            g.alignment = Alignment(horizontal="center", vertical="center")
+            g.border = border_all
 
-        g = ws_est.cell(row=row_est, column=7, value=singular)
-        g.alignment = Alignment(horizontal="center", vertical="center")
-        g.border = border_all
+            h = ws_est.cell(row=row_est, column=8, value=f"=ROUND(B{row_est}*E{row_est},2)")
+            h.alignment = Alignment(horizontal="center", vertical="center")
+            h.border = border_all
+            h.number_format = '#,##0.00'
 
-        h = ws_est.cell(row=row_est, column=8, value=f"=ROUND(B{row_est}*E{row_est},2)")
-        h.alignment = Alignment(horizontal="center", vertical="center")
-        h.border = border_all
-        h.number_format = '#,##0.00'
+            row_est += 1
+            slno += 1
 
-        row_est += 1
-        slno += 1
+        if mode == "multi":
+            # One estimate row per valid event; item description stays plain (no "for X days" on item)
+            events = entry.get("events") or []
+            for ev in events:
+                ev_name = (ev.get("event_name") or "").strip()
+                try:
+                    ev_days = int(ev.get("days") or 0)
+                except (TypeError, ValueError):
+                    ev_days = 0
+                try:
+                    ev_qty = float(ev.get("qty") or 0)
+                except (TypeError, ValueError):
+                    ev_qty = 0.0
+                if not ev_name or ev_days <= 0 or ev_qty <= 0:
+                    continue
+                day_word = "day" if ev_days == 1 else "days"
+                # Description format: "<base item desc> — <event name> for X day(s)"
+                if base_desc_str:
+                    desc = f"{base_desc_str} — {ev_name} for {ev_days} {day_word}"
+                else:
+                    desc = f"{ev_name} for {ev_days} {day_word}"
+                rate_value = _rate_for_days(ev_days)
+                _write_row(desc, ev_qty, rate_value)
+        else:
+            # Single mode — existing behavior preserved
+            try:
+                qty_val = float(entry.get("qty") or 0) or None
+            except (TypeError, ValueError):
+                qty_val = None
+            days = int(entry.get("days") or 1)
+            suffix = f"for {days} day" if days == 1 else f"for {days} days"
+            desc = f"{base_desc_str}, {suffix}" if base_desc_str else suffix
+            rate_value = _rate_for_days(days)
+            _write_row(desc, qty_val, rate_value)
 
     # ---- Totals (same style as your main estimate) ----
     ecv_row = row_est
