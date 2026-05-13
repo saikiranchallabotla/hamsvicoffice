@@ -540,75 +540,6 @@ from copy import copy
 from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.cell.cell import MergedCell
 
-# ---------------------------------------------------------------------------
-# Single-pass formula reference remapper for item-data block copying.
-#
-# Matches every plain cell reference  $?COL  $?ROW  inside a formula.
-# Four reference types are handled correctly in one pass:
-#
-#   $COL$ROW  – both absolute
-#   $COL ROW  – absolute col, relative row
-#    COL$ROW  – relative col, absolute row
-#    COL ROW  – both relative
-#
-# Lookbehind: (?<![!\w\$])
-#   The `!` blocks col-letters that directly follow a sheet-ref separator.
-#   The `\w` blocks letters that are part of a longer identifier/name.
-#   The `\$` is the critical addition: blocks `J$131` from being matched
-#   when it is the tail of `!$J$131` — the `$` of the absolute col-ref is
-#   not consumed (lookbehind blocked it with `!`), so the match would
-#   otherwise start at `J`, leaving an "orphaned $" that turns
-#   `LEAD!$J$131` into `LEAD!$J$14` instead of leaving it unchanged.
-#
-# Lookahead: (?![A-Za-z\d])
-#   Prevents partial matches on longer identifiers, e.g. `A1` in `A1B2`.
-# ---------------------------------------------------------------------------
-_CELL_REF_RE = re.compile(
-    r'(?<![!\w\$])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z\d])'
-)
-
-
-def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
-                   src_min_row, src_max_row, col_start, col_end):
-    """
-    Remap every cell reference in *formula* for moving the containing cell
-    from (src_r, src_c) to (dst_r, dst_c).
-
-    Every item block is treated as a fully self-contained unit.  When a block
-    moves, EVERY cell reference inside it — absolute ($A$1), mixed (A$1 or
-    $A1), or relative (A1) — is shifted by the same row/col delta so that the
-    internal structure of the block is preserved exactly.
-
-    The $ markers are kept as written; they only affect whether Excel re-adjusts
-    the ref on further copy-paste inside the output file.  They do NOT affect
-    whether the ref is shifted here.
-
-    Cross-sheet refs are excluded by the regex lookbehind and left intact.
-    """
-    if not isinstance(formula, str) or not formula.startswith('='):
-        return formula
-
-    row_delta = dst_r - src_r
-    col_delta = dst_c - src_c
-    if row_delta == 0 and col_delta == 0:
-        return formula
-
-    def _sub(m):
-        col_dollar = m.group(1)   # '$' or ''
-        col_str    = m.group(2)
-        row_dollar = m.group(3)   # '$' or ''
-        row_str    = m.group(4)
-
-        new_col = column_index_from_string(col_str) + col_delta
-        new_row = int(row_str) + row_delta
-
-        new_col = max(1, min(new_col, 16384))
-        new_row = max(1, min(new_row, 1048576))
-        return f'{col_dollar}{get_column_letter(new_col)}{row_dollar}{new_row}'
-
-    return _CELL_REF_RE.sub(_sub, formula)
-
-
 def copy_block_with_styles_and_formulas(
     ws_src,
     ws_dst,
@@ -630,33 +561,11 @@ def copy_block_with_styles_and_formulas(
 
     Safely handles merged cells (does not write into MergedCell).
 
-    external_sheets: kept for API compatibility; cross-sheet refs are excluded
-      automatically by the regex lookbehind in _remap_formula.
-
-    block_max_row: the logical end of the item block (row before next heading).
-      Defaults to src_max_row.  Pass the full block span here when only a
-      subset of rows is being physically copied (e.g. tempworks rate-row
-      truncation) so that absolute refs to the un-copied tail rows still get
-      shifted correctly.
+    block_max_row: kept for API compatibility (ignored).
     """
 
     row_offset = dst_start_row - src_min_row
     col_offset = dst_start_col - col_start
-
-    # Full logical block end for formula-ref bound checking.
-    # This must be >= src_max_row so that absolute refs to rows between
-    # src_max_row and block_max_row are recognised as intra-block.
-    _formula_max_row = block_max_row if (block_max_row is not None and block_max_row >= src_max_row) else src_max_row
-
-    # Precompile self-sheet qualifier pattern once for this call.
-    # Formulas in the backend sheet may reference their own sheet by name
-    # (e.g. ='Master Datas'!$B$105).  The regex lookbehind in _remap_formula
-    # rightly treats those as cross-sheet refs and leaves them alone.  We must
-    # strip the qualifier FIRST so the remapper sees them as plain local refs.
-    _self_sheet_name = ws_src.title
-    _self_sheet_re = re.compile(
-        r'(?:\[\d+\])?\'?' + re.escape(_self_sheet_name) + r'\'?!'
-    )
 
     # 1) Column widths
     for c in range(col_start, col_end + 1):
@@ -711,22 +620,19 @@ def copy_block_with_styles_and_formulas(
 
             v = src_cell.value
 
-            # Remap all cell references in formula to the new block position.
+            # Translate formula references to the new block position.
             if isinstance(v, str) and v.startswith("="):
                 try:
-                    # Strip self-sheet qualifiers BEFORE remapping.
-                    # e.g. ='Master Datas'!$B$105  →  =$B$105
-                    # Without this the lookbehind in _remap_formula treats these
-                    # as cross-sheet refs and skips them; then fix_cross_sheet_refs
-                    # strips the qualifier later but the row is never shifted.
-                    v = _self_sheet_re.sub('', v)
-
-                    v = _remap_formula(
-                        v,
-                        src_r=src_r, src_c=src_c,
-                        dst_r=r + row_offset, dst_c=c + col_offset,
-                        src_min_row=src_min_row, src_max_row=_formula_max_row,
-                        col_start=col_start, col_end=col_end,
+                    if external_sheets:
+                        for _sheet in external_sheets:
+                            v = re.sub(
+                                r"(\[\d+\])?\'?" + re.escape(_sheet) + r"\'?!([A-Za-z]+)(\d+)",
+                                lambda m: (m.group(1) or '') + _sheet + '!$' + m.group(2) + '$' + m.group(3),
+                                v,
+                            )
+                    v = Translator(v, origin=src_cell.coordinate).translate_formula(
+                        row_delta=row_offset + (src_r - r),
+                        col_delta=col_offset + (src_c - c),
                     )
                 except Exception:
                     pass
