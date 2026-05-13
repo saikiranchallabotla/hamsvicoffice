@@ -574,26 +574,25 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
     Remap every cell reference in *formula* for moving the containing cell
     from (src_r, src_c) to (dst_r, dst_c).
 
+    Each item block is treated as a self-contained unit. Only references
+    that point inside the block's own row range [src_min_row, src_max_row]
+    and column range [col_start, col_end] are shifted. Everything outside
+    those bounds (other item blocks, global headers, cross-sheet refs) is
+    left unchanged.
+
     Remapping rules applied to each $?COL$?ROW token:
 
       Relative component (no $):
           Always shift by the position delta (dst - src).
 
       Absolute component ($):
-        Column ($COL): shift if col_start <= COL <= col_end (within block's
-          column range). Outside-column absolute refs are kept fixed.
-        Row ($ROW):    shift if ROW >= src_min_row.
-          This is intentionally LOOSER than the old [src_min_row, src_max_row]
-          check. The reason: detect_items sets end_row to the last row
-          containing a rate value in column J, which can be 1-2 rows BEFORE
-          the last structural row of the block. A formula later in the block
-          referencing that structural row (e.g. =$J$165 when the rate-row
-          cutoff put end_row=163) was then wrongly treated as "outside block"
-          and left un-shifted.
-          New rule: any absolute row ref that points to a row AT OR AFTER
-          the block's starting row is treated as intra-block and shifted.
-          Refs to rows BEFORE the block (global headers, fixed lookup tables
-          in earlier items) are preserved unchanged.
+        Column ($COL): shift if col_start <= COL <= col_end.
+        Row ($ROW):    shift if src_min_row <= ROW <= src_max_row.
+
+    For tempworks blocks where only a subset of rows is physically copied,
+    pass the full logical block span as block_max_row to
+    copy_block_with_styles_and_formulas so that src_max_row here reflects
+    the true block boundary, not the truncated copy boundary.
 
     Cross-sheet refs are excluded by the regex lookbehind and left intact.
     """
@@ -623,10 +622,10 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
 
         # --- Row ---
         if row_dollar:
-            # Absolute row: shift if the referenced row is at or after the
-            # block's own start row (intra-block or logically part of this block).
-            # Refs to rows before src_min_row (other items, headers, tables) stay put.
-            new_row = row_num + row_delta if row_num >= src_min_row else row_num
+            # Absolute row: shift only if inside this block's row span.
+            # References to other item blocks, global headers, or rows before
+            # this block are left unchanged — each block is remapped independently.
+            new_row = row_num + row_delta if (src_min_row <= row_num <= src_max_row) else row_num
         else:
             new_row = row_num + row_delta   # relative: always shift
 
