@@ -561,11 +561,40 @@ def copy_block_with_styles_and_formulas(
 
     Safely handles merged cells (does not write into MergedCell).
 
-    block_max_row: kept for API compatibility (ignored).
+    block_max_row: when provided, defines the logical end of the item block
+      for absolute-row shifting. Absolute-row refs ($ROW) inside the block
+      bounds [src_min_row, block_max_row] are shifted with the block so the
+      block remains a self-contained unit when fetched in a different order.
+      Cross-sheet refs are left untouched.
     """
 
     row_offset = dst_start_row - src_min_row
     col_offset = dst_start_col - col_start
+
+    # Logical block end for in-block absolute-row detection.
+    _block_end = block_max_row if (block_max_row is not None and block_max_row >= src_max_row) else src_max_row
+
+    # Strip self-sheet qualifiers so refs to ws_src are treated as local.
+    _self_sheet_re = re.compile(
+        r"(?:\[\d+\])?'?" + re.escape(ws_src.title) + r"'?!"
+    )
+
+    # Absolute-row ref: $?COL $ROW (col may or may not be absolute; row IS).
+    # Negative lookbehind on `!` excludes cross-sheet refs.
+    _abs_row_re = re.compile(
+        r"(?<![!\w])(\$?)([A-Za-z]{1,3})\$(\d+)(?![A-Za-z\d])"
+    )
+
+    def _shift_in_block_abs_rows(formula):
+        def _sub(m):
+            row_num = int(m.group(3))
+            if src_min_row <= row_num <= _block_end:
+                new_row = row_num + row_offset
+                if new_row < 1:
+                    new_row = 1
+                return f"{m.group(1)}{m.group(2)}${new_row}"
+            return m.group(0)
+        return _abs_row_re.sub(_sub, formula)
 
     # 1) Column widths
     for c in range(col_start, col_end + 1):
@@ -623,6 +652,9 @@ def copy_block_with_styles_and_formulas(
             # Translate formula references to the new block position.
             if isinstance(v, str) and v.startswith("="):
                 try:
+                    # Strip self-sheet qualifiers so they're treated as local.
+                    v = _self_sheet_re.sub('', v)
+
                     if external_sheets:
                         for _sheet in external_sheets:
                             v = re.sub(
@@ -634,6 +666,10 @@ def copy_block_with_styles_and_formulas(
                         row_delta=row_offset + (src_r - r),
                         col_delta=col_offset + (src_c - c),
                     )
+                    # Translator leaves $ROW unchanged. Shift absolute-row refs
+                    # whose row falls inside the source block so the block
+                    # behaves as a self-contained unit when reordered.
+                    v = _shift_in_block_abs_rows(v)
                 except Exception:
                     pass
             elif isinstance(v, str):
