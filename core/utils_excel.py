@@ -217,9 +217,11 @@ def _determine_unit_from_heading(heading_name, upload_units_map=None):
 
 
 # ---------- Read groups from "Groups" ----------
-def read_groups(ws_groups):
+def read_groups(ws_groups, unit_col=4):
     """
     Column A = Item Name, Column B = Group, Column C = Prefix, Column D = Unit (optional)
+    For temporary-works backends the convention is reversed and the unit lives
+    in column C instead — pass unit_col=3 in that case.
     Return tuple: (groups_dict, units_dict)
       - groups_dict: { group_name: [item1, item2, ...] }
       - units_dict: { item_name: unit }
@@ -230,12 +232,11 @@ def read_groups(ws_groups):
     for r in range(2, max_row + 1):
         item = ws_groups.cell(row=r, column=1).value
         group = ws_groups.cell(row=r, column=2).value
-        unit = ws_groups.cell(row=r, column=4).value  # Column D for unit
+        unit = ws_groups.cell(row=r, column=unit_col).value
         if item and group:
             item = str(item).strip()
             group = str(group).strip()
             groups.setdefault(group, []).append(item)
-            # Store unit if provided
             if unit:
                 units[item] = str(unit).strip()
     return groups, units
@@ -392,7 +393,9 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     ws_groups = wb["Groups"]
 
     items_list = detect_items(ws_data)
-    groups_map, units_map = read_groups(ws_groups)
+    # Temp-works backends keep units in Groups column C; everywhere else col D.
+    _unit_col = 3 if category_key.startswith('temp_') else 4
+    groups_map, units_map = read_groups(ws_groups, unit_col=_unit_col)
 
     # ---- Merge in user's custom backends (per-user uploaded items/groups) ----
     if user is not None and getattr(user, 'is_authenticated', False) and module_code in ('new_estimate', 'temp_works', 'amc'):
