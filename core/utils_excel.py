@@ -574,26 +574,14 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
     Remap every cell reference in *formula* for moving the containing cell
     from (src_r, src_c) to (dst_r, dst_c).
 
-    Item-block model: every absolute reference at or after src_min_row is
-    considered intra-block and shifted by the block's row delta.  References
-    to rows before src_min_row (global headers, lookup tables that sit above
-    all items) are preserved unchanged.
+    Every item block is treated as a fully self-contained unit.  When a block
+    moves, EVERY cell reference inside it — absolute ($A$1), mixed (A$1 or
+    $A1), or relative (A1) — is shifted by the same row/col delta so that the
+    internal structure of the block is preserved exactly.
 
-    No upper-row bound is applied because detect_items may not always capture
-    the full structural extent of a block (e.g. tempworks blocks whose copied
-    range is truncated to a specific day-rate row still have formulas that
-    reference the tail of the block).  In practice, item formulas never
-    reference other items' internal rows, so shifting everything >= src_min_row
-    is safe.
-
-    Remapping rules applied to each $?COL$?ROW token:
-
-      Relative component (no $):
-          Always shift by the position delta (dst - src).
-
-      Absolute component ($):
-        Column ($COL): shift if col_start <= COL <= col_end.
-        Row ($ROW):    shift if ROW >= src_min_row.
+    The $ markers are kept as written; they only affect whether Excel re-adjusts
+    the ref on further copy-paste inside the output file.  They do NOT affect
+    whether the ref is shifted here.
 
     Cross-sheet refs are excluded by the regex lookbehind and left intact.
     """
@@ -611,23 +599,8 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
         row_dollar = m.group(3)   # '$' or ''
         row_str    = m.group(4)
 
-        col_num = column_index_from_string(col_str)
-        row_num = int(row_str)
-
-        # --- Column ---
-        if col_dollar:
-            # Absolute col: shift only within block's column range
-            new_col = col_num + col_delta if (col_start <= col_num <= col_end) else col_num
-        else:
-            new_col = col_num + col_delta   # relative: always shift
-
-        # --- Row ---
-        if row_dollar:
-            # Absolute row: shift if at or after the block's own start row.
-            # Refs to rows before src_min_row (headers, earlier items) stay put.
-            new_row = row_num + row_delta if row_num >= src_min_row else row_num
-        else:
-            new_row = row_num + row_delta   # relative: always shift
+        new_col = column_index_from_string(col_str) + col_delta
+        new_row = int(row_str) + row_delta
 
         new_col = max(1, min(new_col, 16384))
         new_row = max(1, min(new_row, 1048576))
