@@ -1,0 +1,233 @@
+{% extends "core/base_modern.html" %}
+
+{% block title %}Temporary Works - Define Events{% endblock %}
+{% block page_title %}Temporary Works{% endblock %}
+{% block page_badge %}<span class="badge" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);">Multi</span>{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-modern">
+    <a href="{% url 'dashboard' %}">Dashboard</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <a href="{% url 'tempworks_home' %}">Temporary Works</a>
+    <span class="separator"><i class="bi bi-chevron-right"></i></span>
+    <span class="current">Define Events</span>
+</div>
+
+<div class="card" style="max-width: 720px; margin: 0 auto;">
+    <div class="card-header">
+        <i class="bi bi-calendar-event me-2"></i>
+        Define Events for this Work
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Enter the names of all events (e.g. Republic Day, Independence Day, Diwali) once for this work.
+            Later, when adding items, you'll just tick which events apply to each item &mdash; no need to type the
+            event name again under every item.
+        </p>
+
+        <form method="post" action="{% url 'tempworks_events_setup' %}" id="events-setup-form">
+            {% csrf_token %}
+
+            <div id="events-list">
+                {% if events %}
+                    {% for ev in events %}
+                    <div class="event-input-row">
+                        <span class="event-num">{{ forloop.counter }}.</span>
+                        <input type="hidden" name="event_id" value="{{ ev.id }}">
+                        <input type="text" name="event_name" value="{{ ev.name }}" placeholder="Event name (e.g. Republic Day)" required>
+                        <button type="button" class="btn-remove-event" title="Remove this event">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="event-input-row">
+                        <span class="event-num">1.</span>
+                        <input type="hidden" name="event_id" value="">
+                        <input type="text" name="event_name" value="" placeholder="Event name (e.g. Republic Day)" required>
+                        <button type="button" class="btn-remove-event" title="Remove this event">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+
+            <button type="button" id="add-event-btn" class="btn-add-event-row">
+                <i class="bi bi-plus-circle me-1"></i> Add Another Event
+            </button>
+
+            <div class="form-actions">
+                <a href="{% url 'tempworks_home' %}" class="btn-back">
+                    <i class="bi bi-arrow-left me-1"></i> Back
+                </a>
+                <button type="submit" class="btn-continue">
+                    Continue <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .event-input-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+    }
+    .event-num {
+        font-weight: 600;
+        color: #7c3aed;
+        min-width: 26px;
+        font-size: 0.85rem;
+    }
+    .event-input-row input[type="text"] {
+        flex: 1;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        background: white;
+    }
+    .event-input-row input[type="text"]:focus {
+        outline: none;
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+    }
+    .btn-remove-event {
+        width: 30px;
+        height: 30px;
+        border: none;
+        background: #fee2e2;
+        color: #dc2626;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+    }
+    .btn-remove-event:hover {
+        background: #dc2626;
+        color: white;
+    }
+    .btn-add-event-row {
+        margin-top: 0.6rem;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-add-event-row:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+    }
+    .form-actions {
+        margin-top: 1.4rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .btn-back, .btn-continue {
+        padding: 0.55rem 1.2rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.15s ease;
+    }
+    .btn-back {
+        background: #e2e8f0;
+        color: #475569;
+    }
+    .btn-back:hover {
+        background: #cbd5e1;
+        color: #1e293b;
+    }
+    .btn-continue {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+    .btn-continue:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    }
+</style>
+
+<script>
+(function() {
+    var list = document.getElementById('events-list');
+    var addBtn = document.getElementById('add-event-btn');
+    var form = document.getElementById('events-setup-form');
+
+    function renumber() {
+        Array.from(list.querySelectorAll('.event-input-row')).forEach(function(row, i) {
+            var num = row.querySelector('.event-num');
+            if (num) num.textContent = (i + 1) + '.';
+        });
+    }
+
+    function addRow() {
+        var row = document.createElement('div');
+        row.className = 'event-input-row';
+        row.innerHTML =
+            '<span class="event-num"></span>' +
+            '<input type="hidden" name="event_id" value="">' +
+            '<input type="text" name="event_name" placeholder="Event name (e.g. Diwali)" required>' +
+            '<button type="button" class="btn-remove-event" title="Remove this event"><i class="bi bi-x-lg"></i></button>';
+        list.appendChild(row);
+        renumber();
+        attachRemove(row);
+        var inp = row.querySelector('input[type="text"]');
+        if (inp) inp.focus();
+    }
+
+    function attachRemove(row) {
+        var btn = row.querySelector('.btn-remove-event');
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            // Prevent removing the last remaining row
+            if (list.querySelectorAll('.event-input-row').length <= 1) {
+                var inp = row.querySelector('input[type="text"]');
+                if (inp) { inp.value = ''; inp.focus(); }
+                return;
+            }
+            row.remove();
+            renumber();
+        });
+    }
+
+    Array.from(list.querySelectorAll('.event-input-row')).forEach(attachRemove);
+    addBtn.addEventListener('click', addRow);
+    renumber();
+
+    // Strip empty rows on submit (still requires at least one non-empty)
+    form.addEventListener('submit', function(e) {
+        var rows = Array.from(list.querySelectorAll('.event-input-row'));
+        var anyValid = false;
+        rows.forEach(function(r) {
+            var inp = r.querySelector('input[type="text"]');
+            if (inp && inp.value.trim()) anyValid = true;
+        });
+        if (!anyValid) {
+            e.preventDefault();
+            alert('Please enter at least one event name.');
+        }
+    });
+})();
+</script>
+{% endblock %}

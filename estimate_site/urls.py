@@ -203,6 +203,8 @@ urlpatterns = [
     # =========================
     path("tempworks/", views.tempworks_home, name="tempworks_home"),
     path("tempworks/mode/<str:mode>/", views.tempworks_set_mode, name="tempworks_set_mode"),
+    path("tempworks/events/", views.tempworks_events_setup, name="tempworks_events_setup"),
+    path("tempworks/events/update/", views.tempworks_ajax_update_events, name="tempworks_ajax_update_events"),
 
     path("tempdatas/<str:category>/groups/", views.temp_groups, name="temp_groups"),
 

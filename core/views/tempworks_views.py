@@ -63,8 +63,9 @@ def tempworks_home(request):
 @login_required(login_url='login')
 def tempworks_set_mode(request, mode):
     """
-    Persist the user's Single/Multiple choice, then send them to the category chooser.
-    Valid modes: 'single', 'multi'. Anything else falls back to 'single'.
+    Persist the user's Single/Multiple choice.
+    - single: go straight to the category chooser
+    - multi: go to the events-setup screen first (enter all event names once)
     """
     mode = (mode or "").strip().lower()
     if mode not in ("single", "multi"):
@@ -72,7 +73,111 @@ def tempworks_set_mode(request, mode):
     request.session["temp_mode"] = mode
     # Reset entries when switching mode to avoid mixing shapes
     request.session["temp_entries"] = []
+    if mode == "multi":
+        # Keep any existing events list so user can re-enter the same screen and edit
+        request.session.setdefault("temp_events_list", [])
+        return redirect("tempworks_events_setup")
+    # single mode
+    request.session["temp_events_list"] = []
     return render(request, "core/tempworks_category_select.html", {"temp_mode": mode})
+
+
+@login_required(login_url='login')
+def tempworks_events_setup(request):
+    """
+    Step 1b (multi mode only): user enters the list of event names for the whole work.
+    GET  -> render the form with existing names (if any).
+    POST -> save the list and forward to the category chooser.
+    Each event in session is stored as {"id": "<8 char>", "name": "<event name>"}.
+    """
+    if request.session.get("temp_mode") != "multi":
+        return redirect("tempworks_home")
+
+    if request.method == "POST":
+        raw_names = request.POST.getlist("event_name")
+        raw_ids = request.POST.getlist("event_id")
+        existing = request.session.get("temp_events_list", []) or []
+        id_to_name = {e.get("id"): e.get("name") for e in existing if isinstance(e, dict)}
+
+        cleaned = []
+        used_ids = set()
+        for i, name in enumerate(raw_names):
+            n = (name or "").strip()
+            if not n:
+                continue
+            eid = (raw_ids[i] if i < len(raw_ids) else "") or ""
+            if not eid or eid in used_ids or eid not in id_to_name:
+                eid = get_random_string(8)
+                while eid in used_ids:
+                    eid = get_random_string(8)
+            used_ids.add(eid)
+            cleaned.append({"id": eid, "name": n})
+
+        request.session["temp_events_list"] = cleaned
+        # Reset entries because events list changed and existing references may be stale
+        # Only reset if the list of event IDs actually changed
+        old_ids = set(id_to_name.keys())
+        new_ids = set(e["id"] for e in cleaned)
+        if old_ids != new_ids:
+            # Prune dropped events from any existing entries (preserve still-valid ones)
+            valid_names = {e["name"] for e in cleaned}
+            entries = request.session.get("temp_entries", []) or []
+            for ent in entries:
+                if (ent or {}).get("mode") == "multi":
+                    ent["events"] = [
+                        ev for ev in (ent.get("events") or [])
+                        if (ev.get("event_name") or "").strip() in valid_names
+                    ]
+            request.session["temp_entries"] = entries
+        return render(request, "core/tempworks_category_select.html", {"temp_mode": "multi"})
+
+    events = request.session.get("temp_events_list", []) or []
+    return render(request, "core/tempworks_events_setup.html", {"events": events})
+
+
+@login_required(login_url='login')
+@require_POST
+def tempworks_ajax_update_events(request):
+    """
+    AJAX: replace the work's events list. Used by the 'Edit Events' modal on the 3-panel page.
+    POST JSON: {"events": [{"id": "...", "name": "..."}, ...]}
+    Returns:  {"ok": True, "events": [...]}
+    Also prunes per-item event refs that no longer match any event name in the new list.
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"ok": False, "error": "invalid json"}, status=400)
+
+    raw = data.get("events") or []
+    cleaned = []
+    used_ids = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = (item.get("name") or "").strip()
+        if not name:
+            continue
+        eid = (item.get("id") or "").strip() or get_random_string(8)
+        while eid in used_ids:
+            eid = get_random_string(8)
+        used_ids.add(eid)
+        cleaned.append({"id": eid, "name": name})
+
+    request.session["temp_events_list"] = cleaned
+
+    # Prune orphaned event references in entries (events removed from list)
+    valid_names = {e["name"] for e in cleaned}
+    entries = request.session.get("temp_entries", []) or []
+    for ent in entries:
+        if (ent or {}).get("mode") == "multi":
+            ent["events"] = [
+                ev for ev in (ent.get("events") or [])
+                if (ev.get("event_name") or "").strip() in valid_names
+            ]
+    request.session["temp_entries"] = entries
+
+    return JsonResponse({"ok": True, "events": cleaned})
 
 
 @login_required(login_url='login')
@@ -284,10 +389,28 @@ def temp_items(request, category, group):
 
     temp_entries = request.session.get("temp_entries", []) or []
     temp_mode = request.session.get("temp_mode", "single")
+    temp_events_list = request.session.get("temp_events_list", []) or []
+    # Map event_name -> {id, name} for quick lookup when rendering checkboxes
+    event_name_to_id = {e["name"]: e["id"] for e in temp_events_list if isinstance(e, dict) and e.get("name")}
     display_entries = []
     for idx, ent in enumerate(temp_entries, start=1):
         plural, _singular = units_for(ent["name"])
         entry_mode = ent.get("mode", "single")
+        # For multi entries, build a per-event-list rendering: for each defined event,
+        # include the entry's stored days/qty if it had a selection, else default.
+        per_event_rows = []
+        if entry_mode == "multi":
+            stored = {(ev.get("event_name") or "").strip(): ev for ev in (ent.get("events") or [])}
+            for ev_def in temp_events_list:
+                ev_name = ev_def.get("name", "")
+                sel = stored.get(ev_name)
+                per_event_rows.append({
+                    "event_id": ev_def.get("id", ""),
+                    "event_name": ev_name,
+                    "selected": sel is not None,
+                    "days": (sel or {}).get("days", 1),
+                    "qty": (sel or {}).get("qty", ""),
+                })
         display_entries.append(
             {
                 "id": ent["id"],
@@ -298,8 +421,8 @@ def temp_items(request, category, group):
                 # Single-mode fields (unchanged):
                 "qty": ent.get("qty", ""),
                 "days": ent.get("days", 1),
-                # Multi-mode events list: [{event_id, event_name, days, qty}, ...]
-                "events": ent.get("events", []) if entry_mode == "multi" else [],
+                # Multi-mode: pre-built list of {event_id, event_name, selected, days, qty}
+                "event_rows": per_event_rows if entry_mode == "multi" else [],
             }
         )
 
@@ -324,6 +447,7 @@ def temp_items(request, category, group):
         "selected_backend_id": temp_selected_backend_id,
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'temp_works', base_category),
         "temp_mode": temp_mode,
+        "temp_events_list": temp_events_list,
     }
     return render(request, "core/temp_items.html", context)
 
@@ -638,6 +762,26 @@ def temp_download_output(request, category):
         s = re.sub(r"\s+", " ", s).strip()
         return s
 
+    def _to_roman_lower(n):
+        """1 -> 'i', 4 -> 'iv', etc. Returns '' for non-positive integers."""
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            return ""
+        if n <= 0:
+            return ""
+        vals = [
+            (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
+            (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
+            (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+        ]
+        out = []
+        for v, sym in vals:
+            while n >= v:
+                out.append(sym)
+                n -= v
+        return "".join(out)
+
     # map item -> group for units
     item_to_group = {}
     for grp_name, item_list_in_grp in groups_map.items():
@@ -874,48 +1018,70 @@ def temp_download_output(request, category):
                     r = item_day_rates.get(closest_day, 0)
             return r
 
-        def _write_row(desc, qty_val, rate_value):
+        def _write_row(desc, qty_val, rate_value, kind="normal"):
+            """
+            kind:
+              - 'normal': single-mode row (Sl.No, qty, rate, amount formula). Increments slno.
+              - 'header': multi-mode item header row (Sl.No + bold desc; qty/rate/amount blank). Increments slno.
+              - 'event':  multi-mode event sub-row (no Sl.No; qty/rate/amount filled). Does NOT increment slno.
+            """
             nonlocal row_est, slno
-            a = ws_est.cell(row=row_est, column=1, value=slno)
+            is_event = (kind == "event")
+            is_header = (kind == "header")
+
+            sl_text = "" if is_event else slno
+            a = ws_est.cell(row=row_est, column=1, value=sl_text)
             a.alignment = Alignment(horizontal="center", vertical="center")
             a.border = border_all
 
-            b = ws_est.cell(row=row_est, column=2, value=qty_val)
+            qty_cell_val = "" if (is_header or qty_val in (None, "")) else qty_val
+            b = ws_est.cell(row=row_est, column=2, value=qty_cell_val)
             b.alignment = Alignment(horizontal="center", vertical="center")
             b.border = border_all
 
-            c = ws_est.cell(row=row_est, column=3, value=plural)
+            unit_text = "" if is_header else plural
+            c = ws_est.cell(row=row_est, column=3, value=unit_text)
             c.alignment = Alignment(horizontal="center", vertical="center")
             c.border = border_all
 
             d_cell = ws_est.cell(row=row_est, column=4, value=desc)
             d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
             d_cell.border = border_all
+            if is_header:
+                d_cell.font = Font(bold=True)
 
-            e = ws_est.cell(row=row_est, column=5, value=rate_value if rate_value else "")
+            rate_cell_val = "" if (is_header or not rate_value) else rate_value
+            e = ws_est.cell(row=row_est, column=5, value=rate_cell_val)
             e.alignment = Alignment(horizontal="center", vertical="center")
             e.border = border_all
             e.number_format = '#,##0.00'
 
-            f_cell = ws_est.cell(row=row_est, column=6, value=1)
+            per_unit_val = "" if is_header else 1
+            f_cell = ws_est.cell(row=row_est, column=6, value=per_unit_val)
             f_cell.alignment = Alignment(horizontal="center", vertical="center")
             f_cell.border = border_all
 
-            g = ws_est.cell(row=row_est, column=7, value=singular)
+            singular_text = "" if is_header else singular
+            g = ws_est.cell(row=row_est, column=7, value=singular_text)
             g.alignment = Alignment(horizontal="center", vertical="center")
             g.border = border_all
 
-            h = ws_est.cell(row=row_est, column=8, value=f"=ROUND(B{row_est}*E{row_est},2)")
+            amount_val = "" if is_header else f"=ROUND(B{row_est}*E{row_est},2)"
+            h = ws_est.cell(row=row_est, column=8, value=amount_val)
             h.alignment = Alignment(horizontal="center", vertical="center")
             h.border = border_all
             h.number_format = '#,##0.00'
 
             row_est += 1
-            slno += 1
+            if not is_event:
+                slno += 1
 
         if mode == "multi":
-            # One estimate row per valid event; item description stays plain (no "for X days" on item)
+            # New output format:
+            #   1) One row with the item description (full base desc, no event suffix)
+            #   2) Below it, one row per valid event: "i. <event_name> for X day(s)" — NO item desc repeated
             events = entry.get("events") or []
+            valid_events = []
             for ev in events:
                 ev_name = (ev.get("event_name") or "").strip()
                 try:
@@ -926,16 +1092,24 @@ def temp_download_output(request, category):
                     ev_qty = float(ev.get("qty") or 0)
                 except (TypeError, ValueError):
                     ev_qty = 0.0
-                if not ev_name or ev_days <= 0 or ev_qty <= 0:
-                    continue
-                day_word = "day" if ev_days == 1 else "days"
-                # Description format: "<base item desc> — <event name> for X day(s)"
-                if base_desc_str:
-                    desc = f"{base_desc_str} — {ev_name} for {ev_days} {day_word}"
-                else:
-                    desc = f"{ev_name} for {ev_days} {day_word}"
-                rate_value = _rate_for_days(ev_days)
-                _write_row(desc, ev_qty, rate_value)
+                if ev_name and ev_days > 0 and ev_qty > 0:
+                    valid_events.append({"name": ev_name, "days": ev_days, "qty": ev_qty})
+
+            if not valid_events:
+                # Nothing to output for this item
+                continue
+
+            # Header row: item description, no qty/rate/amount on the header line itself
+            header_desc = base_desc_str or name
+            _write_row(header_desc, None, None, kind="header")
+
+            # Event rows with roman-numeral prefix and no item description
+            for i, ev in enumerate(valid_events, start=1):
+                roman = _to_roman_lower(i)
+                day_word = "day" if ev["days"] == 1 else "days"
+                desc = f"{roman}. {ev['name']} for {ev['days']} {day_word}"
+                rate_value = _rate_for_days(ev["days"])
+                _write_row(desc, ev["qty"], rate_value, kind="event")
         else:
             # Single mode — existing behavior preserved
             try:
