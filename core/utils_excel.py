@@ -551,14 +551,20 @@ from openpyxl.cell.cell import MergedCell
 #    COL$ROW  – relative col, absolute row
 #    COL ROW  – both relative
 #
-# Cross-sheet refs (preceded by '!') are excluded by the lookbehind and are
-# NEVER modified — they always point to the same cell on the helper sheet.
+# Lookbehind: (?<![!\w\$])
+#   The `!` blocks col-letters that directly follow a sheet-ref separator.
+#   The `\w` blocks letters that are part of a longer identifier/name.
+#   The `\$` is the critical addition: blocks `J$131` from being matched
+#   when it is the tail of `!$J$131` — the `$` of the absolute col-ref is
+#   not consumed (lookbehind blocked it with `!`), so the match would
+#   otherwise start at `J`, leaving an "orphaned $" that turns
+#   `LEAD!$J$131` into `LEAD!$J$14` instead of leaving it unchanged.
 #
-# The trailing negative lookahead (?![A-Za-z\d]) prevents matching partial
-# tokens, e.g. the "A1" inside "A1B2".
+# Lookahead: (?![A-Za-z\d])
+#   Prevents partial matches on longer identifiers, e.g. `A1` in `A1B2`.
 # ---------------------------------------------------------------------------
 _CELL_REF_RE = re.compile(
-    r'(?<![!\w])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z\d])'
+    r'(?<![!\w\$])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z\d])'
 )
 
 
