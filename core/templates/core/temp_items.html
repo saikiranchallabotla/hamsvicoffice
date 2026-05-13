@@ -1974,7 +1974,7 @@ document.addEventListener('click', function(e) {
         var tbody = document.querySelector("#estimate-table tbody");
         if (!tbody) return;
 
-        var emptyRow = tbody.querySelector('tr td[colspan]');
+        var emptyRow = tbody.querySelector('tr td[colspan="9"]');
         if (emptyRow) {
             emptyRow.closest('tr').remove();
         }
