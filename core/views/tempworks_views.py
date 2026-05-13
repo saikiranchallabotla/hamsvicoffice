@@ -390,27 +390,33 @@ def temp_items(request, category, group):
     temp_entries = request.session.get("temp_entries", []) or []
     temp_mode = request.session.get("temp_mode", "single")
     temp_events_list = request.session.get("temp_events_list", []) or []
-    # Map event_name -> {id, name} for quick lookup when rendering checkboxes
     event_name_to_id = {e["name"]: e["id"] for e in temp_events_list if isinstance(e, dict) and e.get("name")}
     display_entries = []
+    entry_events_map = {}
     for idx, ent in enumerate(temp_entries, start=1):
         plural, _singular = units_for(ent["name"])
         entry_mode = ent.get("mode", "single")
-        # For multi entries, build a per-event-list rendering: for each defined event,
-        # include the entry's stored days/qty if it had a selection, else default.
-        per_event_rows = []
         if entry_mode == "multi":
-            stored = {(ev.get("event_name") or "").strip(): ev for ev in (ent.get("events") or [])}
-            for ev_def in temp_events_list:
-                ev_name = ev_def.get("name", "")
-                sel = stored.get(ev_name)
-                per_event_rows.append({
-                    "event_id": ev_def.get("id", ""),
+            saved_events = []
+            for ev in (ent.get("events") or []):
+                ev_name = (ev.get("event_name") or "").strip()
+                if not ev_name:
+                    continue
+                try:
+                    ev_days = int(ev.get("days") or 0)
+                except (TypeError, ValueError):
+                    ev_days = 0
+                try:
+                    ev_qty = float(ev.get("qty") or 0)
+                except (TypeError, ValueError):
+                    ev_qty = 0
+                saved_events.append({
+                    "event_id": event_name_to_id.get(ev_name, ""),
                     "event_name": ev_name,
-                    "selected": sel is not None,
-                    "days": (sel or {}).get("days", 1),
-                    "qty": (sel or {}).get("qty", ""),
+                    "days": ev_days if ev_days > 0 else 1,
+                    "qty": ev_qty,
                 })
+            entry_events_map[ent["id"]] = saved_events
         display_entries.append(
             {
                 "id": ent["id"],
@@ -418,11 +424,8 @@ def temp_items(request, category, group):
                 "name": ent["name"],
                 "unit": plural,
                 "mode": entry_mode,
-                # Single-mode fields (unchanged):
                 "qty": ent.get("qty", ""),
                 "days": ent.get("days", 1),
-                # Multi-mode: pre-built list of {event_id, event_name, selected, days, qty}
-                "event_rows": per_event_rows if entry_mode == "multi" else [],
             }
         )
 
@@ -448,6 +451,7 @@ def temp_items(request, category, group):
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'temp_works', base_category),
         "temp_mode": temp_mode,
         "temp_events_list": temp_events_list,
+        "entry_events_map": entry_events_map,
     }
     return render(request, "core/temp_items.html", context)
 

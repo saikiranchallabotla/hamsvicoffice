@@ -716,6 +716,111 @@
     .ev-mod-add { padding: 0.4rem 0.8rem; background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: white; border: none; border-radius: 5px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
     .ev-mod-cancel { padding: 0.45rem 0.9rem; background: #e2e8f0; color: #475569; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
     .ev-mod-save { padding: 0.45rem 1rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+
+    /* Per-item events: chips display in the main row */
+    .multi-main-row { cursor: pointer; transition: background 0.15s; }
+    .multi-main-row:hover { background: #faf5ff; }
+    .multi-main-row .drag-handle,
+    .multi-main-row .btn-remove { cursor: default; }
+    .multi-events-cell {
+        padding: 4px 8px !important;
+        vertical-align: middle;
+    }
+    .event-chips-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+        min-height: 22px;
+    }
+    .event-chips-empty {
+        font-size: 0.72rem;
+        color: #9333ea;
+        font-style: italic;
+        font-weight: 500;
+    }
+    .item-event-chip {
+        display: inline-flex;
+        align-items: center;
+        background: #ede9fe;
+        color: #6d28d9;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        border: 1px solid #c4b5fd;
+        white-space: nowrap;
+    }
+    .item-event-chip .chip-qty {
+        color: #4c1d95;
+        margin-left: 4px;
+        font-weight: 700;
+    }
+    .item-event-chip .chip-days {
+        color: #7c3aed;
+        margin-left: 4px;
+        font-weight: 500;
+        font-size: 0.65rem;
+    }
+
+    /* Per-item events modal */
+    .pie-modal-backdrop {
+        display: none; position: fixed; inset: 0;
+        background: rgba(15,23,42,0.5); z-index: 2050;
+        align-items: center; justify-content: center;
+    }
+    .pie-modal-backdrop.active { display: flex; }
+    .pie-modal {
+        background: white; width: 94%; max-width: 620px;
+        max-height: 85vh; border-radius: 10px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+        display: flex; flex-direction: column; overflow: hidden;
+    }
+    .pie-modal-header {
+        background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+        color: white; padding: 0.75rem 1rem;
+        display: flex; justify-content: space-between; align-items: center;
+        font-weight: 600; font-size: 0.95rem;
+    }
+    .pie-modal-header .pie-item-name {
+        font-size: 0.78rem; font-weight: 500; opacity: 0.92; margin-top: 2px;
+    }
+    .pie-modal-close {
+        background: rgba(255,255,255,0.2); border: none; color: white;
+        width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+        font-size: 1.1rem; line-height: 1;
+    }
+    .pie-modal-body { padding: 0.85rem 1rem; overflow-y: auto; flex: 1; }
+    .pie-modal-footer {
+        padding: 0.7rem 1rem; border-top: 1px solid #e2e8f0;
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 0.5rem; background: #f8fafc; font-size: 0.85rem;
+    }
+    .pie-modal-footer .pie-grand { font-weight: 700; color: #059669; }
+    .pie-empty {
+        text-align: center; padding: 1.2rem; color: #94a3b8;
+        font-style: italic; font-size: 0.85rem;
+    }
+    .pie-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .pie-table thead tr { background: #f1f5f9; }
+    .pie-table th {
+        padding: 6px 8px; text-align: left; font-weight: 600;
+        color: #475569; font-size: 0.72rem; text-transform: uppercase;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .pie-table th.num, .pie-table td.num { text-align: center; }
+    .pie-table tbody tr { border-bottom: 1px solid #f1f5f9; }
+    .pie-table tbody tr.pie-active { background: #f0fdf4; }
+    .pie-table td { padding: 6px 8px; vertical-align: middle; }
+    .pie-table input[type="number"] {
+        width: 100%; padding: 3px 6px; border: 1px solid #cbd5e1;
+        border-radius: 4px; font-size: 0.8rem;
+    }
+    .pie-table input[type="number"]:disabled {
+        background: #f1f5f9; color: #94a3b8; cursor: not-allowed;
+    }
+    .pie-cancel { padding: 0.45rem 0.9rem; background: #e2e8f0; color: #475569; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+    .pie-save { padding: 0.45rem 1rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
 </style>
 
 <!-- Subtypes Selection Popup -->
@@ -730,6 +835,46 @@
 </div>
 
 {% if temp_mode == 'multi' %}
+<!-- Per-Item Events Modal -->
+<div class="pie-modal-backdrop" id="pie-modal-backdrop">
+    <div class="pie-modal">
+        <div class="pie-modal-header">
+            <div>
+                <span><i class="bi bi-calendar-event me-1"></i> Events for this Item</span>
+                <div class="pie-item-name" id="pie-item-name"></div>
+            </div>
+            <button type="button" class="pie-modal-close" onclick="closePerItemEventsModal()">&times;</button>
+        </div>
+        <div class="pie-modal-body" id="pie-modal-body">
+            <table class="pie-table" id="pie-table">
+                <thead>
+                    <tr>
+                        <th class="num" style="width:34px;"></th>
+                        <th>Event</th>
+                        <th class="num" style="width:75px;">Days</th>
+                        <th class="num" style="width:85px;">Qty</th>
+                        <th class="num" style="width:85px;">Rate</th>
+                        <th class="num" style="width:100px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="pie-table-body"></tbody>
+            </table>
+            <div class="pie-empty" id="pie-empty" style="display:none;">
+                No events defined yet. Click <strong>Edit Events</strong> on the previous screen to add some.
+            </div>
+        </div>
+        <div class="pie-modal-footer">
+            <div>Total: <span class="pie-grand" id="pie-grand-total">₹0.00</span></div>
+            <div>
+                <button type="button" class="pie-cancel" onclick="closePerItemEventsModal()">Cancel</button>
+                <button type="button" class="pie-save" onclick="savePerItemEventsModal()">
+                    <i class="bi bi-check-lg me-1"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Events Modal -->
 <div class="ev-modal-backdrop" id="edit-events-backdrop">
     <div class="ev-modal">
@@ -989,62 +1134,25 @@
                                     <tr data-entry-id="{{ row.id }}"
                                         data-item-name="{{ row.name }}"
                                         data-mode="multi"
+                                        data-events="[]"
                                         class="draggable multi-main-row" draggable="true">
                                         <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
                                         <td class="sl-cell">{{ row.sl }}</td>
                                         <td class="desc-col" title="{{ row.name }}">{{ row.name }}</td>
                                         <td>{{ row.unit }}</td>
-                                        <td colspan="3" style="color:#6b7280; font-style:italic; font-size:0.78rem;">
-                                            <i class="bi bi-info-circle me-1"></i>Multiple events &mdash; see rows below
+                                        <td colspan="3" class="multi-events-cell">
+                                            <div class="event-chips-container">
+                                                <span class="event-chips-empty"><i class="bi bi-plus-circle me-1"></i>Click to add events</span>
+                                            </div>
                                         </td>
                                         <td class="amount-cell item-total-cell" style="font-weight:600;"></td>
                                         <td>
                                             <a class="remove-link btn-remove"
                                                href="#"
-                                               onclick="removeEntry('{{ row.id }}'); return false;"
+                                               onclick="event.stopPropagation(); removeEntry('{{ row.id }}'); return false;"
                                                title="Remove item">
                                                 <i class="bi bi-x-lg"></i>
                                             </a>
-                                        </td>
-                                    </tr>
-                                    <tr class="events-row" data-parent-entry-id="{{ row.id }}">
-                                        <td></td>
-                                        <td colspan="8">
-                                            <div class="events-wrapper">
-                                                <table class="events-subtable" style="width:100%; border-collapse:collapse; background:#f9fafb;">
-                                                    <thead>
-                                                        <tr style="background:#eef2ff; font-size:0.72rem;">
-                                                            <th style="padding:4px 6px; width:30px;"></th>
-                                                            <th style="padding:4px 6px; text-align:left;">Event</th>
-                                                            <th style="padding:4px 6px; width:70px;">Days</th>
-                                                            <th style="padding:4px 6px; width:80px;">Qty</th>
-                                                            <th style="padding:4px 6px; width:80px;">Rate</th>
-                                                            <th style="padding:4px 6px; width:100px;">Amount</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody class="events-tbody">
-                                                        {% for ev in row.event_rows %}
-                                                        <tr class="event-row" data-event-id="{{ ev.event_id }}" data-event-name="{{ ev.event_name }}">
-                                                            <td style="padding:3px 6px; text-align:center;">
-                                                                <input type="checkbox" class="event-select-cb" {% if ev.selected %}checked{% endif %}>
-                                                            </td>
-                                                            <td class="event-name-cell" style="padding:3px 6px; font-weight:500;">{{ ev.event_name }}</td>
-                                                            <td style="padding:3px 6px;"><input type="number" min="1" max="365" class="event-days-input" value="{{ ev.days|default:'1' }}" style="width:100%; padding:2px 4px;" {% if not ev.selected %}disabled{% endif %}></td>
-                                                            <td style="padding:3px 6px;"><input type="number" min="0" step="0.01" class="event-qty-input" value="{{ ev.qty|default_if_none:'' }}" placeholder="0" style="width:100%; padding:2px 4px;" {% if not ev.selected %}disabled{% endif %}></td>
-                                                            <td class="event-rate-cell" style="padding:3px 6px; text-align:center;"></td>
-                                                            <td class="event-amount-cell" style="padding:3px 6px; text-align:center;"></td>
-                                                        </tr>
-                                                        {% endfor %}
-                                                        {% if not row.event_rows %}
-                                                        <tr class="no-events-msg">
-                                                            <td colspan="6" style="padding:8px; text-align:center; color:#9ca3af; font-style:italic; font-size:0.75rem;">
-                                                                No events defined. Click <strong>Edit Events</strong> above to add some.
-                                                            </td>
-                                                        </tr>
-                                                        {% endif %}
-                                                    </tbody>
-                                                </table>
-                                            </div>
                                         </td>
                                     </tr>
                                     {% else %}
@@ -1221,6 +1329,7 @@
   window.TEMP_MODE = "{{ temp_mode|default:'single' }}";
 </script>
 {{ temp_events_list|default_if_none:""|json_script:"temp-events-json" }}
+{{ entry_events_map|default_if_none:""|json_script:"entry-events-map-json" }}
 <script>
   // List of {id, name} defined events for this work (multi mode only)
   window.TEMP_EVENTS = [];
@@ -1229,6 +1338,14 @@
     if (_evEl) { window.TEMP_EVENTS = JSON.parse(_evEl.textContent || '[]'); }
   } catch (e) { window.TEMP_EVENTS = []; }
   if (!Array.isArray(window.TEMP_EVENTS)) window.TEMP_EVENTS = [];
+
+  // Map of entry_id -> [{event_id, event_name, days, qty}, ...] for server-rendered multi rows
+  window.ENTRY_EVENTS_MAP = {};
+  try {
+    var _emEl = document.getElementById('entry-events-map-json');
+    if (_emEl) { window.ENTRY_EVENTS_MAP = JSON.parse(_emEl.textContent || '{}'); }
+  } catch (e) { window.ENTRY_EVENTS_MAP = {}; }
+  if (!window.ENTRY_EVENTS_MAP || typeof window.ENTRY_EVENTS_MAP !== 'object') window.ENTRY_EVENTS_MAP = {};
 </script>
 
 <script>
@@ -2260,162 +2377,80 @@ document.addEventListener('click', function(e) {
   // Pre-save hook: sync entries (with qty/days) to session before Save Work modal saves
   window.preSaveSync = function() { return saveState(); };
 
+  // Expose internals needed by the per-item events modal (separate IIFE).
+  window.getRate = getRate;
+  window.recalcTotal = recalcTotal;
+  window.scheduleAutoSave = scheduleAutoSave;
+  window.escapeHtml = escapeHtml;
+
   // ===========================================================
-  // MULTIPLE EVENTS MODE — helpers (checkbox-based selection)
+  // MULTIPLE EVENTS MODE — per-item modal + chips (refactored)
   // ===========================================================
 
-  // Read all events under a multi main row. Only checked rows are returned.
+  // Read the events stored on a multi main row's data-events JSON attribute.
+  function getRowEvents(mainRow) {
+    try {
+      var raw = mainRow.getAttribute('data-events') || '[]';
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function setRowEvents(mainRow, arr) {
+    mainRow.setAttribute('data-events', JSON.stringify(Array.isArray(arr) ? arr : []));
+  }
+
+  // Used by save/sync code throughout the app — returns events stored on the row.
   function collectEventsForRow(mainRow) {
-    var out = [];
-    var entryId = mainRow.getAttribute('data-entry-id');
-    var eventsRow = document.querySelector('#estimate-table tbody tr.events-row[data-parent-entry-id="' + entryId + '"]');
-    if (!eventsRow) return out;
-    eventsRow.querySelectorAll('.event-row').forEach(function(er) {
-      var cb = er.querySelector('.event-select-cb');
-      if (!cb || !cb.checked) return;
-      var daysInput = er.querySelector('.event-days-input');
-      var qtyInput  = er.querySelector('.event-qty-input');
-      var name = er.getAttribute('data-event-name') || '';
-      var eid  = er.getAttribute('data-event-id') || '';
-      var days = daysInput ? parseInt(daysInput.value || '0', 10) : 0;
-      var qty  = qtyInput  ? parseFloat(qtyInput.value  || '0') : 0;
-      if (isNaN(days)) days = 0;
-      if (isNaN(qty))  qty = 0;
-      out.push({ event_id: eid, event_name: name, days: days, qty: qty });
-    });
-    return out;
-  }
-
-  // Recalc all event rows in a multi-mode main row, plus the item total.
-  function recalcMultiRow(mainRow) {
-    var itemName = mainRow.getAttribute('data-item-name') || '';
-    var entryId  = mainRow.getAttribute('data-entry-id');
-    var eventsRow = document.querySelector('#estimate-table tbody tr.events-row[data-parent-entry-id="' + entryId + '"]');
-    var itemTotalCell = mainRow.querySelector('.item-total-cell');
-    if (!eventsRow) {
-      if (itemTotalCell) itemTotalCell.textContent = '';
-      return;
-    }
-    var itemTotal = 0;
-    eventsRow.querySelectorAll('.event-row').forEach(function(er) {
-      var cb = er.querySelector('.event-select-cb');
-      var daysInput = er.querySelector('.event-days-input');
-      var qtyInput  = er.querySelector('.event-qty-input');
-      var rateCell  = er.querySelector('.event-rate-cell');
-      var amtCell   = er.querySelector('.event-amount-cell');
-
-      var checked = !!(cb && cb.checked);
-      if (daysInput) daysInput.disabled = !checked;
-      if (qtyInput)  qtyInput.disabled  = !checked;
-      er.classList.toggle('event-selected', checked);
-
-      if (!checked) {
-        if (rateCell) rateCell.textContent = '';
-        if (amtCell)  amtCell.textContent = '';
-        return;
-      }
-
-      var days = daysInput ? parseInt(daysInput.value || '0', 10) : 0;
-      var qty  = qtyInput  ? parseFloat(qtyInput.value  || '0') : 0;
-      if (isNaN(days) || days < 1) days = 0;
-      if (isNaN(qty) || qty < 0) qty = 0;
-      if (days < 1 || qty <= 0) {
-        if (rateCell) rateCell.textContent = '';
-        if (amtCell)  amtCell.textContent = '';
-        return;
-      }
-      var rate = getRate(itemName, days);
-      if (rateCell) rateCell.textContent = (rate != null) ? '₹' + rate.toFixed(2) : '';
-      var amt = (rate || 0) * qty;
-      if (amtCell) amtCell.textContent = amt > 0 ? '₹' + amt.toFixed(2) : '';
-      itemTotal += amt;
-    });
-    if (itemTotalCell) itemTotalCell.textContent = itemTotal > 0 ? '₹' + itemTotal.toFixed(2) : '';
-  }
-
-  // Build an event-selection <tr> for the events sub-table.
-  function buildEventRowHtml(ev, prefill) {
-    prefill = prefill || {};
-    var checked = prefill.selected ? 'checked' : '';
-    var disabled = prefill.selected ? '' : 'disabled';
-    var safeName = escapeHtml(ev.name || '');
-    return '<tr class="event-row' + (prefill.selected ? ' event-selected' : '') + '" data-event-id="' + escapeHtml(ev.id || '') + '" data-event-name="' + safeName + '">' +
-      '<td style="padding:3px 6px; text-align:center;"><input type="checkbox" class="event-select-cb" ' + checked + '></td>' +
-      '<td class="event-name-cell" style="padding:3px 6px; font-weight:500;">' + safeName + '</td>' +
-      '<td style="padding:3px 6px;"><input type="number" min="1" max="365" class="event-days-input" value="' + (prefill.days != null ? prefill.days : 1) + '" style="width:100%; padding:2px 4px;" ' + disabled + '></td>' +
-      '<td style="padding:3px 6px;"><input type="number" min="0" step="0.01" class="event-qty-input" value="' + (prefill.qty != null ? prefill.qty : '') + '" placeholder="0" style="width:100%; padding:2px 4px;" ' + disabled + '></td>' +
-      '<td class="event-rate-cell" style="padding:3px 6px; text-align:center;"></td>' +
-      '<td class="event-amount-cell" style="padding:3px 6px; text-align:center;"></td>' +
-      '</tr>';
-  }
-
-  function attachEventRowListeners(eventRow, mainRow) {
-    var cb = eventRow.querySelector('.event-select-cb');
-    if (cb) {
-      cb.addEventListener('change', function() {
-        recalcMultiRow(mainRow);
-        recalcTotal();
-        scheduleAutoSave();
-      });
-    }
-    eventRow.querySelectorAll('.event-days-input, .event-qty-input').forEach(function(inp) {
-      inp.addEventListener('input', function() {
-        // Auto-tick checkbox if user starts editing while unchecked (helpful)
-        if (cb && !cb.checked && inp.value) {
-          cb.checked = true;
-        }
-        recalcMultiRow(mainRow);
-        recalcTotal();
-        scheduleAutoSave();
-      });
-      inp.addEventListener('change', function() {
-        recalcMultiRow(mainRow);
-        recalcTotal();
-        scheduleAutoSave();
-      });
-    });
-  }
-
-  // Rebuild the events sub-table for a given main row using the current TEMP_EVENTS list.
-  // Existing selections (by event_name) are preserved.
-  function rebuildEventsSubtableForRow(mainRow) {
-    var entryId = mainRow.getAttribute('data-entry-id');
-    var eventsRow = document.querySelector('#estimate-table tbody tr.events-row[data-parent-entry-id="' + entryId + '"]');
-    if (!eventsRow) return;
-    var tbody = eventsRow.querySelector('.events-tbody');
-    if (!tbody) return;
-
-    // Snapshot existing selections by event name
-    var prior = {};
-    tbody.querySelectorAll('.event-row').forEach(function(er) {
-      var nm = er.getAttribute('data-event-name') || '';
-      var cb = er.querySelector('.event-select-cb');
-      var daysInput = er.querySelector('.event-days-input');
-      var qtyInput = er.querySelector('.event-qty-input');
-      prior[nm] = {
-        selected: !!(cb && cb.checked),
-        days: daysInput ? daysInput.value : 1,
-        qty: qtyInput ? qtyInput.value : ''
+    return getRowEvents(mainRow).map(function(ev) {
+      return {
+        event_id: ev.event_id || '',
+        event_name: ev.event_name || '',
+        days: parseInt(ev.days || 0, 10) || 0,
+        qty:  parseFloat(ev.qty || 0) || 0,
       };
-    });
-
-    tbody.innerHTML = '';
-    if (!window.TEMP_EVENTS || window.TEMP_EVENTS.length === 0) {
-      tbody.innerHTML = '<tr class="no-events-msg"><td colspan="6" style="padding:8px; text-align:center; color:#9ca3af; font-style:italic; font-size:0.75rem;">No events defined. Click <strong>Edit Events</strong> above to add some.</td></tr>';
-      recalcMultiRow(mainRow);
-      return;
-    }
-    window.TEMP_EVENTS.forEach(function(ev) {
-      var snap = prior[ev.name] || {};
-      tbody.insertAdjacentHTML('beforeend', buildEventRowHtml(ev, snap));
-    });
-    tbody.querySelectorAll('.event-row').forEach(function(er) {
-      attachEventRowListeners(er, mainRow);
-    });
-    recalcMultiRow(mainRow);
+    }).filter(function(ev) { return ev.event_name; });
   }
 
-  // Render a brand new multi-mode entry (item header + events sub-table).
+  // Render the tiny chips inside the multi main row + update item total.
+  function renderChipsAndTotal(mainRow) {
+    var container = mainRow.querySelector('.event-chips-container');
+    var itemTotalCell = mainRow.querySelector('.item-total-cell');
+    var itemName = mainRow.getAttribute('data-item-name') || '';
+    var events = getRowEvents(mainRow);
+
+    if (container) container.innerHTML = '';
+    var total = 0;
+    var anyValid = false;
+    events.forEach(function(ev) {
+      var name = (ev.event_name || '').trim();
+      var days = parseInt(ev.days || 0, 10) || 0;
+      var qty  = parseFloat(ev.qty || 0) || 0;
+      if (!name || days < 1 || qty <= 0) return;
+      anyValid = true;
+      var rate = getRate(itemName, days) || 0;
+      total += rate * qty;
+      if (container) {
+        var chip = document.createElement('span');
+        chip.className = 'item-event-chip';
+        chip.title = name + ' — Qty ' + qty + ', ' + days + (days === 1 ? ' day' : ' days');
+        chip.innerHTML =
+          escapeHtml(name) +
+          '<span class="chip-qty">x' + qty + '</span>' +
+          '<span class="chip-days">(' + days + 'd)</span>';
+        container.appendChild(chip);
+      }
+    });
+    if (container && !anyValid) {
+      container.innerHTML = '<span class="event-chips-empty"><i class="bi bi-plus-circle me-1"></i>Click to add events</span>';
+    }
+    if (itemTotalCell) itemTotalCell.textContent = total > 0 ? '₹' + total.toFixed(2) : '';
+  }
+
+  // Back-compat alias: many places in the file still call recalcMultiRow.
+  function recalcMultiRow(mainRow) { renderChipsAndTotal(mainRow); }
+
+  // Render a brand new multi-mode entry — a single compact row, no sub-table.
   function addMultiEntryToTable(itemName, entryId, itemInfo) {
     var tbody = document.querySelector("#estimate-table tbody");
     if (!tbody) return;
@@ -2427,6 +2462,7 @@ document.addEventListener('click', function(e) {
     mainRow.setAttribute('data-entry-id', entryId);
     mainRow.setAttribute('data-item-name', itemName);
     mainRow.setAttribute('data-mode', 'multi');
+    mainRow.setAttribute('data-events', '[]');
     mainRow.classList.add('draggable', 'multi-main-row');
     mainRow.setAttribute('draggable', 'true');
     mainRow.innerHTML =
@@ -2434,50 +2470,50 @@ document.addEventListener('click', function(e) {
       '<td class="sl-cell">' + sl + '</td>' +
       '<td class="desc-col" title="' + safeName + '">' + safeName + '</td>' +
       '<td>' + escapeHtml(unit) + '</td>' +
-      '<td colspan="3" style="color:#6b7280; font-style:italic; font-size:0.78rem;"><i class="bi bi-info-circle me-1"></i>Tick events that apply &mdash; see rows below</td>' +
+      '<td colspan="3" class="multi-events-cell">' +
+        '<div class="event-chips-container">' +
+          '<span class="event-chips-empty"><i class="bi bi-plus-circle me-1"></i>Click to add events</span>' +
+        '</div>' +
+      '</td>' +
       '<td class="amount-cell item-total-cell" style="font-weight:600;"></td>' +
       '<td><a class="btn-remove" href="#" title="Remove item"><i class="bi bi-x-lg"></i></a></td>';
-    mainRow.querySelector('.btn-remove').addEventListener('click', function(e) {
-      e.preventDefault();
-      removeEntry(entryId);
-    });
 
-    var eventsRow = document.createElement('tr');
-    eventsRow.className = 'events-row';
-    eventsRow.setAttribute('data-parent-entry-id', entryId);
-    eventsRow.innerHTML =
-      '<td></td>' +
-      '<td colspan="8">' +
-        '<div class="events-wrapper">' +
-          '<table class="events-subtable" style="width:100%; border-collapse:collapse; background:#f9fafb;">' +
-            '<thead><tr style="background:#eef2ff; font-size:0.72rem;">' +
-              '<th style="padding:4px 6px; width:30px;"></th>' +
-              '<th style="padding:4px 6px; text-align:left;">Event</th>' +
-              '<th style="padding:4px 6px; width:70px;">Days</th>' +
-              '<th style="padding:4px 6px; width:80px;">Qty</th>' +
-              '<th style="padding:4px 6px; width:80px;">Rate</th>' +
-              '<th style="padding:4px 6px; width:100px;">Amount</th>' +
-            '</tr></thead>' +
-            '<tbody class="events-tbody"></tbody>' +
-          '</table>' +
-        '</div>' +
-      '</td>';
+    var removeLink = mainRow.querySelector('.btn-remove');
+    if (removeLink) {
+      removeLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        removeEntry(entryId);
+      });
+    }
+
     tbody.appendChild(mainRow);
-    tbody.appendChild(eventsRow);
-
     attachDragListeners(mainRow);
-    rebuildEventsSubtableForRow(mainRow);
+    attachMultiRowClick(mainRow);
+    renderChipsAndTotal(mainRow);
   }
 
-  // Wire up server-rendered multi rows on initial load.
+  // Click anywhere on a multi main row (except on drag handle or remove) opens its modal.
+  function attachMultiRowClick(mainRow) {
+    mainRow.addEventListener('click', function(e) {
+      var t = e.target;
+      if (!t) return;
+      if (t.closest && (t.closest('.btn-remove') || t.closest('.drag-handle'))) return;
+      openPerItemEventsModal(mainRow);
+    });
+  }
+
+  // No-op kept for back-compat with EditEvents save callback (refactored below).
+  function rebuildEventsSubtableForRow(mainRow) { renderChipsAndTotal(mainRow); }
+  window.rebuildEventsSubtableForRow = rebuildEventsSubtableForRow;
+
+  // Initial-load wiring: seed data-events from server map, render chips, attach click.
   document.querySelectorAll('#estimate-table tbody tr.multi-main-row').forEach(function(mainRow) {
     var entryId = mainRow.getAttribute('data-entry-id');
-    var eventsRow = document.querySelector('#estimate-table tbody tr.events-row[data-parent-entry-id="' + entryId + '"]');
-    if (!eventsRow) return;
-    eventsRow.querySelectorAll('.event-row').forEach(function(er) {
-      attachEventRowListeners(er, mainRow);
-    });
-    recalcMultiRow(mainRow);
+    var seeded = (window.ENTRY_EVENTS_MAP && window.ENTRY_EVENTS_MAP[entryId]) || [];
+    setRowEvents(mainRow, seeded);
+    attachMultiRowClick(mainRow);
+    renderChipsAndTotal(mainRow);
   });
   recalcTotal();
 })();
@@ -2575,11 +2611,23 @@ document.addEventListener('click', function(e) {
       }
       window.TEMP_EVENTS = data.events || [];
       refreshEventsChips();
-      // Rebuild every multi item's events sub-table
+      // Prune any per-item events whose names no longer exist; re-render chips.
+      var validNames = {};
+      (window.TEMP_EVENTS || []).forEach(function(ev) { validNames[ev.name] = true; });
       document.querySelectorAll('#estimate-table tbody tr.multi-main-row').forEach(function(mainRow) {
-        rebuildEventsSubtableForRow(mainRow);
+        var raw;
+        try { raw = JSON.parse(mainRow.getAttribute('data-events') || '[]'); }
+        catch (e) { raw = []; }
+        var kept = (Array.isArray(raw) ? raw : []).filter(function(ev) {
+          return ev && validNames[(ev.event_name || '').trim()];
+        });
+        mainRow.setAttribute('data-events', JSON.stringify(kept));
+        if (typeof window.rebuildEventsSubtableForRow === 'function') {
+          window.rebuildEventsSubtableForRow(mainRow);
+        }
       });
-      recalcTotal();
+      if (typeof recalcTotal === 'function') recalcTotal();
+      if (typeof scheduleAutoSave === 'function') scheduleAutoSave();
       closeEditEventsModal();
     })
     .catch(function(err) {
@@ -2607,7 +2655,168 @@ document.addEventListener('click', function(e) {
   }
 
   // Expose so other code can use it (e.g. when a new multi item is added)
-  window.rebuildEventsSubtableForRow = window.rebuildEventsSubtableForRow || rebuildEventsSubtableForRow;
+  // (rebuildEventsSubtableForRow is defined on window by the main script block.)
+})();
+</script>
+
+<script>
+// ============================================================
+// PER-ITEM EVENTS MODAL — open/save/close + live calculation
+// ============================================================
+(function() {
+  var activeMainRow = null;
+
+  function getRowEventsLocal(row) {
+    try {
+      var raw = row.getAttribute('data-events') || '[]';
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function escapeHtmlLocal(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function recalcModal() {
+    var rows = document.querySelectorAll('#pie-table-body tr');
+    var itemName = activeMainRow ? (activeMainRow.getAttribute('data-item-name') || '') : '';
+    var grand = 0;
+    rows.forEach(function(tr) {
+      var cb = tr.querySelector('.pie-cb');
+      var daysIn = tr.querySelector('.pie-days');
+      var qtyIn  = tr.querySelector('.pie-qty');
+      var rateCell = tr.querySelector('.pie-rate');
+      var amtCell  = tr.querySelector('.pie-amt');
+      var checked = !!(cb && cb.checked);
+      if (daysIn) daysIn.disabled = !checked;
+      if (qtyIn)  qtyIn.disabled  = !checked;
+      tr.classList.toggle('pie-active', checked);
+      if (!checked) {
+        if (rateCell) rateCell.textContent = '';
+        if (amtCell)  amtCell.textContent = '';
+        return;
+      }
+      var days = daysIn ? parseInt(daysIn.value || '0', 10) : 0;
+      var qty  = qtyIn  ? parseFloat(qtyIn.value || '0') : 0;
+      if (isNaN(days) || days < 1) days = 0;
+      if (isNaN(qty)  || qty  < 0) qty  = 0;
+      if (days < 1 || qty <= 0) {
+        if (rateCell) rateCell.textContent = '';
+        if (amtCell)  amtCell.textContent = '';
+        return;
+      }
+      var rate = (typeof getRate === 'function') ? getRate(itemName, days) : 0;
+      if (rateCell) rateCell.textContent = (rate != null) ? '₹' + Number(rate).toFixed(2) : '';
+      var amt = (rate || 0) * qty;
+      if (amtCell) amtCell.textContent = amt > 0 ? '₹' + amt.toFixed(2) : '';
+      grand += amt;
+    });
+    var grandEl = document.getElementById('pie-grand-total');
+    if (grandEl) grandEl.textContent = '₹' + grand.toFixed(2);
+  }
+
+  function buildPieRow(ev, prefill, idx) {
+    prefill = prefill || {};
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-event-id', ev.id || '');
+    tr.setAttribute('data-event-name', ev.name || '');
+    var checked = prefill.selected ? 'checked' : '';
+    var dis = prefill.selected ? '' : 'disabled';
+    tr.innerHTML =
+      '<td class="num"><input type="checkbox" class="pie-cb" ' + checked + '></td>' +
+      '<td><strong>' + escapeHtmlLocal(ev.name || '') + '</strong></td>' +
+      '<td class="num"><input type="number" min="1" max="365" class="pie-days" value="' + (prefill.days != null ? prefill.days : 1) + '" ' + dis + '></td>' +
+      '<td class="num"><input type="number" min="0" step="0.01" class="pie-qty" value="' + (prefill.qty != null && prefill.qty !== 0 ? prefill.qty : (prefill.selected ? prefill.qty : '')) + '" placeholder="0" ' + dis + '></td>' +
+      '<td class="num pie-rate"></td>' +
+      '<td class="num pie-amt"></td>';
+
+    var cb = tr.querySelector('.pie-cb');
+    var daysIn = tr.querySelector('.pie-days');
+    var qtyIn  = tr.querySelector('.pie-qty');
+    cb.addEventListener('change', recalcModal);
+    [daysIn, qtyIn].forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        if (!cb.checked && inp.value) cb.checked = true;
+        recalcModal();
+      });
+      inp.addEventListener('change', recalcModal);
+    });
+    return tr;
+  }
+
+  window.openPerItemEventsModal = function(mainRow) {
+    activeMainRow = mainRow;
+    var nameEl = document.getElementById('pie-item-name');
+    if (nameEl) nameEl.textContent = mainRow.getAttribute('data-item-name') || '';
+    var tbody = document.getElementById('pie-table-body');
+    var emptyEl = document.getElementById('pie-empty');
+    var tableEl = document.getElementById('pie-table');
+    if (tbody) tbody.innerHTML = '';
+
+    var defined = window.TEMP_EVENTS || [];
+    if (!defined.length) {
+      if (tableEl) tableEl.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+    } else {
+      if (tableEl) tableEl.style.display = '';
+      if (emptyEl) emptyEl.style.display = 'none';
+      var prior = {};
+      getRowEventsLocal(mainRow).forEach(function(ev) {
+        prior[(ev.event_name || '').trim()] = ev;
+      });
+      defined.forEach(function(ev, idx) {
+        var p = prior[ev.name];
+        var prefill = p ? { selected: true, days: p.days || 1, qty: p.qty || '' } : { selected: false, days: 1, qty: '' };
+        tbody.appendChild(buildPieRow(ev, prefill, idx));
+      });
+    }
+    recalcModal();
+    document.getElementById('pie-modal-backdrop').classList.add('active');
+  };
+
+  window.closePerItemEventsModal = function() {
+    document.getElementById('pie-modal-backdrop').classList.remove('active');
+    activeMainRow = null;
+  };
+
+  window.savePerItemEventsModal = function() {
+    if (!activeMainRow) { window.closePerItemEventsModal(); return; }
+    var rows = document.querySelectorAll('#pie-table-body tr');
+    var out = [];
+    rows.forEach(function(tr) {
+      var cb = tr.querySelector('.pie-cb');
+      if (!cb || !cb.checked) return;
+      var daysIn = tr.querySelector('.pie-days');
+      var qtyIn  = tr.querySelector('.pie-qty');
+      var days = daysIn ? parseInt(daysIn.value || '0', 10) : 0;
+      var qty  = qtyIn  ? parseFloat(qtyIn.value  || '0') : 0;
+      if (isNaN(days) || days < 1) return;
+      if (isNaN(qty)  || qty  <= 0) return;
+      out.push({
+        event_id: tr.getAttribute('data-event-id') || '',
+        event_name: tr.getAttribute('data-event-name') || '',
+        days: days,
+        qty: qty,
+      });
+    });
+    activeMainRow.setAttribute('data-events', JSON.stringify(out));
+    if (typeof window.rebuildEventsSubtableForRow === 'function') {
+      window.rebuildEventsSubtableForRow(activeMainRow);
+    }
+    if (typeof recalcTotal === 'function') recalcTotal();
+    if (typeof scheduleAutoSave === 'function') scheduleAutoSave();
+    window.closePerItemEventsModal();
+  };
+
+  // Close on backdrop click (outside modal panel)
+  document.addEventListener('click', function(e) {
+    var bd = document.getElementById('pie-modal-backdrop');
+    if (!bd || !bd.classList.contains('active')) return;
+    if (e.target === bd) window.closePerItemEventsModal();
+  });
 })();
 </script>
 {% endif %}
