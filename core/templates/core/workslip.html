@@ -2055,7 +2055,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 var rowKey = row.getAttribute("data-row-key");
                 if (!rowKey) return;
                 var qtyInput = row.querySelector(".qty-exec-input");
-                if (qtyInput && qtyInput.value !== "") execMap[rowKey] = qtyInput.value;
+                if (qtyInput) execMap[rowKey] = qtyInput.value;
             });
 
             var saveData = new FormData();
@@ -2159,10 +2159,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!rowType || !rowKey) return;
                 var qtyInput = row.querySelector(".qty-exec-input");
                 if (!qtyInput) return;
-                var val = qtyInput.value;
-                if (val !== "") {
-                    allMap[rowKey] = val;
-                }
+                allMap[rowKey] = qtyInput.value;
             });
 
             var tpPercentInput = document.getElementById("tp-percent-input");
@@ -2350,10 +2347,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Collect quantity
                 var qtyInput = row.querySelector(".qty-exec-input");
                 if (qtyInput) {
-                    var val = qtyInput.value;
-                    if (val !== "") {
-                        map[key] = val;
-                    }
+                    map[key] = qtyInput.value;
                 }
 
                 // Collect rate changes (only for editable rate inputs, not for supp items)
@@ -2411,7 +2405,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Use fetch to download without opening a new tab
             var formData = new FormData(wsForm);
 
-            fetch(wsForm.action, {
+            fetch(wsForm.getAttribute('action'), {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-CSRFToken': csrfToken }
@@ -2473,15 +2467,15 @@ function collectExecMap() {
     document.querySelectorAll('tr[data-row-key]').forEach(row => {
         const key = row.getAttribute('data-row-key');
         const input = row.querySelector('.qty-exec-input');
-        if (key && input && input.value) {
-            execMap[key] = parseFloat(input.value) || 0;
+        if (key && input) {
+            execMap[key] = input.value === '' ? '' : (parseFloat(input.value) || 0);
         }
     });
     document.querySelectorAll('tr[data-supp-name]').forEach(row => {
         const name = row.getAttribute('data-supp-name');
         const input = row.querySelector('.qty-exec-input');
-        if (name && input && input.value) {
-            execMap['supp:' + name] = parseFloat(input.value) || 0;
+        if (name && input) {
+            execMap['supp:' + name] = input.value === '' ? '' : (parseFloat(input.value) || 0);
         }
     });
     return execMap;

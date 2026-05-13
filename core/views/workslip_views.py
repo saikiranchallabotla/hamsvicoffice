@@ -715,11 +715,15 @@ def workslip(request):
             tp_type = request.POST.get("tp_type", "Excess")
 
             new_exec_map = {}
+            cleared_exec_keys = set()
             if exec_str:
                 try:
                     raw = json.loads(exec_str)
                     if isinstance(raw, dict):
                         for k, v in raw.items():
+                            if v == "" or v is None:
+                                cleared_exec_keys.add(str(k))
+                                continue
                             try:
                                 new_exec_map[str(k)] = float(v)
                             except Exception:
@@ -742,6 +746,8 @@ def workslip(request):
                     pass
 
             ws_exec_map.update(new_exec_map)
+            for _ck in cleared_exec_keys:
+                ws_exec_map.pop(_ck, None)
             ws_rate_map.update(new_rate_map)
             try:
                 ws_tp_percent = float(tp_percent_str) if tp_percent_str != "" else 0.0
@@ -774,11 +780,15 @@ def workslip(request):
             ws_exec_map_session = request.session.get("ws_exec_map", {}) or {}
             ws_rate_map_session = request.session.get("ws_rate_map", {}) or {}
             new_exec_map = {}
+            cleared_exec_keys = set()
             if exec_str:
                 try:
                     raw = json.loads(exec_str)
                     if isinstance(raw, dict):
                         for k, v in raw.items():
+                            if v == "" or v is None:
+                                cleared_exec_keys.add(str(k))
+                                continue
                             try:
                                 new_exec_map[str(k)] = float(v)
                             except Exception:
@@ -802,7 +812,9 @@ def workslip(request):
 
             ws_exec_map = ws_exec_map_session.copy()
             ws_exec_map.update(new_exec_map)
-            
+            for _ck in cleared_exec_keys:
+                ws_exec_map.pop(_ck, None)
+
             ws_rate_map = ws_rate_map_session.copy()
             ws_rate_map.update(new_rate_map)
 
@@ -1803,11 +1815,15 @@ def workslip(request):
             # merge UI exec_map into session map
             ws_exec_map_session = request.session.get("ws_exec_map", {}) or {}
             new_exec_map = {}
+            cleared_exec_keys = set()
             if exec_str:
                 try:
                     raw = json.loads(exec_str)
                     if isinstance(raw, dict):
                         for k, v in raw.items():
+                            if v == "" or v is None:
+                                cleared_exec_keys.add(str(k))
+                                continue
                             try:
                                 new_exec_map[str(k)] = float(v)
                             except Exception:
@@ -1816,6 +1832,8 @@ def workslip(request):
                     pass
             ws_exec_map = ws_exec_map_session.copy()
             ws_exec_map.update(new_exec_map)
+            for _ck in cleared_exec_keys:
+                ws_exec_map.pop(_ck, None)
 
             # merge UI rate_map into session map
             ws_rate_map_session = request.session.get("ws_rate_map", {}) or {}
@@ -2000,8 +2018,9 @@ def workslip(request):
 
             # Sheet 1: Supplement Datas N (only if supplemental items exist)
             if ws_supp_items:
+                ws_target_workslip = request.session.get("ws_target_workslip", 1) or 1
                 ws_blocks = wb_out.active
-                ws_blocks.title = f"Supplement Datas {target_workslip}"
+                ws_blocks.title = f"Supplement Datas {ws_target_workslip}"
                 # Add "Name of Work" header
                 ws_blocks.merge_cells("A1:J1")
                 hdr = ws_blocks["A1"]

@@ -1055,6 +1055,7 @@ def collect_work_data(request, work_type):
         work_data = {
             'ws_estimate_rows': request.session.get('ws_estimate_rows', []),
             'ws_exec_map': request.session.get('ws_exec_map', {}),
+            'ws_rate_map': request.session.get('ws_rate_map', {}),
             'ws_tp_percent': request.session.get('ws_tp_percent', 0.0),
             'ws_tp_type': request.session.get('ws_tp_type', 'Excess'),
             'ws_supp_items': request.session.get('ws_supp_items', []),
@@ -1073,6 +1074,8 @@ def collect_work_data(request, work_type):
             'selected_backend_id': request.session.get('ws_selected_backend_id'),
             'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
             'ws_work_mode': request.session.get('ws_work_mode', 'original'),
+            'ws_category': request.session.get('ws_category', 'electrical'),
+            'ws_work_type': request.session.get('ws_work_type', 'new_estimate'),
         }
     
     elif work_type == 'temporary_works':
@@ -1313,7 +1316,10 @@ def restore_work_data(request, saved_work):
         request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
         request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
         request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
-        
+        request.session['ws_rate_map'] = work_data.get('ws_rate_map', {})
+        request.session['ws_category'] = work_data.get('ws_category', saved_work.category or 'electrical')
+        request.session['ws_work_type'] = work_data.get('ws_work_type', 'new_estimate')
+
         # Force session save
         request.session.modified = True
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")

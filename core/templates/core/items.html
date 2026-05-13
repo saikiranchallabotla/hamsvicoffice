@@ -1621,7 +1621,15 @@ document.addEventListener('keydown', function(e) {
         // Populate additional options
         populateAdditionalOptions();
 
-        // Let the native form submit proceed (target="_blank" opens new tab)
+        // Smooth download — no white screen, no blank tab
+        var action = form.getAttribute("action") || "";
+        if (action.indexOf("/download/") !== -1 && typeof window.smoothDownload === "function") {
+            e.preventDefault();
+            window.smoothDownload(form, {
+                button: e.submitter || form.querySelector('button[type=submit]'),
+                fallbackName: "Estimate.xlsx"
+            });
+        }
     });
 
     // Utility function to build qty map
@@ -2561,41 +2569,15 @@ document.addEventListener('keydown', function(e) {
             alert("Please add items with quantities to generate specification report");
             return;
         }
-        
-        // Submit to backend
-        var form = document.createElement("form");
-        form.method = "POST";
-        form.action = "{% url 'download_specification_report_live' category %}";
-        form.className = "no-spa";
-        form.target = "_blank";
-        form.style.display = "none";
-        
-        var csrfInput = document.createElement("input");
-        csrfInput.type = "hidden";
-        csrfInput.name = "csrfmiddlewaretoken";
-        csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
-        form.appendChild(csrfInput);
-        
-        var itemsInput = document.createElement("input");
-        itemsInput.type = "hidden";
-        itemsInput.name = "items";
-        itemsInput.value = JSON.stringify(items);
-        form.appendChild(itemsInput);
-        
-        var workNameInput = document.createElement("input");
-        workNameInput.type = "hidden";
-        workNameInput.name = "work_name";
-        workNameInput.value = workName;
-        form.appendChild(workNameInput);
-        
-        var totalInput = document.createElement("input");
-        totalInput.type = "hidden";
-        totalInput.name = "total_amount";
-        totalInput.value = totalAmount;
-        form.appendChild(totalInput);
-        
-        document.body.appendChild(form);
-        form.submit();
+
+        var fd = new FormData();
+        fd.append("items", JSON.stringify(items));
+        fd.append("work_name", workName);
+        fd.append("total_amount", totalAmount);
+        window.smoothDownload({
+            url: "{% url 'download_specification_report_live' category %}",
+            formData: fd
+        }, { fallbackName: "Specification_Report.docx" });
     };
     
     // ---- Download Forwarding Letter ----
@@ -2629,41 +2611,15 @@ document.addEventListener('keydown', function(e) {
             alert("Please add items with quantities to generate forwarding letter");
             return;
         }
-        
-        // Submit to backend
-        var form = document.createElement("form");
-        form.method = "POST";
-        form.action = "{% url 'download_forwarding_letter_live' category %}";
-        form.className = "no-spa";
-        form.target = "_blank";
-        form.style.display = "none";
-        
-        var csrfInput = document.createElement("input");
-        csrfInput.type = "hidden";
-        csrfInput.name = "csrfmiddlewaretoken";
-        csrfInput.value = document.querySelector('[name="csrfmiddlewaretoken"]').value;
-        form.appendChild(csrfInput);
-        
-        var itemsInput = document.createElement("input");
-        itemsInput.type = "hidden";
-        itemsInput.name = "items";
-        itemsInput.value = JSON.stringify(items);
-        form.appendChild(itemsInput);
-        
-        var workNameInput = document.createElement("input");
-        workNameInput.type = "hidden";
-        workNameInput.name = "work_name";
-        workNameInput.value = workName;
-        form.appendChild(workNameInput);
-        
-        var totalInput = document.createElement("input");
-        totalInput.type = "hidden";
-        totalInput.name = "total_amount";
-        totalInput.value = totalAmount;
-        form.appendChild(totalInput);
-        
-        document.body.appendChild(form);
-        form.submit();
+
+        var fd = new FormData();
+        fd.append("items", JSON.stringify(items));
+        fd.append("work_name", workName);
+        fd.append("total_amount", totalAmount);
+        window.smoothDownload({
+            url: "{% url 'download_forwarding_letter_live' category %}",
+            formData: fd
+        }, { fallbackName: "Forwarding_Letter.docx" });
     };
     
     // Expose functions to global scope for subtypes modal
