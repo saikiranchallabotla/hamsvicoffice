@@ -1359,6 +1359,44 @@ document.addEventListener('click', function(e) {
       }
   }
 
+  // Debounced auto-save (qty/days edits) + best-effort save on page unload.
+  let _saveDebounceTimer = null;
+  function scheduleAutoSave() {
+    if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
+    _saveDebounceTimer = setTimeout(() => {
+      if (typeof saveState === 'function') saveState();
+    }, 600);
+  }
+
+  function saveStateOnUnload() {
+    if (typeof saveState !== 'function') return;
+    const list = [];
+    document.querySelectorAll('#estimate-table tbody tr[data-entry-id]').forEach((row) => {
+      const id = row.getAttribute('data-entry-id');
+      const name = row.getAttribute('data-item-name');
+      const qtyInput = row.querySelector('.qty-input');
+      const daysInput = row.querySelector('.days-input');
+      const qty = qtyInput ? parseFloat(qtyInput.value || '0') : 0;
+      const days = daysInput ? parseInt(daysInput.value || '1', 10) : 1;
+      list.push({ id, name, qty, days });
+    });
+    const workName = (document.getElementById('work-name-input') || {}).value || '';
+    const grandTotal = (document.getElementById('grand-total-input') || {}).value || '';
+    const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    const csrftoken = tokenInput ? tokenInput.value : (document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)') || [,, ''])[2];
+    try {
+      fetch('{% url "temp_save_state" category %}', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify({ entries: list, work_name: workName, grand_total: grandTotal }),
+      });
+    } catch (e) { /* best-effort */ }
+  }
+  window.addEventListener('pagehide', saveStateOnUnload);
+  window.addEventListener('beforeunload', saveStateOnUnload);
+
   // Bind + initial
   document.querySelectorAll("#estimate-table tbody tr").forEach((row) => {
     const qtyInput  = row.querySelector(".qty-input");
@@ -1368,16 +1406,19 @@ document.addEventListener('click', function(e) {
       qtyInput.addEventListener("input", () => {
         recalcRow(row);
         recalcTotal();
+        scheduleAutoSave();
       });
     }
     if (daysInput) {
       daysInput.addEventListener("input", () => {
         recalcRow(row);
         recalcTotal();
+        scheduleAutoSave();
       });
       daysInput.addEventListener("change", () => {
         recalcRow(row);
         recalcTotal();
+        scheduleAutoSave();
       });
     }
 
