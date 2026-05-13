@@ -537,9 +537,48 @@ from openpyxl.utils import get_column_letter
 from openpyxl.cell.cell import MergedCell
 
 from copy import copy
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.formula.translate import Translator
 from openpyxl.cell.cell import MergedCell
+
+# Matches a fully-absolute cell reference ($COL$ROW) that is NOT a cross-sheet ref.
+# Negative lookbehind on '!' excludes things like SHEET!$A$1.
+_ABS_CELL_REF_RE = re.compile(r'(?<!!)\$([A-Za-z]{1,3})\$(\d+)')
+
+
+def _adjust_absolute_block_refs(formula, src_min_row, src_max_row, col_start, col_end, row_offset, col_offset):
+    """
+    Shift fully-absolute cell references ($COL$ROW) that point WITHIN the source
+    item block by the same row/col offset used when placing the block in the output.
+
+    openpyxl's Translator intentionally leaves $COL$ROW untouched.  But when those
+    absolute refs address other cells in the *same* item-data block, they need to
+    follow the block to wherever it lands in the output sheet.
+
+    Only intra-block references are moved:
+      - row adjusted only when src_min_row <= ROW <= src_max_row
+      - col adjusted only when col_start    <= COL <= col_end
+
+    Cross-sheet refs (SHEET!$A$1) are excluded by the '!' lookbehind in the regex.
+    """
+    if not formula or not formula.startswith('=') or (row_offset == 0 and col_offset == 0):
+        return formula
+
+    def _replace(m):
+        col_letter = m.group(1)
+        row_num = int(m.group(2))
+        col_num = column_index_from_string(col_letter)
+
+        new_row = row_num + row_offset if (src_min_row <= row_num <= src_max_row) else row_num
+        new_col = col_num + col_offset if (col_start <= col_num <= col_end) else col_num
+
+        # Keep new values within Excel limits
+        new_row = max(1, new_row)
+        new_col = max(1, new_col)
+        return f'${get_column_letter(new_col)}${new_row}'
+
+    return _ABS_CELL_REF_RE.sub(_replace, formula)
+
 
 def copy_block_with_styles_and_formulas(
     ws_src,
@@ -638,6 +677,19 @@ def copy_block_with_styles_and_formulas(
                     v = Translator(v, origin=src_cell.coordinate).translate_formula(
                         row_delta=row_offset + (src_r - r),
                         col_delta=col_offset + (src_c - c)
+                    )
+                    # Shift intra-block absolute refs ($COL$ROW) that Translator
+                    # intentionally skips.  This ensures formulas in an item-data block
+                    # remain self-consistent no matter which row the block lands on in
+                    # the output (e.g. $J$12 in backend → $J$57 when block is at row 50).
+                    v = _adjust_absolute_block_refs(
+                        v,
+                        src_min_row=src_min_row,
+                        src_max_row=src_max_row,
+                        col_start=col_start,
+                        col_end=col_end,
+                        row_offset=row_offset,
+                        col_offset=col_offset,
                     )
                 except Exception:
                     pass
