@@ -578,15 +578,22 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
 
       Relative component (no $):
           Always shift by the position delta (dst - src).
-          This preserves the relative offset from the new cell location,
-          regardless of whether the referenced cell is inside or outside the
-          source block.
 
       Absolute component ($):
-          Shift ONLY when the referenced value falls INSIDE the source
-          item-block bounds (intra-block reference).
-          Absolute references that point OUTSIDE the block are intentional
-          anchors and must remain unchanged.
+        Column ($COL): shift if col_start <= COL <= col_end (within block's
+          column range). Outside-column absolute refs are kept fixed.
+        Row ($ROW):    shift if ROW >= src_min_row.
+          This is intentionally LOOSER than the old [src_min_row, src_max_row]
+          check. The reason: detect_items sets end_row to the last row
+          containing a rate value in column J, which can be 1-2 rows BEFORE
+          the last structural row of the block. A formula later in the block
+          referencing that structural row (e.g. =$J$165 when the rate-row
+          cutoff put end_row=163) was then wrongly treated as "outside block"
+          and left un-shifted.
+          New rule: any absolute row ref that points to a row AT OR AFTER
+          the block's starting row is treated as intra-block and shifted.
+          Refs to rows BEFORE the block (global headers, fixed lookup tables
+          in earlier items) are preserved unchanged.
 
     Cross-sheet refs are excluded by the regex lookbehind and left intact.
     """
@@ -600,35 +607,31 @@ def _remap_formula(formula, src_r, src_c, dst_r, dst_c,
 
     def _sub(m):
         col_dollar = m.group(1)   # '$' or ''
-        col_str    = m.group(2)   # column letters, e.g. 'J', 'AB'
+        col_str    = m.group(2)
         row_dollar = m.group(3)   # '$' or ''
-        row_str    = m.group(4)   # row digits, e.g. '12'
+        row_str    = m.group(4)
 
         col_num = column_index_from_string(col_str)
         row_num = int(row_str)
 
         # --- Column ---
-        if col_dollar:                               # absolute col ($C)
-            if col_start <= col_num <= col_end:
-                new_col = col_num + col_delta        #   intra-block → shift
-            else:
-                new_col = col_num                    #   outside block → keep
-        else:                                        # relative col (C)
-            new_col = col_num + col_delta            #   always shift
+        if col_dollar:
+            # Absolute col: shift only within block's column range
+            new_col = col_num + col_delta if (col_start <= col_num <= col_end) else col_num
+        else:
+            new_col = col_num + col_delta   # relative: always shift
 
         # --- Row ---
-        if row_dollar:                               # absolute row ($12)
-            if src_min_row <= row_num <= src_max_row:
-                new_row = row_num + row_delta        #   intra-block → shift
-            else:
-                new_row = row_num                    #   outside block → keep
-        else:                                        # relative row (12)
-            new_row = row_num + row_delta            #   always shift
+        if row_dollar:
+            # Absolute row: shift if the referenced row is at or after the
+            # block's own start row (intra-block or logically part of this block).
+            # Refs to rows before src_min_row (other items, headers, tables) stay put.
+            new_row = row_num + row_delta if row_num >= src_min_row else row_num
+        else:
+            new_row = row_num + row_delta   # relative: always shift
 
-        # Clamp to valid Excel limits
         new_col = max(1, min(new_col, 16384))
         new_row = max(1, min(new_row, 1048576))
-
         return f'{col_dollar}{get_column_letter(new_col)}{row_dollar}{new_row}'
 
     return _CELL_REF_RE.sub(_sub, formula)
