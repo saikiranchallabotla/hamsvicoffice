@@ -541,43 +541,59 @@ from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.formula.translate import Translator
 from openpyxl.cell.cell import MergedCell
 
-# Matches a fully-absolute cell reference ($COL$ROW) that is NOT a cross-sheet ref.
-# Negative lookbehind on '!' excludes things like SHEET!$A$1.
-_ABS_CELL_REF_RE = re.compile(r'(?<!!)\$([A-Za-z]{1,3})\$(\d+)')
+# Matches any cell reference where the ROW is absolute (COL$ROW or $COL$ROW),
+# but NOT cross-sheet refs like SHEET!A$1 (excluded by the negative lookbehind).
+# Group 1: optional leading '$' for the column ('' or '$')
+# Group 2: column letter(s)
+# Group 3: row number (after the required '$')
+_ABS_ROW_IN_REF_RE = re.compile(r'(?<![!\w])(\$?)([A-Za-z]{1,3})\$(\d+)')
 
 
 def _adjust_absolute_block_refs(formula, src_min_row, src_max_row, col_start, col_end, row_offset, col_offset):
     """
-    Shift fully-absolute cell references ($COL$ROW) that point WITHIN the source
-    item block by the same row/col offset used when placing the block in the output.
+    After openpyxl Translator runs, fix any remaining absolute-row cell references
+    that still point to the source block position instead of the destination block.
 
-    openpyxl's Translator intentionally leaves $COL$ROW untouched.  But when those
-    absolute refs address other cells in the *same* item-data block, they need to
-    follow the block to wherever it lands in the output sheet.
+    Translator intentionally skips:
+      - $COL$ROW  (both absolute)  → neither row nor col was shifted
+      - COL$ROW   (absolute row)   → col was shifted by Translator, but NOT the row
 
-    Only intra-block references are moved:
-      - row adjusted only when src_min_row <= ROW <= src_max_row
-      - col adjusted only when col_start    <= COL <= col_end
+    This function handles both patterns so that intra-block references remain
+    self-consistent no matter which row the block lands on in the output sheet
+    (e.g. $J$12 in backend becomes $J$57 when the block is placed at row 50).
 
-    Cross-sheet refs (SHEET!$A$1) are excluded by the '!' lookbehind in the regex.
+    Rules:
+      - Row  ($ROW): shift by row_offset  if  src_min_row <= ROW <= src_max_row
+      - Col  ($COL, absolute only): shift by col_offset if col_start <= COL <= col_end
+        Relative cols (no leading $) were already shifted by Translator — skip them.
+
+    Cross-sheet refs (SHEET!$A$1, SHEET!A$1) are excluded by the lookbehind.
     """
     if not formula or not formula.startswith('=') or (row_offset == 0 and col_offset == 0):
         return formula
 
     def _replace(m):
-        col_letter = m.group(1)
-        row_num = int(m.group(2))
+        has_col_dollar = m.group(1)   # '$' if absolute col, '' if relative col
+        col_letter = m.group(2)
+        row_num = int(m.group(3))
         col_num = column_index_from_string(col_letter)
 
-        new_row = row_num + row_offset if (src_min_row <= row_num <= src_max_row) else row_num
-        new_col = col_num + col_offset if (col_start <= col_num <= col_end) else col_num
+        # Absolute col ($COL): Translator did NOT shift it → shift now if within block.
+        # Relative col (COL):  Translator already shifted it → do NOT shift again.
+        if has_col_dollar and (col_start <= col_num <= col_end):
+            new_col = col_num + col_offset
+        else:
+            new_col = col_num
 
-        # Keep new values within Excel limits
+        # Absolute row ($ROW): Translator never shifts these → shift if within block.
+        new_row = row_num + row_offset if (src_min_row <= row_num <= src_max_row) else row_num
+
         new_row = max(1, new_row)
         new_col = max(1, new_col)
-        return f'${get_column_letter(new_col)}${new_row}'
+        col_prefix = '$' if has_col_dollar else ''
+        return f'{col_prefix}{get_column_letter(new_col)}${new_row}'
 
-    return _ABS_CELL_REF_RE.sub(_replace, formula)
+    return _ABS_ROW_IN_REF_RE.sub(_replace, formula)
 
 
 def copy_block_with_styles_and_formulas(
