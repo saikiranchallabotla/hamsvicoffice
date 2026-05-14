@@ -2374,8 +2374,57 @@ document.addEventListener('click', function(e) {
   window.updateTaxBreakdown = updateTaxBreakdown;
   window.toggleTaxBreakdown = toggleTaxBreakdown;
 
-  // Pre-save hook: sync entries (with qty/days) to session before Save Work modal saves
-  window.preSaveSync = function() { return saveState(); };
+  // Pre-save hook: sync entries (with qty/days) to session AND inject entries_json
+  // directly into the save form so the server is never reliant on session timing.
+  window.preSaveSync = function() {
+    try {
+      var list = [];
+      document.querySelectorAll('#estimate-table tbody tr[data-entry-id]').forEach(function(row) {
+        var id = row.getAttribute('data-entry-id');
+        var name = row.getAttribute('data-item-name');
+        var mode = row.getAttribute('data-mode') || 'single';
+        if (mode === 'multi') {
+          list.push({ id: id, name: name, mode: 'multi', events: collectEventsForRow(row) });
+        } else {
+          var qtyInput = row.querySelector('.qty-input');
+          var daysInput = row.querySelector('.days-input');
+          var qty = qtyInput ? parseFloat(qtyInput.value || '0') : 0;
+          var days = daysInput ? parseInt(daysInput.value || '1', 10) : 1;
+          list.push({ id: id, name: name, qty: qty, days: days });
+        }
+      });
+      var form = document.getElementById('saveWorkForm');
+      if (form) {
+        var existing = form.querySelector('input[name="temp_entries_json"]');
+        if (!existing) {
+          existing = document.createElement('input');
+          existing.type = 'hidden';
+          existing.name = 'temp_entries_json';
+          form.appendChild(existing);
+        }
+        existing.value = JSON.stringify(list);
+
+        var modeIn = form.querySelector('input[name="temp_mode"]');
+        if (!modeIn) {
+          modeIn = document.createElement('input');
+          modeIn.type = 'hidden';
+          modeIn.name = 'temp_mode';
+          form.appendChild(modeIn);
+        }
+        modeIn.value = (window.TEMP_MODE || 'single');
+
+        var evIn = form.querySelector('input[name="temp_events_list_json"]');
+        if (!evIn) {
+          evIn = document.createElement('input');
+          evIn.type = 'hidden';
+          evIn.name = 'temp_events_list_json';
+          form.appendChild(evIn);
+        }
+        evIn.value = JSON.stringify(window.TEMP_EVENTS || []);
+      }
+    } catch (e) { console.warn('preSaveSync inject failed', e); }
+    return saveState();
+  };
 
   // Expose internals needed by the per-item events modal (separate IIFE).
   window.getRate = getRate;

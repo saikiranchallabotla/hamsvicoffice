@@ -389,7 +389,29 @@ def temp_items(request, category, group):
 
     temp_entries = request.session.get("temp_entries", []) or []
     temp_mode = request.session.get("temp_mode", "single")
+    # If any entry is multi (e.g. legacy saved work restored), force multi rendering
+    # so the events modal scripts and events bar are included in the template.
+    if temp_mode != "multi" and any((ent or {}).get("mode") == "multi" for ent in temp_entries):
+        temp_mode = "multi"
+        request.session["temp_mode"] = "multi"
+        request.session.modified = True
     temp_events_list = request.session.get("temp_events_list", []) or []
+    # Rebuild missing events list from entries' embedded events (legacy saves).
+    if temp_mode == "multi" and not temp_events_list:
+        _seen = set()
+        _rebuilt = []
+        for _ent in temp_entries:
+            for _ev in (_ent or {}).get("events", []) or []:
+                _nm = (_ev.get("event_name") or "").strip()
+                if not _nm or _nm in _seen:
+                    continue
+                _seen.add(_nm)
+                _eid = _ev.get("event_id") or f"ev_{len(_rebuilt) + 1}"
+                _rebuilt.append({"id": _eid, "name": _nm})
+        if _rebuilt:
+            temp_events_list = _rebuilt
+            request.session["temp_events_list"] = _rebuilt
+            request.session.modified = True
     event_name_to_id = {e["name"]: e["id"] for e in temp_events_list if isinstance(e, dict) and e.get("name")}
     display_entries = []
     entry_events_map = {}
