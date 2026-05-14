@@ -1078,7 +1078,7 @@ def temp_download_output(request, category):
             """
             kind:
               - 'normal': single-mode row (Sl.No, qty, rate, amount formula). Increments slno.
-              - 'header': multi-mode item header row (Sl.No + bold desc; qty/rate/amount blank). Increments slno.
+              - 'header': multi-mode item header row (Sl.No + desc; qty/rate/amount blank). Increments slno.
               - 'event':  multi-mode event sub-row (no Sl.No; qty/rate/amount filled). Does NOT increment slno.
             """
             nonlocal row_est, slno
@@ -1103,8 +1103,6 @@ def temp_download_output(request, category):
             d_cell = ws_est.cell(row=row_est, column=4, value=desc)
             d_cell.alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
             d_cell.border = border_all
-            if is_header:
-                d_cell.font = Font(bold=True)
 
             rate_cell_val = "" if (is_header or not rate_value) else rate_value
             e = ws_est.cell(row=row_est, column=5, value=rate_cell_val)

@@ -119,6 +119,8 @@ urlpatterns = [
     path('', lambda request: redirect('dashboard') if request.user.is_authenticated else render(request, 'landing.html'), name='home'),
     path('workslip/', views.workslip_home, name='workslip'),  # Landing page for work type selection
     path('workslip/main/', views.workslip, name='workslip_main'),  # Main workslip 3-panel interface
+    path('temp-workslip/', views.temp_workslip, name='temp_workslip_main'),  # Temporary Works (multi-event) workslip
+    path('temp-bill/', views.temp_bill, name='temp_bill_main'),  # Temporary Works (multi-event) bill
     path('workslip/ajax-toggle-supp/', views.workslip_ajax_toggle_supp, name='workslip_ajax_toggle_supp'),
     path('workslip/ajax-group-items/', views.workslip_ajax_group_items, name='workslip_ajax_group_items'),
     

@@ -1120,6 +1120,31 @@ def collect_work_data(request, work_type):
             'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
         }
 
+    elif work_type == 'temp_workslip':
+        work_data = {
+            'tw_ws_entries': request.session.get('tw_ws_entries', []),
+            'tw_ws_events_list': request.session.get('tw_ws_events_list', []),
+            'tw_ws_exec_map': request.session.get('tw_ws_exec_map', {}),
+            'tw_ws_work_name': request.session.get('tw_ws_work_name', ''),
+            'tw_ws_category': request.session.get('tw_ws_category', 'electrical'),
+            'tw_ws_selected_backend_id': request.session.get('tw_ws_selected_backend_id'),
+            'tw_ws_target_workslip': request.session.get('tw_ws_target_workslip', 1),
+            'tw_ws_source_temp_id': request.session.get('tw_ws_source_temp_id'),
+        }
+
+    elif work_type == 'temp_bill':
+        work_data = {
+            'tw_bill_entries': request.session.get('tw_bill_entries', []),
+            'tw_bill_events_list': request.session.get('tw_bill_events_list', []),
+            'tw_bill_exec_map': request.session.get('tw_bill_exec_map', {}),
+            'tw_bill_prev_exec': request.session.get('tw_bill_prev_exec', {}),
+            'tw_bill_work_name': request.session.get('tw_bill_work_name', ''),
+            'tw_bill_category': request.session.get('tw_bill_category', 'electrical'),
+            'tw_bill_selected_backend_id': request.session.get('tw_bill_selected_backend_id'),
+            'tw_bill_number': request.session.get('tw_bill_number', 1),
+            'tw_bill_source_workslip_id': request.session.get('tw_bill_source_workslip_id'),
+        }
+
     return work_data
 
 
@@ -1154,6 +1179,15 @@ def calculate_progress(work_data, work_type):
         if work_data.get('bill_ws_rows'):
             return 50
         return 10
+
+    elif work_type in ('temp_workslip', 'temp_bill'):
+        entries = work_data.get('tw_ws_entries') or work_data.get('tw_bill_entries') or []
+        if not entries:
+            return 0
+        exec_map = work_data.get('tw_ws_exec_map') or work_data.get('tw_bill_exec_map') or {}
+        if exec_map:
+            return min(90, 30 + len(entries) * 5)
+        return min(50, len(entries) * 5)
 
     elif work_type == 'amc':
         items = work_data.get('amc_fetched_items', [])
@@ -1325,7 +1359,30 @@ def restore_work_data(request, saved_work):
         # Force session save
         request.session.modified = True
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")
-    
+
+    elif work_type == 'temp_workslip':
+        request.session['tw_ws_entries'] = work_data.get('tw_ws_entries', []) or []
+        request.session['tw_ws_events_list'] = work_data.get('tw_ws_events_list', []) or []
+        request.session['tw_ws_exec_map'] = work_data.get('tw_ws_exec_map', {}) or {}
+        request.session['tw_ws_work_name'] = work_data.get('tw_ws_work_name', '') or saved_work.name
+        request.session['tw_ws_category'] = work_data.get('tw_ws_category', saved_work.category or 'electrical')
+        request.session['tw_ws_selected_backend_id'] = work_data.get('tw_ws_selected_backend_id')
+        request.session['tw_ws_target_workslip'] = work_data.get('tw_ws_target_workslip', 1)
+        request.session['tw_ws_source_temp_id'] = work_data.get('tw_ws_source_temp_id')
+        request.session.modified = True
+
+    elif work_type == 'temp_bill':
+        request.session['tw_bill_entries'] = work_data.get('tw_bill_entries', []) or []
+        request.session['tw_bill_events_list'] = work_data.get('tw_bill_events_list', []) or []
+        request.session['tw_bill_exec_map'] = work_data.get('tw_bill_exec_map', {}) or {}
+        request.session['tw_bill_prev_exec'] = work_data.get('tw_bill_prev_exec', {}) or {}
+        request.session['tw_bill_work_name'] = work_data.get('tw_bill_work_name', '') or saved_work.name
+        request.session['tw_bill_category'] = work_data.get('tw_bill_category', saved_work.category or 'electrical')
+        request.session['tw_bill_selected_backend_id'] = work_data.get('tw_bill_selected_backend_id')
+        request.session['tw_bill_number'] = work_data.get('tw_bill_number', 1)
+        request.session['tw_bill_source_workslip_id'] = work_data.get('tw_bill_source_workslip_id')
+        request.session.modified = True
+
     elif work_type == 'temporary_works':
         temp_entries = work_data.get('temp_entries', []) or []
         request.session['temp_entries'] = temp_entries
@@ -1403,7 +1460,13 @@ def get_module_url(saved_work):
     
     elif work_type == 'workslip':
         return reverse('workslip_main') + '?preserve=1'
-    
+
+    elif work_type == 'temp_workslip':
+        return reverse('temp_workslip_main') + '?preserve=1'
+
+    elif work_type == 'temp_bill':
+        return reverse('temp_bill_main') + '?preserve=1'
+
     elif work_type == 'temporary_works':
         last_group = work_data.get('last_group', '')
         if last_group:
@@ -1992,7 +2055,54 @@ def generate_workslip_from_saved(request, work_id):
     if saved_work.status != 'completed':
         saved_work.status = 'completed'
         saved_work.save(update_fields=['status'])
-    
+
+    # ── Temporary Works (multi-event) → dedicated Temp Workslip flow ──
+    if saved_work.work_type == 'temporary_works':
+        wd = saved_work.work_data or {}
+        temp_mode = (wd.get('temp_mode') or '').lower()
+        # Detect multi: explicit flag, or any entry already in multi mode
+        temp_entries = wd.get('temp_entries') or []
+        has_multi_entry = any((ent or {}).get('mode') == 'multi' for ent in temp_entries)
+        if temp_mode == 'multi' or has_multi_entry:
+            # Filter to multi entries only (single-mode entries can't be rendered in this view)
+            multi_entries = [e for e in temp_entries if (e or {}).get('mode') == 'multi']
+            if not multi_entries:
+                messages.error(request, 'No multi-event entries found in this temporary work.')
+                return redirect('saved_works_list')
+
+            request.session['tw_ws_entries'] = multi_entries
+            request.session['tw_ws_events_list'] = wd.get('temp_events_list') or []
+            request.session['tw_ws_exec_map'] = {}
+            request.session['tw_ws_work_name'] = wd.get('temp_work_name', '') or saved_work.name
+            request.session['tw_ws_category'] = wd.get('temp_category') or saved_work.category or 'electrical'
+            request.session['tw_ws_selected_backend_id'] = wd.get('temp_selected_backend_id')
+            request.session['tw_ws_target_workslip'] = 1
+            request.session['tw_ws_source_temp_id'] = int(saved_work.id)
+            request.session.modified = True
+
+            new_ws_name = f"{saved_work.name} - W1"
+            new_ws, _created = SavedWork.objects.get_or_create(
+                organization=org,
+                user=user,
+                parent=saved_work,
+                work_type='temp_workslip',
+                workslip_number=1,
+                defaults={
+                    'folder': saved_work.folder,
+                    'name': new_ws_name,
+                    'work_data': {},
+                    'category': saved_work.category or 'electrical',
+                    'notes': '',
+                    'progress_percent': 0,
+                    'last_step': 'temp_workslip',
+                },
+            )
+            request.session['current_saved_work_id'] = new_ws.id
+            request.session['current_saved_work_name'] = new_ws_name
+            request.session.modified = True
+            return redirect(reverse('temp_workslip_main') + '?preserve=1')
+        # else: fall through to the legacy single-mode flow below
+
     # Load estimate data into workslip session
     work_data = saved_work.work_data or {}
     
@@ -3455,11 +3565,78 @@ def generate_bill_from_saved(request, work_id):
         return redirect('saved_works_list')
 
     # Verify this is a workslip or estimate
-    if saved_work.work_type not in ['workslip', 'new_estimate']:
+    if saved_work.work_type not in ['workslip', 'new_estimate', 'temp_workslip']:
         messages.error(request, 'Only workslips or estimates can be used to generate bills.')
         return redirect('saved_works_list')
 
     work_data = saved_work.work_data or {}
+
+    # ── Temporary Works Workslip → dedicated Temp Bill flow ──
+    if saved_work.work_type == 'temp_workslip':
+        wd = work_data
+        tw_entries = wd.get('tw_ws_entries') or []
+        if not tw_entries:
+            messages.error(request, 'Temp Workslip has no data. Cannot generate bill.')
+            return redirect('saved_work_detail', work_id=work_id)
+
+        bill_number = saved_work.workslip_number or 1
+
+        # Aggregate previous tempbills for "previous bill qty" carry-forward
+        prev_bill_exec = {}  # {entry_id: {event_id: cumulative_qty}}
+        try:
+            prev_bills = list(SavedWork.objects.filter(
+                organization=org, user=user, work_type='temp_bill',
+            ))
+        except Exception:
+            prev_bills = []
+        for pb in prev_bills:
+            # only consider bills under the same source tempwork
+            if pb.parent_id != saved_work.id and (pb.parent and pb.parent.parent_id) != getattr(saved_work, 'parent_id', None):
+                continue
+            pbd = pb.work_data or {}
+            pem = pbd.get('tw_bill_exec_map') or {}
+            for ent_id, evs in pem.items():
+                if not isinstance(evs, dict):
+                    continue
+                prev_bill_exec.setdefault(ent_id, {})
+                for ev_id, q in evs.items():
+                    try:
+                        prev_bill_exec[ent_id][ev_id] = prev_bill_exec[ent_id].get(ev_id, 0.0) + float(q or 0)
+                    except (TypeError, ValueError):
+                        continue
+
+        request.session['tw_bill_entries'] = tw_entries
+        request.session['tw_bill_events_list'] = wd.get('tw_ws_events_list') or []
+        # Seed bill exec map from workslip exec map so the user can adjust per-event
+        request.session['tw_bill_exec_map'] = wd.get('tw_ws_exec_map') or {}
+        request.session['tw_bill_prev_exec'] = prev_bill_exec
+        request.session['tw_bill_work_name'] = wd.get('tw_ws_work_name') or saved_work.name
+        request.session['tw_bill_category'] = wd.get('tw_ws_category') or saved_work.category or 'electrical'
+        request.session['tw_bill_selected_backend_id'] = wd.get('tw_ws_selected_backend_id')
+        request.session['tw_bill_number'] = bill_number
+        request.session['tw_bill_source_workslip_id'] = int(saved_work.id)
+        request.session.modified = True
+
+        # Pre-create the SavedWork for the bill
+        base_name = (saved_work.parent.name if saved_work.parent else saved_work.name)
+        new_bill_name = f"{base_name} - B{bill_number}"
+        new_bill, _created = SavedWork.objects.get_or_create(
+            organization=org, user=user,
+            parent=saved_work, work_type='temp_bill', bill_number=bill_number,
+            defaults={
+                'folder': saved_work.folder,
+                'name': new_bill_name,
+                'work_data': {},
+                'category': saved_work.category or 'electrical',
+                'notes': '',
+                'progress_percent': 0,
+                'last_step': 'temp_bill',
+            },
+        )
+        request.session['current_saved_work_id'] = new_bill.id
+        request.session['current_saved_work_name'] = new_bill_name
+        request.session.modified = True
+        return redirect(reverse('temp_bill_main') + '?preserve=1')
 
     # Validate: Estimate must have data
     if saved_work.work_type == 'new_estimate':

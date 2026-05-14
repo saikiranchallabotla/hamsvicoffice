@@ -35,6 +35,8 @@ _submodules = [
     'self_formatted_views',
     'self_formatted_form_views',
     'tempworks_views',
+    'tempworks_workslip_views',
+    'tempworks_bill_views',
     'amc_views',
 ]
 

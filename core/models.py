@@ -665,6 +665,8 @@ class SavedWork(models.Model):
         ("workslip", "Workslip"),
         ("bill", "Bill"),
         ("temporary_works", "Temporary Works"),
+        ("temp_workslip", "Temp Workslip"),
+        ("temp_bill", "Temp Bill"),
         ("amc", "AMC Module"),
     )
     
@@ -842,7 +844,7 @@ class SavedWork(models.Model):
 
     def _collect_workslips(self, node, result):
         """Recursively collect workslips from the workflow tree"""
-        if node.work_type == 'workslip':
+        if node.work_type in ('workslip', 'temp_workslip'):
             result.append(node)
         for child in node.children.all():
             self._collect_workslips(child, result)
@@ -858,7 +860,7 @@ class SavedWork(models.Model):
 
     def _collect_bills(self, node, result):
         """Recursively collect bills from the workflow tree"""
-        if node.work_type == 'bill':
+        if node.work_type in ('bill', 'temp_bill'):
             result.append(node)
         for child in node.children.all():
             self._collect_bills(child, result)

@@ -192,7 +192,8 @@ def workslip(request):
                     desc_to_item.setdefault(desc_text, item_name)
                     item_name_to_desc[item_name] = desc_text
     except Exception:
-        items_list, groups_map, ws_data, filepath = [], {}, None, ""
+        logger.exception("[WORKSLIP] load_backend failed (backend_id=%s, category=%s)", ws_selected_backend_id, category)
+        items_list, groups_map, units_map, ws_data, filepath = [], {}, {}, None, ""
 
     _scope_map = {'amc': 'amc', 'tempworks': 'temp'}
     _ws_scope = _scope_map.get(ws_work_type, 'estimate')
@@ -3267,7 +3268,8 @@ def workslip_ajax_group_items(request):
             user=request.user,
         )
     except Exception:
-        items_list, groups_map, ws_data, filepath = [], {}, None, ""
+        logger.exception("[WORKSLIP] load_backend failed (backend_id=%s, category=%s)", ws_selected_backend_id, category)
+        items_list, groups_map, units_map, ws_data, filepath = [], {}, {}, None, ""
 
     group_items = groups_map.get(group_name, [])
     detected_names = {i["name"] for i in items_list}

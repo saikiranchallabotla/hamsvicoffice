@@ -1,0 +1,163 @@
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Temp Bill{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-receipt me-2"></i>Temporary Works — Bill {{ bill_number }}
+{% endblock %}
+
+{% block content %}
+<style>
+  .tw-bill-wrap { padding: 1rem; }
+  .tw-bill-meta { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+  .tw-bill-meta input { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 6px; min-width: 280px; }
+  table.tw-bill-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  table.tw-bill-table th, table.tw-bill-table td { border: 1px solid #ccc; padding: 6px 8px; vertical-align: middle; }
+  table.tw-bill-table th { background: #f3f3f3; font-weight: 600; text-align: center; }
+  tr.tw-header-row td { background: #fafafa; font-weight: normal; }
+  tr.tw-event-row td { background: #ffffff; }
+  td.num { text-align: right; }
+  td.center { text-align: center; }
+  .qty-bill-input { width: 90px; padding: 3px 5px; border: 1px solid #bbb; border-radius: 4px; text-align: right; }
+  .totals-row td { font-weight: 600; background: #f9f9f9; }
+  .download-bar { margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end; }
+  .btn-download { background: #2563eb; color: white; border: none; padding: 0.5rem 1.1rem; border-radius: 6px; cursor: pointer; }
+  .btn-download:disabled { opacity: 0.6; cursor: not-allowed; }
+</style>
+
+<div class="tw-bill-wrap">
+  <form id="tw-bill-form" method="post" action="{% url 'temp_bill_main' %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="download_bill">
+    <input type="hidden" name="exec_map" id="tw-exec-map-field" value="">
+
+    <div class="tw-bill-meta">
+      <label><strong>Name of the work:</strong></label>
+      <input type="text" name="ws_work_name" id="tw-work-name" value="{{ work_name }}" placeholder="Name of the work">
+      <span style="margin-left:auto;color:#555;">
+        Category: <strong>{{ category|title }}</strong> &nbsp;|&nbsp;
+        Bill No: <strong>{{ bill_number }}</strong>
+      </span>
+    </div>
+
+    <table class="tw-bill-table" id="tw-bill-table">
+      <thead>
+        <tr>
+          <th style="width:50px;">Sl.No</th>
+          <th>Description of Item / Event</th>
+          <th style="width:80px;">Qty (Est)</th>
+          <th style="width:80px;">Rate</th>
+          <th style="width:100px;">Amt (Est)</th>
+          {% if has_previous %}<th style="width:100px;">Prev Bill Qty</th>{% endif %}
+          <th style="width:110px;">Bill Qty</th>
+          <th style="width:90px;">Net Qty</th>
+          <th style="width:110px;">Net Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in view_rows %}
+          {% if r.kind == 'header' %}
+            <tr class="tw-header-row">
+              <td class="center">{{ r.sl }}</td>
+              <td colspan="{% if has_previous %}8{% else %}7{% endif %}">{{ r.desc }}</td>
+            </tr>
+          {% else %}
+            <tr class="tw-event-row"
+                data-entry-id="{{ r.entry_id }}"
+                data-event-id="{{ r.event_id }}"
+                data-rate="{{ r.rate }}"
+                data-prev="{{ r.qty_prev }}">
+              <td></td>
+              <td>{{ r.desc }}</td>
+              <td class="num">{{ r.qty_est }}</td>
+              <td class="num">{{ r.rate }}</td>
+              <td class="num">{{ r.amt_est }}</td>
+              {% if has_previous %}<td class="num">{{ r.qty_prev }}</td>{% endif %}
+              <td class="center">
+                <input type="number" step="any" min="0"
+                       class="qty-bill-input"
+                       value="{{ r.qty_bill|default_if_none:'' }}">
+              </td>
+              <td class="num net-qty-cell">{{ r.qty_net }}</td>
+              <td class="num net-amt-cell">{{ r.amt_net }}</td>
+            </tr>
+          {% endif %}
+        {% endfor %}
+        <tr class="totals-row">
+          <td colspan="{% if has_previous %}8{% else %}7{% endif %}" style="text-align:right;">Total Net Amount</td>
+          <td class="num" id="tw-total-net">{{ total_net }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="download-bar">
+      <button type="submit" class="btn-download" id="tw-download-btn">
+        <i class="bi bi-download"></i> Download Bill
+      </button>
+    </div>
+  </form>
+</div>
+
+<script src="{% static 'js/smooth-download.js' %}"></script>
+<script>
+(function () {
+  function num(v) {
+    var f = parseFloat(v);
+    return isFinite(f) ? f : 0;
+  }
+  function recalcRow(tr) {
+    var rate = num(tr.getAttribute('data-rate'));
+    var prev = num(tr.getAttribute('data-prev'));
+    var q = num(tr.querySelector('.qty-bill-input').value);
+    var net = Math.round((q - prev) * 100) / 100;
+    var amt = Math.round(net * rate * 100) / 100;
+    var nq = tr.querySelector('.net-qty-cell');
+    var na = tr.querySelector('.net-amt-cell');
+    if (nq) nq.textContent = net;
+    if (na) na.textContent = amt;
+    return amt;
+  }
+  function recalcTotal() {
+    var total = 0;
+    document.querySelectorAll('tr.tw-event-row').forEach(function (tr) {
+      total += recalcRow(tr);
+    });
+    var tot = document.getElementById('tw-total-net');
+    if (tot) tot.textContent = Math.round(total * 100) / 100;
+  }
+  function collectExecMap() {
+    var map = {};
+    document.querySelectorAll('tr.tw-event-row').forEach(function (tr) {
+      var ent = tr.getAttribute('data-entry-id');
+      var ev = tr.getAttribute('data-event-id');
+      var v = tr.querySelector('.qty-bill-input').value;
+      if (!ent || !ev) return;
+      if (!map[ent]) map[ent] = {};
+      map[ent][ev] = v === '' ? 0 : num(v);
+    });
+    return map;
+  }
+
+  document.querySelectorAll('.qty-bill-input').forEach(function (inp) {
+    inp.addEventListener('input', recalcTotal);
+  });
+  recalcTotal();
+
+  var form = document.getElementById('tw-bill-form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      document.getElementById('tw-exec-map-field').value = JSON.stringify(collectExecMap());
+      var btn = document.getElementById('tw-download-btn');
+      if (window.smoothDownload) {
+        window.smoothDownload(form, { button: btn, fallbackName: 'TempBill.xlsx' })
+          .catch(function () { /* error already shown */ });
+      } else {
+        form.submit();
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}
