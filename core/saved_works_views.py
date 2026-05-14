@@ -1334,25 +1334,27 @@ def restore_work_data(request, saved_work):
         request.session['temp_selected_backend_id'] = work_data.get('temp_selected_backend_id')
         request.session['temp_category'] = work_data.get('temp_category', 'electrical')
 
-        # Restore (or infer for legacy saves) temp_mode and temp_events_list.
+        # Source of truth = entries. If any entry has mode='multi', the work is multi.
+        has_multi = any((ent or {}).get('mode') == 'multi' for ent in temp_entries)
         saved_mode = work_data.get('temp_mode')
-        saved_events_list = work_data.get('temp_events_list')
-        if not saved_mode:
-            saved_mode = 'multi' if any(
-                (ent or {}).get('mode') == 'multi' for ent in temp_entries
-            ) else 'single'
-        if not saved_events_list:
-            seen = {}
-            order = []
+        if has_multi:
+            saved_mode = 'multi'
+        elif not saved_mode:
+            saved_mode = 'single'
+
+        saved_events_list = work_data.get('temp_events_list') or []
+        if has_multi and not saved_events_list:
+            seen = set()
+            rebuilt = []
             for ent in temp_entries:
                 for ev in (ent or {}).get('events', []) or []:
                     nm = (ev.get('event_name') or '').strip()
                     if not nm or nm in seen:
                         continue
-                    eid = ev.get('event_id') or f"ev_{len(order) + 1}"
-                    seen[nm] = eid
-                    order.append({'id': eid, 'name': nm})
-            saved_events_list = order
+                    seen.add(nm)
+                    eid = ev.get('event_id') or f"ev_{len(rebuilt) + 1}"
+                    rebuilt.append({'id': eid, 'name': nm})
+            saved_events_list = rebuilt
         request.session['temp_mode'] = saved_mode
         request.session['temp_events_list'] = saved_events_list
         request.session.modified = True
