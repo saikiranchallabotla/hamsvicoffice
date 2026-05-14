@@ -1327,13 +1327,34 @@ def restore_work_data(request, saved_work):
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")
     
     elif work_type == 'temporary_works':
-        request.session['temp_entries'] = work_data.get('temp_entries', [])
+        temp_entries = work_data.get('temp_entries', []) or []
+        request.session['temp_entries'] = temp_entries
         request.session['temp_work_name'] = work_data.get('temp_work_name', '')
         request.session['temp_grand_total'] = work_data.get('temp_grand_total', '')
         request.session['temp_selected_backend_id'] = work_data.get('temp_selected_backend_id')
         request.session['temp_category'] = work_data.get('temp_category', 'electrical')
-        request.session['temp_mode'] = work_data.get('temp_mode', 'single')
-        request.session['temp_events_list'] = work_data.get('temp_events_list', [])
+
+        # Restore (or infer for legacy saves) temp_mode and temp_events_list.
+        saved_mode = work_data.get('temp_mode')
+        saved_events_list = work_data.get('temp_events_list')
+        if not saved_mode:
+            saved_mode = 'multi' if any(
+                (ent or {}).get('mode') == 'multi' for ent in temp_entries
+            ) else 'single'
+        if not saved_events_list:
+            seen = {}
+            order = []
+            for ent in temp_entries:
+                for ev in (ent or {}).get('events', []) or []:
+                    nm = (ev.get('event_name') or '').strip()
+                    if not nm or nm in seen:
+                        continue
+                    eid = ev.get('event_id') or f"ev_{len(order) + 1}"
+                    seen[nm] = eid
+                    order.append({'id': eid, 'name': nm})
+            saved_events_list = order
+        request.session['temp_mode'] = saved_mode
+        request.session['temp_events_list'] = saved_events_list
         request.session.modified = True
     
     elif work_type == 'amc':
