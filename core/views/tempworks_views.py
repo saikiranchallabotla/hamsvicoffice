@@ -831,6 +831,7 @@ def temp_download_output(request, category):
 
     cursor = 3  # start blocks after header + blank row
     rate_rows = {}  # dict mapping entry_index -> row_in_output for rate (single mode only)
+    entry_day_to_out_row = {}  # idx -> {days -> output sheet row holding the rate in column J}
 
     def _entry_mode(e):
         m = (e or {}).get("mode", "single")
@@ -934,6 +935,21 @@ def temp_download_output(request, category):
         else:
             rate_rows[idx] = None
 
+        # Build day -> output-row map for this entry (column C in source holds day number)
+        day_to_out = {}
+        day_src_ws = ws_vals if ws_vals else _src_ws
+        for src_r in range(src_min, effective_end + 1):
+            day_cell = day_src_ws.cell(row=src_r, column=3).value
+            if day_cell in (None, ""):
+                continue
+            try:
+                d = int(float(day_cell))
+                if d > 0:
+                    day_to_out[d] = dst_start + (src_r - src_min)
+            except (ValueError, TypeError):
+                pass
+        entry_day_to_out_row[idx] = day_to_out
+
         cursor += (effective_end - src_min + 1)
 
     # =====================================================
@@ -1009,6 +1025,7 @@ def temp_download_output(request, category):
 
         def _rate_for_days(days):
             r = item_day_rates.get(days, 0)
+            used_day = days if r else None
             if r == 0 and item_day_rates:
                 available_days = sorted([int(k) for k in item_day_rates.keys()])
                 closest_day = None
@@ -1020,7 +1037,20 @@ def temp_download_output(request, category):
                     closest_day = available_days[-1]
                 if closest_day:
                     r = item_day_rates.get(closest_day, 0)
-            return r
+                    used_day = closest_day
+            return r, used_day
+
+        def _rate_ref_for_days(days):
+            """Return a formula string '=Output!J{row}' for the matching day-row, or
+            the numeric rate as fallback when no mapping exists."""
+            rate_val, used_day = _rate_for_days(days)
+            if not rate_val:
+                return ""
+            day_map = entry_day_to_out_row.get(idx, {})
+            out_row = day_map.get(used_day) if used_day is not None else None
+            if out_row:
+                return f"=Output!J{out_row}"
+            return rate_val
 
         def _write_row(desc, qty_val, rate_value, kind="normal"):
             """
@@ -1112,7 +1142,7 @@ def temp_download_output(request, category):
                 roman = _to_roman_lower(i)
                 day_word = "day" if ev["days"] == 1 else "days"
                 desc = f"{roman}. {ev['name']} for {ev['days']} {day_word}"
-                rate_value = _rate_for_days(ev["days"])
+                rate_value = _rate_ref_for_days(ev["days"])
                 _write_row(desc, ev["qty"], rate_value, kind="event")
         else:
             # Single mode — existing behavior preserved
@@ -1123,7 +1153,7 @@ def temp_download_output(request, category):
             days = int(entry.get("days") or 1)
             suffix = f"for {days} day" if days == 1 else f"for {days} days"
             desc = f"{base_desc_str}, {suffix}" if base_desc_str else suffix
-            rate_value = _rate_for_days(days)
+            rate_value = _rate_ref_for_days(days)
             _write_row(desc, qty_val, rate_value)
 
     # ---- Totals (same style as your main estimate) ----
