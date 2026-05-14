@@ -32,7 +32,7 @@ from django.shortcuts import redirect, render
 
 from ..utils_excel import build_temp_day_rates, load_backend
 from .tempworks_workslip_views import (
-    _coerce_float, _norm_name, _rate_for_event_days, _to_roman_lower,
+    _build_desc_map, _coerce_float, _norm_name, _rate_for_event_days, _to_roman_lower,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,8 @@ def temp_bill(request):
     if not entries:
         return redirect("dashboard")
 
+    items_list = []
+    filepath = None
     try:
         items_list, _gm, _um, _ws_src, filepath = load_backend(
             f"temp_{category}", settings.BASE_DIR,
@@ -125,6 +127,8 @@ def temp_bill(request):
     for k, v in (day_rates or {}).items():
         day_rates_by_item[k] = v
         day_rates_by_item[_norm_name(k)] = v
+
+    desc_by_item = _build_desc_map(items_list, filepath)
 
     if request.method == "POST":
         action = request.POST.get("action") or ""
@@ -157,8 +161,8 @@ def temp_bill(request):
         if action == "download_bill":
             return _download_bill_excel(
                 entries=entries, exec_map=exec_map, prev_exec=prev_exec,
-                day_rates_by_item=day_rates_by_item, work_name=work_name,
-                bill_number=bill_number,
+                day_rates_by_item=day_rates_by_item, desc_by_item=desc_by_item,
+                work_name=work_name, bill_number=bill_number,
             )
 
     view_rows = _build_bill_view_rows(entries, exec_map, prev_exec, day_rates_by_item)
@@ -221,7 +225,7 @@ def _aggregate_per_item(entries, exec_map, prev_exec, day_rates_by_item):
     return summary
 
 
-def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, work_name, bill_number):
+def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_by_item, work_name, bill_number):
     wb = Workbook()
     thin = Side(border_style="thin", color="000000")
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -254,8 +258,10 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, work_n
     sum_row = 5
     grand_amt = 0.0
     for sl, it in enumerate(summary, start=1):
+        item_name = it["item_name"]
+        item_desc = (desc_by_item or {}).get(item_name) or (desc_by_item or {}).get(_norm_name(item_name)) or item_name
         ws_sum.cell(row=sum_row, column=1, value=sl).alignment = Alignment(horizontal="center", vertical="center")
-        ws_sum.cell(row=sum_row, column=2, value=it["item_name"]).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
+        ws_sum.cell(row=sum_row, column=2, value=item_desc).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
         ws_sum.cell(row=sum_row, column=3, value=it["qty_est"]).alignment = Alignment(horizontal="right")
         ws_sum.cell(row=sum_row, column=4, value=it["qty_prev"]).alignment = Alignment(horizontal="right")
         ws_sum.cell(row=sum_row, column=5, value=it["qty_bill"]).alignment = Alignment(horizontal="right")
@@ -330,13 +336,15 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, work_n
         if not valid_events:
             continue
 
+        header_desc = (desc_by_item or {}).get(item_name) or (desc_by_item or {}).get(_norm_name(item_name)) or item_name
         ws_det.cell(row=out_row, column=1, value=sl_counter).alignment = Alignment(horizontal="center", vertical="center")
-        ws_det.cell(row=out_row, column=2, value=item_name).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
+        ws_det.cell(row=out_row, column=2, value=header_desc).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
         for c_idx in range(1, len(det_headers) + 1):
             ws_det.cell(row=out_row, column=c_idx).border = border_all
         out_row += 1
 
         item_day_rates = day_rates_by_item.get(_norm_name(item_name)) or day_rates_by_item.get(item_name) or {}
+        ae_counter = 0
 
         for i, ev in enumerate(valid_events, start=1):
             roman = _to_roman_lower(i)
@@ -374,7 +382,8 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, work_n
 
             # AE row (per event) when qty_bill > qty_est
             if excess > 0:
-                ae_desc = f"{roman}.AE {ev['event_name']} for {ev['days']} {day_word}"
+                ae_counter += 1
+                ae_desc = f"AE{ae_counter}"
                 ws_det.cell(row=out_row, column=1, value="")
                 ws_det.cell(row=out_row, column=2, value=ae_desc).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
                 ws_det.cell(row=out_row, column=3, value="")

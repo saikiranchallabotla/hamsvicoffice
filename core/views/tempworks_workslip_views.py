@@ -22,7 +22,7 @@ import logging
 import re
 from copy import copy
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -95,6 +95,37 @@ def _coerce_float(v, default=0.0):
         return float(v)
     except (TypeError, ValueError):
         return default
+
+
+def _build_desc_map(items_list, filepath):
+    """Map item name -> full description from backend (cell at start_row+2, col 4).
+
+    Returns a dict keyed by both the original name and its normalized form, so
+    callers can look up either way.
+    """
+    desc_map = {}
+    if not items_list or not filepath:
+        return desc_map
+    try:
+        wb_vals = load_workbook(filepath, data_only=True)
+        ws_vals = wb_vals["Master Datas"]
+    except Exception:
+        logger.exception("[TEMP_WS] failed to open backend for desc lookup")
+        return desc_map
+    for it in items_list:
+        name = it.get("name") or ""
+        start_row = it.get("start_row")
+        if not name or not start_row:
+            continue
+        try:
+            val = ws_vals.cell(row=start_row + 2, column=4).value or ""
+        except Exception:
+            val = ""
+        s = str(val).strip()
+        if s:
+            desc_map[name] = s
+            desc_map[_norm_name(name)] = s
+    return desc_map
 
 
 def _build_view_rows(entries, events_list, day_rates_by_item, exec_map):
@@ -173,6 +204,8 @@ def temp_workslip(request):
         return redirect("dashboard")
 
     # Load backend for rate lookup
+    items_list = []
+    filepath = None
     try:
         items_list, _groups_map, _units_map, _ws_src, filepath = load_backend(
             f"temp_{category}", settings.BASE_DIR,
@@ -188,6 +221,9 @@ def temp_workslip(request):
     for k, v in (day_rates or {}).items():
         day_rates_by_item[k] = v
         day_rates_by_item[_norm_name(k)] = v
+
+    # Build description map: backend stores full item description at start_row+2, column 4
+    desc_by_item = _build_desc_map(items_list, filepath)
 
     if request.method == "POST":
         action = request.POST.get("action") or ""
@@ -223,6 +259,7 @@ def temp_workslip(request):
                 events_list=events_list,
                 exec_map=exec_map,
                 day_rates_by_item=day_rates_by_item,
+                desc_by_item=desc_by_item,
                 work_name=work_name,
             )
         # action == "update_preview" -> fall through to render
@@ -242,7 +279,7 @@ def temp_workslip(request):
     })
 
 
-def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, work_name):
+def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, desc_by_item, work_name):
     """Build the Temp Workslip Excel workbook and return as HttpResponse."""
     wb = Workbook()
     ws = wb.active
@@ -317,14 +354,16 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
         if not valid_events:
             continue
 
-        # Header row (plain, not bold)
+        # Header row — full backend description (plain weight)
+        header_desc = (desc_by_item or {}).get(item_name) or (desc_by_item or {}).get(_norm_name(item_name)) or item_name
         ws.cell(row=out_row, column=1, value=sl_counter).alignment = Alignment(horizontal="center", vertical="center")
-        ws.cell(row=out_row, column=2, value=item_name).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
+        ws.cell(row=out_row, column=2, value=header_desc).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
         for c_idx in range(1, len(headers) + 1):
             ws.cell(row=out_row, column=c_idx).border = border_all
         out_row += 1
 
         item_day_rates = day_rates_by_item.get(_norm_name(item_name)) or day_rates_by_item.get(item_name) or {}
+        ae_counter = 0
 
         for i, ev in enumerate(valid_events, start=1):
             roman = _to_roman_lower(i)
@@ -365,8 +404,8 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
             out_row += 1
 
             if excess > 0:
-                # AE row for this event
-                ae_desc = f"{roman}.AE {ev['event_name']} for {ev['days']} {day_word}"
+                ae_counter += 1
+                ae_desc = f"AE{ae_counter}"
                 ws.cell(row=out_row, column=1, value="")
                 ws.cell(row=out_row, column=2, value=ae_desc).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
                 ws.cell(row=out_row, column=3, value="")
