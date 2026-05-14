@@ -1414,15 +1414,37 @@ def restore_work_data(request, saved_work):
         request.session.modified = True
 
     elif work_type == 'temp_bill':
-        request.session['tw_bill_entries'] = work_data.get('tw_bill_entries', []) or []
-        request.session['tw_bill_events_list'] = work_data.get('tw_bill_events_list', []) or []
-        request.session['tw_bill_exec_map'] = work_data.get('tw_bill_exec_map', {}) or {}
-        request.session['tw_bill_prev_exec'] = work_data.get('tw_bill_prev_exec', {}) or {}
-        request.session['tw_bill_work_name'] = work_data.get('tw_bill_work_name', '') or saved_work.name
-        request.session['tw_bill_category'] = work_data.get('tw_bill_category', saved_work.category or 'electrical')
-        request.session['tw_bill_selected_backend_id'] = work_data.get('tw_bill_selected_backend_id')
-        request.session['tw_bill_number'] = work_data.get('tw_bill_number', 1)
-        request.session['tw_bill_source_workslip_id'] = work_data.get('tw_bill_source_workslip_id')
+        entries = work_data.get('tw_bill_entries') or []
+        events_list = work_data.get('tw_bill_events_list') or []
+        exec_map = work_data.get('tw_bill_exec_map') or {}
+        prev_exec = work_data.get('tw_bill_prev_exec') or {}
+        work_name = work_data.get('tw_bill_work_name') or saved_work.name
+        category = work_data.get('tw_bill_category') or (saved_work.category or 'electrical')
+        backend_id = work_data.get('tw_bill_selected_backend_id')
+        bill_number = work_data.get('tw_bill_number') or (saved_work.bill_number or 1)
+        source_ws_id = work_data.get('tw_bill_source_workslip_id') or (saved_work.parent_id if saved_work.parent else None)
+
+        # Fallback: if this bill node has no stored data (older record),
+        # rebuild from parent temp_workslip's data.
+        if not entries and saved_work.parent and saved_work.parent.work_type == 'temp_workslip':
+            pwd = saved_work.parent.work_data or {}
+            entries = pwd.get('tw_ws_entries') or []
+            events_list = events_list or pwd.get('tw_ws_events_list') or []
+            if not exec_map:
+                exec_map = pwd.get('tw_ws_exec_map') or {}
+            work_name = work_name or pwd.get('tw_ws_work_name') or ''
+            category = category or pwd.get('tw_ws_category') or 'electrical'
+            backend_id = backend_id or pwd.get('tw_ws_selected_backend_id')
+
+        request.session['tw_bill_entries'] = entries
+        request.session['tw_bill_events_list'] = events_list
+        request.session['tw_bill_exec_map'] = exec_map
+        request.session['tw_bill_prev_exec'] = prev_exec
+        request.session['tw_bill_work_name'] = work_name
+        request.session['tw_bill_category'] = category
+        request.session['tw_bill_selected_backend_id'] = backend_id
+        request.session['tw_bill_number'] = bill_number
+        request.session['tw_bill_source_workslip_id'] = source_ws_id
         request.session.modified = True
 
     elif work_type == 'temporary_works':
@@ -3662,19 +3684,33 @@ def generate_bill_from_saved(request, work_id):
         # Pre-create the SavedWork for the bill
         base_name = (saved_work.parent.name if saved_work.parent else saved_work.name)
         new_bill_name = f"{base_name} - B{bill_number}"
+        seed_bill_data = {
+            'tw_bill_entries': tw_entries,
+            'tw_bill_events_list': wd.get('tw_ws_events_list') or [],
+            'tw_bill_exec_map': wd.get('tw_ws_exec_map') or {},
+            'tw_bill_prev_exec': prev_bill_exec,
+            'tw_bill_work_name': wd.get('tw_ws_work_name') or saved_work.name,
+            'tw_bill_category': wd.get('tw_ws_category') or saved_work.category or 'electrical',
+            'tw_bill_selected_backend_id': wd.get('tw_ws_selected_backend_id'),
+            'tw_bill_number': bill_number,
+            'tw_bill_source_workslip_id': int(saved_work.id),
+        }
         new_bill, _created = SavedWork.objects.get_or_create(
             organization=org, user=user,
             parent=saved_work, work_type='temp_bill', bill_number=bill_number,
             defaults={
                 'folder': saved_work.folder,
                 'name': new_bill_name,
-                'work_data': {},
+                'work_data': seed_bill_data,
                 'category': saved_work.category or 'electrical',
                 'notes': '',
                 'progress_percent': 0,
                 'last_step': 'temp_bill',
             },
         )
+        if not _created and not (new_bill.work_data or {}).get('tw_bill_entries'):
+            new_bill.work_data = seed_bill_data
+            new_bill.save(update_fields=['work_data', 'updated_at'])
         request.session['current_saved_work_id'] = new_bill.id
         request.session['current_saved_work_name'] = new_bill_name
         request.session.modified = True
