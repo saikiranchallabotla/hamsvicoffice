@@ -158,6 +158,27 @@
       }
     });
   }
+
+  // Pre-save hook used by the Save Work modal — push exec_map to session first
+  window.preSaveSync = function () {
+    var csrf = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+    var fd = new FormData();
+    fd.append('action', 'update_preview');
+    fd.append('exec_map', JSON.stringify(collectExecMap()));
+    var wn = document.getElementById('tw-work-name');
+    if (wn) fd.append('ws_work_name', wn.value || '');
+    fd.append('csrfmiddlewaretoken', csrf);
+    return fetch('{% url "temp_bill_main" %}', {
+      method: 'POST', body: fd, headers: { 'X-CSRFToken': csrf }, redirect: 'manual'
+    }).catch(function () { /* ignore */ });
+  };
 })();
 </script>
+
+<button class="save-work-btn" data-bs-toggle="modal" data-bs-target="#saveWorkModal" title="Save your work">
+  <i class="bi bi-save"></i>
+  <span>Save Work</span>
+</button>
+
+{% include 'core/saved_works/save_modal.html' with work_type='temp_bill' category=category %}
 {% endblock %}

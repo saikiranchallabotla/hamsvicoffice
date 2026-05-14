@@ -696,6 +696,26 @@ def save_work(request):
                     except SavedWork.DoesNotExist:
                         pass
 
+            if work_type == 'temp_workslip':
+                workslip_number = request.session.get('tw_ws_target_workslip', 1) or 1
+                source_temp_id = request.session.get('tw_ws_source_temp_id')
+                if source_temp_id:
+                    try:
+                        parent = SavedWork.objects.get(id=source_temp_id, organization=org, user=user)
+                    except SavedWork.DoesNotExist:
+                        pass
+                if not parent:
+                    parent = existing_work
+
+            if work_type == 'temp_bill':
+                bill_number = request.session.get('tw_bill_number', 1) or 1
+                source_ws_id = request.session.get('tw_bill_source_workslip_id')
+                if source_ws_id:
+                    try:
+                        parent = SavedWork.objects.get(id=source_ws_id, organization=org, user=user)
+                    except SavedWork.DoesNotExist:
+                        pass
+
             # Auto-inherit parent's folder if no folder specified
             child_folder = folder
             if not child_folder and parent and parent.folder:
@@ -730,10 +750,14 @@ def save_work(request):
             # Update workslip_number if this is a workslip
             if work_type == 'workslip':
                 saved_work.workslip_number = request.session.get('ws_target_workslip', 1) or 1
+            if work_type == 'temp_workslip':
+                saved_work.workslip_number = request.session.get('tw_ws_target_workslip', 1) or 1
 
             # Update bill_number if this is a bill
             if work_type == 'bill':
                 saved_work.bill_number = request.session.get('bill_target_number', 1) or 1
+            if work_type == 'temp_bill':
+                saved_work.bill_number = request.session.get('tw_bill_number', 1) or 1
 
             saved_work.save()
             message = f'Work "{work_name}" updated successfully!'
@@ -769,6 +793,24 @@ def save_work(request):
             if parent_id:
                 try:
                     parent = SavedWork.objects.get(id=parent_id, organization=org, user=user)
+                except SavedWork.DoesNotExist:
+                    pass
+
+        if work_type == 'temp_workslip':
+            workslip_number = request.session.get('tw_ws_target_workslip', 1) or 1
+            source_temp_id = request.session.get('tw_ws_source_temp_id')
+            if source_temp_id:
+                try:
+                    parent = SavedWork.objects.get(id=source_temp_id, organization=org, user=user)
+                except SavedWork.DoesNotExist:
+                    pass
+
+        if work_type == 'temp_bill':
+            bill_number = request.session.get('tw_bill_number', 1) or 1
+            source_ws_id = request.session.get('tw_bill_source_workslip_id')
+            if source_ws_id:
+                try:
+                    parent = SavedWork.objects.get(id=source_ws_id, organization=org, user=user)
                 except SavedWork.DoesNotExist:
                     pass
 
