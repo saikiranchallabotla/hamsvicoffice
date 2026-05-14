@@ -1085,6 +1085,8 @@ def collect_work_data(request, work_type):
             'temp_grand_total': request.session.get('temp_grand_total', ''),
             'temp_selected_backend_id': request.session.get('temp_selected_backend_id'),
             'temp_category': request.session.get('temp_category', 'electrical'),
+            'temp_mode': request.session.get('temp_mode', 'single'),
+            'temp_events_list': request.session.get('temp_events_list', []),
             'last_group': request.POST.get('group', ''),
         }
     
@@ -1330,6 +1332,8 @@ def restore_work_data(request, saved_work):
         request.session['temp_grand_total'] = work_data.get('temp_grand_total', '')
         request.session['temp_selected_backend_id'] = work_data.get('temp_selected_backend_id')
         request.session['temp_category'] = work_data.get('temp_category', 'electrical')
+        request.session['temp_mode'] = work_data.get('temp_mode', 'single')
+        request.session['temp_events_list'] = work_data.get('temp_events_list', [])
         request.session.modified = True
     
     elif work_type == 'amc':
