@@ -708,6 +708,11 @@
     .ev-modal-body { padding: 0.85rem 1rem; overflow-y: auto; flex: 1; }
     .ev-modal-footer { padding: 0.7rem 1rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc; }
     .ev-mod-row { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; align-items: center; }
+    .ev-mod-row.dragging { opacity: 0.45; }
+    .ev-mod-row.drag-over { box-shadow: 0 -2px 0 0 #7c3aed inset; }
+    .ev-mod-drag { cursor: grab; color: #94a3b8; padding: 0 0.15rem; font-size: 0.9rem; user-select: none; }
+    .ev-mod-drag:hover { color: #475569; }
+    .ev-mod-drag:active { cursor: grabbing; }
     .ev-mod-num { font-weight: 600; color: #7c3aed; min-width: 22px; font-size: 0.8rem; }
     .ev-mod-row input[type="text"] { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85rem; }
     .ev-mod-row input[type="text"]:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
@@ -884,7 +889,7 @@
         </div>
         <div class="ev-modal-body">
             <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.6rem;">
-                Add, remove, or rename events. Removing an event also removes it from every item that used it.
+                Add, remove, rename, or drag the <i class="bi bi-grip-vertical"></i> handle to reorder events. Removing an event also removes it from every item that used it.
             </p>
             <div id="ev-mod-list"></div>
             <button type="button" class="ev-mod-add" onclick="addEventModalRow()">
@@ -2575,7 +2580,9 @@ document.addEventListener('click', function(e) {
   function buildModalRow(ev, idx) {
     var div = document.createElement('div');
     div.className = 'ev-mod-row';
+    div.setAttribute('draggable', 'true');
     div.innerHTML =
+      '<span class="ev-mod-drag" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>' +
       '<span class="ev-mod-num">' + (idx + 1) + '.</span>' +
       '<input type="hidden" class="ev-mod-id" value="' + (ev && ev.id ? ev.id : '') + '">' +
       '<input type="text" class="ev-mod-name" value="' + (ev && ev.name ? ev.name.replace(/"/g,'&quot;') : '') + '" placeholder="Event name">' +
@@ -2590,7 +2597,41 @@ document.addEventListener('click', function(e) {
       div.remove();
       renumberModalRows();
     });
+    attachDragHandlers(div);
     return div;
+  }
+
+  // HTML5 drag/drop reordering for event rows in the Edit Events modal.
+  var _dragRow = null;
+  function attachDragHandlers(row) {
+    row.addEventListener('dragstart', function(e) {
+      // Only start drag when the user grabs the handle (or anywhere outside the input).
+      if (e.target && e.target.closest && e.target.closest('input, .ev-mod-rm')) {
+        e.preventDefault();
+        return;
+      }
+      _dragRow = row;
+      row.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+    });
+    row.addEventListener('dragend', function() {
+      if (_dragRow) _dragRow.classList.remove('dragging');
+      _dragRow = null;
+      document.querySelectorAll('#ev-mod-list .ev-mod-row.drag-over').forEach(function(r) {
+        r.classList.remove('drag-over');
+      });
+      renumberModalRows();
+    });
+    row.addEventListener('dragover', function(e) {
+      if (!_dragRow || _dragRow === row) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch (_) {}
+      var rect = row.getBoundingClientRect();
+      var before = (e.clientY - rect.top) < rect.height / 2;
+      var list = document.getElementById('ev-mod-list');
+      if (before) list.insertBefore(_dragRow, row);
+      else list.insertBefore(_dragRow, row.nextSibling);
+    });
   }
 
   function renumberModalRows() {
