@@ -23,6 +23,7 @@ import re
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -247,7 +248,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, work_n
         c.border = border_all
     widths_sum = [6, 50, 12, 14, 12, 12, 16]
     for i, w in enumerate(widths_sum, start=1):
-        ws_sum.column_dimensions[ws_sum.cell(row=1, column=i).column_letter].width = w
+        ws_sum.column_dimensions[get_column_letter(i)].width = w
 
     summary = _aggregate_per_item(entries, exec_map, prev_exec, day_rates_by_item)
     sum_row = 5
@@ -297,7 +298,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, work_n
         c.border = border_all
     widths_det = [6, 56, 10, 12, 14, 13, 12, 12, 14, 24]
     for i, w in enumerate(widths_det, start=1):
-        ws_det.column_dimensions[ws_det.cell(row=1, column=i).column_letter].width = w
+        ws_det.column_dimensions[get_column_letter(i)].width = w
 
     out_row = 5
     sl_counter = 1

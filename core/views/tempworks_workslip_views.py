@@ -24,6 +24,7 @@ from copy import copy
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -281,7 +282,7 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
     # Column widths
     widths = [6, 60, 10, 14, 12, 16, 14, 16, 10, 10, 28]
     for i, w in enumerate(widths, start=1):
-        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
+        ws.column_dimensions[get_column_letter(i)].width = w
 
     out_row = header_row + 1
     sl_counter = 1
