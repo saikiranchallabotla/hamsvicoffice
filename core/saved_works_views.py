@@ -1403,14 +1403,33 @@ def restore_work_data(request, saved_work):
         logger.info(f"[RESTORE DEBUG] Session saved. ws_estimate_rows in session: {len(request.session.get('ws_estimate_rows', []))}")
 
     elif work_type == 'temp_workslip':
-        request.session['tw_ws_entries'] = work_data.get('tw_ws_entries', []) or []
-        request.session['tw_ws_events_list'] = work_data.get('tw_ws_events_list', []) or []
-        request.session['tw_ws_exec_map'] = work_data.get('tw_ws_exec_map', {}) or {}
-        request.session['tw_ws_work_name'] = work_data.get('tw_ws_work_name', '') or saved_work.name
-        request.session['tw_ws_category'] = work_data.get('tw_ws_category', saved_work.category or 'electrical')
-        request.session['tw_ws_selected_backend_id'] = work_data.get('tw_ws_selected_backend_id')
-        request.session['tw_ws_target_workslip'] = work_data.get('tw_ws_target_workslip', 1)
-        request.session['tw_ws_source_temp_id'] = work_data.get('tw_ws_source_temp_id')
+        entries = work_data.get('tw_ws_entries') or []
+        events_list = work_data.get('tw_ws_events_list') or []
+        exec_map = work_data.get('tw_ws_exec_map') or {}
+        work_name = work_data.get('tw_ws_work_name') or saved_work.name
+        category = work_data.get('tw_ws_category') or (saved_work.category or 'electrical')
+        backend_id = work_data.get('tw_ws_selected_backend_id')
+        target_ws = work_data.get('tw_ws_target_workslip', 1)
+        source_temp_id = work_data.get('tw_ws_source_temp_id') or (saved_work.parent_id if saved_work.parent else None)
+
+        # Fallback: pull entries from parent temporary_works if this node is empty
+        if not entries and saved_work.parent and saved_work.parent.work_type == 'temporary_works':
+            pwd = saved_work.parent.work_data or {}
+            te = pwd.get('temp_entries') or []
+            entries = [e for e in te if (e or {}).get('mode') == 'multi']
+            events_list = events_list or pwd.get('temp_events_list') or []
+            work_name = work_name or pwd.get('temp_work_name') or ''
+            category = category or pwd.get('temp_category') or 'electrical'
+            backend_id = backend_id or pwd.get('temp_selected_backend_id')
+
+        request.session['tw_ws_entries'] = entries
+        request.session['tw_ws_events_list'] = events_list
+        request.session['tw_ws_exec_map'] = exec_map
+        request.session['tw_ws_work_name'] = work_name
+        request.session['tw_ws_category'] = category
+        request.session['tw_ws_selected_backend_id'] = backend_id
+        request.session['tw_ws_target_workslip'] = target_ws
+        request.session['tw_ws_source_temp_id'] = source_temp_id
         request.session.modified = True
 
     elif work_type == 'temp_bill':
@@ -1435,6 +1454,16 @@ def restore_work_data(request, saved_work):
             work_name = work_name or pwd.get('tw_ws_work_name') or ''
             category = category or pwd.get('tw_ws_category') or 'electrical'
             backend_id = backend_id or pwd.get('tw_ws_selected_backend_id')
+
+            # Climb one more level if W1 itself was never populated
+            if not entries and saved_work.parent.parent and saved_work.parent.parent.work_type == 'temporary_works':
+                gwd = saved_work.parent.parent.work_data or {}
+                te = gwd.get('temp_entries') or []
+                entries = [e for e in te if (e or {}).get('mode') == 'multi']
+                events_list = events_list or gwd.get('temp_events_list') or []
+                work_name = work_name or gwd.get('temp_work_name') or ''
+                category = category or gwd.get('temp_category') or 'electrical'
+                backend_id = backend_id or gwd.get('temp_selected_backend_id')
 
         request.session['tw_bill_entries'] = entries
         request.session['tw_bill_events_list'] = events_list
@@ -2145,6 +2174,16 @@ def generate_workslip_from_saved(request, work_id):
             request.session.modified = True
 
             new_ws_name = f"{saved_work.name} - W1"
+            seed_ws_data = {
+                'tw_ws_entries': multi_entries,
+                'tw_ws_events_list': wd.get('temp_events_list') or [],
+                'tw_ws_exec_map': {},
+                'tw_ws_work_name': wd.get('temp_work_name', '') or saved_work.name,
+                'tw_ws_category': wd.get('temp_category') or saved_work.category or 'electrical',
+                'tw_ws_selected_backend_id': wd.get('temp_selected_backend_id'),
+                'tw_ws_target_workslip': 1,
+                'tw_ws_source_temp_id': int(saved_work.id),
+            }
             new_ws, _created = SavedWork.objects.get_or_create(
                 organization=org,
                 user=user,
@@ -2154,13 +2193,16 @@ def generate_workslip_from_saved(request, work_id):
                 defaults={
                     'folder': saved_work.folder,
                     'name': new_ws_name,
-                    'work_data': {},
+                    'work_data': seed_ws_data,
                     'category': saved_work.category or 'electrical',
                     'notes': '',
                     'progress_percent': 0,
                     'last_step': 'temp_workslip',
                 },
             )
+            if not _created and not (new_ws.work_data or {}).get('tw_ws_entries'):
+                new_ws.work_data = seed_ws_data
+                new_ws.save(update_fields=['work_data', 'updated_at'])
             request.session['current_saved_work_id'] = new_ws.id
             request.session['current_saved_work_name'] = new_ws_name
             request.session.modified = True
