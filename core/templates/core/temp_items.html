@@ -2412,37 +2412,30 @@ document.addEventListener('click', function(e) {
     }).filter(function(ev) { return ev.event_name; });
   }
 
-  // Render the tiny chips inside the multi main row + update item total.
+  // Update item total and a compact "N events — click to edit" hint.
   function renderChipsAndTotal(mainRow) {
     var container = mainRow.querySelector('.event-chips-container');
     var itemTotalCell = mainRow.querySelector('.item-total-cell');
     var itemName = mainRow.getAttribute('data-item-name') || '';
     var events = getRowEvents(mainRow);
 
-    if (container) container.innerHTML = '';
     var total = 0;
-    var anyValid = false;
+    var validCount = 0;
     events.forEach(function(ev) {
       var name = (ev.event_name || '').trim();
       var days = parseInt(ev.days || 0, 10) || 0;
       var qty  = parseFloat(ev.qty || 0) || 0;
       if (!name || days < 1 || qty <= 0) return;
-      anyValid = true;
+      validCount += 1;
       var rate = getRate(itemName, days) || 0;
       total += rate * qty;
-      if (container) {
-        var chip = document.createElement('span');
-        chip.className = 'item-event-chip';
-        chip.title = name + ' — Qty ' + qty + ', ' + days + (days === 1 ? ' day' : ' days');
-        chip.innerHTML =
-          escapeHtml(name) +
-          '<span class="chip-qty">x' + qty + '</span>' +
-          '<span class="chip-days">(' + days + 'd)</span>';
-        container.appendChild(chip);
-      }
     });
-    if (container && !anyValid) {
-      container.innerHTML = '<span class="event-chips-empty"><i class="bi bi-plus-circle me-1"></i>Click to add events</span>';
+    if (container) {
+      if (validCount === 0) {
+        container.innerHTML = '<span class="event-chips-empty"><i class="bi bi-plus-circle me-1"></i>Click to add events</span>';
+      } else {
+        container.innerHTML = '<span class="event-chips-empty"><i class="bi bi-calendar-event me-1"></i>' + validCount + ' event' + (validCount === 1 ? '' : 's') + ' — click to edit</span>';
+      }
     }
     if (itemTotalCell) itemTotalCell.textContent = total > 0 ? '₹' + total.toFixed(2) : '';
   }
