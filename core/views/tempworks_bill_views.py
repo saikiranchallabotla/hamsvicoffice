@@ -236,95 +236,169 @@ def _aggregate_per_item(entries, exec_map, prev_exec, day_rates_by_item):
 
 
 def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_by_item, work_name, bill_number):
+    """Build the Temp Bill Excel matching the normal-bill format.
+
+    B1 (first bill): 8-col layout — S.No | Quantity | Unit | Item | Rate | Per | Unit | Amount
+    B2+ (nth bills): 11-col layout — S.No | Item | Quantity Till Date | Unit | Rate per Unit
+                     | Total Value till date | Deduct Previous (Qty, Amt) | Since Last (Qty, Amt) | Remarks
+
+    Under each item the events appear as roman-numeral sub-rows (no S.No) with
+    qty/rate/amount. Events with zero current+previous qty are skipped. AE{n}
+    rows are appended per event when bill_qty exceeds the estimate.
+    """
     wb = Workbook()
+    ws = wb.active
+    ws.title = "Bill"
+
     thin = Side(border_style="thin", color="000000")
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
     header_fill = PatternFill("solid", fgColor="FFC8C8C8")
+    subtotal_fill = PatternFill("solid", fgColor="FFE6E6E6")
 
-    # ---------- Sheet 1: Bill Summary ----------
-    ws_sum = wb.active
-    ws_sum.title = "Bill Summary"
-    sum_headers = ["Sl.No", "Item Description", "Qty (Est)", "Prev Bill Qty", "Bill Qty", "Net Qty", "Amount"]
-    ws_sum.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(sum_headers))
-    t1 = ws_sum.cell(row=1, column=1, value=f"TEMP WORKS — BILL {bill_number} — SUMMARY")
-    t1.font = Font(bold=True, size=14)
-    t1.alignment = Alignment(horizontal="center", vertical="center")
-    ws_sum.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(sum_headers))
-    wn1 = ws_sum.cell(row=2, column=1, value=f"Name of the work : {work_name}" if work_name else "Name of the work :")
-    wn1.font = Font(bold=True)
-    wn1.alignment = Alignment(horizontal="left", vertical="center")
+    is_first = int(bill_number or 1) == 1
+    n_cols = 8 if is_first else 11
+    title_text = (
+        f"FIRST AND PART BILL — TEMP WORKS BILL {bill_number}"
+        if is_first
+        else f"{bill_number}TH AND PART BILL — TEMP WORKS"
+    )
 
-    for i, h in enumerate(sum_headers, start=1):
-        c = ws_sum.cell(row=4, column=i, value=h)
-        c.font = Font(bold=True)
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        c.fill = header_fill
-        c.border = border_all
-    widths_sum = [6, 50, 12, 14, 12, 12, 16]
-    for i, w in enumerate(widths_sum, start=1):
-        ws_sum.column_dimensions[get_column_letter(i)].width = w
+    # Title + Name of the work
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
+    t = ws.cell(row=1, column=1, value=title_text)
+    t.font = Font(bold=True, size=14)
+    t.alignment = Alignment(horizontal="center", vertical="center")
 
-    summary = _aggregate_per_item(entries, exec_map, prev_exec, day_rates_by_item)
-    sum_row = 5
-    grand_amt = 0.0
-    for sl, it in enumerate(summary, start=1):
-        item_name = it["item_name"]
-        item_desc = (desc_by_item or {}).get(item_name) or (desc_by_item or {}).get(_norm_name(item_name)) or item_name
-        ws_sum.cell(row=sum_row, column=1, value=sl).alignment = Alignment(horizontal="center", vertical="center")
-        ws_sum.cell(row=sum_row, column=2, value=item_desc).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
-        ws_sum.cell(row=sum_row, column=3, value=it["qty_est"]).alignment = Alignment(horizontal="right")
-        ws_sum.cell(row=sum_row, column=4, value=it["qty_prev"]).alignment = Alignment(horizontal="right")
-        ws_sum.cell(row=sum_row, column=5, value=it["qty_bill"]).alignment = Alignment(horizontal="right")
-        ws_sum.cell(row=sum_row, column=6, value=it["qty_net"]).alignment = Alignment(horizontal="right")
-        ws_sum.cell(row=sum_row, column=7, value=it["amt_net"]).alignment = Alignment(horizontal="right")
-        for c_idx in range(1, len(sum_headers) + 1):
-            ws_sum.cell(row=sum_row, column=c_idx).border = border_all
-        grand_amt += it["amt_net"]
-        sum_row += 1
-    # Total row
-    tot_cell = ws_sum.cell(row=sum_row, column=6, value="Total")
-    tot_cell.font = Font(bold=True)
-    tot_cell.alignment = Alignment(horizontal="right", vertical="center")
-    ws_sum.cell(row=sum_row, column=7, value=round(grand_amt, 2)).font = Font(bold=True)
-    for c_idx in range(1, len(sum_headers) + 1):
-        ws_sum.cell(row=sum_row, column=c_idx).border = border_all
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=n_cols)
+    wn = ws.cell(row=2, column=1, value=f"Name of the work : {work_name}" if work_name else "Name of the work :")
+    wn.font = Font(bold=True)
+    wn.alignment = Alignment(horizontal="left", vertical="center")
 
-    # ---------- Sheet 2: Bill Detail ----------
-    ws_det = wb.create_sheet("Bill Detail")
-    det_headers = [
-        "Sl.No", "Description of Item / Event",
-        "Qty (Est)", "Rate", "Amt (Est)",
-        "Prev Bill Qty", "Bill Qty", "Net Qty", "Net Amount",
-        "Remarks",
-    ]
-    ws_det.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(det_headers))
-    t2 = ws_det.cell(row=1, column=1, value=f"TEMP WORKS — BILL {bill_number} — DETAIL")
-    t2.font = Font(bold=True, size=14)
-    t2.alignment = Alignment(horizontal="center", vertical="center")
-    ws_det.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(det_headers))
-    wn2 = ws_det.cell(row=2, column=1, value=f"Name of the work : {work_name}" if work_name else "Name of the work :")
-    wn2.font = Font(bold=True)
-    wn2.alignment = Alignment(horizontal="left", vertical="center")
+    for r in range(1, 3):
+        for c_idx in range(1, n_cols + 1):
+            ws.cell(row=r, column=c_idx).border = border_all
 
-    for i, h in enumerate(det_headers, start=1):
-        c = ws_det.cell(row=4, column=i, value=h)
-        c.font = Font(bold=True)
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        c.fill = header_fill
-        c.border = border_all
-    widths_det = [6, 56, 10, 12, 14, 13, 12, 12, 14, 24]
-    for i, w in enumerate(widths_det, start=1):
-        ws_det.column_dimensions[get_column_letter(i)].width = w
+    # Column headers
+    if is_first:
+        header_row = 3
+        headers = ["S.No", "Quantity", "Unit", "Item", "Rate", "Per", "Unit", "Amount"]
+        for col_idx, text in enumerate(headers, start=1):
+            c = ws.cell(row=header_row, column=col_idx, value=text)
+            c.font = Font(bold=True)
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.fill = header_fill
+            c.border = border_all
+        widths = {"A": 6, "B": 12, "C": 10, "D": 50, "E": 12, "F": 6, "G": 10, "H": 16}
+        for col, w in widths.items():
+            ws.column_dimensions[col].width = w
+        data_start = header_row + 1
+    else:
+        # Merged 2-row header for nth bill
+        for col in [1, 2, 3, 4, 5, 6, 11]:
+            ws.merge_cells(start_row=3, start_column=col, end_row=4, end_column=col)
+        ws.merge_cells("G3:H3")
+        ws.merge_cells("I3:J3")
+        ws.cell(row=3, column=1, value="S.No")
+        ws.cell(row=3, column=2, value="Item")
+        ws.cell(row=3, column=3, value="Quantity Till Date")
+        ws.cell(row=3, column=4, value="Unit")
+        ws.cell(row=3, column=5, value="Rate per Unit")
+        ws.cell(row=3, column=6, value="Total Value till date")
+        ws.cell(row=3, column=7, value="Deduct Previous Measurements")
+        ws.cell(row=3, column=9, value="Since Last Measurements")
+        ws.cell(row=3, column=11, value="Remarks")
+        ws.cell(row=4, column=7, value="Quantity")
+        ws.cell(row=4, column=8, value="Amount")
+        ws.cell(row=4, column=9, value="Quantity")
+        ws.cell(row=4, column=10, value="Amount")
+        for r in (3, 4):
+            for col in range(1, 12):
+                c = ws.cell(row=r, column=col)
+                c.font = Font(bold=True)
+                c.border = border_all
+                c.fill = header_fill
+                c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        widths = {"A": 6, "B": 50, "C": 14, "D": 8, "E": 12, "F": 16,
+                  "G": 12, "H": 14, "I": 12, "J": 14, "K": 22}
+        for col, w in widths.items():
+            ws.column_dimensions[col].width = w
+        data_start = 5
 
-    out_row = 5
+    fmt_money = "#,##0.00"
+    fmt_qty = "#,##0.##"
+
+    def write_event_row(r, desc, qty, rate, qty_prev, remark, is_ae=False, sl_value=None):
+        """Write a single data row in the active layout."""
+        amt = round(qty * rate, 2)
+        if is_first:
+            ws.cell(row=r, column=1, value=sl_value if sl_value is not None else None)
+            ws.cell(row=r, column=2, value=round(qty, 2))
+            ws.cell(row=r, column=3, value="")
+            ws.cell(row=r, column=4, value=desc)
+            ws.cell(row=r, column=5, value=round(rate, 2))
+            ws.cell(row=r, column=6, value=1)
+            ws.cell(row=r, column=7, value="")
+            ws.cell(row=r, column=8, value=f"=ROUND(B{r}*E{r},2)")
+            desc_col = 4
+            money_cols = (5, 8)
+            qty_cols = (2,)
+        else:
+            ws.cell(row=r, column=1, value=sl_value if sl_value is not None else None)
+            ws.cell(row=r, column=2, value=desc)
+            ws.cell(row=r, column=3, value=round(qty, 2))
+            ws.cell(row=r, column=4, value="")
+            ws.cell(row=r, column=5, value=round(rate, 2))
+            ws.cell(row=r, column=6, value=f"=ROUND(C{r}*E{r},2)")
+            ws.cell(row=r, column=7, value=round(qty_prev, 2))
+            ws.cell(row=r, column=8, value=round(qty_prev * rate, 2))
+            ws.cell(row=r, column=9, value=f"=C{r}-G{r}")
+            ws.cell(row=r, column=10, value=f"=ROUND(F{r}-H{r},2)")
+            ws.cell(row=r, column=11, value=remark or "")
+            desc_col = 2
+            money_cols = (5, 6, 8, 10)
+            qty_cols = (3, 7, 9)
+        for c_idx in range(1, n_cols + 1):
+            c = ws.cell(row=r, column=c_idx)
+            c.border = border_all
+            if c_idx == desc_col:
+                c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+            else:
+                c.alignment = Alignment(horizontal="center", vertical="center")
+            if c_idx in money_cols:
+                c.number_format = fmt_money
+            elif c_idx in qty_cols:
+                c.number_format = fmt_qty
+        return amt
+
+    def write_item_header(r, sl, header_desc):
+        """Header row carrying the item description (no qty/amount of its own)."""
+        if is_first:
+            ws.cell(row=r, column=1, value=sl)
+            ws.cell(row=r, column=4, value=header_desc)
+            desc_col = 4
+        else:
+            ws.cell(row=r, column=1, value=sl)
+            ws.cell(row=r, column=2, value=header_desc)
+            desc_col = 2
+        for c_idx in range(1, n_cols + 1):
+            c = ws.cell(row=r, column=c_idx)
+            c.border = border_all
+            if c_idx == desc_col:
+                c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+            else:
+                c.alignment = Alignment(horizontal="center", vertical="center")
+
+    row_idx = data_start
     sl_counter = 1
-    grand_det_amt = 0.0
+    item_first_data_row = None
+
     for entry in entries or []:
         if (entry or {}).get("mode") != "multi":
             continue
         item_name = entry.get("name") or ""
         entry_id = entry.get("id") or ""
         events = entry.get("events") or []
+
         valid_events = []
         for ev in events:
             ev_name = (ev.get("event_name") or "").strip()
@@ -339,7 +413,6 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
             ev_id = ev.get("event_id") or ""
             qb = _coerce_float((exec_map.get(entry_id) or {}).get(ev_id), 0.0)
             qp = _coerce_float((prev_exec.get(entry_id) or {}).get(ev_id), 0.0)
-            # Bill output: include only events with non-zero current bill qty or carry-forward
             if not ev_name or ev_days <= 0:
                 continue
             if qb <= 0 and qp <= 0:
@@ -353,12 +426,12 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
         if not valid_events:
             continue
 
+        # Item description header row
         header_desc = (desc_by_item or {}).get(item_name) or (desc_by_item or {}).get(_norm_name(item_name)) or item_name
-        ws_det.cell(row=out_row, column=1, value=sl_counter).alignment = Alignment(horizontal="center", vertical="center")
-        ws_det.cell(row=out_row, column=2, value=header_desc).alignment = Alignment(horizontal="justify", vertical="top", wrap_text=True)
-        for c_idx in range(1, len(det_headers) + 1):
-            ws_det.cell(row=out_row, column=c_idx).border = border_all
-        out_row += 1
+        write_item_header(row_idx, sl_counter, header_desc)
+        if item_first_data_row is None:
+            item_first_data_row = row_idx
+        row_idx += 1
 
         item_day_rates = day_rates_by_item.get(_norm_name(item_name)) or day_rates_by_item.get(item_name) or {}
         ae_counter = 0
@@ -366,64 +439,84 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
         for i, ev in enumerate(valid_events, start=1):
             roman = _to_roman_lower(i)
             day_word = "day" if ev["days"] == 1 else "days"
-            desc = f"{roman}. {ev['event_name']} for {ev['days']} {day_word}"
+            ev_desc = f"{roman}. {ev['event_name']} for {ev['days']} {day_word}"
             rate = _rate_for_event_days(item_day_rates, ev["days"])
             qty_est = float(ev["qty_est"])
             qty_bill = _coerce_float((exec_map.get(entry_id) or {}).get(ev["event_id"]), 0.0)
             qty_prev = _coerce_float((prev_exec.get(entry_id) or {}).get(ev["event_id"]), 0.0)
-            qty_net = round(qty_bill - qty_prev, 2)
-            amt_net = round(qty_net * rate, 2)
             excess = round(max(0.0, qty_bill - qty_est), 2)
+            base_qty = qty_bill if excess <= 0 else qty_est
 
-            ws_det.cell(row=out_row, column=1, value="")
-            ws_det.cell(row=out_row, column=2, value=desc).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            ws_det.cell(row=out_row, column=3, value=round(qty_est, 2))
-            ws_det.cell(row=out_row, column=4, value=round(rate, 2))
-            ws_det.cell(row=out_row, column=5, value=f"=C{out_row}*D{out_row}")
-            ws_det.cell(row=out_row, column=6, value=round(qty_prev, 2))
-            ws_det.cell(row=out_row, column=7, value=round(qty_bill, 2))
-            ws_det.cell(row=out_row, column=8, value=qty_net)
-            ws_det.cell(row=out_row, column=9, value=amt_net)
             remark = ""
             if excess > 0:
-                remark = "Excess as per estimated"
-            elif qty_bill == 0:
+                remark = ""
+            elif qty_bill == 0 and qty_prev > 0:
                 remark = "Deleted"
             elif 0 < qty_bill < qty_est:
                 remark = "Less as per estimated"
-            ws_det.cell(row=out_row, column=10, value=remark)
-            for c_idx in range(1, len(det_headers) + 1):
-                ws_det.cell(row=out_row, column=c_idx).border = border_all
-            grand_det_amt += amt_net
-            out_row += 1
 
-            # AE row (per event) when qty_bill > qty_est
+            write_event_row(row_idx, ev_desc, base_qty, rate, min(qty_prev, base_qty), remark)
+            row_idx += 1
+
             if excess > 0:
                 ae_counter += 1
-                ae_desc = f"AE{ae_counter}"
-                ws_det.cell(row=out_row, column=1, value="")
-                ws_det.cell(row=out_row, column=2, value=ae_desc).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-                ws_det.cell(row=out_row, column=3, value="")
-                ws_det.cell(row=out_row, column=4, value=round(rate, 2))
-                ws_det.cell(row=out_row, column=5, value="")
-                ws_det.cell(row=out_row, column=6, value="")
-                ws_det.cell(row=out_row, column=7, value=excess)
-                ws_det.cell(row=out_row, column=8, value="")
-                ws_det.cell(row=out_row, column=9, value=round(excess * rate, 2))
-                ws_det.cell(row=out_row, column=10, value="Excess as per estimated")
-                for c_idx in range(1, len(det_headers) + 1):
-                    ws_det.cell(row=out_row, column=c_idx).border = border_all
-                out_row += 1
+                ae_prev = max(0.0, qty_prev - qty_est)
+                write_event_row(
+                    row_idx,
+                    f"AE{ae_counter}",
+                    excess,
+                    rate,
+                    ae_prev,
+                    "Excess as per estimated",
+                    is_ae=True,
+                )
+                row_idx += 1
 
         sl_counter += 1
 
-    # Total row on detail sheet
-    tot2 = ws_det.cell(row=out_row, column=8, value="Total")
-    tot2.font = Font(bold=True)
-    tot2.alignment = Alignment(horizontal="right", vertical="center")
-    ws_det.cell(row=out_row, column=9, value=round(grand_det_amt, 2)).font = Font(bold=True)
-    for c_idx in range(1, len(det_headers) + 1):
-        ws_det.cell(row=out_row, column=c_idx).border = border_all
+    last_data_row = row_idx - 1
+
+    # ---- Totals ----
+    if item_first_data_row is None:
+        # Nothing was written (no billed events). Add a placeholder note.
+        ws.cell(row=row_idx, column=1, value="No billed events.")
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", work_name).strip("_") or "TempWorks"
+        filename = f"{safe_name}_Bill_{bill_number}.xlsx"
+        resp = HttpResponse(
+            buf.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return resp
+
+    sub_row = row_idx
+    if is_first:
+        ws.cell(row=sub_row, column=4, value="Sub Total Amount")
+        ws.cell(row=sub_row, column=8, value=f"=ROUND(SUM(H{item_first_data_row}:H{last_data_row}),2)")
+        total_cols = (8,)
+        desc_col = 4
+    else:
+        ws.cell(row=sub_row, column=2, value="Sub Total")
+        ws.cell(row=sub_row, column=6, value=f"=ROUND(SUM(F{item_first_data_row}:F{last_data_row}),2)")
+        ws.cell(row=sub_row, column=8, value=f"=ROUND(SUM(H{item_first_data_row}:H{last_data_row}),2)")
+        ws.cell(row=sub_row, column=10, value=f"=ROUND(SUM(J{item_first_data_row}:J{last_data_row}),2)")
+        total_cols = (6, 8, 10)
+        desc_col = 2
+
+    for c_idx in range(1, n_cols + 1):
+        c = ws.cell(row=sub_row, column=c_idx)
+        c.font = Font(bold=True)
+        c.border = border_all
+        c.fill = subtotal_fill
+        if c_idx == desc_col:
+            c.alignment = Alignment(horizontal="left", vertical="center")
+        else:
+            c.alignment = Alignment(horizontal="center", vertical="center")
+        if c_idx in total_cols:
+            c.number_format = fmt_money
 
     buf = io.BytesIO()
     wb.save(buf)
