@@ -128,6 +128,43 @@ def _build_desc_map(items_list, filepath):
     return desc_map
 
 
+def _build_unit_map(units_map, groups_map):
+    """Map item name -> unit string, mirroring tempworks_views.units_for() logic."""
+    item_to_group = {}
+    for grp_name, item_list_in_grp in (groups_map or {}).items():
+        for nm in item_list_in_grp:
+            item_to_group.setdefault(nm, grp_name)
+
+    def _unit_for(name):
+        backend_unit = (units_map or {}).get(name, "") if units_map else ""
+        if backend_unit:
+            bu = backend_unit.lower()
+            if bu in ("mtrs", "mtr", "metre", "meters"):
+                return "Mtrs"
+            if bu in ("pts", "pt", "point", "points"):
+                return "Pts"
+            if bu in ("nos", "no"):
+                return "Nos"
+            return backend_unit
+        grp_name = (item_to_group.get(name, "") or "").lower()
+        if grp_name in ("piping", "wiring & cables", "wiring and cables"):
+            return "Mtrs"
+        if grp_name == "points":
+            return "Pts"
+        return "Nos"
+
+    out = {}
+    names = set((units_map or {}).keys())
+    for grp_items in (groups_map or {}).values():
+        for nm in grp_items:
+            names.add(nm)
+    for name in names:
+        u = _unit_for(name)
+        out[name] = u
+        out[_norm_name(name)] = u
+    return out
+
+
 def _build_view_rows(entries, events_list, day_rates_by_item, exec_map):
     """
     Build a flat list of view rows from tw_ws_entries for template rendering.
@@ -215,6 +252,9 @@ def temp_workslip(request):
     except Exception:
         logger.exception("[TEMP_WS] load_backend failed (category=%s, backend_id=%s)", category, backend_id)
         day_rates = {}
+        _groups_map, _units_map = {}, {}
+
+    unit_by_item = _build_unit_map(_units_map or {}, _groups_map or {})
 
     # build day_rates_by_item keyed both by normalized and original name
     day_rates_by_item = {}
@@ -260,6 +300,7 @@ def temp_workslip(request):
                 exec_map=exec_map,
                 day_rates_by_item=day_rates_by_item,
                 desc_by_item=desc_by_item,
+                unit_by_item=unit_by_item,
                 work_name=work_name,
             )
         # action == "update_preview" -> fall through to render
@@ -279,7 +320,7 @@ def temp_workslip(request):
     })
 
 
-def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, desc_by_item, work_name):
+def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, desc_by_item, unit_by_item, work_name):
     """Build the Temp Workslip Excel workbook and return as HttpResponse."""
     wb = Workbook()
     ws = wb.active
@@ -379,7 +420,8 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
             # Event base row
             ws.cell(row=out_row, column=1, value="")  # no sl on event rows
             ws.cell(row=out_row, column=2, value=desc).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            ws.cell(row=out_row, column=3, value="")  # unit blank for tempworks events
+            unit_val = (unit_by_item or {}).get(item_name) or (unit_by_item or {}).get(_norm_name(item_name)) or ""
+            ws.cell(row=out_row, column=3, value=unit_val)
             ws.cell(row=out_row, column=4, value=round(qty_est, 2))
             ws.cell(row=out_row, column=5, value=round(rate, 2))
             ws.cell(row=out_row, column=6, value=f"=D{out_row}*E{out_row}")
@@ -408,7 +450,7 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
                 ae_desc = f"AE{ae_counter}"
                 ws.cell(row=out_row, column=1, value="")
                 ws.cell(row=out_row, column=2, value=ae_desc).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-                ws.cell(row=out_row, column=3, value="")
+                ws.cell(row=out_row, column=3, value=unit_val)
                 ws.cell(row=out_row, column=4, value="")
                 ws.cell(row=out_row, column=5, value=round(rate, 2))
                 ws.cell(row=out_row, column=6, value="")

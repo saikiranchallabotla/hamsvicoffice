@@ -32,7 +32,7 @@ from django.shortcuts import redirect, render
 
 from ..utils_excel import build_temp_day_rates, load_backend
 from .tempworks_workslip_views import (
-    _build_desc_map, _coerce_float, _norm_name, _rate_for_event_days, _to_roman_lower,
+    _build_desc_map, _build_unit_map, _coerce_float, _norm_name, _rate_for_event_days, _to_roman_lower,
 )
 
 logger = logging.getLogger(__name__)
@@ -129,6 +129,9 @@ def temp_bill(request):
     except Exception:
         logger.exception("[TEMP_BILL] load_backend failed (category=%s)", category)
         day_rates = {}
+        _gm, _um = {}, {}
+
+    unit_by_item = _build_unit_map(_um or {}, _gm or {})
 
     day_rates_by_item = {}
     for k, v in (day_rates or {}).items():
@@ -169,6 +172,7 @@ def temp_bill(request):
             return _download_bill_excel(
                 entries=entries, exec_map=exec_map, prev_exec=prev_exec,
                 day_rates_by_item=day_rates_by_item, desc_by_item=desc_by_item,
+                unit_by_item=unit_by_item,
                 work_name=work_name, bill_number=bill_number,
             )
 
@@ -235,7 +239,7 @@ def _aggregate_per_item(entries, exec_map, prev_exec, day_rates_by_item):
     return summary
 
 
-def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_by_item, work_name, bill_number):
+def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_by_item, unit_by_item, work_name, bill_number):
     """Build the Temp Bill Excel matching the normal-bill format.
 
     B1 (first bill): 8-col layout — S.No | Quantity | Unit | Item | Rate | Per | Unit | Amount
@@ -327,17 +331,17 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
     fmt_money = "#,##0.00"
     fmt_qty = "#,##0.##"
 
-    def write_event_row(r, desc, qty, rate, qty_prev, remark, is_ae=False, sl_value=None):
+    def write_event_row(r, desc, qty, rate, qty_prev, remark, is_ae=False, sl_value=None, unit=""):
         """Write a single data row in the active layout."""
         amt = round(qty * rate, 2)
         if is_first:
             ws.cell(row=r, column=1, value=sl_value if sl_value is not None else None)
             ws.cell(row=r, column=2, value=round(qty, 2))
-            ws.cell(row=r, column=3, value="")
+            ws.cell(row=r, column=3, value=unit or "")
             ws.cell(row=r, column=4, value=desc)
             ws.cell(row=r, column=5, value=round(rate, 2))
             ws.cell(row=r, column=6, value=1)
-            ws.cell(row=r, column=7, value="")
+            ws.cell(row=r, column=7, value=unit or "")
             ws.cell(row=r, column=8, value=f"=ROUND(B{r}*E{r},2)")
             desc_col = 4
             money_cols = (5, 8)
@@ -346,7 +350,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
             ws.cell(row=r, column=1, value=sl_value if sl_value is not None else None)
             ws.cell(row=r, column=2, value=desc)
             ws.cell(row=r, column=3, value=round(qty, 2))
-            ws.cell(row=r, column=4, value="")
+            ws.cell(row=r, column=4, value=unit or "")
             ws.cell(row=r, column=5, value=round(rate, 2))
             ws.cell(row=r, column=6, value=f"=ROUND(C{r}*E{r},2)")
             ws.cell(row=r, column=7, value=round(qty_prev, 2))
@@ -434,6 +438,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
         row_idx += 1
 
         item_day_rates = day_rates_by_item.get(_norm_name(item_name)) or day_rates_by_item.get(item_name) or {}
+        item_unit = (unit_by_item or {}).get(item_name) or (unit_by_item or {}).get(_norm_name(item_name)) or ""
         ae_counter = 0
 
         for i, ev in enumerate(valid_events, start=1):
@@ -455,7 +460,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
             elif 0 < qty_bill < qty_est:
                 remark = "Less as per estimated"
 
-            write_event_row(row_idx, ev_desc, base_qty, rate, min(qty_prev, base_qty), remark)
+            write_event_row(row_idx, ev_desc, base_qty, rate, min(qty_prev, base_qty), remark, unit=item_unit)
             row_idx += 1
 
             if excess > 0:
@@ -469,6 +474,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
                     ae_prev,
                     "Excess as per estimated",
                     is_ae=True,
+                    unit=item_unit,
                 )
                 row_idx += 1
 
