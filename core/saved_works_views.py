@@ -4462,3 +4462,211 @@ def save_with_parent(request):
         'work_id': saved_work.id,
         'message': f'Work "{work_name}" saved successfully!'
     })
+
+
+# ==============================================================================
+# WORK STATUS TRACKING (S button) + PROGRESS REPORT
+# ==============================================================================
+
+ROOT_WORK_TYPES = ('new_estimate', 'temporary_works', 'amc')
+
+
+def _empty_status():
+    return {
+        'estimate':       {'submitted': None, 'date': '', 'remarks': ''},
+        'work_order':     {'received': None, 'ref_no': ''},
+        'agreement':      {'received': None, 'agreement_no': '', 'technical_sanction': '', 'admin_sanction': ''},
+        'physical':       {'state': ''},
+        'workslip':       {'submitted': None, 'date': ''},
+        'supp_agreement': {'received': None, 'supp_no': ''},
+        'bill':           {'submitted': None, 'mb_no': '', 'date': ''},
+    }
+
+
+@login_required(login_url='login')
+@require_GET
+def get_work_status(request, work_id):
+    org = get_org_from_request(request)
+    work = get_object_or_404(
+        SavedWork, id=work_id, organization=org, user=request.user,
+        work_type__in=ROOT_WORK_TYPES,
+    )
+    data = _empty_status()
+    saved = work.status_tracking or {}
+    for key, defaults in data.items():
+        if isinstance(saved.get(key), dict):
+            defaults.update(saved[key])
+    return JsonResponse({'success': True, 'status': data, 'name': work.name})
+
+
+@login_required(login_url='login')
+@require_POST
+def save_work_status(request, work_id):
+    org = get_org_from_request(request)
+    work = get_object_or_404(
+        SavedWork, id=work_id, organization=org, user=request.user,
+        work_type__in=ROOT_WORK_TYPES,
+    )
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    cleaned = _empty_status()
+    for section, defaults in cleaned.items():
+        incoming = payload.get(section) or {}
+        if not isinstance(incoming, dict):
+            continue
+        for field in defaults:
+            if field in incoming:
+                defaults[field] = incoming[field]
+
+    work.status_tracking = cleaned
+    work.save(update_fields=['status_tracking', 'updated_at'])
+    return JsonResponse({'success': True, 'message': 'Status updated'})
+
+
+@login_required(login_url='login')
+@require_GET
+def progress_report(request):
+    """Generate an Excel progress report of works created between two dates."""
+    import datetime as _dt
+    from io import BytesIO
+    from django.http import HttpResponse
+
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    except ImportError:
+        return HttpResponse('openpyxl not installed', status=500)
+
+    org = get_org_from_request(request)
+    user = request.user
+
+    start_str = (request.GET.get('start_date') or '').strip()
+    end_str = (request.GET.get('end_date') or '').strip()
+
+    def _parse(s):
+        try:
+            return _dt.datetime.strptime(s, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
+
+    start_date = _parse(start_str)
+    end_date = _parse(end_str)
+    if not start_date or not end_date:
+        return HttpResponse('start_date and end_date (YYYY-MM-DD) are required', status=400)
+    if end_date < start_date:
+        start_date, end_date = end_date, start_date
+
+    works = SavedWork.objects.filter(
+        organization=org, user=user,
+        work_type__in=ROOT_WORK_TYPES,
+        created_at__date__range=(start_date, end_date),
+    ).order_by('created_at')
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Progress Report'
+
+    headers = [
+        'Sl. No.', 'Work Name', 'Created Date',
+        'Estimate Submitted', 'Submission Date', 'Remarks',
+        'Work Order Received', 'NIT / Reference No.',
+        'Agreement Received', 'Agreement No.', 'Technical Sanction Ref.', 'Administrative Sanction Ref.',
+        'Physical Work Status',
+        'Workslip Submitted', 'Workslip Submission Date',
+        'Supplemental Agreement Received', 'Supp. Agreement No.',
+        'Bill Submitted', 'MB No.', 'Bill Submission Date',
+    ]
+
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill('solid', fgColor='1F4E78')
+    thin = Side(border_style='thin', color='B7B7B7')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    ws.append([f'Progress Report  ({start_date.strftime("%d-%m-%Y")} to {end_date.strftime("%d-%m-%Y")})'])
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    title_cell = ws.cell(row=1, column=1)
+    title_cell.font = Font(bold=True, size=14)
+    title_cell.alignment = center
+    ws.row_dimensions[1].height = 26
+
+    ws.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        c = ws.cell(row=2, column=col_idx)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = center
+        c.border = border
+    ws.row_dimensions[2].height = 38
+
+    def _yn(v):
+        if v is True or str(v).lower() in ('true', 'yes', '1'):
+            return 'Yes'
+        if v is False or str(v).lower() in ('false', 'no', '0'):
+            return 'No'
+        return ''
+
+    physical_label = {
+        'commenced': 'Commenced',
+        'in_progress': 'Work in progress',
+        'completed': 'Completed',
+    }
+
+    for i, work in enumerate(works, start=1):
+        st = work.status_tracking or {}
+        est = st.get('estimate') or {}
+        wo = st.get('work_order') or {}
+        ag = st.get('agreement') or {}
+        ph = st.get('physical') or {}
+        wsl = st.get('workslip') or {}
+        sa = st.get('supp_agreement') or {}
+        bl = st.get('bill') or {}
+
+        row = [
+            i,
+            work.name,
+            work.created_at.strftime('%d-%m-%Y') if work.created_at else '',
+            _yn(est.get('submitted')),
+            est.get('date', ''),
+            est.get('remarks', ''),
+            _yn(wo.get('received')),
+            wo.get('ref_no', ''),
+            _yn(ag.get('received')),
+            ag.get('agreement_no', ''),
+            ag.get('technical_sanction', ''),
+            ag.get('admin_sanction', ''),
+            physical_label.get(ph.get('state', ''), ''),
+            _yn(wsl.get('submitted')),
+            wsl.get('date', ''),
+            _yn(sa.get('received')),
+            sa.get('supp_no', ''),
+            _yn(bl.get('submitted')),
+            bl.get('mb_no', ''),
+            bl.get('date', ''),
+        ]
+        ws.append(row)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=i + 2, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(vertical='center', wrap_text=True,
+                                       horizontal='center' if col_idx in (1, 3, 4, 7, 9, 13, 14, 16, 18) else 'left')
+
+    widths = [6, 36, 13, 13, 14, 24, 14, 22, 14, 22, 22, 22, 20, 14, 14, 18, 22, 12, 18, 14]
+    from openpyxl.utils import get_column_letter
+    for idx, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
+    ws.freeze_panes = 'A3'
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f'progress_report_{start_date.strftime("%Y%m%d")}_to_{end_date.strftime("%Y%m%d")}.xlsx'
+    resp = HttpResponse(
+        buf.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp

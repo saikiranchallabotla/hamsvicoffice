@@ -712,6 +712,14 @@ class SavedWork(models.Model):
     # Progress tracking
     progress_percent = models.IntegerField(default=0)  # 0-100
     last_step = models.CharField(max_length=255, blank=True)  # Last step user was on
+
+    # Lifecycle status tracking (filled via the "S" Status button on Saved Works list).
+    # Stored only on root estimates (new_estimate / temporary_works / amc). Schema:
+    # { estimate: {submitted, date, remarks}, work_order: {received, ref_no},
+    #   agreement: {received, agreement_no, technical_sanction, admin_sanction},
+    #   physical: {state}, workslip: {submitted, date},
+    #   supp_agreement: {received, supp_no}, bill: {submitted, mb_no, date} }
+    status_tracking = models.JSONField(default=dict, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

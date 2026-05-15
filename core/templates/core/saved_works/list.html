@@ -295,6 +295,9 @@
     .qf-e { background: #2563eb; }
     .qf-w { background: #16a34a; }
     .qf-b { background: #dc2626; }
+    .qf-s { background: #7c3aed; cursor: pointer; }
+    .qf-s:hover { background: #6d28d9; }
+    .qf-s.qf-has-data { box-shadow: 0 0 0 2px #c4b5fd; }
     .qf-done { opacity: 0.5; }
     .qf-locked { opacity: 0.35; filter: grayscale(1); }
 
@@ -366,6 +369,11 @@
         background: #dc2626; color: white; border-color: #dc2626;
     }
     .hub-b:hover { background: #b91c1c; color: white; }
+
+    .hub-s {
+        background: #7c3aed; color: white; border-color: #7c3aed;
+    }
+    .hub-s:hover { background: #6d28d9; color: white; }
 
     .hub-done {
         opacity: 0.6;
@@ -610,6 +618,9 @@
             <button class="toolbar-btn primary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
                 <i class="bi bi-folder-plus"></i> New Folder
             </button>
+            <button type="button" class="toolbar-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" data-bs-toggle="modal" data-bs-target="#progressReportModal">
+                <i class="bi bi-bar-chart-line"></i> Progress Report
+            </button>
         </div>
 
         <!-- Batch Action Toolbar (hidden by default) -->
@@ -684,6 +695,7 @@
                     </div>
                     <div class="wc-quick-flow">
                         {% if work.work_type == 'new_estimate' or work.work_type == 'temporary_works' or work.work_type == 'amc' %}
+                        <span class="qf-pill qf-s {% if work.status_tracking %}qf-has-data{% endif %}" title="Status — click to update" onclick="event.stopPropagation(); openStatusModal({{ work.id }}, '{{ work.name|escapejs }}')">S</span>
                         <span class="qf-pill qf-e {% if not work.has_estimate_access %}qf-locked{% endif %}" title="Estimate">E</span>
                         {% if work.workslip_children %}
                             {% for ws in work.workslip_children %}
@@ -706,6 +718,12 @@
                     <div class="hub-section">
                         <div class="hub-label">Workflow Chain</div>
                         <div class="hub-flow">
+                            <!-- S Button — opens Status modal -->
+                            <a href="#" class="hub-btn hub-s" title="Update Status"
+                               onclick="event.preventDefault(); event.stopPropagation(); openStatusModal({{ work.id }}, '{{ work.name|escapejs }}');">
+                                <i class="bi bi-clipboard-check"></i> Status
+                            </a>
+                            <span class="hub-arrow"><i class="bi bi-arrow-right"></i></span>
                             <!-- E Button — gated by estimate module subscription -->
                             {% if work.has_estimate_access %}
                             <a href="#" class="hub-btn hub-e" title="Edit Estimate"
@@ -986,8 +1004,180 @@
     </div>
 </div>
 
+<!-- ═════════ Status Modal (S button) ═════════ -->
+<div class="modal fade" id="statusModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#7c3aed;color:#fff;">
+        <h5 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>Work Status <small class="ms-2 opacity-75" id="statusWorkName"></small></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        {% csrf_token %}
+        <input type="hidden" id="statusWorkId" value="">
+
+        <!-- 1. Estimate -->
+        <fieldset class="status-section">
+          <legend>1. Estimate</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="estimate_submitted" value="true" data-toggle-target="#est-yes"> Submitted</label>
+            <label><input type="radio" name="estimate_submitted" value="false" data-toggle-target="#est-no"> Not Submitted</label>
+          </div>
+          <div class="status-conditional" id="est-yes" style="display:none;">
+            <label class="form-label">Date of Submission</label>
+            <input type="date" class="form-control" id="estimate_date">
+          </div>
+          <div class="status-conditional" id="est-no" style="display:none;">
+            <label class="form-label">Remarks</label>
+            <textarea class="form-control" id="estimate_remarks" rows="2"></textarea>
+          </div>
+        </fieldset>
+
+        <!-- 2. Work Order -->
+        <fieldset class="status-section">
+          <legend>2. Work Order received?</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="work_order_received" value="true" data-toggle-target="#wo-yes"> Yes</label>
+            <label><input type="radio" name="work_order_received" value="false"> No</label>
+          </div>
+          <div class="status-conditional" id="wo-yes" style="display:none;">
+            <label class="form-label">NIT No. / Reference No.</label>
+            <input type="text" class="form-control" id="work_order_ref_no">
+          </div>
+        </fieldset>
+
+        <!-- 3. Agreement -->
+        <fieldset class="status-section">
+          <legend>3. Agreement received?</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="agreement_received" value="true" data-toggle-target="#ag-yes"> Yes</label>
+            <label><input type="radio" name="agreement_received" value="false"> No</label>
+          </div>
+          <div class="status-conditional" id="ag-yes" style="display:none;">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label">Agreement No.</label>
+                <input type="text" class="form-control" id="agreement_no">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Technical Sanction Ref.</label>
+                <input type="text" class="form-control" id="technical_sanction">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Administrative Sanction Ref.</label>
+                <input type="text" class="form-control" id="admin_sanction">
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- 4. Physical Work Status -->
+        <fieldset class="status-section">
+          <legend>4. Physical Work Status</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="physical_state" value="commenced"> Commenced</label>
+            <label><input type="radio" name="physical_state" value="in_progress"> Work in progress</label>
+            <label><input type="radio" name="physical_state" value="completed"> Completed</label>
+          </div>
+        </fieldset>
+
+        <!-- 5. Workslip -->
+        <fieldset class="status-section">
+          <legend>5. Workslip Submitted?</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="workslip_submitted" value="true" data-toggle-target="#ws-yes"> Yes</label>
+            <label><input type="radio" name="workslip_submitted" value="false"> No</label>
+          </div>
+          <div class="status-conditional" id="ws-yes" style="display:none;">
+            <label class="form-label">Date of Submission</label>
+            <input type="date" class="form-control" id="workslip_date">
+          </div>
+        </fieldset>
+
+        <!-- 6. Supplemental Agreement -->
+        <fieldset class="status-section">
+          <legend>6. Supplemental Agreement received?</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="supp_received" value="true" data-toggle-target="#sa-yes"> Yes</label>
+            <label><input type="radio" name="supp_received" value="false"> No</label>
+          </div>
+          <div class="status-conditional" id="sa-yes" style="display:none;">
+            <label class="form-label">Supplemental Agreement No.</label>
+            <input type="text" class="form-control" id="supp_no">
+          </div>
+        </fieldset>
+
+        <!-- 7. Bill -->
+        <fieldset class="status-section">
+          <legend>7. Bill</legend>
+          <div class="status-radio-row">
+            <label><input type="radio" name="bill_submitted" value="true" data-toggle-target="#bl-yes"> Submitted</label>
+            <label><input type="radio" name="bill_submitted" value="false"> Not Submitted</label>
+          </div>
+          <div class="status-conditional" id="bl-yes" style="display:none;">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label">MB No. Details</label>
+                <input type="text" class="form-control" id="bill_mb_no">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Date of Submission</label>
+                <input type="date" class="form-control" id="bill_date">
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="modal-footer">
+        <span id="statusSaveMsg" class="me-auto text-success small"></span>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed;" onclick="saveWorkStatus()">
+          <i class="bi bi-save me-1"></i>Save Status
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ Progress Report Modal ═════════ -->
+<div class="modal fade" id="progressReportModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#7c3aed;color:#fff;">
+        <h5 class="modal-title"><i class="bi bi-bar-chart-line me-2"></i>Generate Progress Report</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Report lists all root works (Estimate / Temporary Works / AMC) created between the dates below with their latest status details.</p>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-control" id="prStartDate">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-control" id="prEndDate">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed;" onclick="generateProgressReport()">
+          <i class="bi bi-download me-1"></i>Generate &amp; Download
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
-    .color-btn {
+  .status-section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .status-section legend { font-size: 0.85rem; font-weight: 700; color: #4c1d95; padding: 0 6px; width: auto; margin: 0; }
+  .status-radio-row { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 8px; }
+  .status-radio-row label { font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+  .status-conditional { background: #faf5ff; border-left: 3px solid #7c3aed; padding: 10px 12px; border-radius: 4px; margin-top: 6px; }
+  .status-conditional .form-label { font-size: 0.8rem; margin-bottom: 3px; font-weight: 600; color: #5b21b6; }
+</style>
         width: 32px;
         height: 32px;
         border-radius: 50%;
@@ -1640,6 +1830,172 @@
                 }
             });
         }
+    }
+
+    // ═════════ Status Modal (S button) + Progress Report ═════════
+    function _csrfToken() {
+        var el = document.querySelector('input[name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+
+    function _setRadio(name, value) {
+        if (value === null || value === undefined || value === '') return;
+        var v = (value === true) ? 'true' : (value === false) ? 'false' : String(value);
+        var radios = document.querySelectorAll('input[name="' + name + '"]');
+        radios.forEach(function(r) { r.checked = (r.value === v); });
+    }
+
+    function _getRadio(name) {
+        var checked = document.querySelector('input[name="' + name + '"]:checked');
+        if (!checked) return null;
+        if (checked.value === 'true') return true;
+        if (checked.value === 'false') return false;
+        return checked.value;
+    }
+
+    function _refreshStatusConditionals() {
+        // Hide all conditional blocks, then show the one matching the active radio
+        document.querySelectorAll('#statusModal .status-conditional').forEach(function(el) { el.style.display = 'none'; });
+        document.querySelectorAll('#statusModal input[type="radio"]:checked').forEach(function(r) {
+            var target = r.getAttribute('data-toggle-target');
+            if (target) {
+                var el = document.querySelector(target);
+                if (el) el.style.display = '';
+            }
+        });
+    }
+
+    function openStatusModal(workId, workName) {
+        document.getElementById('statusWorkId').value = workId;
+        document.getElementById('statusWorkName').textContent = workName ? '— ' + workName : '';
+        document.getElementById('statusSaveMsg').textContent = '';
+        // Clear all radios & inputs
+        document.querySelectorAll('#statusModal input[type="radio"]').forEach(function(r) { r.checked = false; });
+        ['estimate_date','estimate_remarks','work_order_ref_no','agreement_no','technical_sanction','admin_sanction','workslip_date','supp_no','bill_mb_no','bill_date'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        _refreshStatusConditionals();
+
+        fetch('/saved-works/' + workId + '/status/get/', { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var s = data.status || {};
+                _setRadio('estimate_submitted', s.estimate && s.estimate.submitted);
+                document.getElementById('estimate_date').value = (s.estimate && s.estimate.date) || '';
+                document.getElementById('estimate_remarks').value = (s.estimate && s.estimate.remarks) || '';
+                _setRadio('work_order_received', s.work_order && s.work_order.received);
+                document.getElementById('work_order_ref_no').value = (s.work_order && s.work_order.ref_no) || '';
+                _setRadio('agreement_received', s.agreement && s.agreement.received);
+                document.getElementById('agreement_no').value = (s.agreement && s.agreement.agreement_no) || '';
+                document.getElementById('technical_sanction').value = (s.agreement && s.agreement.technical_sanction) || '';
+                document.getElementById('admin_sanction').value = (s.agreement && s.agreement.admin_sanction) || '';
+                _setRadio('physical_state', s.physical && s.physical.state);
+                _setRadio('workslip_submitted', s.workslip && s.workslip.submitted);
+                document.getElementById('workslip_date').value = (s.workslip && s.workslip.date) || '';
+                _setRadio('supp_received', s.supp_agreement && s.supp_agreement.received);
+                document.getElementById('supp_no').value = (s.supp_agreement && s.supp_agreement.supp_no) || '';
+                _setRadio('bill_submitted', s.bill && s.bill.submitted);
+                document.getElementById('bill_mb_no').value = (s.bill && s.bill.mb_no) || '';
+                document.getElementById('bill_date').value = (s.bill && s.bill.date) || '';
+                _refreshStatusConditionals();
+            })
+            .catch(function() { /* ignore — modal still usable */ });
+
+        var modal = new bootstrap.Modal(document.getElementById('statusModal'));
+        modal.show();
+    }
+
+    // Toggle conditional blocks whenever a status radio changes
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.matches('#statusModal input[type="radio"]')) {
+            _refreshStatusConditionals();
+        }
+    });
+
+    function saveWorkStatus() {
+        var workId = document.getElementById('statusWorkId').value;
+        if (!workId) return;
+        var payload = {
+            estimate: {
+                submitted: _getRadio('estimate_submitted'),
+                date: document.getElementById('estimate_date').value,
+                remarks: document.getElementById('estimate_remarks').value,
+            },
+            work_order: {
+                received: _getRadio('work_order_received'),
+                ref_no: document.getElementById('work_order_ref_no').value,
+            },
+            agreement: {
+                received: _getRadio('agreement_received'),
+                agreement_no: document.getElementById('agreement_no').value,
+                technical_sanction: document.getElementById('technical_sanction').value,
+                admin_sanction: document.getElementById('admin_sanction').value,
+            },
+            physical: {
+                state: _getRadio('physical_state') || '',
+            },
+            workslip: {
+                submitted: _getRadio('workslip_submitted'),
+                date: document.getElementById('workslip_date').value,
+            },
+            supp_agreement: {
+                received: _getRadio('supp_received'),
+                supp_no: document.getElementById('supp_no').value,
+            },
+            bill: {
+                submitted: _getRadio('bill_submitted'),
+                mb_no: document.getElementById('bill_mb_no').value,
+                date: document.getElementById('bill_date').value,
+            },
+        };
+        var msgEl = document.getElementById('statusSaveMsg');
+        msgEl.textContent = 'Saving…';
+        msgEl.classList.remove('text-danger');
+        msgEl.classList.add('text-success');
+
+        fetch('/saved-works/' + workId + '/status/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
+            body: JSON.stringify(payload),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                msgEl.textContent = '✓ Saved';
+                setTimeout(function() {
+                    var el = document.getElementById('statusModal');
+                    var modal = bootstrap.Modal.getInstance(el);
+                    if (modal) modal.hide();
+                    // Light visual cue — reload so the pill ring reflects has-data
+                    window.location.reload();
+                }, 600);
+            } else {
+                msgEl.textContent = data.error || 'Save failed';
+                msgEl.classList.remove('text-success');
+                msgEl.classList.add('text-danger');
+            }
+        })
+        .catch(function() {
+            msgEl.textContent = 'Network error';
+            msgEl.classList.remove('text-success');
+            msgEl.classList.add('text-danger');
+        });
+    }
+
+    function generateProgressReport() {
+        var s = document.getElementById('prStartDate').value;
+        var e = document.getElementById('prEndDate').value;
+        if (!s || !e) {
+            alert('Please pick both start and end dates.');
+            return;
+        }
+        var url = '/saved-works/progress-report/?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e);
+        window.location.href = url;
+        var modal = bootstrap.Modal.getInstance(document.getElementById('progressReportModal'));
+        if (modal) modal.hide();
     }
 </script>
 
