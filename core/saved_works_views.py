@@ -2660,6 +2660,16 @@ def bill_choice(request, work_id):
         messages.error(request, 'Unable to verify subscription. Please try again.')
         return redirect('saved_works_list')
 
+    # Temporary Works: skip the choice screen — route to the single W1 bill flow
+    if saved_work.work_type == 'temporary_works':
+        tw_ws = SavedWork.objects.filter(
+            organization=org, user=user, parent=saved_work, work_type='temp_workslip',
+        ).order_by('workslip_number').first()
+        if not tw_ws:
+            messages.error(request, 'Generate a Workslip first before generating a Bill.')
+            return redirect('saved_works_list')
+        return redirect('generate_bill_from_saved', work_id=tw_ws.id)
+
     # Only estimates should reach this page
     if saved_work.work_type != 'new_estimate':
         messages.error(request, 'Bill choice is only available for estimates.')
