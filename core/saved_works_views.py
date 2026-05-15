@@ -3681,6 +3681,21 @@ def generate_bill_from_saved(request, work_id):
     if saved_work.work_type == 'temp_workslip':
         wd = work_data
         tw_entries = wd.get('tw_ws_entries') or []
+        tw_events_list = wd.get('tw_ws_events_list') or []
+        tw_exec_map = wd.get('tw_ws_exec_map') or {}
+        tw_work_name = wd.get('tw_ws_work_name') or saved_work.name
+        tw_category = wd.get('tw_ws_category') or saved_work.category or 'electrical'
+        tw_backend_id = wd.get('tw_ws_selected_backend_id')
+
+        # Fallback: legacy W1 nodes have empty work_data; pull from parent temporary_works
+        if not tw_entries and saved_work.parent and saved_work.parent.work_type == 'temporary_works':
+            pwd = saved_work.parent.work_data or {}
+            tw_entries = [e for e in (pwd.get('temp_entries') or []) if (e or {}).get('mode') == 'multi']
+            tw_events_list = tw_events_list or pwd.get('temp_events_list') or []
+            tw_work_name = tw_work_name or pwd.get('temp_work_name') or ''
+            tw_category = tw_category or pwd.get('temp_category') or 'electrical'
+            tw_backend_id = tw_backend_id or pwd.get('temp_selected_backend_id')
+
         if not tw_entries:
             messages.error(request, 'Temp Workslip has no data. Cannot generate bill.')
             return redirect('saved_work_detail', work_id=work_id)
@@ -3712,13 +3727,13 @@ def generate_bill_from_saved(request, work_id):
                         continue
 
         request.session['tw_bill_entries'] = tw_entries
-        request.session['tw_bill_events_list'] = wd.get('tw_ws_events_list') or []
+        request.session['tw_bill_events_list'] = tw_events_list
         # Seed bill exec map from workslip exec map so the user can adjust per-event
-        request.session['tw_bill_exec_map'] = wd.get('tw_ws_exec_map') or {}
+        request.session['tw_bill_exec_map'] = tw_exec_map
         request.session['tw_bill_prev_exec'] = prev_bill_exec
-        request.session['tw_bill_work_name'] = wd.get('tw_ws_work_name') or saved_work.name
-        request.session['tw_bill_category'] = wd.get('tw_ws_category') or saved_work.category or 'electrical'
-        request.session['tw_bill_selected_backend_id'] = wd.get('tw_ws_selected_backend_id')
+        request.session['tw_bill_work_name'] = tw_work_name
+        request.session['tw_bill_category'] = tw_category
+        request.session['tw_bill_selected_backend_id'] = tw_backend_id
         request.session['tw_bill_number'] = bill_number
         request.session['tw_bill_source_workslip_id'] = int(saved_work.id)
         request.session.modified = True
@@ -3728,12 +3743,12 @@ def generate_bill_from_saved(request, work_id):
         new_bill_name = f"{base_name} - B{bill_number}"
         seed_bill_data = {
             'tw_bill_entries': tw_entries,
-            'tw_bill_events_list': wd.get('tw_ws_events_list') or [],
-            'tw_bill_exec_map': wd.get('tw_ws_exec_map') or {},
+            'tw_bill_events_list': tw_events_list,
+            'tw_bill_exec_map': tw_exec_map,
             'tw_bill_prev_exec': prev_bill_exec,
-            'tw_bill_work_name': wd.get('tw_ws_work_name') or saved_work.name,
-            'tw_bill_category': wd.get('tw_ws_category') or saved_work.category or 'electrical',
-            'tw_bill_selected_backend_id': wd.get('tw_ws_selected_backend_id'),
+            'tw_bill_work_name': tw_work_name,
+            'tw_bill_category': tw_category,
+            'tw_bill_selected_backend_id': tw_backend_id,
             'tw_bill_number': bill_number,
             'tw_bill_source_workslip_id': int(saved_work.id),
         }

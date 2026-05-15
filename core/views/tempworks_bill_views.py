@@ -52,13 +52,20 @@ def _build_bill_view_rows(entries, exec_map, prev_exec, day_rates_by_item):
             ev_name = (ev.get("event_name") or "").strip()
             ev_days = int(_coerce_float(ev.get("days"), 0))
             ev_qty = _coerce_float(ev.get("qty"), 0.0)
-            if ev_name and ev_days > 0 and ev_qty > 0:
-                valid_events.append({
-                    "event_id": ev.get("event_id") or "",
-                    "event_name": ev_name,
-                    "days": ev_days,
-                    "qty_est": ev_qty,
-                })
+            ev_id = ev.get("event_id") or ""
+            bill_q = _coerce_float((exec_map.get(entry_id) or {}).get(ev_id), 0.0)
+            prev_q = _coerce_float((prev_exec.get(entry_id) or {}).get(ev_id), 0.0)
+            if not ev_name or ev_days <= 0:
+                continue
+            # Include event if it has an estimate OR any billed activity
+            if ev_qty <= 0 and bill_q <= 0 and prev_q <= 0:
+                continue
+            valid_events.append({
+                "event_id": ev_id,
+                "event_name": ev_name,
+                "days": ev_days,
+                "qty_est": ev_qty,
+            })
         if not valid_events:
             continue
 
@@ -199,12 +206,15 @@ def _aggregate_per_item(entries, exec_map, prev_exec, day_rates_by_item):
             ev_name = (ev.get("event_name") or "").strip()
             ev_days = int(_coerce_float(ev.get("days"), 0))
             ev_qty_est = _coerce_float(ev.get("qty"), 0.0)
-            if not (ev_name and ev_days > 0 and ev_qty_est > 0):
+            if not (ev_name and ev_days > 0):
                 continue
             ev_id = ev.get("event_id") or ""
             rate = _rate_for_event_days(item_day_rates, ev_days)
             qty_bill = _coerce_float((exec_map.get(entry_id) or {}).get(ev_id), 0.0)
             qty_prev = _coerce_float((prev_exec.get(entry_id) or {}).get(ev_id), 0.0)
+            # Summary: only count events that have actually been billed
+            if qty_bill <= 0 and qty_prev <= 0:
+                continue
             qty_net = qty_bill - qty_prev
 
             qty_est_total += ev_qty_est
@@ -326,13 +336,20 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
                 ev_qty = float(ev.get("qty") or 0)
             except (TypeError, ValueError):
                 ev_qty = 0.0
-            if ev_name and ev_days > 0 and ev_qty > 0:
-                valid_events.append({
-                    "event_id": ev.get("event_id") or "",
-                    "event_name": ev_name,
-                    "days": ev_days,
-                    "qty_est": ev_qty,
-                })
+            ev_id = ev.get("event_id") or ""
+            qb = _coerce_float((exec_map.get(entry_id) or {}).get(ev_id), 0.0)
+            qp = _coerce_float((prev_exec.get(entry_id) or {}).get(ev_id), 0.0)
+            # Bill output: include only events with non-zero current bill qty or carry-forward
+            if not ev_name or ev_days <= 0:
+                continue
+            if qb <= 0 and qp <= 0:
+                continue
+            valid_events.append({
+                "event_id": ev_id,
+                "event_name": ev_name,
+                "days": ev_days,
+                "qty_est": ev_qty,
+            })
         if not valid_events:
             continue
 
