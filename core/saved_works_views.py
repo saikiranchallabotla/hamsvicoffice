@@ -3710,6 +3710,28 @@ def generate_bill_from_saved(request, work_id):
             messages.error(request, 'Temp Workslip has no data. Cannot generate bill.')
             return redirect('saved_work_detail', work_id=work_id)
 
+        # If no workslip exec_map was ever saved, default bill qty per event to its
+        # estimate qty so the bill page opens with sensible defaults the user can edit.
+        if not tw_exec_map:
+            default_map = {}
+            for ent in tw_entries:
+                if (ent or {}).get('mode') != 'multi':
+                    continue
+                ent_id = str(ent.get('id') or '')
+                evs = ent.get('events') or []
+                for ev in evs:
+                    try:
+                        q = float(ev.get('qty') or 0)
+                    except (TypeError, ValueError):
+                        q = 0.0
+                    if q <= 0:
+                        continue
+                    ev_id = str(ev.get('event_id') or '')
+                    if not ent_id or not ev_id:
+                        continue
+                    default_map.setdefault(ent_id, {})[ev_id] = q
+            tw_exec_map = default_map
+
         bill_number = saved_work.workslip_number or 1
 
         # Aggregate previous tempbills for "previous bill qty" carry-forward
