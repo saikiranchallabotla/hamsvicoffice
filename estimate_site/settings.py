@@ -182,7 +182,7 @@ elif DB_ENGINE == 'postgresql':
             'HOST': os.getenv('DB_HOST', 'localhost'),
             'PORT': os.getenv('DB_PORT', '5432'),
             'ATOMIC_REQUESTS': True,  # Each request is a transaction
-            'CONN_MAX_AGE': 600,  # Connection pooling
+            'CONN_MAX_AGE': 0,  # PgBouncer handles pooling; persistent conns leak under gevent
             'OPTIONS': {
                 'sslmode': os.getenv('DB_SSL_MODE', 'prefer'),
             },
