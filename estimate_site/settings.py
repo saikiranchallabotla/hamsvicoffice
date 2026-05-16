@@ -14,6 +14,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # ==============================================================================
+# SENTRY ERROR TRACKING
+# ==============================================================================
+# Activates only if SENTRY_DSN is set in the environment. Safe to commit.
+SENTRY_DSN = os.getenv('SENTRY_DSN', '').strip()
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        environment=os.getenv('SENTRY_ENVIRONMENT', 'production'),
+        release=os.getenv('SENTRY_RELEASE', None),
+        traces_sample_rate=float(os.getenv('SENTRY_TRACES_SAMPLE_RATE', '0.05')),
+        send_default_pii=True,
+    )
+
+
+# ==============================================================================
 # SECURITY SETTINGS (ENVIRONMENT-BASED)
 # ==============================================================================
 
