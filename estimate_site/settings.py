@@ -444,6 +444,10 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
         },
+        'accounts': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
     },
 }
 
