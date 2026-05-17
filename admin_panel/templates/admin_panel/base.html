@@ -778,10 +778,13 @@
                 <i class="bi bi-arrow-left-circle"></i>
                 <span>Back to App</span>
             </a>
-            <a href="{% url 'logout' %}" class="nav-link" style="color: #ef4444;">
-                <i class="bi bi-box-arrow-right"></i>
-                <span>Sign Out</span>
-            </a>
+            <form method="post" action="{% url 'logout' %}" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="nav-link" style="color: #ef4444; background:none; border:0; padding:0; cursor:pointer;">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Sign Out</span>
+                </button>
+            </form>
         </div>
     </aside>
     

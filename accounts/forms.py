@@ -123,11 +123,8 @@ class ChangePhoneForm(forms.Form):
         if len(phone) != 10:
             raise forms.ValidationError('Please enter a valid 10-digit mobile number.')
 
-        # Check if already in use
-        from accounts.models import UserProfile
-        if UserProfile.objects.filter(phone=phone).exists():
-            raise forms.ValidationError('This phone number is already registered.')
-
+        # Anti-enumeration: do NOT reveal whether the phone is already
+        # registered. The view will fail uniformly at the OTP step if so.
         return phone
 
 
@@ -145,11 +142,9 @@ class ChangeEmailForm(forms.Form):
     
     def clean_new_email(self):
         email = self.cleaned_data['new_email'].lower().strip()
-        
-        # Check if already in use
-        if User.objects.filter(email=email).exists():
-            raise forms.ValidationError('This email is already registered.')
-        
+
+        # Anti-enumeration: do NOT reveal whether the email is already
+        # registered. The view will fail uniformly at the OTP step if so.
         return email
 
 

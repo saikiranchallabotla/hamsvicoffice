@@ -510,7 +510,7 @@
                         <a class="nav-link" href="{% url 'module_access' module_code=module.code %}">Plans</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'logout' %}">Logout</a>
+                        <form method="post" action="{% url 'logout' %}" class="m-0">{% csrf_token %}<button type="submit" class="nav-link" style="background:none;border:0;cursor:pointer;">Logout</button></form>
                     </li>
                     {% else %}
                     <li class="nav-item">

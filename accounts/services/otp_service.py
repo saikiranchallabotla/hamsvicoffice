@@ -30,32 +30,37 @@ class OTPService:
     MAX_ATTEMPTS = 5  # Max wrong attempts before lockout
     LOCKOUT_DURATION = 1800  # 30 minutes
     HOURLY_LIMIT = 10  # Max OTPs per hour per identifier
-    
+    IP_HOURLY_LIMIT = 30  # Max OTPs per hour per IP (across all identifiers)
+
     # Redis key prefixes
     PREFIX_OTP = "otp:code:"
     PREFIX_COOLDOWN = "otp:cooldown:"
     PREFIX_ATTEMPTS = "otp:attempts:"
     PREFIX_LOCKOUT = "otp:lockout:"
     PREFIX_HOURLY = "otp:hourly:"
+    PREFIX_IP_HOURLY = "otp:ip_hourly:"
     
     # =========================================================================
     # PUBLIC API
     # =========================================================================
     
     @classmethod
-    def request_otp(cls, identifier: str, channel: str = 'sms') -> dict:
+    def request_otp(cls, identifier: str, channel: str = 'sms', ip_address: Optional[str] = None) -> dict:
         """
         Generate and store OTP for phone/email.
-        
+
         Args:
             identifier: Phone number or email
             channel: 'sms' or 'email'
-        
+            ip_address: Caller's IP for per-IP rate limiting. Optional but
+                strongly recommended — without it, an attacker can sweep many
+                identifiers from one IP without hitting any per-IP throttle.
+
         Returns:
             {ok: bool, reason: str, data: {otp, expires_in, cooldown}}
         """
         identifier = cls._normalize(identifier)
-        
+
         # Check lockout
         if cls._is_locked(identifier):
             remaining = cls._get_lockout_remaining(identifier)
@@ -64,7 +69,16 @@ class OTPService:
                 code="LOCKED_OUT",
                 data={"retry_after": remaining}
             )
-        
+
+        # Per-IP rate limit (independent of identifier). Prevents an attacker
+        # from sweeping many identifiers from a single source.
+        if ip_address and cls._is_ip_hourly_limit_reached(ip_address):
+            cls._audit_log(identifier, "otp_ip_rate_limited", {"ip": ip_address})
+            return cls._fail(
+                "Too many OTP requests from your network. Try again in an hour.",
+                code="RATE_LIMITED",
+            )
+
         # Check cooldown (resend too fast)
         cooldown = cls._get_cooldown(identifier)
         if cooldown > 0:
@@ -91,43 +105,39 @@ class OTPService:
         cache.set(cache_key, otp_hash, cls.OTP_TTL)
         cache.set(cls._key_cooldown(identifier), {'expires_at': time.time() + cls.RESEND_COOLDOWN}, cls.RESEND_COOLDOWN)
         cls._increment_hourly(identifier)
+        if ip_address:
+            cls._increment_ip_hourly(ip_address)
         
         # Send OTP (stub - integrate with SMS/email provider)
         send_result = cls._send_otp(identifier, otp, channel)
-        
-        cls._audit_log(identifier, "otp_requested", {"channel": channel})
-        
-        # Check if we're in development mode (no SMS/email services configured)
-        sms_configured = bool(getattr(settings, 'FAST2SMS_API_KEY', ''))
-        # Email requires host, user, AND password to be properly configured
-        email_host = getattr(settings, 'EMAIL_HOST', '')
-        email_user = getattr(settings, 'EMAIL_HOST_USER', '')
-        email_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
-        email_configured = all([email_host, email_user, email_pass])
-        
-        # Determine dev_mode based on whether the delivery channel is configured
-        if channel == 'sms':
-            dev_mode = not sms_configured
-        else:
-            dev_mode = not email_configured
 
-        if dev_mode:
-            logger.info(f"[OTP_DEV_MODE] No {channel} provider configured, showing OTP on screen")
-        
+        cls._audit_log(identifier, "otp_requested", {"channel": channel})
+
+        # dev_mode is gated SOLELY on settings.DEBUG. Previously this also
+        # turned on whenever a provider env var was missing, which meant a
+        # production misconfig (typo'd FAST2SMS_API_KEY) would expose OTPs
+        # in HTTP responses — a complete auth bypass.
+        dev_mode = bool(getattr(settings, 'DEBUG', False))
+
+        # If provider isn't configured in production, the OTP could not be
+        # delivered. Fail closed rather than silently succeeding.
+        if not dev_mode and not send_result:
+            return cls._fail(
+                "Unable to send verification code right now. Please try again later.",
+                code="SEND_FAILED",
+            )
+
         # Build response data
         response_data = {
             "expires_in": cls.OTP_TTL,
             "cooldown": cls.RESEND_COOLDOWN,
             "channel": channel,
-            "dev_mode": dev_mode,  # Tell frontend if we're in dev mode
+            "dev_mode": dev_mode,
         }
-        
-        # Include OTP in response when:
-        # 1. DEBUG mode is enabled, OR
-        # 2. No SMS/Email services are configured (development without services)
+
         if dev_mode:
             response_data["otp"] = otp
-        
+
         return cls._success(
             "OTP sent successfully.",
             data=response_data
@@ -213,6 +223,11 @@ class OTPService:
     def _key_hourly(cls, identifier: str) -> str:
         hour = timezone.now().strftime("%Y%m%d%H")
         return f"{cls.PREFIX_HOURLY}{identifier}:{hour}"
+
+    @classmethod
+    def _key_ip_hourly(cls, ip: str) -> str:
+        hour = timezone.now().strftime("%Y%m%d%H")
+        return f"{cls.PREFIX_IP_HOURLY}{ip}:{hour}"
     
     # =========================================================================
     # HELPERS
@@ -301,6 +316,21 @@ class OTPService:
             cache.incr(key)
         except ValueError:
             cache.set(key, 1, 3600)  # 1 hour TTL
+
+    @classmethod
+    def _is_ip_hourly_limit_reached(cls, ip: str) -> bool:
+        """Check whether per-IP hourly OTP limit reached."""
+        count = cache.get(cls._key_ip_hourly(ip)) or 0
+        return count >= cls.IP_HOURLY_LIMIT
+
+    @classmethod
+    def _increment_ip_hourly(cls, ip: str):
+        """Increment per-IP hourly OTP counter."""
+        key = cls._key_ip_hourly(ip)
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, 3600)
     
     @classmethod
     def _clear_keys(cls, identifier: str):

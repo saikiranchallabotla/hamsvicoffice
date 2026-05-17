@@ -36,27 +36,34 @@ if SENTRY_DSN:
 # SECURITY SETTINGS (ENVIRONMENT-BASED)
 # ==============================================================================
 
-# Secret key - MUST be set in production via environment variable
-# In development, a fallback is provided for convenience
+# Secret key - MUST be set via DJANGO_SECRET_KEY in any non-local environment.
+# A fallback dev key is only allowed when DJANGO_ENV=local is set explicitly.
+# Previously DEBUG=True alone was enough to fall back — which meant a single
+# misconfigured DEBUG flag in production would silently boot the app on a
+# publicly-known key, breaking every signed cookie and CSRF/session token.
 _dev_secret_key = 'django-insecure-dev-only-key-not-for-production'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
+DJANGO_ENV = os.getenv('DJANGO_ENV', '').strip().lower()
 
 # Debug mode - defaults to True for local development convenience
 # Set DEBUG=False explicitly in production
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-# Validate SECRET_KEY in production
+# Validate SECRET_KEY: only the explicit DJANGO_ENV=local marker can unlock
+# the insecure fallback. DEBUG is no longer sufficient on its own.
 if not SECRET_KEY:
-    if DEBUG:
+    if DJANGO_ENV == 'local':
         SECRET_KEY = _dev_secret_key
         import warnings
         warnings.warn(
-            "Using insecure development secret key. Set DJANGO_SECRET_KEY in production!",
+            "Using insecure development secret key (DJANGO_ENV=local). "
+            "Set DJANGO_SECRET_KEY before deploying anywhere else.",
             RuntimeWarning
         )
     else:
         raise ValueError(
-            "DJANGO_SECRET_KEY environment variable is required in production. "
+            "DJANGO_SECRET_KEY environment variable is required. "
+            "Set DJANGO_ENV=local to use a development fallback. "
             "Generate one with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
         )
 

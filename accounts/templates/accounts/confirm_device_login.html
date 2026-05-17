@@ -232,15 +232,15 @@
     <div class="conflict-body">
         <div class="session-label">Active Sessions</div>
         <div class="active-sessions-list">
-            {% for session in active_sessions %}
+            {% for device_type in active_sessions %}
             <div class="session-item">
                 <div class="session-device-icon">
-                    {% if session.device_type == 'Mobile' %}
+                    {% if device_type == 'Mobile' %}
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
                         <line x1="12" y1="18" x2="12" y2="18"/>
                     </svg>
-                    {% elif session.device_type == 'Tablet' %}
+                    {% elif device_type == 'Tablet' %}
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
                         <line x1="12" y1="18" x2="12" y2="18"/>
@@ -254,15 +254,8 @@
                     {% endif %}
                 </div>
                 <div class="session-details">
-                    <div class="session-device-name">
-                        {{ session.device_type|default:"Unknown" }}
-                        {% if session.browser %} &middot; {{ session.browser }}{% endif %}
-                    </div>
-                    <div class="session-meta">
-                        {% if session.os %}{{ session.os }} &middot; {% endif %}
-                        {% if session.ip_address %}IP: {{ session.ip_address }} &middot; {% endif %}
-                        {{ session.last_activity }}
-                    </div>
+                    <div class="session-device-name">{{ device_type|default:"Unknown" }}</div>
+                    <div class="session-meta">Active session</div>
                 </div>
                 <div class="session-active-dot" title="Active"></div>
             </div>

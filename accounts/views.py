@@ -9,6 +9,7 @@ Flows:
 """
 
 import json
+import logging
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -28,6 +29,32 @@ from accounts.forms import (
 )
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.http import url_has_allowed_host_and_scheme
+
+logger = logging.getLogger(__name__)
+
+
+def _client_ip(request):
+    """Best-effort client IP. Honours X-Forwarded-For (first hop) when present.
+    Used for per-IP OTP throttling — wrong-but-stable is fine, missing is not."""
+    xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '') or ''
+
+
+def _safe_next_url(request, raw_next):
+    """Return raw_next iff it points to the same host; else fall back to dashboard.
+    Prevents open-redirect via ?next=https://evil.example/."""
+    if not raw_next:
+        return '/dashboard/'
+    if url_has_allowed_host_and_scheme(
+        raw_next,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return raw_next
+    return '/dashboard/'
 
 
 # =============================================================================
@@ -41,22 +68,9 @@ def login_view(request):
     """
     if request.user.is_authenticated:
         return redirect('dashboard')
-    
-    show_otp = None
+
     identifier = ''
-    
-    # Check if we have OTP to display (from redirect after POST - dev mode only)
-    if request.method == 'GET' and request.GET.get('otp_sent'):
-        # OTP is passed in URL for dev mode (to survive no-history.js fetch + redirect)
-        show_otp = request.GET.get('_otp')
-        identifier = request.session.get('otp_identifier', '')
-        if show_otp:
-            return render(request, 'accounts/login.html', {
-                'identifier': identifier,
-                'show_otp': show_otp,
-                'otp_sent': True
-            })
-    
+
     if request.method == 'POST':
         identifier = request.POST.get('identifier', '').strip()
         
@@ -64,11 +78,18 @@ def login_view(request):
             messages.error(request, 'Please enter your phone number or email.')
             return render(request, 'accounts/login.html')
         
-        # Check if user exists
+        # Check if user exists. To prevent enumeration, mask the answer:
+        # behave identically whether or not the identifier resolves to an
+        # account. Real users get an OTP; unknown identifiers get no OTP
+        # but the same redirect, so the verify step fails as "invalid code".
         user = _find_user(identifier)
         if not user:
-            messages.error(request, 'No account found with this phone/email. Please register.')
-            return render(request, 'accounts/login.html', {'identifier': identifier})
+            logger.info(f"login attempt for unknown identifier (masked={_mask_identifier(identifier)})")
+            request.session['otp_identifier'] = identifier
+            request.session['otp_purpose'] = 'login'
+            request.session.save()
+            messages.success(request, f'If an account exists, a code has been sent to {_mask_identifier(identifier)}.')
+            return redirect('verify_otp')
 
         # Determine OTP channel and identifier based on settings
         otp_channel = getattr(settings, 'OTP_CHANNEL', 'email')
@@ -97,7 +118,7 @@ def login_view(request):
         request.session['otp_purpose'] = 'login'
 
         # Request OTP via the selected channel
-        result = OTPService.request_otp(otp_identifier, otp_channel)
+        result = OTPService.request_otp(otp_identifier, otp_channel, ip_address=_client_ip(request))
         
         if result['ok']:
             # Get OTP for display in dev mode
@@ -136,10 +157,11 @@ def verify_otp_view(request):
         messages.warning(request, 'Please enter your phone/email first.')
         return redirect('login')
     
-    # Get OTP for popup display (check URL param first for dev mode, then session)
-    # URL param survives no-history.js fetch+redirect cycle
-    show_otp = request.GET.get('_otp') or request.session.pop('show_otp', None)
-    
+    # OTP popup display: in DEBUG only, surface via session (one-shot pop).
+    # The previous `?_otp=` GET-param was removed because URLs leak through
+    # Referer headers, browser history, and access logs.
+    show_otp = request.session.pop('show_otp', None) if settings.DEBUG else None
+
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
         
@@ -191,8 +213,8 @@ def resend_otp_view(request):
         }, status=400)
     
     channel = 'email' if '@' in identifier else 'sms'
-    result = OTPService.request_otp(identifier, channel)
-    
+    result = OTPService.request_otp(identifier, channel, ip_address=_client_ip(request))
+
     if result['ok']:
         response_data = {
             'ok': True,
@@ -247,10 +269,12 @@ def register_view(request):
                 validate_email(email)
             except DjangoValidationError:
                 errors.append('Please enter a valid email address.')
-        if email and User.objects.filter(email=email).exists():
-            errors.append('Email already registered.')
-        if phone and UserProfile.objects.filter(phone=phone).exists():
-            errors.append('Phone number already registered.')
+
+        # NOTE: do NOT add "already registered" errors here — they enable
+        # enumeration. If the email/phone is already in use we silently
+        # short-circuit the OTP send below and let verify fail.
+        email_already_taken = bool(email and User.objects.filter(email=email).exists())
+        phone_already_taken = bool(phone and UserProfile.objects.filter(phone=phone).exists())
         
         if errors:
             for error in errors:
@@ -274,8 +298,16 @@ def register_view(request):
         request.session['otp_identifier'] = email
         request.session['otp_purpose'] = 'register'
 
+        # Anti-enumeration: if email/phone already in use, skip the OTP send
+        # but show the same UX. The verify step will then fail uniformly.
+        if email_already_taken or phone_already_taken:
+            logger.info(f"register attempt with already-used identifier (masked={_mask_identifier(email)})")
+            request.session.save()
+            messages.success(request, f'If this email is available, a code has been sent to {_mask_identifier(email)}.')
+            return redirect('verify_otp')
+
         # Request OTP
-        result = OTPService.request_otp(email, 'email')
+        result = OTPService.request_otp(email, 'email', ip_address=_client_ip(request))
         
         if result['ok']:
             # Get OTP for display in dev mode
@@ -308,18 +340,15 @@ def register_view(request):
 # LOGOUT
 # =============================================================================
 
-@login_required
+@require_POST
 def logout_view(request):
-    """
-    Logout current session.
-    """
-    # Mark session as inactive
-    session_key = request.session.session_key
-    if session_key:
-        UserSession.objects.filter(session_key=session_key).update(is_active=False)
-    
-    logout(request)
-    messages.success(request, 'You have been logged out.')
+    """Logout current session. POST-only to prevent CSRF-driven log-out."""
+    if request.user.is_authenticated:
+        session_key = request.session.session_key
+        if session_key:
+            UserSession.objects.filter(session_key=session_key).update(is_active=False)
+        logout(request)
+        messages.success(request, 'You have been logged out.')
     return redirect('login')
 
 
@@ -398,32 +427,37 @@ def api_request_otp(request):
     
     identifier = data.get('identifier', '').strip()
     purpose = data.get('purpose', 'login')
-    
+
     if not identifier:
         return JsonResponse({'ok': False, 'reason': 'Identifier required.'}, status=400)
-    
-    # For login, check user exists
-    if purpose == 'login':
-        user = _find_user(identifier)
-        if not user:
-            return JsonResponse({
-                'ok': False,
-                'code': 'NOT_FOUND',
-                'reason': 'No account found. Please register.',
-            }, status=404)
-    
-    # For register, check user doesn't exist
-    if purpose == 'register':
-        if _find_user(identifier):
-            return JsonResponse({
-                'ok': False,
-                'code': 'EXISTS',
-                'reason': 'Account already exists. Please login.',
-            }, status=409)
-    
+
+    # Anti-enumeration: NEVER tell the client whether the identifier exists
+    # or not. If the state doesn't match the purpose (login on missing user,
+    # register on existing user), pretend success but don't actually send.
+    skip_send = False
+    if purpose == 'login' and not _find_user(identifier):
+        logger.info(f"api_request_otp login for unknown identifier (masked={_mask_identifier(identifier)})")
+        skip_send = True
+    elif purpose == 'register' and _find_user(identifier):
+        logger.info(f"api_request_otp register for existing identifier (masked={_mask_identifier(identifier)})")
+        skip_send = True
+
+    if skip_send:
+        request.session['otp_identifier'] = identifier
+        request.session['otp_purpose'] = purpose
+        return JsonResponse({
+            'ok': True,
+            'reason': 'OTP sent.',
+            'data': {
+                'masked': _mask_identifier(identifier),
+                'expires_in': OTPService.OTP_TTL,
+                'cooldown': OTPService.RESEND_COOLDOWN,
+            }
+        })
+
     # Request OTP
     channel = 'email' if '@' in identifier else 'sms'
-    result = OTPService.request_otp(identifier, channel)
+    result = OTPService.request_otp(identifier, channel, ip_address=_client_ip(request))
     
     if result['ok']:
         # Store in session
@@ -449,32 +483,37 @@ def api_request_otp(request):
 def api_verify_otp(request):
     """
     API: Verify OTP and complete auth.
-    
+
     POST /api/auth/verify-otp/
-    Body: {"identifier": "+919876543210", "otp": "123456", "register_data": {...}}
+    Body: {"otp": "123456"}
+
+    Identifier, purpose, and register_data come from the SERVER SESSION only.
+    Client-supplied identifier/purpose/register_data are ignored — accepting
+    them would let an attacker pair an OTP issued for phone X with a freshly
+    forged account on email Y.
     """
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'ok': False, 'reason': 'Invalid JSON.'}, status=400)
-    
-    identifier = data.get('identifier') or request.session.get('otp_identifier')
-    otp = data.get('otp', '').strip()
-    purpose = data.get('purpose') or request.session.get('otp_purpose', 'login')
-    register_data = data.get('register_data', {})
-    
+
+    identifier = request.session.get('otp_identifier')
+    purpose = request.session.get('otp_purpose', 'login')
+    register_data = request.session.get('register_data', {}) if purpose == 'register' else {}
+    otp = (data.get('otp') or '').strip()
+
     if not identifier:
-        return JsonResponse({'ok': False, 'reason': 'Identifier required.'}, status=400)
-    
+        return JsonResponse({'ok': False, 'reason': 'Session expired. Start again.'}, status=400)
+
     if not otp or len(otp) != 6:
         return JsonResponse({'ok': False, 'reason': 'Valid 6-digit OTP required.'}, status=400)
-    
+
     # Verify OTP
     result = OTPService.verify_otp(identifier, otp)
-    
+
     if not result['ok']:
         return JsonResponse(result, status=400)
-    
+
     # Handle based on purpose
     if purpose == 'register':
         # Create user
@@ -491,15 +530,15 @@ def api_verify_otp(request):
                 'ok': False,
                 'reason': 'Account not found.',
             }, status=404)
-    
+
     # Log user in
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-    
+
     # Clear session data
     request.session.pop('otp_identifier', None)
     request.session.pop('otp_purpose', None)
     request.session.pop('register_data', None)
-    
+
     return JsonResponse({
         'ok': True,
         'reason': 'Authentication successful.',
@@ -579,10 +618,14 @@ def api_check_session(request):
         })
     
     except Exception as e:
-        logger.error(f"Error checking session validity: {e}")
+        logger.exception(f"api_check_session error: {e}")
+        # Fail closed: an unknown error should not keep a possibly-revoked
+        # session alive. Force the client to re-validate by re-logging in.
         return JsonResponse({
-            'valid': True  # Assume valid on error to avoid false kicks
-        })
+            'valid': False,
+            'reason': 'check_failed',
+            'message': 'Session check failed. Please login again.',
+        }, status=503)
 
 
 # =============================================================================
@@ -720,21 +763,20 @@ def _handle_login_success(request, identifier):
         # Store pending login info in session for confirmation
         request.session['pending_login_identifier'] = identifier
         request.session['pending_login_user_id'] = user.id
-        
-        # Store session info for the popup
-        session_info = []
+
+        # Anti-recon: we have NOT yet established that the visitor is the
+        # account owner (only that they passed an OTP). Don't surface device
+        # specifics (IP, full UA, exact timestamp) — show only a count and
+        # coarse device-type so they can recognise their own sessions.
+        device_types = []
         for s in active_sessions[:5]:
-            session_info.append({
-                'device_type': s.device_type or 'Unknown',
-                'device_name': s.device_name or 'Unknown Device',
-                'browser': s.browser or '',
-                'os': s.os or '',
-                'ip_address': s.ip_address or '',
-                'last_activity': s.last_activity.strftime('%d %b %Y, %I:%M %p') if s.last_activity else '',
-            })
-        request.session['pending_login_sessions'] = session_info
+            device_types.append(s.device_type or 'Unknown')
+        request.session['pending_login_sessions'] = {
+            'count': active_sessions.count(),
+            'device_types': device_types,
+        }
         request.session.save()  # Ensure session is saved before redirect
-        
+
         return redirect('confirm_device_login')
     
     # No existing sessions - proceed directly
@@ -764,7 +806,7 @@ def _complete_login(request, user, identifier):
     
     messages.success(request, f'Welcome back, {user.first_name or user.username}!')
     
-    next_url = request.session.pop('next', None) or request.GET.get('next', '/dashboard/')
+    next_url = _safe_next_url(request, request.session.pop('next', None) or request.GET.get('next'))
     return redirect(next_url)
 
 
@@ -776,8 +818,8 @@ def confirm_device_login_view(request):
     """
     pending_user_id = request.session.get('pending_login_user_id')
     pending_identifier = request.session.get('pending_login_identifier')
-    session_info = request.session.get('pending_login_sessions', [])
-    
+    session_info = request.session.get('pending_login_sessions', {})
+
     if not pending_user_id or not pending_identifier:
         return redirect('login')
     
@@ -811,8 +853,8 @@ def confirm_device_login_view(request):
             return redirect('login')
     
     context = {
-        'active_sessions': session_info,
-        'session_count': len(session_info),
+        'active_sessions': session_info.get('device_types', []) if isinstance(session_info, dict) else [],
+        'session_count': session_info.get('count', 0) if isinstance(session_info, dict) else 0,
     }
     return render(request, 'accounts/confirm_device_login.html', context)
 
@@ -897,37 +939,50 @@ def profile_edit_view(request):
 def change_phone_view(request):
     """
     Request phone number change.
-    Step 1: Enter new phone → Request OTP to new phone
-    Step 2: Verify OTP → Update phone
+    Two-step flow:
+      1. Verify OTP sent to CURRENT phone (or email fallback) — proves the
+         requester holds the existing recovery channel, not just the session.
+      2. Verify OTP sent to NEW phone — proves they hold the new device.
+    Without step 1, an attacker who briefly hijacks a session can permanently
+    rebind the account to their own phone.
     """
     profile = getattr(request.user, 'account_profile', None)
     current_phone = profile.phone if profile else None
-    
+
     if request.method == 'POST':
         form = ChangePhoneForm(request.POST)
         if form.is_valid():
             new_phone = form.cleaned_data['new_phone']
-            
-            # Store in session for verification
+
+            # Pick current recovery channel: current phone if set, else email.
+            if current_phone:
+                current_identifier = current_phone
+                current_channel = 'sms'
+            elif request.user.email:
+                current_identifier = request.user.email
+                current_channel = 'email'
+            else:
+                messages.error(request, 'No recovery channel on file. Contact support.')
+                return redirect('settings')
+
             request.session['pending_phone_change'] = new_phone
-            request.session['otp_identifier'] = new_phone
-            request.session['otp_purpose'] = 'change_phone'
-            
-            # Send OTP to new phone
-            result = OTPService.request_otp(new_phone, 'sms')
-            
+            request.session['change_phone_step'] = 'verify_current'
+            request.session['otp_identifier'] = current_identifier
+            request.session['otp_purpose'] = 'change_phone_current'
+
+            result = OTPService.request_otp(current_identifier, current_channel, ip_address=_client_ip(request))
+
             if result['ok']:
-                # Store dev OTP in session for display
                 dev_otp = result.get('data', {}).get('otp')
                 if dev_otp:
                     request.session['dev_otp'] = dev_otp
-                messages.success(request, f'OTP sent to {_mask_identifier(new_phone)}')
+                messages.success(request, f'Verification code sent to your current {current_channel}: {_mask_identifier(current_identifier)}')
                 return redirect('verify_phone_change')
             else:
                 messages.error(request, result['reason'])
     else:
         form = ChangePhoneForm()
-    
+
     return render(request, 'accounts/change_phone.html', {
         'form': form,
         'current_phone': _mask_identifier(current_phone) if current_phone else None,
@@ -937,45 +992,71 @@ def change_phone_view(request):
 @login_required
 @require_http_methods(["GET", "POST"])
 def verify_phone_change_view(request):
-    """Verify OTP for phone change."""
+    """Verify OTP for phone change (handles both steps of the two-step flow)."""
     new_phone = request.session.get('pending_phone_change')
-    
+    step = request.session.get('change_phone_step', 'verify_current')
+
     if not new_phone:
         messages.warning(request, 'Please enter a new phone number first.')
         return redirect('change_phone')
-    
+
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
-        
+
         if not otp or len(otp) != 6:
             messages.error(request, 'Please enter a valid 6-digit OTP.')
-        else:
-            result = OTPService.verify_otp(new_phone, otp)
-            
+        elif step == 'verify_current':
+            # Verify against current recovery channel.
+            current_identifier = request.session.get('otp_identifier', '')
+            result = OTPService.verify_otp(current_identifier, otp)
+
             if result['ok']:
-                # Update phone
+                # Step 1 cleared — now send OTP to the NEW phone.
+                request.session['change_phone_step'] = 'verify_new'
+                request.session['otp_identifier'] = new_phone
+                request.session['otp_purpose'] = 'change_phone_new'
+
+                send = OTPService.request_otp(new_phone, 'sms', ip_address=_client_ip(request))
+                if send['ok']:
+                    dev_otp = send.get('data', {}).get('otp')
+                    if dev_otp:
+                        request.session['dev_otp'] = dev_otp
+                    messages.success(request, f'Verified. New code sent to {_mask_identifier(new_phone)}')
+                    return redirect('verify_phone_change')
+                messages.error(request, send['reason'])
+            else:
+                messages.error(request, result['reason'])
+        else:
+            # step == 'verify_new'
+            result = OTPService.verify_otp(new_phone, otp)
+
+            if result['ok']:
                 profile, _ = UserProfile.objects.get_or_create(user=request.user)
                 profile.phone = new_phone
                 profile.phone_verified = True
                 profile.save()
-                
-                # Clear session
-                del request.session['pending_phone_change']
+
+                request.session.pop('pending_phone_change', None)
+                request.session.pop('change_phone_step', None)
                 request.session.pop('otp_identifier', None)
                 request.session.pop('otp_purpose', None)
-                
+
                 messages.success(request, 'Phone number updated successfully!')
                 return redirect('settings')
             else:
                 messages.error(request, result['reason'])
-    
-    # Get and clear dev OTP for display
+
     dev_otp = request.session.pop('dev_otp', None)
-    
+    display_identifier = (
+        _mask_identifier(request.session.get('otp_identifier', '')) if step == 'verify_current'
+        else _mask_identifier(new_phone)
+    )
+
     return render(request, 'accounts/verify_change.html', {
-        'identifier': _mask_identifier(new_phone),
+        'identifier': display_identifier,
         'change_type': 'phone',
         'dev_otp': dev_otp,
+        'step': step,
     })
 
 
@@ -983,37 +1064,47 @@ def verify_phone_change_view(request):
 @require_http_methods(["GET", "POST"])
 def change_email_view(request):
     """
-    Request email change.
-    Step 1: Enter new email → Request OTP to new email
-    Step 2: Verify OTP → Update email
+    Request email change. Two-step flow analogous to change_phone_view —
+    OTP to current email first (fallback: current phone), then OTP to new
+    email. Prevents session hijack from permanently rebinding the account.
     """
     current_email = request.user.email
-    
+    profile = getattr(request.user, 'account_profile', None)
+    current_phone = profile.phone if profile else None
+
     if request.method == 'POST':
         form = ChangeEmailForm(request.POST)
         if form.is_valid():
             new_email = form.cleaned_data['new_email']
-            
-            # Store in session for verification
+
+            if current_email:
+                current_identifier = current_email
+                current_channel = 'email'
+            elif current_phone:
+                current_identifier = current_phone
+                current_channel = 'sms'
+            else:
+                messages.error(request, 'No recovery channel on file. Contact support.')
+                return redirect('settings')
+
             request.session['pending_email_change'] = new_email
-            request.session['otp_identifier'] = new_email
-            request.session['otp_purpose'] = 'change_email'
-            
-            # Send OTP to new email
-            result = OTPService.request_otp(new_email, 'email')
-            
+            request.session['change_email_step'] = 'verify_current'
+            request.session['otp_identifier'] = current_identifier
+            request.session['otp_purpose'] = 'change_email_current'
+
+            result = OTPService.request_otp(current_identifier, current_channel, ip_address=_client_ip(request))
+
             if result['ok']:
-                # Store dev OTP in session for display
                 dev_otp = result.get('data', {}).get('otp')
                 if dev_otp:
                     request.session['dev_otp'] = dev_otp
-                messages.success(request, f'OTP sent to {_mask_identifier(new_email)}')
+                messages.success(request, f'Verification code sent to your current {current_channel}: {_mask_identifier(current_identifier)}')
                 return redirect('verify_email_change')
             else:
                 messages.error(request, result['reason'])
     else:
         form = ChangeEmailForm()
-    
+
     return render(request, 'accounts/change_email.html', {
         'form': form,
         'current_email': _mask_identifier(current_email) if current_email else None,
@@ -1023,49 +1114,72 @@ def change_email_view(request):
 @login_required
 @require_http_methods(["GET", "POST"])
 def verify_email_change_view(request):
-    """Verify OTP for email change."""
+    """Verify OTP for email change (handles both steps of the two-step flow)."""
     new_email = request.session.get('pending_email_change')
-    
+    step = request.session.get('change_email_step', 'verify_current')
+
     if not new_email:
         messages.warning(request, 'Please enter a new email first.')
         return redirect('change_email')
-    
+
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
-        
+
         if not otp or len(otp) != 6:
             messages.error(request, 'Please enter a valid 6-digit OTP.')
-        else:
-            result = OTPService.verify_otp(new_email, otp)
-            
+        elif step == 'verify_current':
+            current_identifier = request.session.get('otp_identifier', '')
+            result = OTPService.verify_otp(current_identifier, otp)
+
             if result['ok']:
-                # Update email
+                request.session['change_email_step'] = 'verify_new'
+                request.session['otp_identifier'] = new_email
+                request.session['otp_purpose'] = 'change_email_new'
+
+                send = OTPService.request_otp(new_email, 'email', ip_address=_client_ip(request))
+                if send['ok']:
+                    dev_otp = send.get('data', {}).get('otp')
+                    if dev_otp:
+                        request.session['dev_otp'] = dev_otp
+                    messages.success(request, f'Verified. New code sent to {_mask_identifier(new_email)}')
+                    return redirect('verify_email_change')
+                messages.error(request, send['reason'])
+            else:
+                messages.error(request, result['reason'])
+        else:
+            # step == 'verify_new'
+            result = OTPService.verify_otp(new_email, otp)
+
+            if result['ok']:
                 request.user.email = new_email
                 request.user.save()
-                
-                # Update profile verification
+
                 profile = getattr(request.user, 'account_profile', None)
                 if profile:
                     profile.email_verified = True
                     profile.save()
-                
-                # Clear session
-                del request.session['pending_email_change']
+
+                request.session.pop('pending_email_change', None)
+                request.session.pop('change_email_step', None)
                 request.session.pop('otp_identifier', None)
                 request.session.pop('otp_purpose', None)
-                
+
                 messages.success(request, 'Email address updated successfully!')
                 return redirect('settings')
             else:
                 messages.error(request, result['reason'])
-    
-    # Get and clear dev OTP for display
+
     dev_otp = request.session.pop('dev_otp', None)
-    
+    display_identifier = (
+        _mask_identifier(request.session.get('otp_identifier', '')) if step == 'verify_current'
+        else _mask_identifier(new_email)
+    )
+
     return render(request, 'accounts/verify_change.html', {
-        'identifier': _mask_identifier(new_email),
+        'identifier': display_identifier,
         'change_type': 'email',
         'dev_otp': dev_otp,
+        'step': step,
     })
 
 
