@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Sum
 from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 
 from subscriptions.models import Module, ModulePricing, UserModuleSubscription, Payment
@@ -402,34 +403,33 @@ def verify_payment_view(request):
     return JsonResponse({'ok': False, 'reason': result.get('reason', 'Payment verification failed.')}, status=400)
 
 
-@login_required
+@csrf_exempt
 @require_POST
-def cancel_subscription_view(request, subscription_id):
-    """
-    Cancel a subscription.
-    """
-    from subscriptions.services.subscription_service import SubscriptionService
-    
+def razorpay_webhook_view(request):
+    """Razorpay webhook endpoint. Verifies HMAC signature and dispatches to
+    PaymentService. Always returns 200 once the signature checks out so
+    Razorpay does not pile up retries on transient processing errors; errors
+    are logged + sent to Sentry."""
+    from subscriptions.services.payment_service import PaymentService
+    import logging as _logging
+    _wlog = _logging.getLogger('subscriptions.webhook')
+
+    payload = request.body or b''
+    headers = {k: v for k, v in request.headers.items()}
+
     try:
-        subscription = UserModuleSubscription.objects.get(
-            id=subscription_id,
-            user=request.user
-        )
-    except UserModuleSubscription.DoesNotExist:
-        messages.error(request, 'Subscription not found.')
-        return redirect('my_subscriptions')
-    
-    reason = request.POST.get('reason', '')
-    immediate = request.POST.get('immediate') == 'true'
-    
-    result = SubscriptionService.cancel(subscription, reason=reason, immediate=immediate)
-    
-    if result['ok']:
-        messages.success(request, f'{subscription.module.name} subscription cancelled.')
-    else:
-        messages.error(request, result.get('reason', 'Failed to cancel subscription.'))
-    
-    return redirect('my_subscriptions')
+        result = PaymentService.handle_webhook(payload, headers)
+    except Exception as e:
+        _wlog.exception(f"Webhook crashed: {e}")
+        return JsonResponse({'ok': False, 'reason': 'internal_error'}, status=500)
+
+    # Signature failure -> 401 so Razorpay knows the secret is wrong / spoofed.
+    if not result.get('ok') and result.get('code') == 'INVALID_SIGNATURE':
+        return JsonResponse({'ok': False, 'reason': 'invalid_signature'}, status=401)
+
+    # Everything else -> 200. Razorpay will retry on non-2xx; we've already
+    # persisted the event row, so further retries are wasted work.
+    return JsonResponse({'ok': result.get('ok', True), 'action': result.get('data', {}).get('action', '')}, status=200)
 
 
 @login_required

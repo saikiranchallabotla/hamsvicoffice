@@ -30,7 +30,5 @@ urlpatterns = [
     path('api/verify-payment/', views.verify_payment_view, name='verify_payment'),
     path('api/validate-coupon/', views.validate_coupon_view, name='validate_coupon'),
     path('api/trial-status/', views.trial_status_api, name='trial_status_api'),
-    
-    # Subscription actions
-    path('cancel/<uuid:subscription_id>/', views.cancel_subscription_view, name='cancel_subscription'),
+    path('api/razorpay-webhook/', views.razorpay_webhook_view, name='razorpay_webhook'),
 ]

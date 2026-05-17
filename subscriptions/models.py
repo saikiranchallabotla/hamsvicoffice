@@ -1261,3 +1261,33 @@ class UsageLog(models.Model):
             ip_address=ip_address,
             user_agent=user_agent
         )
+
+
+class WebhookEvent(models.Model):
+    """Persistent record of processed payment-gateway webhook events.
+
+    Razorpay retries webhooks on non-2xx responses; this table provides
+    durable idempotency so duplicate deliveries cannot create duplicate
+    subscriptions or process refunds twice.
+    """
+    GATEWAY_CHOICES = [('razorpay', 'Razorpay')]
+
+    gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES, default='razorpay')
+    event_id = models.CharField(max_length=255, db_index=True)
+    event_type = models.CharField(max_length=100, blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    succeeded = models.BooleanField(default=False)
+    payload_sha256 = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['gateway', 'event_id'], name='uniq_gateway_event'),
+        ]
+        indexes = [
+            models.Index(fields=['gateway', 'event_id']),
+            models.Index(fields=['received_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.gateway}:{self.event_id} ({self.event_type})"

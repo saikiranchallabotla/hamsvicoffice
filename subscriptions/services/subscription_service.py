@@ -499,47 +499,9 @@ class SubscriptionService:
         )
     
     # =========================================================================
-    # CANCELLATION
+    # AUTO-RENEW TOGGLE
     # =========================================================================
-    
-    @classmethod
-    def cancel_subscription(cls, user, subscription_id: str) -> dict:
-        """
-        Cancel a subscription (remains active until expiry).
-        
-        Args:
-            user: Django User object
-            subscription_id: Subscription UUID
-        
-        Returns:
-            {ok: bool, reason: str}
-        """
-        from subscriptions.models import UserModuleSubscription
-        
-        try:
-            sub = UserModuleSubscription.objects.get(id=subscription_id, user=user)
-        except UserModuleSubscription.DoesNotExist:
-            return cls._fail("Subscription not found.", code="NOT_FOUND")
-        
-        if sub.status in ['cancelled', 'expired']:
-            return cls._fail("Subscription already cancelled/expired.", code="ALREADY_CANCELLED")
-        
-        sub.cancel()
-        
-        cls._audit_log(user, "subscription_cancelled", {
-            "subscription_id": subscription_id,
-            "module": sub.module.code,
-            "expires_at": sub.expires_at.isoformat(),
-        })
-        
-        return cls._success(
-            f"Subscription cancelled. Access continues until {sub.expires_at.strftime('%B %d, %Y')}.",
-            data={
-                "subscription_id": subscription_id,
-                "expires_at": sub.expires_at.isoformat(),
-            }
-        )
-    
+
     @classmethod
     def toggle_auto_renew(cls, user, subscription_id: str, enable: bool) -> dict:
         """Toggle auto-renewal for a subscription."""
@@ -746,69 +708,6 @@ class SubscriptionService:
                 "old_expires_at": old_expires.isoformat(),
                 "new_expires_at": new_expires.isoformat(),
                 "plan_term_months": plan_term,
-            }
-        )
-    
-    @classmethod
-    def cancel(cls, user, subscription_id: str, immediate: bool = False) -> dict:
-        """
-        Cancel a subscription.
-        
-        Args:
-            user: Django User object
-            subscription_id: Subscription UUID
-            immediate: If True, cancel immediately. If False, cancel at period end.
-        
-        Returns:
-            {ok: bool, reason: str, data: {cancel_at, access_until}}
-        """
-        from subscriptions.models import UserModuleSubscription
-        
-        try:
-            sub = UserModuleSubscription.objects.get(id=subscription_id, user=user)
-        except UserModuleSubscription.DoesNotExist:
-            return cls._fail("Subscription not found.", code="NOT_FOUND")
-        
-        if sub.status in ['cancelled', 'expired']:
-            return cls._fail("Subscription already cancelled or expired.", code="ALREADY_CANCELLED")
-        
-        now = timezone.now()
-        
-        if immediate:
-            # Cancel immediately
-            sub.status = 'cancelled'
-            sub.cancelled_at = now
-            sub.cancel_at_period_end = False
-            access_until = now
-        else:
-            # Cancel at end of billing period
-            sub.cancel_at_period_end = True
-            sub.cancelled_at = now
-            sub.auto_renew = False
-            access_until = sub.expires_at
-        
-        sub.save()
-        
-        cls._audit_log(user, "subscription_cancelled", {
-            "subscription_id": subscription_id,
-            "module": sub.module.code,
-            "immediate": immediate,
-            "access_until": access_until.isoformat(),
-        })
-        
-        if immediate:
-            msg = "Subscription cancelled immediately."
-        else:
-            msg = f"Subscription will be cancelled on {access_until.strftime('%B %d, %Y')}. Access continues until then."
-        
-        return cls._success(
-            msg,
-            data={
-                "subscription_id": subscription_id,
-                "module": sub.module.code,
-                "cancelled_at": now.isoformat(),
-                "access_until": access_until.isoformat(),
-                "immediate": immediate,
             }
         )
     

@@ -277,6 +277,7 @@ class PaymentService:
         })
 
     @classmethod
+    @transaction.atomic
     def verify_payment(
         cls,
         razorpay_order_id: str,
@@ -296,9 +297,10 @@ class PaymentService:
         """
         from subscriptions.models import Payment, UserModuleSubscription, ModulePricing
         
-        # Get payment record by gateway_order_id
+        # Get payment record by gateway_order_id (row-locked to prevent
+        # double-processing if redirect and webhook fire concurrently).
         try:
-            payment = Payment.objects.get(gateway_order_id=razorpay_order_id)
+            payment = Payment.objects.select_for_update().get(gateway_order_id=razorpay_order_id)
         except Payment.DoesNotExist:
             return cls._fail("Order not found.", code="ORDER_NOT_FOUND")
         
@@ -416,6 +418,7 @@ class PaymentService:
         return result
     
     @classmethod
+    @transaction.atomic
     def process_refund(
         cls,
         order_id: str,
@@ -434,12 +437,12 @@ class PaymentService:
             {ok: bool, reason: str, data: {refund_id, amount}}
         """
         from subscriptions.models import Payment
-        
+
         try:
-            payment = Payment.objects.get(order_id=order_id)
+            payment = Payment.objects.select_for_update().get(order_id=order_id)
         except Payment.DoesNotExist:
             return cls._fail("Order not found.", code="ORDER_NOT_FOUND")
-        
+
         if payment.status not in ('completed', 'partially_refunded'):
             return cls._fail("Payment cannot be refunded.", code="INVALID_STATUS")
         
@@ -546,24 +549,30 @@ class PaymentService:
         event_type = data.get('event', '') or data.get('type', '')
         
         logger.info(f"Webhook received: {event_type} (event_id: {event_id})")
-        
-        # Step 4: Idempotency check - skip duplicate events
+
+        # Step 4: DB-backed idempotency. If event already succeeded, return.
         if cls._is_duplicate_event(event_id):
             logger.info(f"Duplicate webhook event ignored: {event_id}")
             return cls._success(f"Event {event_id} already processed", data={"action": "DUPLICATE_IGNORED"})
-        
+
+        # Step 4b: Reserve the event_id atomically. If another worker already
+        # inserted, treat as duplicate and short-circuit.
+        if event_id and not cls._record_event_received(event_id, event_type, payload):
+            logger.info(f"Webhook event already in flight (race): {event_id}")
+            return cls._success(f"Event {event_id} in flight", data={"action": "DUPLICATE_IGNORED"})
+
         # Step 5: Process event based on type
         try:
             result = cls._process_webhook_event(event_type, data)
-            
-            # Step 6: Mark event as processed if successful
-            if result.get('ok'):
-                cls._mark_event_processed(event_id)
-            
+
+            # Step 6: Mark event as processed
+            cls._mark_event_processed(event_id, succeeded=bool(result.get('ok')))
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Webhook processing error: {e}")
+            cls._mark_event_processed(event_id, succeeded=False)
             return cls._fail(f"Processing error: {str(e)}", code="PROCESSING_ERROR")
     
     @classmethod
@@ -643,21 +652,60 @@ class PaymentService:
         return cls.mark_failed(payment, reason)
     
     @classmethod
+    @transaction.atomic
     def _handle_webhook_refund(cls, data: dict) -> Dict[str, Any]:
-        """Handle refund webhooks."""
+        """Handle refund.created / refund.processed webhooks.
+
+        Increments payment.refund_amount, transitions payment to
+        partially_refunded / refunded, and revokes subscriptions on full refund.
+        Idempotency is enforced upstream via WebhookEvent (unique event_id).
+        """
         from subscriptions.models import Payment
-        
+
         payload_entity = data.get('payload', {}).get('refund', {}).get('entity', {})
         payment_id = payload_entity.get('payment_id', '')
         refund_amount = Decimal(payload_entity.get('amount', 0)) / 100  # paise to rupees
-        
+
+        if not payment_id or refund_amount <= 0:
+            return cls._fail("Refund payload missing payment_id or amount", code="INVALID_REFUND_PAYLOAD")
+
         try:
-            payment = Payment.objects.get(gateway_payment_id=payment_id)
-            logger.info(f"Refund webhook for payment {payment.order_id}, amount: {refund_amount}")
-            return cls._success("Refund processed via webhook", data={"action": "REFUND_PROCESSED"})
+            payment = Payment.objects.select_for_update().get(gateway_payment_id=payment_id)
         except Payment.DoesNotExist:
             logger.warning(f"Payment not found for refund: {payment_id}")
             return cls._fail(f"Payment {payment_id} not found", code="PAYMENT_NOT_FOUND")
+
+        new_total_refunded = (payment.refund_amount or Decimal('0')) + refund_amount
+        if new_total_refunded > payment.total_amount:
+            new_total_refunded = payment.total_amount
+
+        payment.refund_amount = new_total_refunded
+        payment.refunded_at = timezone.now()
+        if new_total_refunded >= payment.total_amount:
+            payment.status = 'refunded'
+        else:
+            payment.status = 'partially_refunded'
+        payment.save(update_fields=['refund_amount', 'refunded_at', 'status'])
+
+        # Revoke subscriptions on full refund.
+        if payment.status == 'refunded':
+            for sub in payment.subscriptions.all():
+                sub.status = 'cancelled'
+                sub.cancelled_at = timezone.now()
+                sub.expires_at = timezone.now()
+                sub.auto_renew = False
+                sub.save(update_fields=['status', 'cancelled_at', 'expires_at', 'auto_renew'])
+
+        cls._audit_log(payment.user, "refund_webhook_processed", {
+            "order_id": payment.order_id,
+            "payment_id": payment_id,
+            "amount": str(refund_amount),
+            "total_refunded": str(new_total_refunded),
+            "status": payment.status,
+        })
+
+        logger.info(f"Refund webhook applied to {payment.order_id}: +{refund_amount} (total {new_total_refunded})")
+        return cls._success("Refund processed via webhook", data={"action": "REFUND_PROCESSED"})
     
     # =========================================================================
     # STATUS UPDATE METHODS
@@ -795,14 +843,10 @@ class PaymentService:
         Returns:
             (is_valid: bool, error_message: Optional[str])
         """
-        # Get webhook secret from settings
+        # Get webhook secret from settings - REQUIRED, no DEBUG bypass.
         webhook_secret = getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', '')
-        
-        # Skip verification in DEBUG mode without secret configured
         if not webhook_secret:
-            if settings.DEBUG:
-                logger.warning("Webhook signature verification skipped (no secret configured)")
-                return True, None
+            logger.error("RAZORPAY_WEBHOOK_SECRET not configured; rejecting webhook.")
             return False, "Webhook secret not configured"
         
         # Get signature from headers
@@ -829,23 +873,43 @@ class PaymentService:
     
     @classmethod
     def _is_duplicate_event(cls, event_id: str) -> bool:
-        """Check if webhook event has already been processed."""
+        """Check if webhook event has already been processed (DB-backed)."""
         if not event_id:
             return False
-        
-        from django.core.cache import cache
-        cache_key = f"razorpay_webhook_{event_id}"
-        return cache.get(cache_key) is not None
-    
+        from subscriptions.models import WebhookEvent
+        return WebhookEvent.objects.filter(
+            gateway='razorpay', event_id=event_id, succeeded=True
+        ).exists()
+
     @classmethod
-    def _mark_event_processed(cls, event_id: str) -> None:
-        """Mark webhook event as processed (TTL: 24 hours)."""
+    def _record_event_received(cls, event_id: str, event_type: str, payload: bytes) -> bool:
+        """Insert a WebhookEvent row before processing. Returns False if the
+        row already exists (another worker is handling it or it was processed)."""
+        if not event_id:
+            return True
+        from subscriptions.models import WebhookEvent
+        from django.db import IntegrityError
+        try:
+            WebhookEvent.objects.create(
+                gateway='razorpay',
+                event_id=event_id,
+                event_type=event_type or '',
+                payload_sha256=hashlib.sha256(payload or b'').hexdigest(),
+            )
+            return True
+        except IntegrityError:
+            return False
+
+    @classmethod
+    def _mark_event_processed(cls, event_id: str, succeeded: bool = True) -> None:
+        """Mark webhook event as processed."""
         if not event_id:
             return
-        
-        from django.core.cache import cache
-        cache_key = f"razorpay_webhook_{event_id}"
-        cache.set(cache_key, True, 60 * 60 * 24)  # 24 hours
+        from subscriptions.models import WebhookEvent
+        from django.utils import timezone
+        WebhookEvent.objects.filter(
+            gateway='razorpay', event_id=event_id
+        ).update(processed_at=timezone.now(), succeeded=succeeded)
     
     # =========================================================================
     # RAZORPAY API
@@ -907,13 +971,20 @@ class PaymentService:
         payment_id: str,
         signature: str
     ) -> bool:
-        """Verify Razorpay payment signature."""
-        if order_id.startswith('order_mock_'):
-            return True  # Skip verification for mock orders
-        
+        """Verify Razorpay payment signature.
+
+        Mock orders (`order_mock_*`) are produced only when Razorpay is not
+        configured; they never carry real money and must NOT bypass signature
+        verification here. The only legitimate caller paths are dev fixtures.
+        """
+        secret = getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+        if not secret:
+            logger.error("RAZORPAY_KEY_SECRET not configured; refusing to verify signature.")
+            return False
+
         message = f"{order_id}|{payment_id}"
         expected = hmac.new(
-            getattr(settings, 'RAZORPAY_KEY_SECRET', '').encode(),
+            secret.encode(),
             message.encode(),
             hashlib.sha256
         ).hexdigest()
