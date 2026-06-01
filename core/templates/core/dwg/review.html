@@ -1,0 +1,88 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Review Legend &mdash; {{ t.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <h3 class="mb-3"><i class="bi bi-list-check me-2"></i>Review Legend &mdash; {{ t.name }}</h3>
+
+  <div id="status-panel" class="alert alert-secondary">
+    Status: <strong id="status-text">{{ t.get_status_display }}</strong>
+    {% if t.error %}<div class="mt-2 text-danger">{{ t.error }}</div>{% endif %}
+  </div>
+
+  {% if t.status == 'needs_review' or t.status == 'ready' or t.status == 'generating' %}
+    <p class="text-muted">
+      We auto-detected <strong>{{ t.legend_map|length }}</strong> distinct block symbols and
+      <strong>{{ t.zone_meta|length }}</strong> zone(s). Review the descriptions below, uncheck
+      anything you don't want counted, then generate the Excel inventory.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th style="width: 40px;">Include</th>
+              <th>Block name (AutoCAD)</th>
+              <th>Description (editable)</th>
+              <th class="text-end">Detected count</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for block, info in t.legend_map.items %}
+            <tr>
+              <td class="text-center">
+                <input type="checkbox" name="include__{{ block }}"
+                       {% if info.included %}checked{% endif %}>
+              </td>
+              <td><code>{{ block }}</code></td>
+              <td>
+                <input type="text" name="desc__{{ block }}" class="form-control form-control-sm"
+                       value="{{ info.desc }}">
+              </td>
+              <td class="text-end">{{ info.qty_detected }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if t.zone_meta %}
+      <h6 class="mt-4">Detected zones</h6>
+      <ul>
+        {% for z in t.zone_meta %}<li>{{ z.name }}</li>{% endfor %}
+      </ul>
+      {% else %}
+      <div class="alert alert-warning">No zone polygons were detected. All counts will be reported under <em>Unassigned</em>.</div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary mt-3">
+        <i class="bi bi-file-earmark-excel me-1"></i> Generate Excel Inventory
+      </button>
+      <a href="{% url 'dwg_upload' %}" class="btn btn-link">Back</a>
+    </form>
+  {% else %}
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 text-muted">Parsing drawing&hellip; this may take up to a minute for large DWG files.</p>
+    </div>
+    <script>
+      const url = "{% url 'dwg_status' t.id %}";
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(url);
+          const j = await r.json();
+          document.getElementById('status-text').textContent = j.status;
+          if (j.status === 'needs_review' || j.status === 'failed' || j.status === 'ready') {
+            clearInterval(poll);
+            location.reload();
+          }
+        } catch (e) { /* ignore */ }
+      }, 2500);
+    </script>
+  {% endif %}
+</div>
+{% endblock %}

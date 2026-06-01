@@ -1,0 +1,39 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Takeoff Ready &mdash; {{ t.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-check2-circle text-success me-2"></i>{{ t.name }} &mdash; takeoff ready</h3>
+    <a href="{% url 'dwg_download' t.id %}" class="btn btn-success">
+      <i class="bi bi-download me-1"></i> Download Excel
+    </a>
+  </div>
+
+  <p class="text-muted">
+    Detected {{ t.summary|length }} distinct items across {{ zones|length }} zone(s).
+    The Excel file contains the full breakdown by zone.
+  </p>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+      <thead class="table-dark">
+        <tr><th>Description</th><th class="text-end">Total quantity</th></tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr><td>{{ r.desc }}</td><td class="text-end">{{ r.total }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="text-muted mt-3">
+    <a href="{% url 'dwg_review' t.id %}">&larr; Edit mapping &amp; regenerate</a>
+    &middot;
+    <a href="{% url 'dwg_upload' %}">Upload another</a>
+  </p>
+</div>
+{% endblock %}

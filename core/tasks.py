@@ -1597,3 +1597,80 @@ def generate_bill_document_task(self, job_id):
             pass
         
         return {'status': 'failed', 'error': str(e)}
+
+
+# ==============================================================================
+# DWG TAKEOFF TASK
+# ==============================================================================
+
+@shared_task(bind=True, max_retries=2)
+def parse_dwg_takeoff(self, takeoff_id):
+    """Convert DWG->DXF if needed, parse legend + zones, mark needs_review."""
+    import os
+    import tempfile
+    from django.core.files.base import ContentFile
+    from core.models import DwgTakeoff
+    from core.dwg.converter import dwg_to_dxf, ConversionError
+    from core.dwg.parser import parse_dxf, DxfParseError
+
+    try:
+        t = DwgTakeoff.objects.get(id=takeoff_id)
+    except DwgTakeoff.DoesNotExist:
+        logger.error(f"DwgTakeoff {takeoff_id} not found")
+        return {"status": "error", "error": "not_found"}
+
+    try:
+        # Stage source file onto local disk so subprocess + ezdxf can read it.
+        with t.source_file.open("rb") as fh:
+            src_bytes = fh.read()
+        suffix = ".dwg" if t.source_format == "dwg" else ".dxf"
+        tmp_src = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        tmp_src.write(src_bytes)
+        tmp_src.close()
+
+        if t.source_format == "dwg":
+            t.status = "converting"
+            t.save(update_fields=["status", "updated_at"])
+            dxf_path = dwg_to_dxf(tmp_src.name)
+            with open(dxf_path, "rb") as fh:
+                t.dxf_file.save(
+                    os.path.basename(dxf_path),
+                    ContentFile(fh.read()),
+                    save=False,
+                )
+        else:
+            dxf_path = tmp_src.name
+
+        t.status = "parsing"
+        t.save(update_fields=["status", "dxf_file", "updated_at"])
+
+        result = parse_dxf(dxf_path)
+        t.legend_map = result["legend_map"]
+        t.zone_meta = result["zone_meta"]
+
+        if not t.legend_map:
+            t.status = "failed"
+            t.error = "No legend symbols detected. Ensure the drawing has block references with adjacent description text."
+        else:
+            t.status = "needs_review"
+        t.save()
+
+        try:
+            os.unlink(tmp_src.name)
+        except Exception:
+            pass
+
+        return {"status": t.status, "blocks": len(t.legend_map), "zones": len(t.zone_meta)}
+
+    except (ConversionError, DxfParseError) as e:
+        t.status = "failed"
+        t.error = str(e)
+        t.save(update_fields=["status", "error", "updated_at"])
+        logger.error(f"DWG takeoff {takeoff_id} failed: {e}")
+        return {"status": "failed", "error": str(e)}
+    except Exception as e:
+        t.status = "failed"
+        t.error = f"{type(e).__name__}: {e}"
+        t.save(update_fields=["status", "error", "updated_at"])
+        logger.exception(f"DWG takeoff {takeoff_id} crashed")
+        return {"status": "failed", "error": str(e)}

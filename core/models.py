@@ -982,6 +982,53 @@ class LetterSettings(models.Model):
         return parts
 
 
+class DwgTakeoff(models.Model):
+    """AutoCAD drawing (DWG/DXF) inventory takeoff: detect legend symbols,
+    count occurrences, group by zone, export Excel."""
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("converting", "Converting DWG"),
+        ("parsing", "Parsing"),
+        ("needs_review", "Needs Review"),
+        ("generating", "Generating Excel"),
+        ("ready", "Ready"),
+        ("failed", "Failed"),
+    )
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='dwg_takeoffs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dwg_takeoffs')
+
+    name = models.CharField(max_length=255)
+    source_file = models.FileField(upload_to="dwg_uploads/%Y/%m/%d/")
+    source_format = models.CharField(max_length=8, default="dxf")  # dwg|dxf
+    dxf_file = models.FileField(upload_to="dwg_converted/%Y/%m/%d/", null=True, blank=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    # legend_map: {block_name: {"desc": str, "qty_detected": int, "included": bool}}
+    legend_map = models.JSONField(default=dict, blank=True)
+    # zone_meta: [{"name": "Zone-1", "polygon": [[x,y], ...]}]
+    zone_meta = models.JSONField(default=list, blank=True)
+    # summary: {description: {zone_name: count}} computed during generate
+    summary = models.JSONField(default=dict, blank=True)
+
+    result_file = models.FileField(upload_to="dwg_results/%Y/%m/%d/", null=True, blank=True)
+    error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.status})"
+
+
 class UserGroupOrder(models.Model):
     """Per-user custom ordering of groups in the three-panel views.
 

@@ -54,6 +54,11 @@ urlpatterns = [
     path('datasets/', include('datasets.urls')),
 
     # -------------------------
+    # DWG Takeoff (AutoCAD inventory extractor)
+    # -------------------------
+    path('dwg-takeoff/', include('core.urls_dwg')),
+
+    # -------------------------
     # Legacy Authentication (will be deprecated)
     # -------------------------
     path('register/', auth_views.register, name='register_legacy'),

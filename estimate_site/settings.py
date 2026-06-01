@@ -337,7 +337,12 @@ CELERY_TASK_ROUTES = {
     'core.tasks.process_excel_upload': {'queue': 'excel_processing'},
     'core.tasks.generate_bill': {'queue': 'excel_processing'},
     'core.tasks.generate_workslip': {'queue': 'excel_processing'},
+    'core.tasks.parse_dwg_takeoff': {'queue': 'excel_processing'},
 }
+
+# DWG Takeoff: path to the ODA File Converter binary (used to convert .dwg -> .dxf)
+# Install from https://www.opendesign.com/guestfiles/oda_file_converter
+ODA_CONVERTER_PATH = os.getenv('ODA_CONVERTER_PATH', '')
 
 
 # ==============================================================================
