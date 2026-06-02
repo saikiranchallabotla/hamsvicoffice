@@ -458,10 +458,8 @@
                         {% elif card.status == 'trial' and card.module.url_name %}
                             <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-trial">
                                 <i class="bi bi-hourglass-split me-1"></i> Open · Trial
+                                {% if card.days_left > 0 %}<span class="days-badge">{{ card.days_left }}d left</span>{% endif %}
                             </a>
-                            <div class="trial-countdown-badge" id="trial-countdown-{{ card.module.code }}" data-expires="{{ card.expires_at|date:'c' }}" data-module="{{ card.module.code }}">
-                                <i class="bi bi-clock me-1"></i><span class="countdown-text">Loading...</span>
-                            </div>
                         {% elif card.status == 'free' and card.module.url_name %}
                             <a href="{% url card.module.url_name %}" class="btn btn-sm btn-block btn-primary">
                                 <i class="bi bi-arrow-right me-1"></i> Open · Free

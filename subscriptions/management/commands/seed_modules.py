@@ -71,6 +71,16 @@ class Command(BaseCommand):
                 'display_order': 7,
                 'features': ['Create AMC estimates', 'Custom backend data', 'Excel/MS Word Export', 'Multiple categories'],
             },
+            {
+                'code': 'dwg_takeoff',
+                'name': 'DWG Takeoff',
+                'description': 'Extract MEP symbol quantities from AutoCAD drawings (DWG/DXF) grouped by zone',
+                'url_name': 'dwg_upload',
+                'icon': 'bounding-box-circles',
+                'color': '#0EA5E9',
+                'display_order': 8,
+                'features': ['DWG & DXF input', 'Auto-detect legend symbols', 'Zone-wise quantity Excel', 'Editable mapping review'],
+            },
         ]
 
         for data in modules_data:
