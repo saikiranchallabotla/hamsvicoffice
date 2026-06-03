@@ -27,8 +27,11 @@
             <tr>
               <th style="width: 40px;">Include</th>
               <th>Block name (AutoCAD)</th>
+              <th>Legend</th>
               <th>Description (editable)</th>
-              <th class="text-end">Detected count</th>
+              <th class="text-end" title="From the drawing's QTY column, if present">Declared</th>
+              <th class="text-end" title="What we counted across the drawing">Detected</th>
+              <th>Layers (uncheck to exclude)</th>
             </tr>
           </thead>
           <tbody>
@@ -39,11 +42,28 @@
                        {% if info.included %}checked{% endif %}>
               </td>
               <td><code>{{ block }}</code></td>
+              <td><span class="badge bg-secondary">{{ info.group|default:"Default" }}</span></td>
               <td>
                 <input type="text" name="desc__{{ block }}" class="form-control form-control-sm"
                        value="{{ info.desc }}">
               </td>
-              <td class="text-end">{{ info.qty_detected }}</td>
+              <td class="text-end">
+                {% if info.declared_qty %}{{ info.declared_qty }}{% else %}&mdash;{% endif %}
+              </td>
+              <td class="text-end">
+                {{ info.qty_detected }}
+                {% if info.declared_qty and info.declared_qty != info.qty_detected %}
+                  <span class="badge bg-warning text-dark" title="Declared QTY differs from detected">&Delta;</span>
+                {% endif %}
+              </td>
+              <td>
+                {% for layer, count in info.layers.items %}
+                  <label class="me-2 small">
+                    <input type="checkbox" name="layer__{{ block }}" value="{{ layer }}" checked>
+                    {{ layer }} <span class="text-muted">({{ count }})</span>
+                  </label>
+                {% endfor %}
+              </td>
             </tr>
           {% endfor %}
           </tbody>
@@ -59,6 +79,78 @@
       <div class="alert alert-warning">No zone polygons were detected. All counts will be reported under <em>Unassigned</em>.</div>
       {% endif %}
 
+      {% if t.linear_by_layer %}
+      <h6 class="mt-4">Pipes / Lines (per layer)</h6>
+      <p class="small text-muted mb-2">
+        Each LINE / POLYLINE layer below is a candidate pipe class. Type a
+        description (e.g. <em>25mm CPVC Pipe</em>) to include it in the takeoff;
+        leave blank to ignore the layer.
+      </p>
+      <div class="row g-2 mb-2">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Drawing units &rarr; reporting units</label>
+          <select name="unit_scale" class="form-select form-select-sm">
+            {% with us=t.unit_scale|default:1.0 %}
+            <option value="1"      {% if us == 1.0 %}selected{% endif %}>1.0 — same units</option>
+            <option value="0.001"  {% if us == 0.001 %}selected{% endif %}>0.001 — mm &rarr; m</option>
+            <option value="0.01"   {% if us == 0.01 %}selected{% endif %}>0.01 — cm &rarr; m</option>
+            <option value="0.0254" {% if us == 0.0254 %}selected{% endif %}>0.0254 — in &rarr; m</option>
+            <option value="0.3048" {% if us == 0.3048 %}selected{% endif %}>0.3048 — ft &rarr; m</option>
+            {% endwith %}
+          </select>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Layer</th>
+              <th class="text-end">Raw length (drawing units)</th>
+              <th>Description (blank = ignore)</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for layer, length in t.linear_by_layer.items %}
+            <tr>
+              <td><code>{{ layer }}</code></td>
+              <td class="text-end">{{ length|floatformat:2 }}</td>
+              <td>
+                <input type="text" name="pipe_layer__{{ layer }}"
+                       class="form-control form-control-sm"
+                       placeholder="e.g. 25mm Pipe">
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if t.viewports %}
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="split_by_layout" id="sbl" checked>
+        <label class="form-check-label" for="sbl">
+          Split output by floor plan (one Excel sheet per paper-space layout: {{ t.viewports.keys|join:", " }})
+        </label>
+      </div>
+      {% endif %}
+
+      {% if t.layouts|length > 1 %}
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="include_paper_space" id="ips">
+        <label class="form-check-label" for="ips">
+          Also count inserts placed directly in paper-space layouts ({{ t.layouts|join:", " }})
+        </label>
+      </div>
+      {% endif %}
+
+      {% if t.warnings %}
+      <div class="alert alert-warning small">
+        <strong>Warnings:</strong>
+        <ul class="mb-0">{% for w in t.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
       <button type="submit" class="btn btn-primary mt-3">
         <i class="bi bi-file-earmark-excel me-1"></i> Generate Excel Inventory
       </button>
@@ -67,7 +159,10 @@
   {% else %}
     <div class="text-center py-5">
       <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-3 text-muted">Parsing drawing&hellip; this may take up to a minute for large DWG files.</p>
+      <p class="mt-3 text-muted" id="step-text">Parsing drawing&hellip; this may take up to a minute for large DWG files.</p>
+      <div class="progress mt-3 mx-auto" style="max-width: 400px; height: 8px;">
+        <div id="pbar" class="progress-bar" role="progressbar" style="width: {{ t.progress }}%"></div>
+      </div>
     </div>
     <script>
       const url = "{% url 'dwg_status' t.id %}";
@@ -76,6 +171,10 @@
           const r = await fetch(url);
           const j = await r.json();
           document.getElementById('status-text').textContent = j.status;
+          if (j.step) document.getElementById('step-text').textContent = j.step;
+          if (typeof j.progress === 'number') {
+            document.getElementById('pbar').style.width = j.progress + '%';
+          }
           if (j.status === 'needs_review' || j.status === 'failed' || j.status === 'ready') {
             clearInterval(poll);
             location.reload();

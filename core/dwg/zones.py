@@ -1,18 +1,21 @@
-"""Zone polygon detection + point-in-polygon assignment.
+"""Zone detection + assignment.
 
-Strategy:
-1. Find TEXT/MTEXT entities whose content matches `zone[-_\\s]?\\d+` or `zone[-_\\s]?[a-z]`.
-2. Find candidate boundary polylines: closed LWPOLYLINE on a layer matching ZONE*
-   or BOUNDARY*, OR any closed LWPOLYLINE that contains a zone label inside it.
-3. Each polygon stores the inner label as its name.
+Zones in MEP floor plans are usually labeled (`zone-1`, `zone-2`, …) but
+NOT enclosed by an explicit boundary polyline — the architectural walls
+imply the region. So our primary strategy is **nearest-label assignment**:
+each block insert is attributed to the closest zone label.
 
-Shapely-free fallback (ray casting) so the module works even if shapely isn't installed.
+If a closed polyline *does* enclose a zone label (rare but possible), we
+prefer point-in-polygon and only fall back to nearest-label when nothing
+contains the point.
 """
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Tuple, Optional
 
-ZONE_RE = re.compile(r"zone\s*[-_]?\s*([a-z0-9]+)", re.IGNORECASE)
+# Matches "zone-1", "zone 2", "ZONE_A", "Zone-12B" etc.
+# Tolerates an MTEXT control prefix (e.g. "\fArial|b0|i0;zone-1").
+ZONE_RE = re.compile(r"\bzone\s*[-_]?\s*([a-z0-9]+)", re.IGNORECASE)
 
 
 Point = Tuple[float, float]
@@ -21,19 +24,22 @@ Point = Tuple[float, float]
 @dataclass
 class Zone:
     name: str
-    polygon: List[Point]  # list of (x, y)
+    polygon: List[Point]
     label_xy: Optional[Point] = None
 
     def to_meta(self) -> dict:
-        return {"name": self.name, "polygon": [list(p) for p in self.polygon]}
+        return {
+            "name": self.name,
+            "polygon": [list(p) for p in self.polygon],
+            "label_xy": list(self.label_xy) if self.label_xy else None,
+        }
 
 
 def _point_in_poly(x: float, y: float, poly: List[Point]) -> bool:
-    """Ray-casting point in polygon."""
     n = len(poly)
-    inside = False
     if n < 3:
         return False
+    inside = False
     j = n - 1
     for i in range(n):
         xi, yi = poly[i]
@@ -55,26 +61,48 @@ def _bbox_area(poly: List[Point]) -> float:
     return max(0.0, (maxx - minx) * (maxy - miny))
 
 
+def _text_content(e) -> str:
+    try:
+        if e.dxftype() == "TEXT":
+            return (e.dxf.text or "").strip()
+        if e.dxftype() == "MTEXT":
+            # plain_text strips MTEXT formatting codes.
+            try:
+                return (e.plain_text() or "").strip()
+            except Exception:
+                return (e.text or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
 def detect_zones(msp) -> List[Zone]:
-    """Detect zone polygons from an ezdxf modelspace."""
+    """Detect zone labels and (if any) their enclosing polygons."""
     labels: List[Tuple[str, Point]] = []
     for e in msp.query("TEXT MTEXT"):
-        try:
-            txt = (e.dxf.text if e.dxftype() == "TEXT" else e.text) or ""
-        except Exception:
+        txt = _text_content(e)
+        if not txt:
             continue
-        m = ZONE_RE.search(str(txt))
+        m = ZONE_RE.search(txt)
         if not m:
             continue
         name = f"Zone-{m.group(1).upper()}"
         try:
-            if e.dxftype() == "TEXT":
-                ip = e.dxf.insert
-            else:
-                ip = e.dxf.insert
+            ip = e.dxf.insert
             labels.append((name, (float(ip[0]), float(ip[1]))))
         except Exception:
             continue
+
+    # De-duplicate labels: same name -> keep the first (others are usually
+    # leader text or the area annotation right next to it).
+    seen = set()
+    deduped: List[Tuple[str, Point]] = []
+    for name, xy in labels:
+        if name in seen:
+            continue
+        seen.add(name)
+        deduped.append((name, xy))
+    labels = deduped
 
     polys: List[List[Point]] = []
     for pl in msp.query("LWPOLYLINE"):
@@ -113,16 +141,18 @@ def detect_zones(msp) -> List[Zone]:
             used_polys.add(best_idx)
             zones.append(Zone(name=label_name, polygon=polys[best_idx], label_xy=(lx, ly)))
         else:
-            # No enclosing polygon -> create a synthetic small box around label so
-            # at least the zone is recorded; assignment will fall back to nearest-label.
             zones.append(Zone(name=label_name, polygon=[], label_xy=(lx, ly)))
     return zones
 
 
 def locate_zone(x: float, y: float, zones: List[Zone]) -> str:
-    """Return the name of the zone containing (x,y), or 'Unassigned'.
+    """Return the name of the zone for (x, y).
 
-    Falls back to nearest zone label when no polygon contains the point.
+    Order of preference:
+      1. Any polygon that geometrically contains (x, y).
+      2. Nearest zone label (Euclidean) — the primary path when no polygon
+         exists, which is the common case for our floor plans.
+      3. 'Unassigned' if no labels exist at all.
     """
     for z in zones:
         if z.polygon and _point_in_poly(x, y, z.polygon):
@@ -142,8 +172,14 @@ def locate_zone(x: float, y: float, zones: List[Zone]) -> str:
 
 
 def zones_from_meta(meta: list) -> List[Zone]:
-    out = []
+    """Rehydrate Zone objects from JSON. Preserves label_xy so nearest-label
+    assignment continues to work after a round-trip through the database."""
+    out: List[Zone] = []
     for z in meta or []:
-        poly = [tuple(p) for p in z.get("polygon", [])]
-        out.append(Zone(name=z["name"], polygon=poly))
+        poly = [tuple(p) for p in z.get("polygon", []) or []]
+        label_xy = z.get("label_xy")
+        if label_xy:
+            label_xy = (float(label_xy[0]), float(label_xy[1]))
+        out.append(Zone(name=z["name"], polygon=poly, label_xy=label_xy))
     return out
+

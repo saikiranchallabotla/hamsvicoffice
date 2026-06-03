@@ -1619,8 +1619,16 @@ def parse_dwg_takeoff(self, takeoff_id):
         logger.error(f"DwgTakeoff {takeoff_id} not found")
         return {"status": "error", "error": "not_found"}
 
+    import json
+
+    def _step(status, step, pct):
+        t.status = status
+        t.current_step = step
+        t.progress = pct
+        t.save(update_fields=["status", "current_step", "progress", "updated_at"])
+
     try:
-        # Stage source file onto local disk so subprocess + ezdxf can read it.
+        _step("pending", "Staging source file", 5)
         with t.source_file.open("rb") as fh:
             src_bytes = fh.read()
         suffix = ".dwg" if t.source_format == "dwg" else ".dxf"
@@ -1629,8 +1637,7 @@ def parse_dwg_takeoff(self, takeoff_id):
         tmp_src.close()
 
         if t.source_format == "dwg":
-            t.status = "converting"
-            t.save(update_fields=["status", "updated_at"])
+            _step("converting", "Converting DWG to DXF (ODA)", 20)
             dxf_path = dwg_to_dxf(tmp_src.name)
             with open(dxf_path, "rb") as fh:
                 t.dxf_file.save(
@@ -1641,18 +1648,46 @@ def parse_dwg_takeoff(self, takeoff_id):
         else:
             dxf_path = tmp_src.name
 
-        t.status = "parsing"
-        t.save(update_fields=["status", "dxf_file", "updated_at"])
+        _step("parsing", "Reading DXF and detecting legend / zones", 55)
+        t.save(update_fields=["dxf_file", "updated_at"])
 
         result = parse_dxf(dxf_path)
         t.legend_map = result["legend_map"]
         t.zone_meta = result["zone_meta"]
+        t.legend_bbox = result.get("legend_bbox")
+        t.layouts = result.get("layouts", [])
+        t.viewports = result.get("viewports", {}) or {}
+        t.warnings = result.get("warnings", [])
+
+        # Cache the full insert list so re-runs skip re-parsing the DXF.
+        inserts = result.get("inserts", [])
+        if inserts:
+            payload = json.dumps(inserts).encode("utf-8")
+            t.inserts_cache.save(
+                f"inserts_{t.id}.json",
+                ContentFile(payload),
+                save=False,
+            )
+
+        # Cache the linear (pipe/line) records and per-layer aggregate.
+        linear_records = result.get("linear_records", [])
+        t.linear_by_layer = result.get("linear_by_layer", {}) or {}
+        if linear_records:
+            lin_payload = json.dumps(linear_records).encode("utf-8")
+            t.linear_cache.save(
+                f"linear_{t.id}.json",
+                ContentFile(lin_payload),
+                save=False,
+            )
 
         if not t.legend_map:
             t.status = "failed"
             t.error = "No legend symbols detected. Ensure the drawing has block references with adjacent description text."
+            t.progress = 100
         else:
             t.status = "needs_review"
+            t.progress = 100
+            t.current_step = "Ready for review"
         t.save()
 
         try:
@@ -1665,12 +1700,14 @@ def parse_dwg_takeoff(self, takeoff_id):
     except (ConversionError, DxfParseError) as e:
         t.status = "failed"
         t.error = str(e)
-        t.save(update_fields=["status", "error", "updated_at"])
+        t.progress = 100
+        t.save(update_fields=["status", "error", "progress", "updated_at"])
         logger.error(f"DWG takeoff {takeoff_id} failed: {e}")
         return {"status": "failed", "error": str(e)}
     except Exception as e:
         t.status = "failed"
         t.error = f"{type(e).__name__}: {e}"
-        t.save(update_fields=["status", "error", "updated_at"])
+        t.progress = 100
+        t.save(update_fields=["status", "error", "progress", "updated_at"])
         logger.exception(f"DWG takeoff {takeoff_id} crashed")
         return {"status": "failed", "error": str(e)}

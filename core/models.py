@@ -1010,6 +1010,31 @@ class DwgTakeoff(models.Model):
     zone_meta = models.JSONField(default=list, blank=True)
     # summary: {description: {zone_name: count}} computed during generate
     summary = models.JSONField(default=dict, blank=True)
+    # legend_bbox: [minx, miny, maxx, maxy] — used to exclude legend symbols from counts
+    legend_bbox = models.JSONField(null=True, blank=True)
+    # layouts: ['Model', 'Layout1', ...] discovered in DXF
+    layouts = models.JSONField(default=list, blank=True)
+    # viewports: { layout_name: [{minx,miny,maxx,maxy}, ...] } — per-layout
+    # model-space windows used to split takeoff by floor plan.
+    viewports = models.JSONField(default=dict, blank=True)
+    # layer_filter: {block_name: [allowed_layer, ...]} — user-edited in review UI
+    layer_filter = models.JSONField(default=dict, blank=True)
+    # Cached pre-walked INSERT records (avoids re-opening DXF on re-runs).
+    # File-backed to keep large blobs out of Postgres rows.
+    inserts_cache = models.FileField(upload_to="dwg_cache/%Y/%m/%d/", null=True, blank=True)
+    # File-backed cache of linear records: [{layer,length,mx,my,layout}, ...]
+    linear_cache = models.FileField(upload_to="dwg_cache/%Y/%m/%d/", null=True, blank=True)
+    # Aggregate length per layer (raw drawing units) shown in the review UI.
+    linear_by_layer = models.JSONField(default=dict, blank=True)
+    # User-edited mapping {layer_name: "25mm Pipe"}. Layers not present are
+    # treated as "not a pipe" and skipped during takeoff.
+    linear_mapping = models.JSONField(default=dict, blank=True)
+    # Conversion from drawing units to reporting units (1.0 = same; 0.001 mm->m).
+    unit_scale = models.FloatField(default=1.0)
+    # Progress for the long parse step
+    progress = models.PositiveSmallIntegerField(default=0)  # 0-100
+    current_step = models.CharField(max_length=64, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
 
     result_file = models.FileField(upload_to="dwg_results/%Y/%m/%d/", null=True, blank=True)
     error = models.TextField(blank=True)
