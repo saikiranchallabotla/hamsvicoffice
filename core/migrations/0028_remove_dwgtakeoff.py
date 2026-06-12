@@ -10,7 +10,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.DeleteModel(
-            name='DwgTakeoff',
+        migrations.RunSQL(
+            "DROP TABLE IF EXISTS core_dwgtakeoff CASCADE;",
+            reverse_sql=migrations.RunSQL.noop,
         ),
     ]
