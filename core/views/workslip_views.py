@@ -1799,6 +1799,12 @@ def workslip(request):
 
         # E) Download Workslip
         elif action == "download_workslip":
+            # Validate that estimate rows exist (i.e., an estimate was uploaded)
+            if not ws_estimate_rows:
+                logger.error(f"[WORKSLIP] Download failed: No estimate rows in session. ws_estimate_rows={ws_estimate_rows}, session_id={request.session.session_key}")
+                return JsonResponse({"status": "error", "message": "Items not selected. Please upload an estimate first."}, status=400)
+
+            logger.info(f"[WORKSLIP] Download started: {len(ws_estimate_rows)} items, session_id={request.session.session_key}")
             exec_str = request.POST.get("exec_map", "")
             rate_str = request.POST.get("rate_map", "")
             tp_percent_str = request.POST.get("tp_percent", "")
