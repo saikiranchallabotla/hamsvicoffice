@@ -436,6 +436,7 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
 
                         for it in cb_items:
                             it['_source_ws'] = cb_ws_data
+                            it['_source_ws_vals'] = cb_ws_vals
                             it['_source_filepath'] = cb_path
                             it['_source_wb'] = cb_wb
                             it['_source_sheet'] = sheet_name
@@ -1410,15 +1411,22 @@ def build_temp_day_rates(filepath, items_list):
     We load:
       - ws_vals (data_only=True) for cached values
       - ws_formulas (data_only=False) for the formula text
+
+    Items merged in from a user's custom backend (see load_backend) carry
+    their own '_source_ws' / '_source_ws_vals' pointing at their own
+    workbook/sheet, since they don't live in the primary backend's
+    "Master Datas" sheet. Those are used instead of the default sheet.
     """
-    wb_vals = load_workbook(filepath, data_only=True)
-    wb_for = load_workbook(filepath, data_only=False)
-
-    if "Master Datas" not in wb_vals.sheetnames or "Master Datas" not in wb_for.sheetnames:
-        return {}
-
-    ws_vals = wb_vals["Master Datas"]
-    ws_for = wb_for["Master Datas"]
+    ws_vals_default = None
+    ws_for_default = None
+    try:
+        wb_vals = load_workbook(filepath, data_only=True)
+        wb_for = load_workbook(filepath, data_only=False)
+        if "Master Datas" in wb_vals.sheetnames and "Master Datas" in wb_for.sheetnames:
+            ws_vals_default = wb_vals["Master Datas"]
+            ws_for_default = wb_for["Master Datas"]
+    except Exception:
+        pass
 
     day_rates = {}
 
@@ -1427,6 +1435,11 @@ def build_temp_day_rates(filepath, items_list):
         sr = int(it.get("start_row") or 0)
         er = int(it.get("end_row") or 0)
         if not name or sr <= 0 or er <= 0:
+            continue
+
+        ws_vals = it.get("_source_ws_vals") or it.get("_source_ws") or ws_vals_default
+        ws_for = it.get("_source_ws") or ws_for_default
+        if ws_vals is None or ws_for is None:
             continue
 
         per_item = {}
@@ -1457,7 +1470,7 @@ def build_temp_day_rates(filepath, items_list):
                 if rate_calc and rate_calc > 0:
                     per_item[day_no] = float(rate_calc)  # Use int key
                     continue
-            
+
             # Last fallback: try column I (sometimes rates are there)
             rate_col_i = _safe_float(ws_vals.cell(row=r, column=9).value)
             if rate_col_i is not None and rate_col_i > 0:

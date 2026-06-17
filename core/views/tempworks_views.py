@@ -759,7 +759,8 @@ def temp_download_output(request, category):
         items_list, groups_map, units_map, ws_src, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=temp_selected_backend_id,
-            module_code='temp_works'  # Use temp_works module's own backends
+            module_code='temp_works',  # Use temp_works module's own backends
+            user=request.user
         )
     except FileNotFoundError as e:
         logger.error(f"Backend not found for temp download: {category} - {e}")
@@ -931,19 +932,22 @@ def temp_download_output(request, category):
         )
 
         # Fix rate columns (I=9, J=10) where formulas reference cells outside copied block
-        # Overlay actual cached values from ws_vals for rows with day numbers in column C
-        if ws_vals:
+        # Overlay actual cached values from this entry's own vals sheet for rows with
+        # day numbers in column C. Custom (per-user uploaded) items live in their own
+        # workbook, so use their '_source_ws_vals' instead of the primary backend's.
+        entry_ws_vals = info.get('_source_ws_vals') or ws_vals
+        if entry_ws_vals:
             for src_r in range(src_min, effective_end + 1):
                 dst_r = dst_start + (src_r - src_min)
                 # Check if this row has a day number in column C
-                day_cell = ws_vals.cell(row=src_r, column=3).value
+                day_cell = entry_ws_vals.cell(row=src_r, column=3).value
                 if day_cell not in (None, ""):
                     try:
                         day_no = int(float(day_cell))
                         if day_no > 0:
                             # This is a rate row - overlay actual values for columns I and J
                             for col in (9, 10):
-                                cached_val = ws_vals.cell(row=src_r, column=col).value
+                                cached_val = entry_ws_vals.cell(row=src_r, column=col).value
                                 if cached_val is not None:
                                     ws_out.cell(row=dst_r, column=col).value = cached_val
                     except (ValueError, TypeError):
@@ -959,7 +963,7 @@ def temp_download_output(request, category):
 
         # Build day -> output-row map for this entry (column C in source holds day number)
         day_to_out = {}
-        day_src_ws = ws_vals if ws_vals else _src_ws
+        day_src_ws = entry_ws_vals if entry_ws_vals else _src_ws
         for src_r in range(src_min, effective_end + 1):
             day_cell = day_src_ws.cell(row=src_r, column=3).value
             if day_cell in (None, ""):
@@ -1036,8 +1040,9 @@ def temp_download_output(request, category):
         start_row = info["start_row"]
         end_row = info["end_row"]
 
-        # Use data_only worksheet to get cached values
-        desc_ws = ws_vals if ws_vals else ws_src
+        # Use data_only worksheet to get cached values. Custom (per-user uploaded)
+        # items live in their own workbook, so read from their own sheet.
+        desc_ws = info.get('_source_ws_vals') or info.get('_source_ws') or ws_vals or ws_src
         base_desc = desc_ws.cell(row=start_row + 2, column=4).value or ""
         base_desc_str = str(base_desc).strip()
 
