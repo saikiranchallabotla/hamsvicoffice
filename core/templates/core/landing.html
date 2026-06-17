@@ -170,6 +170,7 @@
         /* Navbar */
         .navbar {
             background: rgba(0, 0, 0, 0.2);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             padding: 1rem 2rem;
             display: flex;
@@ -356,6 +357,7 @@
             background: rgba(255, 255, 255, 0.1);
             color: white;
             border: 2px solid rgba(255, 255, 255, 0.3);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
         }
         
@@ -383,6 +385,7 @@
         
         .feature-card {
             background: rgba(255, 255, 255, 0.08);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 16px;
@@ -701,13 +704,18 @@
         }, 3500);
 
         // Check if user has seen splash before (session storage)
-        if (sessionStorage.getItem('splashSeen')) {
+        // Guarded: sessionStorage can throw in locked-down/private browsing modes.
+        var splashSeen = false;
+        try {
+            splashSeen = !!sessionStorage.getItem('splashSeen');
+        } catch (e) {}
+        if (splashSeen) {
             document.getElementById('splash').style.display = 'none';
             document.getElementById('skipBtn').style.display = 'none';
             document.getElementById('mainContent').style.opacity = '1';
             document.getElementById('mainContent').style.animation = 'none';
         } else {
-            sessionStorage.setItem('splashSeen', 'true');
+            try { sessionStorage.setItem('splashSeen', 'true'); } catch (e) {}
         }
     </script>
 

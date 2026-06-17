@@ -1648,19 +1648,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- Persist TP fields in sessionStorage ---
+    // Guarded: sessionStorage can throw in locked-down/private browsing modes.
     function saveTPFields() {
         var tpPercentInput = document.getElementById("tp-percent-input");
         var tpTypeSelect = document.getElementById("tp-type-select");
-        if (tpPercentInput) sessionStorage.setItem("ws_tp_percent", tpPercentInput.value);
-        if (tpTypeSelect) sessionStorage.setItem("ws_tp_type", tpTypeSelect.value);
+        try {
+            if (tpPercentInput) sessionStorage.setItem("ws_tp_percent", tpPercentInput.value);
+            if (tpTypeSelect) sessionStorage.setItem("ws_tp_type", tpTypeSelect.value);
+        } catch (e) {}
     }
     function restoreTPFields() {
         var tpPercentInput = document.getElementById("tp-percent-input");
         var tpTypeSelect = document.getElementById("tp-type-select");
-        var tpPercent = sessionStorage.getItem("ws_tp_percent");
-        var tpType = sessionStorage.getItem("ws_tp_type");
-        if (tpPercentInput && tpPercent !== null) tpPercentInput.value = tpPercent;
-        if (tpTypeSelect && tpType !== null) tpTypeSelect.value = tpType;
+        try {
+            var tpPercent = sessionStorage.getItem("ws_tp_percent");
+            var tpType = sessionStorage.getItem("ws_tp_type");
+            if (tpPercentInput && tpPercent !== null) tpPercentInput.value = tpPercent;
+            if (tpTypeSelect && tpType !== null) tpTypeSelect.value = tpType;
+        } catch (e) {}
     }
     // Restore on page load
     restoreTPFields();

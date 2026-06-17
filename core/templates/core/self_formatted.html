@@ -860,7 +860,7 @@
             <h2 style="margin:0; font-size:1rem; font-weight:700; color:white; display:flex; align-items:center; gap:0.5rem;">
                 ✨ <span id="dialog-format-name" style="font-weight:600;"></span>
             </h2>
-            <button onclick="document.getElementById('use-format-dialog').close()" style="background:none; border:none; cursor:pointer; color:white; font-size:1.3rem; opacity:0.9;">
+            <button onclick="closeUseFormatDialog()" style="background:none; border:none; cursor:pointer; color:white; font-size:1.3rem; opacity:0.9;">
                 ×
             </button>
         </div>
@@ -879,7 +879,7 @@
                        required style="padding:0.6rem; border:2px dashed #667eea; border-radius:8px; cursor:pointer; font-size:0.85rem; width:100%; box-sizing:border-box;">
             </div>
             <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
-                <button type="button" onclick="document.getElementById('use-format-dialog').close()"
+                <button type="button" onclick="closeUseFormatDialog()"
                     style="padding:0.5rem 1rem; background:#f0f0f0; color:#4a5568; border:none; border-radius:8px; cursor:pointer; font-weight:500; font-size:0.85rem;">
                     Close
                 </button>
@@ -1420,7 +1420,23 @@ window.copyLivePreview = function(btn) {
         document.getElementById('dialog-format-pk').value = formatPk;
         document.getElementById('dialog-format-name').textContent = formatName;
         document.getElementById('dialog-use-source-file').value = '';
-        document.getElementById('use-format-dialog').showModal();
+        var dlg = document.getElementById('use-format-dialog');
+        // Fallback for browsers without native <dialog>.showModal() support
+        // (e.g. older Safari versions before 15.4).
+        if (typeof dlg.showModal === 'function') {
+            dlg.showModal();
+        } else {
+            dlg.setAttribute('open', '');
+        }
+    };
+
+    window.closeUseFormatDialog = function() {
+        var dlg = document.getElementById('use-format-dialog');
+        if (typeof dlg.close === 'function') {
+            dlg.close();
+        } else {
+            dlg.removeAttribute('open');
+        }
     };
     
     window.submitUseFormatForm = async function(event) {
@@ -1477,7 +1493,7 @@ window.copyLivePreview = function(btn) {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                document.getElementById('use-format-dialog').close();
+                closeUseFormatDialog();
             } else {
                 const text = await response.text();
                 alert('Error: ' + text);

@@ -1561,7 +1561,7 @@ document.addEventListener('keydown', function(e) {
     function ensureNoItemsModal() {
         if (document.getElementById('no-items-modal')) return;
         var html = ''
-            + '<div id="no-items-modal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.55);align-items:center;justify-content:center;backdrop-filter:blur(2px);">'
+            + '<div id="no-items-modal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.55);align-items:center;justify-content:center;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);">'
             + '  <div style="background:#fff;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.25);width:min(92vw,420px);overflow:hidden;font-family:inherit;animation:noItemsPop 0.18s ease-out;">'
             + '    <div style="padding:18px 20px;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);display:flex;align-items:center;gap:12px;border-bottom:1px solid #fcd34d;">'
             + '      <div style="width:40px;height:40px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.25rem;flex-shrink:0;"><i class="bi bi-exclamation-triangle-fill"></i></div>'
