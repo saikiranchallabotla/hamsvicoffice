@@ -70,7 +70,7 @@ def _apply_print_settings(wb, landscape=False):
                     header_row = r
                     break
         if header_row > 0:
-            ws.print_title_rows = '1:{}'.format(header_row)
+            ws.print_title_rows = '{0}:{0}'.format(header_row)
 
         for r in range(1, max_r + 1):
             for c in range(1, max_c + 1):
