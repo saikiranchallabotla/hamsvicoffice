@@ -37,8 +37,9 @@
     var style = document.createElement('style');
     style.id = 'group-reorder-style';
     style.textContent = [
-      '#groups-list > li.group-draggable { cursor: grab; transition: transform 180ms ease, opacity 120ms ease; }',
-      '#groups-list > li.group-draggable:active { cursor: grabbing; }',
+      '#groups-list > li.group-draggable { cursor: grab; transition: transform 180ms ease, opacity 120ms ease; -webkit-user-select: none; -moz-user-select: none; user-select: none; }',
+      '#groups-list > li.group-draggable .group-link { cursor: grab; }',
+      '#groups-list > li.group-draggable:active, #groups-list > li.group-draggable .group-link:active { cursor: grabbing; }',
       '#groups-list > li.gr-dragging { opacity: 0.35; transform: scale(0.97); }',
       '#groups-list > li.gr-dragging .group-link { box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); border-color: #6366f1; background: #eef2ff; color: #4338ca; }',
       '#groups-list .gr-drop-indicator { height: 0; border-top: 3px solid #6366f1; border-radius: 2px; margin: 2px 0; box-shadow: 0 0 6px rgba(99,102,241,0.6); pointer-events: none; list-style: none; }',
@@ -87,6 +88,12 @@
     Array.from(list.querySelectorAll(':scope > li')).forEach(function (li) {
       li.setAttribute('draggable', 'true');
       li.classList.add('group-draggable');
+      // Links/images are natively draggable in most browsers, which competes
+      // with our own li-level drag (the browser tries to drag the link itself,
+      // e.g. to bookmark/open it, instead of reordering the list). Disable that.
+      li.querySelectorAll('a, img').forEach(function (el) {
+        el.setAttribute('draggable', 'false');
+      });
     });
 
     list.addEventListener('dragstart', function (e) {
