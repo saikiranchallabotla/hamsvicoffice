@@ -2023,6 +2023,9 @@ def workslip(request):
                 _n for _, _refs in ws_referenced_by_wb.values() for _n in _refs
             })
 
+            thin = Side(border_style="thin", color="000000")
+            border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
+
             # Sheet 1: Supplement Datas N (only if supplemental items exist)
             if ws_supp_items:
                 ws_target_workslip = request.session.get("ws_target_workslip", 1) or 1
@@ -2041,7 +2044,10 @@ def workslip(request):
                 hdr.value = f"Name of the work : {ws_work_name}" if ws_work_name else "Name of the work : "
                 hdr.font = Font(bold=True, size=11)
                 hdr.alignment = Alignment(horizontal="left", vertical="center")
-                current_row = 4  # start blocks after title + header + blank row
+                for row in (1, 2):
+                    for col in range(1, 11):
+                        ws_blocks.cell(row=row, column=col).border = border_all
+                current_row = 3  # start blocks right after title + header rows
                 data_serial_blocks = 1
                 if ws_data is not None:
                     for name in ws_supp_items:
@@ -2085,8 +2091,6 @@ def workslip(request):
             # Sheet 2 (or 1 if no Supplement Datas): WorkSlip
             ws_ws = wb_out.create_sheet("WorkSlip")
 
-            thin = Side(border_style="thin", color="000000")
-            border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
             header_fill = PatternFill("solid", fgColor="FFC8C8C8")
             subtotal_fill = PatternFill("solid", fgColor="FFE6E6E6")
             supp_fill = PatternFill("solid", fgColor="FFF5E1")

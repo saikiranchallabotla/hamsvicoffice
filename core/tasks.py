@@ -575,7 +575,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             for col in range(1, 11):
                 ws_out.cell(row=row, column=col).border = border_all
 
-        cursor = 4  # start item blocks after title + header + blank row
+        cursor = 3  # start item blocks right after title + header rows
         rate_pos = {}
         data_serial = 1
 
