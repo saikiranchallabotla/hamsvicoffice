@@ -2028,13 +2028,20 @@ def workslip(request):
                 ws_target_workslip = request.session.get("ws_target_workslip", 1) or 1
                 ws_blocks = wb_out.active
                 ws_blocks.title = f"Supplement Datas {ws_target_workslip}"
-                # Add "Name of Work" header
+                # Title row
                 ws_blocks.merge_cells("A1:J1")
-                hdr = ws_blocks["A1"]
+                title_cell = ws_blocks["A1"]
+                title_cell.value = "SUPPLEMENTAL DATAS"
+                title_cell.font = Font(bold=True, size=14)
+                title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                # Add "Name of Work" header below the title
+                ws_blocks.merge_cells("A2:J2")
+                hdr = ws_blocks["A2"]
                 hdr.value = f"Name of the work : {ws_work_name}" if ws_work_name else "Name of the work : "
                 hdr.font = Font(bold=True, size=11)
                 hdr.alignment = Alignment(horizontal="left", vertical="center")
-                current_row = 3  # start blocks after header + blank row
+                current_row = 4  # start blocks after title + header + blank row
                 data_serial_blocks = 1
                 if ws_data is not None:
                     for name in ws_supp_items:

@@ -558,16 +558,24 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         thin = Side(border_style="thin", color="000000")
         border_all = Border(top=thin, left=thin, right=thin, bottom=thin)
 
-        # Add "Name of Work" header at top of Output sheet
+        # Title row
         ws_out.merge_cells("A1:J1")
-        c1 = ws_out["A1"]
+        c0 = ws_out["A1"]
+        c0.value = "DATAS"
+        c0.font = Font(bold=True, size=14)
+        c0.alignment = Alignment(horizontal="center", vertical="center")
+
+        # Add "Name of Work" header below the title
+        ws_out.merge_cells("A2:J2")
+        c1 = ws_out["A2"]
         c1.value = f"Name of the work : {normalize_text(work_name)}" if work_name else "Name of the work : "
         c1.font = Font(bold=True, size=11)
         c1.alignment = Alignment(horizontal="left", vertical="center")
-        for col in range(1, 11):
-            ws_out.cell(row=1, column=col).border = border_all
+        for row in (1, 2):
+            for col in range(1, 11):
+                ws_out.cell(row=row, column=col).border = border_all
 
-        cursor = 3  # start item blocks after header + blank row
+        cursor = 4  # start item blocks after title + header + blank row
         rate_pos = {}
         data_serial = 1
 
