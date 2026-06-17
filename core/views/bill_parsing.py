@@ -736,9 +736,9 @@ def parse_workslip_items(ws):
         amt_col = amt_columns[-1] if amt_columns else qty_col + 1
         rate_col = estimate_rate_col  # Always use Estimate Rate
     else:
-        # Fallback to default columns (old single-phase format: col 7=Qty, 8=Rate, 9=Amt)
+        # Fallback to default columns (old single-phase format: col 7=Qty, 9=Amt)
         qty_col = 7
-        rate_col = 8  # Old format had Rate at col 8
+        rate_col = estimate_rate_col  # Always use Estimate Rate, never col 8 (Amount)
         amt_col = 9
     
     print(f"DEBUG parse_workslip_items: Using columns - qty={qty_col}, rate={rate_col}, amt={amt_col} (detected from header row {header_row})")

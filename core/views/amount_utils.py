@@ -211,7 +211,7 @@ def _parse_workslip_items_for_amount(ws):
     else:
         # Fallback to old format
         qty_col = 7
-        rate_col = 8
+        rate_col = estimate_rate_col  # Always use Estimate Rate, never col 8 (Amount)
         amt_col = 9
 
     for r in range(1, max_row + 1):
@@ -525,7 +525,7 @@ def _extract_total_amount_for_action(wb, action: str, request=None) -> float:
             rate_col = estimate_rate_col  # Always use Estimate Rate
         else:
             qty_col = 7
-            rate_col = 8
+            rate_col = estimate_rate_col  # Always use Estimate Rate, never col 8 (Amount)
             amt_col = 9
 
         for r in range(1, max_row + 1):
