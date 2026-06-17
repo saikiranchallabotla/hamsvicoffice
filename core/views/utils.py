@@ -49,6 +49,7 @@ def _apply_print_settings(wb, landscape=False):
       - Portrait (default) or Landscape
       - Times New Roman font on all populated cells
       - Repeat header row(s) at top of every printed page
+      - "Page X of Y" footer on every printed page
     """
     for ws in wb.worksheets:
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
@@ -56,6 +57,9 @@ def _apply_print_settings(wb, landscape=False):
         ws.page_setup.fitToWidth = 1
         ws.page_setup.fitToHeight = 0  # unlimited pages vertically
         ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+        ws.oddFooter.center.text = "Page &P of &N"
+        ws.evenFooter.center.text = "Page &P of &N"
 
         # Auto-detect header row(s) for print titles
         # Look for rows containing "Sl" / "S.No" / "Sl.No" in column A (typical header)
