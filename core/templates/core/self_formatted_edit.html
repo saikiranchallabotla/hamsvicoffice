@@ -1,42 +1,299 @@
-{% extends "core/base.html" %}
+{% extends "core/base_modern.html" %}
+{% load static %}
+
+{% block title %}Edit Format — {{ format.name }}{% endblock %}
+
+{% block page_title %}
+<i class="bi bi-pencil-square me-2"></i>Edit Saved Format
+{% endblock %}
 
 {% block content %}
-<h2>Edit Saved Format</h2>
+
+<style>
+    .sf-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sf-card-header {
+        background: #2d3748;
+        color: white;
+        padding: 0.55rem 0.85rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-shrink: 0;
+    }
+
+    .sfe-row {
+        background: #f7fafc;
+        border-radius: 6px;
+        padding: 0.6rem 0.75rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .sfe-row-title {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-weight: 600;
+        font-size: 0.78rem;
+        color: #2d3748;
+        margin-bottom: 0.4rem;
+    }
+
+    .sfe-row-title .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        background: #38a169;
+        color: white;
+        border-radius: 50%;
+        font-size: 0.68rem;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .sfe-label {
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.72rem;
+        margin-bottom: 0.2rem;
+        display: block;
+    }
+
+    .sfe-hint {
+        color: #718096;
+        font-size: 0.68rem;
+        margin: 0.15rem 0 0.4rem;
+    }
+
+    .sfe-input,
+    .sfe-textarea {
+        width: 100%;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+        font-family: inherit;
+        background: white;
+    }
+
+    .sfe-textarea {
+        resize: vertical;
+    }
+
+    .sfe-input:focus,
+    .sfe-textarea:focus {
+        outline: none;
+        border-color: #38a169;
+        box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.12);
+    }
+
+    .sfe-file-input {
+        width: 100%;
+        padding: 0.55rem 0.7rem;
+        border: 2px dashed #cbd5e0;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .sfe-file-input:hover {
+        border-color: #38a169;
+        background: #f0fff4;
+    }
+
+    .sfe-current-file {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.76rem;
+        color: #4a5568;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.45rem 0.65rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .sfe-current-file .file-name {
+        font-weight: 600;
+        color: #2d3748;
+        word-break: break-all;
+    }
+
+    .sfe-current-file a {
+        color: #319795;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-left: auto;
+        white-space: nowrap;
+    }
+
+    .sfe-current-file a:hover {
+        text-decoration: underline;
+    }
+
+    .sfe-preview {
+        margin-top: 0.5rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .sfe-preview-bar {
+        background: #2d3748;
+        color: white;
+        padding: 0.35rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .sfe-preview pre {
+        margin: 0;
+        padding: 0.6rem 0.75rem;
+        max-height: 260px;
+        overflow: auto;
+        background: #fafbfc;
+        font-size: 0.7rem;
+        line-height: 1.5;
+        color: #2d3748;
+        white-space: pre-wrap;
+    }
+
+    .sfe-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .sfe-btn-primary {
+        background: #38a169;
+        color: white;
+    }
+
+    .sfe-btn-primary:hover {
+        background: #2f855a;
+    }
+
+    .sfe-btn-secondary {
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+
+    .sfe-btn-secondary:hover {
+        background: #cbd5e0;
+    }
+
+    .sfe-error {
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        color: #c53030;
+        padding: 0.55rem 0.8rem;
+        border-radius: 6px;
+        margin-bottom: 0.75rem;
+        font-size: 0.78rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+</style>
 
 {% if error_message %}
-    <p style="color:red; font-weight:bold;">{{ error_message }}</p>
+<div class="sfe-error">
+    <i class="bi bi-exclamation-circle"></i>{{ error_message }}
+</div>
 {% endif %}
 
-<form method="POST" action="" enctype="multipart/form-data">
-    {% csrf_token %}
+<div class="sf-card">
+    <div class="sf-card-header">
+        <i class="bi bi-sliders"></i> {{ format.name }}
+    </div>
+    <div class="sf-card-body" style="padding:0.85rem;">
+        <form method="POST" action="" enctype="multipart/form-data">
+            {% csrf_token %}
 
-    <label>Format Name:</label><br>
-    <input type="text" name="format_name" value="{{ format.name }}" required><br><br>
+            <div class="sfe-row">
+                <div class="sfe-row-title"><span class="num">1</span> Format Details</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">
+                    <div>
+                        <label class="sfe-label">Format Name</label>
+                        <input type="text" name="format_name" class="sfe-input" value="{{ format.name }}" placeholder="e.g., Bill Format" required>
+                    </div>
+                    <div>
+                        <label class="sfe-label">Description <span style="font-weight:400;color:#a0aec0;">(optional)</span></label>
+                        <input type="text" name="format_description" class="sfe-input" value="{{ format.description|default:'' }}" placeholder="Optional">
+                    </div>
+                </div>
+            </div>
 
-    <label>Description (optional):</label><br>
-    <textarea name="format_description" rows="2" cols="80">{{ format.description }}</textarea><br><br>
+            <div class="sfe-row">
+                <div class="sfe-row-title"><span class="num">2</span> Template File</div>
 
-    <label>Replace Template File (optional)</label><br>
-    <div>Current: {{ format.template_file.name|default:'(none)' }}</div>
-    {% if template_url %}
-        <div style="margin-top:6px">
-            <a href="{{ template_url }}" target="_blank">Open / Download current template</a>
-        </div>
-    {% endif %}
-    {% if preview_text %}
-        <div style="margin-top:8px; border:1px solid #eee; padding:8px; background:#fafafa; max-height:260px; overflow:auto;">
-            <strong>Preview (first lines)</strong>
-            <pre style="white-space:pre-wrap;">{{ preview_text }}</pre>
-        </div>
-    {% endif %}
-    <input type="file" name="format_template_file"><br><br>
+                <div class="sfe-current-file">
+                    <i class="bi bi-file-earmark-text" style="color:#319795;"></i>
+                    <span class="file-name">{{ format.template_file.name|default:'(none)' }}</span>
+                    {% if template_url %}
+                    <a href="{{ template_url }}" target="_blank">
+                        <i class="bi bi-box-arrow-up-right"></i> Open / Download
+                    </a>
+                    {% endif %}
+                </div>
 
-    <label>Custom Placeholders</label>
-    <div class="sf-help">One per line: <code>MY_PLACEHOLDER = label text</code></div>
-    <textarea name="format_custom_placeholders" rows="6" cols="80">{{ format.custom_placeholders }}</textarea><br><br>
+                {% if preview_text %}
+                <div class="sfe-preview">
+                    <div class="sfe-preview-bar"><i class="bi bi-eye"></i> Preview (first lines)</div>
+                    <pre>{{ preview_text }}</pre>
+                </div>
+                {% endif %}
 
-    <button type="submit">Save Changes</button>
-    <a href="{% url 'self_formatted_form_page' %}">Cancel</a>
-</form>
+                <label class="sfe-label" style="margin-top:0.6rem;">Replace Template File <span style="font-weight:400;color:#a0aec0;">(optional)</span></label>
+                <input type="file" name="format_template_file" class="sfe-file-input">
+            </div>
+
+            <div class="sfe-row">
+                <div class="sfe-row-title"><span class="num">3</span> Custom Placeholders <span style="font-weight:400;color:#a0aec0;">(optional)</span></div>
+                <p class="sfe-hint" style="margin-top:0;">One per line: <code style="background:#e2e8f0;padding:0.05rem 0.3rem;border-radius:3px;">MY_PLACEHOLDER = label text</code></p>
+                <textarea name="format_custom_placeholders" class="sfe-textarea" rows="6">{{ format.custom_placeholders }}</textarea>
+            </div>
+
+            <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
+                <button type="submit" class="sfe-btn sfe-btn-primary">
+                    <i class="bi bi-check2"></i> Save Changes
+                </button>
+                <a href="{% url 'self_formatted_form_page' %}" class="sfe-btn sfe-btn-secondary">
+                    <i class="bi bi-x"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
 
 {% endblock %}
