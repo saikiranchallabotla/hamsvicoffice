@@ -198,6 +198,8 @@ def workslip(request):
     _scope_map = {'amc': 'amc', 'tempworks': 'temp'}
     _ws_scope = _scope_map.get(ws_work_type, 'estimate')
     groups = apply_group_order(request.user, _ws_scope, ws_category, groups_map.keys()) if groups_map else []
+    from accounts.models import UserCustomBackend
+    custom_groups = UserCustomBackend.custom_group_names(request.user, module_code, backend_db_category)
     current_group = request.GET.get("group") or request.session.get("ws_current_group") or (groups[0] if groups else "")
     # Validate the group still exists (backend may have changed)
     if current_group and groups and current_group not in groups:
@@ -295,6 +297,7 @@ def workslip(request):
                     "error": "Please upload an Estimate Excel file.",
                     "category": category,
                     "groups": groups,
+                    "custom_groups": custom_groups,
                     "current_group": current_group,
                     "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
@@ -315,6 +318,7 @@ def workslip(request):
                     "error": f"Couldn't read uploaded Estimate file: {e}",
                     "category": category,
                     "groups": groups,
+                    "custom_groups": custom_groups,
                     "current_group": current_group,
                     "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
@@ -358,6 +362,7 @@ def workslip(request):
                     "error": "No sheet in the uploaded workbook matches the Estimate format.",
                     "category": category,
                     "groups": groups,
+                    "custom_groups": custom_groups,
                     "current_group": current_group,
                     "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
@@ -913,7 +918,7 @@ def workslip(request):
                 if not estimate_file:
                     return render(request, "core/workslip.html", {
                         "error": "Please upload an Estimate file for Workslip-1.",
-                        "category": category, "groups": groups, "current_group": current_group,
+                        "category": category, "groups": groups, "current_group": current_group, "custom_groups": custom_groups,
                         "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                         "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                         "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
@@ -926,7 +931,7 @@ def workslip(request):
                 if not estimate_file and not workslip_files:
                     return render(request, "core/workslip.html", {
                         "error": f"Please upload either an Estimate file OR previous Workslip files for Workslip-{target_workslip}.",
-                        "category": category, "groups": groups, "current_group": current_group,
+                        "category": category, "groups": groups, "current_group": current_group, "custom_groups": custom_groups,
                         "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                         "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                         "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
@@ -942,7 +947,7 @@ def workslip(request):
                     if most_recent_required not in uploaded_nums:
                         return render(request, "core/workslip.html", {
                             "error": f"Please upload at least Workslip-{most_recent_required} to generate Workslip-{target_workslip}.",
-                            "category": category, "groups": groups, "current_group": current_group,
+                            "category": category, "groups": groups, "current_group": current_group, "custom_groups": custom_groups,
                             "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                             "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                             "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
@@ -1071,7 +1076,7 @@ def workslip(request):
                     except Exception as e:
                         return render(request, "core/workslip.html", {
                             "error": f"Couldn't read Workslip-{ws_file_num} file: {e}",
-                            "category": category, "groups": groups, "current_group": current_group,
+                            "category": category, "groups": groups, "current_group": current_group, "custom_groups": custom_groups,
                             "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                             "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                             "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
@@ -1479,7 +1484,7 @@ def workslip(request):
                     if not estimate_sheets:
                         return render(request, "core/workslip.html", {
                             "error": "No sheet in the uploaded workbook matches the Estimate format.",
-                            "category": category, "groups": groups, "current_group": current_group,
+                            "category": category, "groups": groups, "current_group": current_group, "custom_groups": custom_groups,
                             "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                             "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                             "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
@@ -1576,7 +1581,7 @@ def workslip(request):
                     logger.warning(f"[COMBINED UPLOAD] Error parsing estimate only: {e}")
                     return render(request, "core/workslip.html", {
                         "error": f"Error parsing estimate file: {e}",
-                        "category": category, "groups": groups, "current_group": current_group,
+                        "category": category, "groups": groups, "current_group": current_group, "custom_groups": custom_groups,
                         "items_in_group": items_in_group, "items_info": items_info, "ws_estimate_rows": ws_estimate_rows,
                         "preview_rows": [], "tp_percent": ws_tp_percent if ws_tp_percent else "",
                         "tp_type": ws_tp_type, "supp_items_selected": ws_supp_items,
@@ -1619,6 +1624,7 @@ def workslip(request):
                     "error": "Please upload a previous Workslip Excel file.",
                     "category": category,
                     "groups": groups,
+                    "custom_groups": custom_groups,
                     "current_group": current_group,
                     "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
@@ -1639,6 +1645,7 @@ def workslip(request):
                     "error": f"Couldn't read uploaded Workslip file: {e}",
                     "category": category,
                     "groups": groups,
+                    "custom_groups": custom_groups,
                     "current_group": current_group,
                     "items_in_group": items_in_group, "items_info": items_info,
                     "ws_estimate_rows": ws_estimate_rows,
@@ -3118,6 +3125,7 @@ def workslip(request):
         "category_display": ws_category.title() if ws_category else 'Electrical',
         "module_code": module_code,
         "groups": groups,
+        "custom_groups": custom_groups,
         "current_group": current_group,
         "items_in_group": items_in_group, "items_info": items_info,
         "ws_estimate_rows": ws_estimate_rows,
