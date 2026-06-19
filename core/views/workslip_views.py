@@ -3300,10 +3300,19 @@ def workslip_ajax_group_items(request):
     try:
         category = request.session.get("ws_category", "electrical") or "electrical"
         ws_selected_backend_id = request.session.get("ws_selected_backend_id")
+        # Derive the module's own code (matching AMC/Temp Works/Estimate selection)
+        # so the user's custom items for that work type get merged in too.
+        _wt = request.session.get("ws_work_type") or "new_estimate"
+        if _wt == 'amc':
+            module_code = 'amc'
+        elif _wt == 'tempworks':
+            module_code = 'temp_works'
+        else:
+            module_code = 'new_estimate'
         items_list, groups_map, units_map, ws_data, filepath = load_backend(
             category, settings.BASE_DIR,
             backend_id=ws_selected_backend_id,
-            module_code='workslip',
+            module_code=module_code,
             user=request.user,
         )
     except Exception:
