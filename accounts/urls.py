@@ -44,6 +44,8 @@ urlpatterns = [
     path('custom-backends/<int:backend_id>/units/', custom_backends_views.custom_backend_edit_units_view, name='custom_backend_edit_units'),
     path('custom-backends/<int:backend_id>/delete/', custom_backends_views.custom_backend_delete_view, name='custom_backend_delete'),
     path('custom-backends/<int:backend_id>/toggle/', custom_backends_views.custom_backend_toggle_view, name='custom_backend_toggle'),
+    path('custom-backends/<int:backend_id>/download/', custom_backends_views.custom_backend_download_view, name='custom_backend_download'),
+    path('custom-backends/<int:backend_id>/replace/', custom_backends_views.custom_backend_replace_view, name='custom_backend_replace'),
     
     # API endpoints
     path('api/auth/request-otp/', views.api_request_otp, name='api_request_otp'),

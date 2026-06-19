@@ -110,6 +110,9 @@
     .cb-icon-btn:hover { transform: translateY(-1px); }
     .cb-icon-edit:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
     .cb-icon-del:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+    .cb-icon-download:hover { border-color: #0ea5e9; color: #0ea5e9; background: #f0f9ff; }
+    .cb-icon-replace:hover { border-color: #f59e0b; color: #f59e0b; background: #fffbeb; }
+    .cb-icon-replace.cb-replace-busy { opacity: 0.5; pointer-events: none; }
 
     .cb-empty {
         background: #fff; border-radius: 14px;
@@ -210,6 +213,17 @@
                         </td>
                         <td><span style="color:#64748b;font-size:0.8rem;">{{ b.uploaded_at|date:"d M Y" }}</span></td>
                         <td style="text-align:right; white-space:nowrap;">
+                            <a href="{% url 'custom_backend_download' b.pk %}" class="cb-icon-btn cb-icon-download" title="Download current file">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            <form method="post" action="{% url 'custom_backend_replace' b.pk %}" enctype="multipart/form-data"
+                                  style="display:inline;" class="cb-replace-form">
+                                {% csrf_token %}
+                                <input type="file" name="file" accept=".xlsx" class="cb-replace-input" style="display:none;">
+                                <button type="button" class="cb-icon-btn cb-icon-replace" title="Replace file with an updated version">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </form>
                             <a href="{% url 'custom_backend_edit_units' b.pk %}" class="cb-icon-btn cb-icon-edit" title="Set units &amp; prefixes">
                                 <i class="bi bi-rulers"></i>
                             </a>
@@ -326,6 +340,19 @@
         modal.classList.remove('show');
         modal.setAttribute('aria-hidden', 'true');
     }
+
+    document.querySelectorAll('.cb-replace-form').forEach(function (form) {
+        var input = form.querySelector('.cb-replace-input');
+        var btn = form.querySelector('.cb-icon-replace');
+        btn.addEventListener('click', function () { input.click(); });
+        input.addEventListener('change', function () {
+            if (input.files && input.files.length) {
+                btn.classList.add('cb-replace-busy');
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                form.submit();
+            }
+        });
+    });
 
     document.querySelectorAll('form[data-cb-delete-form]').forEach(function (form) {
         form.addEventListener('submit', function (e) {

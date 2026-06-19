@@ -5,8 +5,11 @@ Items are detected from ALL sheets of the uploaded Excel (yellow-fill +
 red-text headings). The Group name and per-item Units are entered in the UI.
 """
 
+import os
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.http import require_POST
 
@@ -206,6 +209,64 @@ def custom_backend_delete_view(request, backend_id):
     backend.delete()
     messages.success(request, f"Deleted '{name}'.")
     return redirect('custom_backend_list')
+
+
+@login_required
+def custom_backend_download_view(request, backend_id):
+    backend = get_object_or_404(UserCustomBackend, pk=backend_id, user=request.user)
+    filename = os.path.basename(backend.file.name) or f"{backend.name}.xlsx"
+    return FileResponse(backend.file.open('rb'), as_attachment=True, filename=filename)
+
+
+@login_required
+@require_POST
+def custom_backend_replace_view(request, backend_id):
+    backend = get_object_or_404(UserCustomBackend, pk=backend_id, user=request.user)
+    uploaded = request.FILES.get('file')
+
+    if not uploaded:
+        messages.error(request, "Please choose an Excel (.xlsx) file.")
+        return redirect('custom_backend_list')
+    if not uploaded.name.lower().endswith('.xlsx'):
+        messages.error(request, "Only .xlsx files are supported.")
+        return redirect('custom_backend_list')
+
+    try:
+        found, _wb = _scan_all_sheets_for_items(uploaded)
+    except Exception as e:
+        messages.error(request, f"Could not read Excel file: {e}")
+        return redirect('custom_backend_list')
+    if not found:
+        messages.error(
+            request,
+            "No item blocks detected. Mark item headings with yellow fill + red text in any sheet."
+        )
+        return redirect('custom_backend_list')
+    try:
+        uploaded.seek(0)
+    except Exception:
+        pass
+
+    # Carry over unit/prefix overrides for items still present in the new
+    # file; auto-fill defaults for newly detected items; drop the rest.
+    from core.utils_excel import _determine_unit_from_heading
+    existing_units = dict(backend.units_override or {})
+    existing_prefixes = dict(backend.repair_prefixes or {})
+    new_item_names = {n for _sheet, n in found}
+    units = {n: existing_units.get(n) or _determine_unit_from_heading(n) for n in new_item_names}
+    prefixes = {n: p for n, p in existing_prefixes.items() if n in new_item_names}
+
+    try:
+        backend.file.delete(save=False)
+    except Exception:
+        pass
+    backend.file = uploaded
+    backend.units_override = units
+    backend.repair_prefixes = prefixes
+    backend.save()
+
+    messages.success(request, f"Replaced file for '{backend.name}'. Detected {len(found)} item(s). Review units below.")
+    return redirect('custom_backend_edit_units', backend_id=backend.pk)
 
 
 @login_required
