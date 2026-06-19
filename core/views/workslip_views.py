@@ -375,10 +375,12 @@ def workslip(request):
             # ---------- Find a sheet with yellow+red item headers (Item Blocks) ---------- #
             def get_heading_name(sheet, row_index: int):
                 """
-                Returns the heading text in this row (yellow fill + red font in A..J),
-                or None if not a heading row.
+                Returns the heading text in this row (yellow fill + red font),
+                or None if not a heading row. Column D holds the item name in
+                this template, so it's checked first; other columns (A..J) are
+                only used as a fallback if D isn't styled as a heading cell.
                 """
-                for col in range(1, 10 + 1):  # A..J
+                def _cell_text(col):
                     cell = sheet.cell(row=row_index, column=col)
                     fill = getattr(cell, "fill", None)
                     font = getattr(cell, "font", None)
@@ -403,6 +405,15 @@ def workslip(request):
 
                     if is_yellow and is_red and str(cell.value or "").strip():
                         return str(cell.value).strip()
+                    return None
+
+                name = _cell_text(4)  # column D
+                if name:
+                    return name
+                for col in range(1, 10 + 1):  # fallback: A..J
+                    name = _cell_text(col)
+                    if name:
+                        return name
                 return None
 
             # Try to find any sheet (except the estimate sheet) that contains such yellow headers
@@ -870,9 +881,11 @@ def workslip(request):
                 workslip_files.append((1, legacy_ws_file))
                 logger.info(f"[MULTI-WORKSLIP] Using legacy workslip file: {legacy_ws_file.name}")
             
-            # Helper to get heading names from yellow+red cells
+            # Helper to get heading names from yellow+red cells.
+            # Column D holds the item name in this template, so it's checked
+            # first; A..J is only a fallback if D isn't styled as a heading cell.
             def get_heading_name_from_sheet(sheet, row_index: int):
-                for col in range(1, 10 + 1):
+                def _cell_text(col):
                     cell = sheet.cell(row=row_index, column=col)
                     fill = getattr(cell, "fill", None)
                     font = getattr(cell, "font", None)
@@ -883,6 +896,15 @@ def workslip(request):
                     is_red = (font and getattr(font, "color", None) and color and str(color).upper().endswith("FF0000"))
                     if is_yellow and is_red and str(cell.value or "").strip():
                         return str(cell.value).strip()
+                    return None
+
+                name = _cell_text(4)  # column D
+                if name:
+                    return name
+                for col in range(1, 10 + 1):
+                    name = _cell_text(col)
+                    if name:
+                        return name
                 return None
             
             # Validation based on target workslip
