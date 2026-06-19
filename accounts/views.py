@@ -298,13 +298,22 @@ def register_view(request):
         request.session['otp_identifier'] = email
         request.session['otp_purpose'] = 'register'
 
-        # Anti-enumeration: if email/phone already in use, skip the OTP send
-        # but show the same UX. The verify step will then fail uniformly.
-        if email_already_taken or phone_already_taken:
-            logger.info(f"register attempt with already-used identifier (masked={_mask_identifier(email)})")
+        # Anti-enumeration: if only the phone is already in use (email is
+        # fresh), skip the OTP send and show the same UX so the verify step
+        # fails uniformly — no real account to recover here.
+        if phone_already_taken and not email_already_taken:
+            logger.info(f"register attempt with already-used phone (masked={_mask_identifier(email)})")
             request.session.save()
             messages.success(request, f'If this email is available, a code has been sent to {_mask_identifier(email)}.')
             return redirect('verify_otp')
+
+        # If the email is already registered, still send a REAL OTP to that
+        # inbox (same generic message — no enumeration leak to anyone who
+        # doesn't control the inbox). Only the actual owner can complete
+        # verification; _handle_register_success then logs them into their
+        # existing account instead of creating a duplicate.
+        if email_already_taken:
+            logger.info(f"register attempt with already-registered email (masked={_mask_identifier(email)})")
 
         # Request OTP
         result = OTPService.request_otp(email, 'email', ip_address=_client_ip(request))
@@ -516,13 +525,19 @@ def api_verify_otp(request):
 
     # Handle based on purpose
     if purpose == 'register':
-        # Create user
-        user = _create_user(identifier, register_data)
-        if not user:
-            return JsonResponse({
-                'ok': False,
-                'reason': 'Failed to create account.',
-            }, status=500)
+        # OTP proved control of this inbox. If an account already exists,
+        # log into it instead of creating a duplicate (one email = one
+        # account); existing account details are left untouched.
+        existing_user = User.objects.filter(email=identifier).first()
+        if existing_user:
+            user = existing_user
+        else:
+            user = _create_user(identifier, register_data)
+            if not user:
+                return JsonResponse({
+                    'ok': False,
+                    'reason': 'Failed to create account.',
+                }, status=500)
     else:
         user = _find_user(identifier)
         if not user:
@@ -862,15 +877,24 @@ def confirm_device_login_view(request):
 def _handle_register_success(request, identifier):
     """Handle successful registration."""
     register_data = request.session.pop('register_data', {})
-    
+
+    # The OTP proved control of this inbox. If an account already exists
+    # for it, don't create a duplicate — log into the existing account
+    # (one email = one account) and leave its saved details untouched.
+    existing_user = User.objects.filter(email=identifier).first()
+    if existing_user:
+        login(request, existing_user, backend='django.contrib.auth.backends.ModelBackend')
+        messages.info(request, 'An account with this email already exists. You have been logged in.')
+        return redirect('dashboard')
+
     user = _create_user(identifier, register_data)
     if not user:
         messages.error(request, 'Failed to create account. Please try again.')
         return redirect('register')
-    
+
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     messages.success(request, f'Welcome, {user.first_name}! Your account has been created.')
-    
+
     return redirect('dashboard')
 
 
