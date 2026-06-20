@@ -471,6 +471,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         uploaded_sheet_name = job.result.get('uploaded_sheet_name', '') if job.result else ''
         saved_item_descs = job.result.get('item_descs', {}) if job.result else {}
         saved_item_units = job.result.get('item_units_saved', {}) if job.result else {}
+        spec_overrides = job.result.get('spec_overrides', {}) if job.result else {}
 
         # Load uploaded workbook if needed
         ws_upload_src = None
@@ -629,8 +630,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
             if rate_src_row:
                 rate_pos[name] = dst_start + (rate_src_row - src_min)
 
-            # Prefix only for backend items in repair mode
-            if is_repair and not is_uploaded:
+            if name in spec_overrides:
+                # User-edited specification overrides backend text and any prefix.
+                ws_out.cell(row=dst_start + 2, column=4).value = spec_overrides[name]
+            elif is_repair and not is_uploaded:
+                # Prefix only for backend items in repair mode
                 prefix = item_to_prefix.get(name, "")
                 if prefix:
                     desc_cell = ws_out.cell(row=dst_start + 2, column=4)
@@ -722,6 +726,10 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     desc = f"{prefix} {base_desc_str}" if base_desc_str else prefix
                 else:
                     desc = base_desc_str
+
+            if name in spec_overrides:
+                # User-edited specification overrides backend/uploaded text and any prefix.
+                desc = spec_overrides[name]
 
             rr = rate_pos.get(name)
             rate_formula = f"=Datas!J{rr}" if rr else ""

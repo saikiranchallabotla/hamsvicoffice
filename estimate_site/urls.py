@@ -182,6 +182,8 @@ urlpatterns = [
     path('datas/<str:category>/ajax_reorder_items/', views.ajax_reorder_items, name='ajax_reorder_items'),
     path('datas/<str:category>/ajax_save_group_order/', views.ajax_save_group_order, name='ajax_save_group_order'),
     path('datas/<str:category>/ajax_upload_custom_items/', views.ajax_upload_custom_items, name='ajax_upload_custom_items'),
+    path('datas/<str:category>/item-spec/', views.get_item_specification, name='get_item_specification'),
+    path('datas/<str:category>/item-spec/save/', views.save_item_specification, name='save_item_specification'),
 
     # -------------------------
     # Bill document routes

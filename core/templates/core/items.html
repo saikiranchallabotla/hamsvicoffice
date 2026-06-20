@@ -399,7 +399,25 @@
         color: #c53030;
         transform: scale(1.2);
     }
-    
+
+    .btn-view-spec {
+        background: transparent;
+        border: none;
+        color: #3182ce;
+        cursor: pointer;
+        padding: 0.2rem;
+        font-size: 0.85rem;
+        line-height: 1;
+        opacity: 0.6;
+        transition: all 0.2s ease;
+    }
+
+    .btn-view-spec:hover {
+        opacity: 1;
+        color: #2b6cb0;
+        transform: scale(1.2);
+    }
+
     /* Total Row */
     .estimate-total-row {
         background: #faf5ff;
@@ -970,7 +988,7 @@
                                 <th style="width: 120px;">Qty</th>
                                 <th style="width: 80px;">Rate</th>
                                 <th style="width: 100px;">Amount</th>
-                                <th style="width: 30px;"></th>
+                                <th style="width: 54px;"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -996,6 +1014,9 @@
                                         </td>
                                         <td class="amount-cell"></td>
                                         <td class="delete-cell">
+                                            <button type="button" class="btn-view-spec" onclick="openSpecModal('{{ row.name|escapejs }}')" title="View/Edit specification">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
                                             <button type="button" class="btn-delete-item" onclick="deleteItemFromPreview('{{ row.name|escapejs }}')" title="Remove item">
                                                 <i class="bi bi-x-circle-fill"></i>
                                             </button>
@@ -1959,9 +1980,12 @@ document.addEventListener('keydown', function(e) {
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '"></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
                            '<td class="amount-cell"></td>' +
-                           '<td class="delete-cell"><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
-        
-        // Attach delete handler via JS instead of inline onclick to avoid quote issues
+                           '<td class="delete-cell"><button type="button" class="btn-view-spec" title="View/Edit specification"><i class="bi bi-eye"></i></button><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
+
+        // Attach handlers via JS instead of inline onclick to avoid quote issues
+        newRow.querySelector('.btn-view-spec').addEventListener('click', function() {
+            window.openSpecModal(itemName);
+        });
         newRow.querySelector('.btn-delete-item').addEventListener('click', function() {
             window.deleteItemFromPreview(itemName);
         });
@@ -2781,6 +2805,113 @@ document.addEventListener('keydown', function(e) {
         </div>
     </div>
 </div>
+
+<!-- View/Edit Specification Modal -->
+<div class="modal fade" id="specEditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Specification &mdash; <span id="specEditItemName"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea class="form-control" id="specEditTextarea" rows="10"
+                          style="border-radius: 8px;" placeholder="Loading..."></textarea>
+                <small class="text-muted">This is the specification text that will appear in the downloaded estimate for this item. Edit it if it's incorrect.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveSpecification()" id="specEditSaveBtn">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// View/Edit specification modal
+(function() {
+    var specModalItemName = null;
+
+    window.openSpecModal = function(itemName) {
+        specModalItemName = itemName;
+        var category = "{{ category }}";
+        var textarea = document.getElementById('specEditTextarea');
+        var nameEl = document.getElementById('specEditItemName');
+        var saveBtn = document.getElementById('specEditSaveBtn');
+
+        nameEl.textContent = itemName;
+        textarea.value = '';
+        textarea.placeholder = 'Loading...';
+        textarea.disabled = true;
+        saveBtn.disabled = true;
+
+        var modalEl = document.getElementById('specEditModal');
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        fetch("/datas/" + category + "/item-spec/?item=" + encodeURIComponent(itemName))
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                textarea.disabled = false;
+                saveBtn.disabled = false;
+                if (data.status === 'ok') {
+                    textarea.value = data.specification || '';
+                } else {
+                    textarea.placeholder = 'Could not load specification.';
+                    console.error('Error loading specification:', data.message);
+                }
+            })
+            .catch(function(err) {
+                textarea.disabled = false;
+                saveBtn.disabled = false;
+                textarea.placeholder = 'Could not load specification.';
+                console.error('Error loading specification:', err);
+            });
+    };
+
+    window.saveSpecification = function() {
+        if (!specModalItemName) return;
+        var category = "{{ category }}";
+        var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        var textarea = document.getElementById('specEditTextarea');
+        var saveBtn = document.getElementById('specEditSaveBtn');
+        var itemName = specModalItemName;
+
+        saveBtn.disabled = true;
+        fetch("/datas/" + category + "/item-spec/save/", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                item: itemName,
+                specification: textarea.value
+            })
+        })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                saveBtn.disabled = false;
+                if (data.status === 'ok') {
+                    var modalEl = document.getElementById('specEditModal');
+                    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.hide();
+                    if (typeof showSaveToast === 'function') {
+                        showSaveToast('Specification updated');
+                    }
+                } else {
+                    alert('Error: ' + (data.message || 'Could not save specification'));
+                }
+            })
+            .catch(function(err) {
+                saveBtn.disabled = false;
+                alert('Error saving specification: ' + err);
+            });
+    };
+})();
+</script>
 
 <script>
 // Toast notification for save success

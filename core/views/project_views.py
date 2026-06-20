@@ -79,6 +79,7 @@ def datas(request):
     request.session["unit_map"] = {}
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
+    request.session["item_spec_overrides"] = {}
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
     request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
     # Clear uploaded custom items
@@ -116,6 +117,7 @@ def select_project(request):
     if use_id:
         request.session["selected_project_id"] = use_id
         request.session["fetched_items"] = []
+        request.session["item_spec_overrides"] = {}
         return redirect("choose_category")
 
     if request.method == "POST":
@@ -124,6 +126,7 @@ def select_project(request):
             project, created = Project.objects.get_or_create(organization=org, name=project_name)
             request.session["selected_project_id"] = project.id
             request.session["fetched_items"] = []
+            request.session["item_spec_overrides"] = {}
             return redirect("choose_category")
 
     return render(request, "core/select_project.html", {"projects": projects})
@@ -577,6 +580,10 @@ def ajax_toggle_item(request, category):
                     d = request.session.get(key, {})
                     if isinstance(d, dict):
                         d.pop(item, None)
+                spec_overrides = request.session.get("item_spec_overrides", {})
+                if isinstance(spec_overrides, dict):
+                    spec_overrides.pop(item, None)
+                    request.session["item_spec_overrides"] = spec_overrides
                 uploaded_blocks = request.session.get("uploaded_item_blocks", {})
                 if isinstance(uploaded_blocks, dict):
                     uploaded_blocks.pop(item, None)
@@ -662,6 +669,102 @@ def ajax_toggle_item(request, category):
             "item_info": item_info
         })
         
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+# -----------------------
+# AJAX VIEW/EDIT ITEM SPECIFICATION (row+2 of the yellow block)
+# -----------------------
+@login_required(login_url='login')
+def get_item_specification(request, category):
+    """
+    AJAX endpoint: return the current effective specification text for one
+    fetched item (the row+2/col D text of its yellow block), including any
+    session override saved via save_item_specification, or any repair-mode
+    prefix that would otherwise be applied at download time.
+    GET ?item=<item_name>
+    Returns JSON: { "status": "ok", "specification": "..." }
+    """
+    from core.tasks import normalize_text
+
+    item = (request.GET.get("item") or "").strip()
+    if not item:
+        return JsonResponse({"status": "error", "message": "No item specified"}, status=400)
+
+    overrides = request.session.get("item_spec_overrides", {}) or {}
+    if item in overrides:
+        return JsonResponse({"status": "ok", "specification": overrides[item]})
+
+    try:
+        uploaded_items = request.session.get("uploaded_items", []) or []
+        if item in uploaded_items:
+            item_descs = request.session.get("item_descs", {}) or {}
+            specification = normalize_text(item_descs.get(item, "")).strip()
+            return JsonResponse({"status": "ok", "specification": specification})
+
+        selected_backend_id = request.session.get("selected_backend_id")
+        items_list, groups_map, units_map, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=selected_backend_id,
+            module_code='new_estimate',
+            user=request.user,
+        )
+        info = next((i for i in items_list if i["name"] == item), None)
+        if not info:
+            return JsonResponse({"status": "error", "message": "Item not found"}, status=404)
+
+        desc_ws = info.get('_source_ws') or ws_data
+        base_desc = desc_ws.cell(row=info["start_row"] + 2, column=4).value or ""
+        base_desc_str = normalize_text(base_desc).strip()
+
+        is_repair = request.session.get("work_type") == "repair"
+        if is_repair:
+            from core.saved_works_views import load_prefix_map, apply_prefix_to_desc
+            prefix_map = load_prefix_map(
+                category, backend_id=selected_backend_id, user=request.user, module_code='new_estimate',
+            )
+            specification = apply_prefix_to_desc(base_desc_str, item, prefix_map)
+        else:
+            specification = base_desc_str
+
+        return JsonResponse({"status": "ok", "specification": specification})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+@login_required(login_url='login')
+def save_item_specification(request, category):
+    """
+    AJAX endpoint to save a session-scoped specification override for one
+    fetched item. Applied at download time in both the Datas and Estimate
+    sheets (see core.tasks.generate_output_excel).
+    POST with JSON: { "item": "item_name", "specification": "..." }
+    Returns JSON: { "status": "ok" }
+    """
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "POST required"}, status=405)
+
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        else:
+            data = request.POST
+
+        item = (data.get("item") or "").strip()
+        specification = data.get("specification")
+
+        if not item:
+            return JsonResponse({"status": "error", "message": "No item specified"}, status=400)
+        if specification is None:
+            return JsonResponse({"status": "error", "message": "No specification specified"}, status=400)
+
+        overrides = request.session.get("item_spec_overrides", {}) or {}
+        overrides[item] = str(specification).strip()
+        request.session["item_spec_overrides"] = overrides
+        request.session.modified = True
+
+        return JsonResponse({"status": "ok"})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
 
@@ -1042,6 +1145,7 @@ def download_output(request, category):
             'uploaded_sheet_name': request.session.get('uploaded_sheet_name', ''),
             'item_descs': request.session.get('item_descs', {}),
             'item_units_saved': request.session.get('item_units', {}),
+            'spec_overrides': request.session.get('item_spec_overrides', {}) or {},
         }
         job.save()
 
@@ -1102,6 +1206,7 @@ def clear_output(request, category):
     request.session["unit_map"] = {}
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
+    request.session["item_spec_overrides"] = {}
     # Clear uploaded custom items
     request.session["uploaded_items"] = []
     request.session["uploaded_file_id"] = None
@@ -1430,6 +1535,7 @@ def new_project(request):
     request.session["qty_map"] = {}
     request.session["work_name"] = ""
     request.session["current_project_name"] = None
+    request.session["item_spec_overrides"] = {}
     return redirect("datas")
 
 
