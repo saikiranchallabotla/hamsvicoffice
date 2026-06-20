@@ -466,11 +466,18 @@ def datas_items(request, category, group):
             session_item_rates[name] = 0.0
         session_item_units[name] = display_unit
 
-    # Persist rates, units & descriptions so saved-works → workslip gets exact values
-    request.session["item_rates"] = session_item_rates
-    request.session["item_units"] = session_item_units
-    request.session["item_descs"] = item_descs
-    request.session.modified = True
+    # Persist rates, units & descriptions so saved-works → workslip gets exact values.
+    # Only write if changed -- unconditional writes mark session.modified=True
+    # and cause concurrent GETs to overwrite freshly-saved POST data under gevent
+    # (e.g. a slow page render here can revert a fetched_items update made by a
+    # concurrent ajax_toggle_item call, since this view never touches that key
+    # itself but still saves its own stale snapshot of the whole session row).
+    if request.session.get("item_rates") != session_item_rates:
+        request.session["item_rates"] = session_item_rates
+    if request.session.get("item_units") != session_item_units:
+        request.session["item_units"] = session_item_units
+    if request.session.get("item_descs") != item_descs:
+        request.session["item_descs"] = item_descs
 
     work_type = request.session.get("work_type", "original") or "original"
     # Additional options (Excess T.P, L.S Provision, deduct-old-material) are
