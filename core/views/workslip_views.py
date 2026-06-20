@@ -2297,8 +2297,9 @@ def workslip(request):
                 if desc_est == _display and _display in item_name_to_desc:
                     desc_est = item_name_to_desc[_display]
                 # Apply repair prefix to base estimate items, but skip if already prefixed
-                # (uploaded estimates may already contain the prefix)
-                if ws_work_mode == 'repair' and item_to_prefix_ws:
+                # (uploaded estimates may already contain the prefix) or if the user
+                # edited the specification directly (that text is used verbatim).
+                if ws_work_mode == 'repair' and item_to_prefix_ws and not row.get('spec_overridden'):
                     _item_name_for_prefix = row.get("item_name") or row.get("display_name") or ""
                     _prefix = item_to_prefix_ws.get(_item_name_for_prefix, "")
                     if _prefix and not desc_est.startswith(_prefix):

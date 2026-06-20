@@ -1077,6 +1077,7 @@ def collect_work_data(request, work_type):
             'item_rates': request.session.get('item_rates', {}),
             'item_units': request.session.get('item_units', {}),
             'item_descs': request.session.get('item_descs', {}),
+            'item_spec_overrides': request.session.get('item_spec_overrides', {}),
             'estimate_source': request.session.get('estimate_source', ''),
             # Uploaded custom items data
             'uploaded_items': request.session.get('uploaded_items', []),
@@ -1349,6 +1350,8 @@ def restore_work_data(request, saved_work):
             request.session['item_units'] = work_data['item_units']
         if work_data.get('item_descs'):
             request.session['item_descs'] = work_data['item_descs']
+        if work_data.get('item_spec_overrides'):
+            request.session['item_spec_overrides'] = work_data['item_spec_overrides']
         # Restore estimate-level metadata (admin sanction, tech sanction, etc.)
         request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
         # Restore estimate source (uploaded vs datas)
@@ -2237,7 +2240,8 @@ def generate_workslip_from_saved(request, work_id):
     saved_item_rates = work_data.get('item_rates', {})
     saved_item_units = work_data.get('item_units', {})
     saved_item_descs = work_data.get('item_descs', {})
-    
+    spec_overrides = work_data.get('item_spec_overrides', {})
+
     logger.info(f"[GEN_WORKSLIP DEBUG] saved_item_rates keys={list(saved_item_rates.keys())[:10]}")
     
     # Check if fetched_items is a list of strings (item names) or dicts
@@ -2270,7 +2274,11 @@ def generate_workslip_from_saved(request, work_id):
             # If backend returned header name as desc, prefer saved item_descs
             if backend_desc == item_name and item_name in saved_item_descs:
                 backend_desc = saved_item_descs[item_name]
-            
+            # User-edited specification overrides backend/saved text verbatim
+            spec_overridden = item_name in spec_overrides
+            if spec_overridden:
+                backend_desc = spec_overrides[item_name]
+
             # Priority for rate: 1) saved rates from estimate, 2) backend re-fetch
             if item_name in saved_item_rates and saved_item_rates[item_name]:
                 rate = float(saved_item_rates[item_name])
@@ -2290,6 +2298,7 @@ def generate_workslip_from_saved(request, work_id):
                 'unit': unit,
                 'qty_est': qty,
                 'rate': rate,
+                'spec_overridden': spec_overridden,
             })
     else:
         # It's already a list of dicts with full item info (from estimate upload)
@@ -2313,7 +2322,11 @@ def generate_workslip_from_saved(request, work_id):
                     download_desc = saved_item_descs[ui_name]
                 if not download_desc:
                     download_desc = ui_name
-                
+                # User-edited specification overrides backend/saved text verbatim
+                spec_overridden = ui_name in spec_overrides
+                if spec_overridden:
+                    download_desc = spec_overrides[ui_name]
+
                 ws_estimate_rows.append({
                     'key': f"saved_{idx}",
                     'item_name': ui_name,            # Item header name for UI
@@ -2323,6 +2336,7 @@ def generate_workslip_from_saved(request, work_id):
                     'unit': str(item.get('unit', 'Nos')),
                     'qty_est': qty,
                     'rate': rate,
+                    'spec_overridden': spec_overridden,
                 })
     
     # Convert grand_total to float (it might be stored as string)

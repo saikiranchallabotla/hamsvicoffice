@@ -19,6 +19,40 @@ from .models import SavedWork, Organization
 from .saved_works_views import get_org_from_request, check_saved_work_access, load_item_rates_from_backend, load_prefix_map, apply_prefix_to_desc
 
 
+def _estimate_fetched_items_to_rows(work_data):
+    """
+    Normalize an estimate's raw `fetched_items` (list of name strings, or list
+    of dicts from an uploaded estimate) into row dicts with a resolved `desc`,
+    applying any session-time specification override verbatim.
+    """
+    fetched_items = work_data.get('fetched_items', [])
+    item_descs = work_data.get('item_descs', {})
+    spec_overrides = work_data.get('item_spec_overrides', {})
+    item_rates = work_data.get('item_rates', {})
+    item_units = work_data.get('item_units', {})
+    unit_map = work_data.get('unit_map', {})
+
+    rows = []
+    for r in fetched_items:
+        if isinstance(r, str):
+            desc = spec_overrides.get(r) or item_descs.get(r, r)
+            rows.append({
+                'key': r,
+                'item_name': r,
+                'display_name': r,
+                'item_desc': desc,
+                'desc': desc,
+                'unit': unit_map.get(r, item_units.get(r, 'Nos')),
+                'rate': float(item_rates.get(r, 0) or 0),
+            })
+        else:
+            name_for_override = r.get('display_name') or r.get('item_name') or r.get('name')
+            if name_for_override in spec_overrides:
+                r = {**r, 'desc': spec_overrides[name_for_override], 'item_desc': spec_overrides[name_for_override]}
+            rows.append(r)
+    return rows
+
+
 @login_required(login_url='login')
 def bill_entry(request, work_id):
     """
@@ -79,31 +113,11 @@ def bill_entry(request, work_id):
                 bill_number = max_bill + 1
     else:
         # From estimate
-        ws_rows_raw = work_data.get('fetched_items', [])
         ws_exec = work_data.get('qty_map', {})
-        _item_rates = work_data.get('item_rates', {})
-        _item_units = work_data.get('item_units', {})
-        _unit_map = work_data.get('unit_map', {})
-        _item_descs = work_data.get('item_descs', {})
         bill_number = 1
         item_type = 'estimate'
         ae_qty_map = work_data.get('qty_map', {})
-        # Normalize: convert string items to dicts
-        ws_rows = []
-        for _i, _r in enumerate(ws_rows_raw):
-            if isinstance(_r, str):
-                _desc = _item_descs.get(_r, _r)
-                ws_rows.append({
-                    'key': _r,
-                    'item_name': _r,
-                    'display_name': _r,
-                    'item_desc': _desc,
-                    'desc': _desc,
-                    'unit': _unit_map.get(_r, _item_units.get(_r, 'Nos')),
-                    'rate': float(_item_rates.get(_r, 0) or 0),
-                })
-            else:
-                ws_rows.append(_r)
+        ws_rows = _estimate_fetched_items_to_rows(work_data)
     
     # Allow bill_number override via query parameter (used by generate_next_bill, resume)
     bill_number_override = request.GET.get('bill_number')
@@ -452,7 +466,11 @@ def _build_complete_bill_rows(work_data, source_work, bill_exec_map, bill_rate_m
     the previous bill for deduction, not just the main estimate rows.
     """
     # Start with main estimate rows
-    rows = list(work_data.get('ws_estimate_rows', work_data.get('fetched_items', [])))
+    ws_estimate_rows = work_data.get('ws_estimate_rows')
+    if ws_estimate_rows is not None:
+        rows = list(ws_estimate_rows)
+    else:
+        rows = _estimate_fetched_items_to_rows(work_data)
     seen_keys = set()
     for row in rows:
         key = row.get('key') or row.get('item_name') or ''
