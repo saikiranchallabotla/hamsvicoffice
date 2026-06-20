@@ -975,7 +975,9 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
 
             ws_breakup.cell(row=2, column=1, value="Location").font = Font(bold=True)
             for col, name in enumerate(breakdown_items, start=2):
-                ws_breakup.cell(row=2, column=col, value=name).font = Font(bold=True)
+                header_cell = ws_breakup.cell(row=2, column=col, value=name)
+                header_cell.font = Font(bold=True)
+                header_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
             for row_idx, loc in enumerate(used_locations, start=3):
                 ws_breakup.cell(row=row_idx, column=1, value=loc)
@@ -984,15 +986,23 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                     if qty:
                         ws_breakup.cell(row=row_idx, column=col, value=qty)
 
-            for r in range(1, 3 + len(used_locations)):
+            total_row = 3 + len(used_locations)
+            ws_breakup.cell(row=total_row, column=1, value="Total").font = Font(bold=True)
+            for col, name in enumerate(breakdown_items, start=2):
+                total_qty = sum(item_location_breakdown.get(name, {}).get(loc, 0) or 0 for loc in used_locations)
+                total_cell = ws_breakup.cell(row=total_row, column=col, value=total_qty)
+                total_cell.font = Font(bold=True)
+
+            for r in range(1, total_row + 1):
                 for c in range(1, num_cols + 1):
                     ws_breakup.cell(row=r, column=c).border = border_all
-                    if r >= 2:
+                    if r >= 2 and not (r == 2 and c >= 2):
                         ws_breakup.cell(row=r, column=c).alignment = Alignment(horizontal="center", vertical="center")
 
+            ws_breakup.row_dimensions[2].height = 30
             ws_breakup.column_dimensions["A"].width = 20
             for col in range(2, num_cols + 1):
-                ws_breakup.column_dimensions[get_column_letter(col)].width = 18
+                ws_breakup.column_dimensions[get_column_letter(col)].width = 14
 
         job.progress = 85
         job.current_step = "Saving Excel file..."
