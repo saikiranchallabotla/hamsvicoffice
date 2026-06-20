@@ -322,6 +322,15 @@
     .estimate-table td.desc-col {
         text-align: center;
         max-width: 160px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2px;
+    }
+
+    .estimate-table td.desc-col .item-text {
+        flex: 1;
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -988,7 +997,7 @@
                                 <th style="width: 120px;">Qty</th>
                                 <th style="width: 80px;">Rate</th>
                                 <th style="width: 100px;">Amount</th>
-                                <th style="width: 54px;"></th>
+                                <th style="width: 30px;"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -997,7 +1006,12 @@
                                     <tr data-item-name="{{ row.name }}" data-unit="{{ row.unit }}" class="draggable" draggable="true">
                                         <td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>
                                         <td class="sl-cell">{{ row.sl }}</td>
-                                        <td class="desc-col"><span class="item-text" title="{{ row.name }}">{{ row.name }}</span></td>
+                                        <td class="desc-col">
+                                            <span class="item-text" title="{{ row.name }}">{{ row.name }}</span>
+                                            <button type="button" class="btn-view-spec" onclick="openSpecModal('{{ row.name|escapejs }}')" title="View/Edit specification">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </td>
                                         <td class="unit-cell">{{ row.unit }}</td>
                                         <td>
                                             <input type="number"
@@ -1014,9 +1028,6 @@
                                         </td>
                                         <td class="amount-cell"></td>
                                         <td class="delete-cell">
-                                            <button type="button" class="btn-view-spec" onclick="openSpecModal('{{ row.name|escapejs }}')" title="View/Edit specification">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
                                             <button type="button" class="btn-delete-item" onclick="deleteItemFromPreview('{{ row.name|escapejs }}')" title="Remove item">
                                                 <i class="bi bi-x-circle-fill"></i>
                                             </button>
@@ -1975,12 +1986,13 @@ document.addEventListener('keydown', function(e) {
         var safeHtml = escapeHtml(itemName);
         newRow.innerHTML = '<td class="drag-handle"><i class="bi bi-grip-vertical"></i></td>' +
                            '<td class="sl-cell">' + sl + '</td>' +
-                           '<td class="desc-col"><span class="item-text" title="' + safeHtml + '">' + safeHtml + '</span></td>' +
+                           '<td class="desc-col"><span class="item-text" title="' + safeHtml + '">' + safeHtml + '</span>' +
+                           '<button type="button" class="btn-view-spec" title="View/Edit specification"><i class="bi bi-eye"></i></button></td>' +
                            '<td class="unit-cell">' + escapeHtml(unit) + '</td>' +
                            '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '"></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
                            '<td class="amount-cell"></td>' +
-                           '<td class="delete-cell"><button type="button" class="btn-view-spec" title="View/Edit specification"><i class="bi bi-eye"></i></button><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
+                           '<td class="delete-cell"><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
 
         // Attach handlers via JS instead of inline onclick to avoid quote issues
         newRow.querySelector('.btn-view-spec').addEventListener('click', function() {
