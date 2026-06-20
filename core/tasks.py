@@ -988,9 +988,12 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
 
             total_row = 3 + len(used_locations)
             ws_breakup.cell(row=total_row, column=1, value="Total").font = Font(bold=True)
-            for col, name in enumerate(breakdown_items, start=2):
-                total_qty = sum(item_location_breakdown.get(name, {}).get(loc, 0) or 0 for loc in used_locations)
-                total_cell = ws_breakup.cell(row=total_row, column=col, value=total_qty)
+            for col in range(2, num_cols + 1):
+                col_letter = get_column_letter(col)
+                total_cell = ws_breakup.cell(
+                    row=total_row, column=col,
+                    value=f"=SUM({col_letter}3:{col_letter}{total_row - 1})",
+                )
                 total_cell.font = Font(bold=True)
 
             for r in range(1, total_row + 1):
