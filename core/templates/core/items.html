@@ -423,6 +423,53 @@
         transform: scale(1.2);
     }
 
+    .qty-cell {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .qty-cell .qty-input {
+        flex: 1;
+        min-width: 60px;
+    }
+
+    .btn-row-locations {
+        background: transparent;
+        border: none;
+        color: #319795;
+        cursor: pointer;
+        padding: 0.2rem;
+        font-size: 0.85rem;
+        line-height: 1;
+        opacity: 0.6;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .btn-row-locations:hover {
+        opacity: 1;
+        color: #2c7a7b;
+        transform: scale(1.2);
+    }
+
+    .btn-manage-locations {
+        background: transparent;
+        border: none;
+        color: #319795;
+        cursor: pointer;
+        padding: 0 0.2rem;
+        font-size: 0.8rem;
+        line-height: 1;
+        opacity: 0.75;
+        vertical-align: middle;
+    }
+
+    .btn-manage-locations:hover {
+        opacity: 1;
+        transform: scale(1.15);
+    }
+
     /* Total Row */
     .estimate-total-row {
         background: #faf5ff;
@@ -990,7 +1037,11 @@
                                 <th style="width: 50px;">Sl.No</th>
                                 <th>Item Description</th>
                                 <th style="width: 70px;">Unit</th>
-                                <th style="width: 120px;">Qty</th>
+                                <th style="width: 120px;">Qty
+                                    <button type="button" class="btn-manage-locations" onclick="openLocationsModal()" title="Manage Locations">
+                                        <i class="bi bi-geo-alt"></i>
+                                    </button>
+                                </th>
                                 <th style="width: 80px;">Rate</th>
                                 <th style="width: 100px;">Amount</th>
                                 <th style="width: 30px;"></th>
@@ -1009,13 +1060,16 @@
                                             </button>
                                         </td>
                                         <td class="unit-cell">{{ row.unit }}</td>
-                                        <td>
+                                        <td class="qty-cell">
                                             <input type="number"
                                                    min="0"
                                                    step="0.01"
                                                    class="qty-input"
                                                    value="{{ row.qty|default_if_none:'' }}"
                                                    data-rate="{{ row.rate|default_if_none:0 }}">
+                                            <button type="button" class="btn-row-locations" onclick="openItemBreakdownModal('{{ row.name|escapejs }}')" title="Split quantity by location" style="display: {% if estimate_locations %}inline-block{% else %}none{% endif %};">
+                                                <i class="bi bi-geo-alt-fill"></i>
+                                            </button>
                                         </td>
                                         <td>
                                             {% if row.rate is not None %}
@@ -1985,7 +2039,8 @@ document.addEventListener('keydown', function(e) {
                            '<td class="desc-col"><span class="item-text" title="' + safeHtml + '">' + safeHtml + '</span>' +
                            '<button type="button" class="btn-view-spec" title="View/Edit specification"><i class="bi bi-eye"></i></button></td>' +
                            '<td class="unit-cell">' + escapeHtml(unit) + '</td>' +
-                           '<td><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '"></td>' +
+                           '<td class="qty-cell"><input type="number" min="0" step="0.01" class="qty-input" value="" data-rate="' + rateValue + '">' +
+                           '<button type="button" class="btn-row-locations" title="Split quantity by location" style="display: ' + (window.currentEstimateLocations && window.currentEstimateLocations.length ? 'inline-block' : 'none') + ';"><i class="bi bi-geo-alt-fill"></i></button></td>' +
                            '<td class="rate-cell">' + rateDisplay + '</td>' +
                            '<td class="amount-cell"></td>' +
                            '<td class="delete-cell"><button type="button" class="btn-delete-item" title="Remove item"><i class="bi bi-x-circle-fill"></i></button></td>';
@@ -1993,6 +2048,9 @@ document.addEventListener('keydown', function(e) {
         // Attach handlers via JS instead of inline onclick to avoid quote issues
         newRow.querySelector('.btn-view-spec').addEventListener('click', function() {
             window.openSpecModal(itemName);
+        });
+        newRow.querySelector('.btn-row-locations').addEventListener('click', function() {
+            window.openItemBreakdownModal(itemName);
         });
         newRow.querySelector('.btn-delete-item').addEventListener('click', function() {
             window.deleteItemFromPreview(itemName);
@@ -2916,6 +2974,307 @@ document.addEventListener('keydown', function(e) {
             .catch(function(err) {
                 saveBtn.disabled = false;
                 alert('Error saving specification: ' + err);
+            });
+    };
+})();
+</script>
+
+<!-- Manage Locations Modal -->
+<div class="modal fade" id="locationsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #319795, #2c7a7b); color: white;">
+                <h5 class="modal-title"><i class="bi bi-geo-alt me-2"></i>Manage Locations</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="locationsListContainer" style="max-height: 260px; overflow-y: auto; margin-bottom: 10px;"></div>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control" id="newLocationInput" placeholder="Add a location (e.g. Block A)" style="border-radius: 8px;">
+                    <button type="button" class="btn btn-outline-primary" onclick="addLocationToDraft()" style="border-radius: 8px;">
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                </div>
+                <small class="text-muted">This shared list is used when splitting any item's quantity across locations.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveLocationsList()" id="locationsSaveBtn">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Per-Item Quantity Breakdown by Location Modal -->
+<div class="modal fade" id="itemBreakdownModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #319795, #2c7a7b); color: white;">
+                <h5 class="modal-title"><i class="bi bi-geo-alt-fill me-2"></i>Split Quantity &mdash; <span id="breakdownItemName"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="breakdownLocationsContainer" style="max-height: 300px; overflow-y: auto;"></div>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2" style="border-top: 1px solid #e2e8f0;">
+                    <strong>Total Qty</strong>
+                    <strong id="breakdownTotalDisplay">0</strong>
+                </div>
+                <small class="text-muted">The total above will fill the item's Qty field. You can still type a quantity directly instead of using locations.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveItemBreakdown()" id="breakdownSaveBtn">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Shared locations list + per-item qty breakdown by location
+(function() {
+    var category = "{{ category }}";
+    window.currentEstimateLocations = {{ estimate_locations_json|safe }};
+
+    var locationsDraftList = [];
+    var breakdownItemName = null;
+
+    function renderLocationsList() {
+        var container = document.getElementById('locationsListContainer');
+        if (!locationsDraftList.length) {
+            container.innerHTML = '<div class="text-muted small">No locations yet. Add one below.</div>';
+            return;
+        }
+        container.innerHTML = '';
+        locationsDraftList.forEach(function(name, idx) {
+            var row = document.createElement('div');
+            row.className = 'd-flex justify-content-between align-items-center mb-1 px-2 py-1';
+            row.style.background = '#f7fafc';
+            row.style.borderRadius = '6px';
+            var span = document.createElement('span');
+            span.textContent = name;
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-close';
+            btn.style.fontSize = '0.65rem';
+            btn.addEventListener('click', function() {
+                locationsDraftList.splice(idx, 1);
+                renderLocationsList();
+            });
+            row.appendChild(span);
+            row.appendChild(btn);
+            container.appendChild(row);
+        });
+    }
+
+    window.addLocationToDraft = function() {
+        var input = document.getElementById('newLocationInput');
+        var name = (input.value || '').trim();
+        if (name && locationsDraftList.indexOf(name) === -1) {
+            locationsDraftList.push(name);
+            input.value = '';
+            renderLocationsList();
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var input = document.getElementById('newLocationInput');
+        if (input) {
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    window.addLocationToDraft();
+                }
+            });
+        }
+    });
+
+    window.openLocationsModal = function() {
+        var modalEl = document.getElementById('locationsModal');
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        fetch("/datas/" + category + "/locations/")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                locationsDraftList = (data.status === 'ok' && data.locations) ? data.locations.slice() : [];
+                renderLocationsList();
+                modal.show();
+            })
+            .catch(function(err) {
+                locationsDraftList = [];
+                renderLocationsList();
+                modal.show();
+                console.error('Error loading locations:', err);
+            });
+    };
+
+    function toggleRowLocationButtons(hasLocations) {
+        document.querySelectorAll('.btn-row-locations').forEach(function(btn) {
+            btn.style.display = hasLocations ? 'inline-block' : 'none';
+        });
+    }
+
+    window.saveLocationsList = function() {
+        var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        var saveBtn = document.getElementById('locationsSaveBtn');
+        saveBtn.disabled = true;
+        fetch("/datas/" + category + "/locations/save/", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ locations: locationsDraftList })
+        })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                saveBtn.disabled = false;
+                if (data.status === 'ok') {
+                    window.currentEstimateLocations = data.locations || [];
+                    toggleRowLocationButtons(window.currentEstimateLocations.length > 0);
+                    var modalEl = document.getElementById('locationsModal');
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    if (typeof showSaveToast === 'function') {
+                        showSaveToast('Locations saved');
+                    }
+                } else {
+                    alert('Error: ' + (data.message || 'Could not save locations'));
+                }
+            })
+            .catch(function(err) {
+                saveBtn.disabled = false;
+                alert('Error saving locations: ' + err);
+            });
+    };
+
+    function renderBreakdownRows(existingBreakdown) {
+        var container = document.getElementById('breakdownLocationsContainer');
+        if (!window.currentEstimateLocations.length) {
+            container.innerHTML = '<div class="text-muted small">No locations saved yet. Use the button next to the Qty column header to add some.</div>';
+            return;
+        }
+        container.innerHTML = '';
+        window.currentEstimateLocations.forEach(function(name) {
+            var existingQty = existingBreakdown[name];
+            var row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 mb-2';
+
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input breakdown-loc-checkbox';
+            checkbox.checked = existingQty !== undefined;
+
+            var label = document.createElement('span');
+            label.textContent = name;
+            label.style.flex = '1';
+
+            var qtyInput = document.createElement('input');
+            qtyInput.type = 'number';
+            qtyInput.min = '0';
+            qtyInput.step = '0.01';
+            qtyInput.className = 'form-control breakdown-loc-qty';
+            qtyInput.style.width = '100px';
+            qtyInput.value = existingQty !== undefined ? existingQty : '';
+            qtyInput.disabled = !checkbox.checked;
+
+            checkbox.addEventListener('change', function() {
+                qtyInput.disabled = !checkbox.checked;
+                updateBreakdownTotal();
+            });
+            qtyInput.addEventListener('input', updateBreakdownTotal);
+
+            row.appendChild(checkbox);
+            row.appendChild(label);
+            row.appendChild(qtyInput);
+            container.appendChild(row);
+        });
+    }
+
+    function updateBreakdownTotal() {
+        var total = 0;
+        document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-checkbox').forEach(function(checkbox, idx) {
+            if (!checkbox.checked) return;
+            var qtyInput = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty')[idx];
+            var val = parseFloat(qtyInput.value || '0');
+            if (!isNaN(val)) total += val;
+        });
+        document.getElementById('breakdownTotalDisplay').textContent = total;
+    }
+
+    window.openItemBreakdownModal = function(itemName) {
+        breakdownItemName = itemName;
+        document.getElementById('breakdownItemName').textContent = itemName;
+        var modalEl = document.getElementById('itemBreakdownModal');
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        renderBreakdownRows({});
+        modal.show();
+
+        fetch("/datas/" + category + "/item-location-breakdown/?item=" + encodeURIComponent(itemName))
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var breakdown = (data.status === 'ok' && data.breakdown) ? data.breakdown : {};
+                renderBreakdownRows(breakdown);
+                updateBreakdownTotal();
+            })
+            .catch(function(err) {
+                console.error('Error loading item location breakdown:', err);
+            });
+    };
+
+    window.saveItemBreakdown = function() {
+        if (!breakdownItemName) return;
+        var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        var saveBtn = document.getElementById('breakdownSaveBtn');
+        var itemName = breakdownItemName;
+
+        var breakdown = {};
+        var checkboxes = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-checkbox');
+        var qtyInputs = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty');
+        window.currentEstimateLocations.forEach(function(name, idx) {
+            if (checkboxes[idx] && checkboxes[idx].checked) {
+                var qty = parseFloat(qtyInputs[idx].value || '0');
+                if (!isNaN(qty) && qty > 0) {
+                    breakdown[name] = qty;
+                }
+            }
+        });
+
+        saveBtn.disabled = true;
+        fetch("/datas/" + category + "/item-location-breakdown/save/", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ item: itemName, breakdown: breakdown })
+        })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                saveBtn.disabled = false;
+                if (data.status === 'ok') {
+                    var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + window.escapeCssSelector(itemName) + '"]');
+                    if (row) {
+                        var qtyInput = row.querySelector('.qty-input');
+                        if (qtyInput) {
+                            qtyInput.value = data.total;
+                            qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }
+                    var modalEl = document.getElementById('itemBreakdownModal');
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    if (typeof showSaveToast === 'function') {
+                        showSaveToast('Quantity split saved');
+                    }
+                } else {
+                    alert('Error: ' + (data.message || 'Could not save breakdown'));
+                }
+            })
+            .catch(function(err) {
+                saveBtn.disabled = false;
+                alert('Error saving breakdown: ' + err);
             });
     };
 })();

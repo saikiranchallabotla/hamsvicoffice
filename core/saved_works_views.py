@@ -1078,6 +1078,8 @@ def collect_work_data(request, work_type):
             'item_units': request.session.get('item_units', {}),
             'item_descs': request.session.get('item_descs', {}),
             'item_spec_overrides': request.session.get('item_spec_overrides', {}),
+            'estimate_locations': request.session.get('estimate_locations', []),
+            'item_location_breakdown': request.session.get('item_location_breakdown', {}),
             'estimate_source': request.session.get('estimate_source', ''),
             # Uploaded custom items data
             'uploaded_items': request.session.get('uploaded_items', []),
@@ -1352,6 +1354,10 @@ def restore_work_data(request, saved_work):
             request.session['item_descs'] = work_data['item_descs']
         if work_data.get('item_spec_overrides'):
             request.session['item_spec_overrides'] = work_data['item_spec_overrides']
+        if work_data.get('estimate_locations'):
+            request.session['estimate_locations'] = work_data['estimate_locations']
+        if work_data.get('item_location_breakdown'):
+            request.session['item_location_breakdown'] = work_data['item_location_breakdown']
         # Restore estimate-level metadata (admin sanction, tech sanction, etc.)
         request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
         # Restore estimate source (uploaded vs datas)

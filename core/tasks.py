@@ -390,6 +390,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from django.utils import timezone
         from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, Border, Side
+        from openpyxl.utils import get_column_letter
         from io import BytesIO
         from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively, normalize_external_sheet_refs, trim_to_xlsx_limits
         
@@ -472,6 +473,8 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         saved_item_descs = job.result.get('item_descs', {}) if job.result else {}
         saved_item_units = job.result.get('item_units_saved', {}) if job.result else {}
         spec_overrides = job.result.get('spec_overrides', {}) if job.result else {}
+        item_location_breakdown = job.result.get('item_location_breakdown', {}) if job.result else {}
+        estimate_locations = job.result.get('estimate_locations', []) if job.result else []
 
         # Load uploaded workbook if needed
         ws_upload_src = None
@@ -943,7 +946,54 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                         ws_est.cell(row=r, column=c).number_format = fmt_money
             ws_est.cell(row=r, column=4).font = Font(bold=True)
             ws_est.cell(row=r, column=8).font = Font(bold=True)
-        
+
+        # Breakup List sheet: only items in this download that have a saved
+        # per-location qty breakdown get a column; only locations actually
+        # used by those items get a row. Session-scoped feature -- never
+        # carried into Workslip/Bill.
+        breakdown_items = [name for name in fetched if item_location_breakdown.get(name)]
+        if breakdown_items:
+            used_locations = []
+            seen_locations = set()
+            for loc in estimate_locations:
+                if any(loc in item_location_breakdown.get(name, {}) for name in breakdown_items):
+                    used_locations.append(loc)
+                    seen_locations.add(loc)
+            for name in breakdown_items:
+                for loc in item_location_breakdown.get(name, {}):
+                    if loc not in seen_locations:
+                        seen_locations.add(loc)
+                        used_locations.append(loc)
+
+            ws_breakup = wb.create_sheet("Breakup List")
+            num_cols = 1 + len(breakdown_items)
+
+            ws_breakup.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
+            title_cell = ws_breakup.cell(row=1, column=1, value="BREAKUP LIST")
+            title_cell.font = Font(bold=True, size=14)
+            title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            ws_breakup.cell(row=2, column=1, value="Location").font = Font(bold=True)
+            for col, name in enumerate(breakdown_items, start=2):
+                ws_breakup.cell(row=2, column=col, value=name).font = Font(bold=True)
+
+            for row_idx, loc in enumerate(used_locations, start=3):
+                ws_breakup.cell(row=row_idx, column=1, value=loc)
+                for col, name in enumerate(breakdown_items, start=2):
+                    qty = item_location_breakdown.get(name, {}).get(loc)
+                    if qty:
+                        ws_breakup.cell(row=row_idx, column=col, value=qty)
+
+            for r in range(1, 3 + len(used_locations)):
+                for c in range(1, num_cols + 1):
+                    ws_breakup.cell(row=r, column=c).border = border_all
+                    if r >= 2:
+                        ws_breakup.cell(row=r, column=c).alignment = Alignment(horizontal="center", vertical="center")
+
+            ws_breakup.column_dimensions["A"].width = 20
+            for col in range(2, num_cols + 1):
+                ws_breakup.column_dimensions[get_column_letter(col)].width = 18
+
         job.progress = 85
         job.current_step = "Saving Excel file..."
         job.save()

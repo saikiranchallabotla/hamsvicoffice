@@ -80,6 +80,8 @@ def datas(request):
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
     request.session["item_spec_overrides"] = {}
+    request.session["estimate_locations"] = []
+    request.session["item_location_breakdown"] = {}
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
     request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
     # Clear uploaded custom items
@@ -118,6 +120,8 @@ def select_project(request):
         request.session["selected_project_id"] = use_id
         request.session["fetched_items"] = []
         request.session["item_spec_overrides"] = {}
+        request.session["estimate_locations"] = []
+        request.session["item_location_breakdown"] = {}
         return redirect("choose_category")
 
     if request.method == "POST":
@@ -127,6 +131,8 @@ def select_project(request):
             request.session["selected_project_id"] = project.id
             request.session["fetched_items"] = []
             request.session["item_spec_overrides"] = {}
+            request.session["estimate_locations"] = []
+            request.session["item_location_breakdown"] = {}
             return redirect("choose_category")
 
     return render(request, "core/select_project.html", {"projects": projects})
@@ -494,6 +500,8 @@ def datas_items(request, category, group):
         "item_descs_json": json.dumps(item_descs),
         "uploaded_items_json": json.dumps(list(uploaded_items_in_session)),
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'new_estimate', category),
+        "estimate_locations": request.session.get("estimate_locations", []),
+        "estimate_locations_json": json.dumps(request.session.get("estimate_locations", [])),
     })
 
 
@@ -584,6 +592,10 @@ def ajax_toggle_item(request, category):
                 if isinstance(spec_overrides, dict):
                     spec_overrides.pop(item, None)
                     request.session["item_spec_overrides"] = spec_overrides
+                location_breakdown = request.session.get("item_location_breakdown", {})
+                if isinstance(location_breakdown, dict):
+                    location_breakdown.pop(item, None)
+                    request.session["item_location_breakdown"] = location_breakdown
                 uploaded_blocks = request.session.get("uploaded_item_blocks", {})
                 if isinstance(uploaded_blocks, dict):
                     uploaded_blocks.pop(item, None)
@@ -765,6 +777,122 @@ def save_item_specification(request, category):
         request.session.modified = True
 
         return JsonResponse({"status": "ok"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+# -----------------------
+# AJAX LOCATIONS (shared list) + PER-ITEM QTY BREAKDOWN BY LOCATION
+# -----------------------
+@login_required(login_url='login')
+def get_locations(request, category):
+    """
+    AJAX endpoint: return the shared list of locations saved for this estimate.
+    Returns JSON: { "status": "ok", "locations": [...] }
+    """
+    locations = request.session.get("estimate_locations", []) or []
+    return JsonResponse({"status": "ok", "locations": locations})
+
+
+@login_required(login_url='login')
+def save_locations(request, category):
+    """
+    AJAX endpoint to save the shared list of locations for this estimate.
+    POST with JSON: { "locations": ["Block A", "Block B", ...] }
+    Returns JSON: { "status": "ok", "locations": [...] }
+    """
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "POST required"}, status=405)
+
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        else:
+            data = request.POST
+
+        raw_locations = data.get("locations") or []
+        if isinstance(raw_locations, str):
+            raw_locations = json.loads(raw_locations)
+
+        seen = set()
+        locations = []
+        for name in raw_locations:
+            name = str(name).strip()
+            if name and name not in seen:
+                seen.add(name)
+                locations.append(name)
+
+        request.session["estimate_locations"] = locations
+        request.session.modified = True
+
+        return JsonResponse({"status": "ok", "locations": locations})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+@login_required(login_url='login')
+def get_item_location_breakdown(request, category):
+    """
+    AJAX endpoint: return the saved per-location qty breakdown for one item.
+    GET ?item=<item_name>
+    Returns JSON: { "status": "ok", "breakdown": {location: qty, ...} }
+    """
+    item = (request.GET.get("item") or "").strip()
+    if not item:
+        return JsonResponse({"status": "error", "message": "No item specified"}, status=400)
+
+    breakdown_map = request.session.get("item_location_breakdown", {}) or {}
+    breakdown = breakdown_map.get(item, {})
+    return JsonResponse({"status": "ok", "breakdown": breakdown})
+
+
+@login_required(login_url='login')
+def save_item_location_breakdown(request, category):
+    """
+    AJAX endpoint to save the per-location qty breakdown for one item. The
+    sum of the breakdown is returned so the frontend can fill the item's
+    main Qty input without a second request.
+    POST with JSON: { "item": "item_name", "breakdown": {"Block A": 2, "Block B": 3} }
+    Returns JSON: { "status": "ok", "total": 5 }
+    """
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "POST required"}, status=405)
+
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        else:
+            data = request.POST
+
+        item = (data.get("item") or "").strip()
+        raw_breakdown = data.get("breakdown") or {}
+        if isinstance(raw_breakdown, str):
+            raw_breakdown = json.loads(raw_breakdown)
+
+        if not item:
+            return JsonResponse({"status": "error", "message": "No item specified"}, status=400)
+
+        breakdown = {}
+        total = 0.0
+        for location, qty in raw_breakdown.items():
+            location = str(location).strip()
+            try:
+                qty = float(qty)
+            except (TypeError, ValueError):
+                continue
+            if location and qty > 0:
+                breakdown[location] = qty
+                total += qty
+
+        breakdown_map = request.session.get("item_location_breakdown", {}) or {}
+        if breakdown:
+            breakdown_map[item] = breakdown
+        else:
+            breakdown_map.pop(item, None)
+        request.session["item_location_breakdown"] = breakdown_map
+        request.session.modified = True
+
+        return JsonResponse({"status": "ok", "total": total})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
 
@@ -1146,6 +1274,8 @@ def download_output(request, category):
             'item_descs': request.session.get('item_descs', {}),
             'item_units_saved': request.session.get('item_units', {}),
             'spec_overrides': request.session.get('item_spec_overrides', {}) or {},
+            'item_location_breakdown': request.session.get('item_location_breakdown', {}) or {},
+            'estimate_locations': request.session.get('estimate_locations', []) or [],
         }
         job.save()
 
@@ -1207,6 +1337,8 @@ def clear_output(request, category):
     request.session["work_name"] = ""
     request.session["grand_total"] = ""
     request.session["item_spec_overrides"] = {}
+    request.session["estimate_locations"] = []
+    request.session["item_location_breakdown"] = {}
     # Clear uploaded custom items
     request.session["uploaded_items"] = []
     request.session["uploaded_file_id"] = None
@@ -1536,6 +1668,8 @@ def new_project(request):
     request.session["work_name"] = ""
     request.session["current_project_name"] = None
     request.session["item_spec_overrides"] = {}
+    request.session["estimate_locations"] = []
+    request.session["item_location_breakdown"] = {}
     return redirect("datas")
 
 
