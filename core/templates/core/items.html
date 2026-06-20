@@ -470,6 +470,28 @@
         transform: scale(1.15);
     }
 
+    #breakdownLocationsContainer .breakdown-loc-row {
+        font-size: 8px;
+    }
+
+    #breakdownLocationsContainer .breakdown-loc-row span {
+        font-size: 8px;
+    }
+
+    #breakdownLocationsContainer .breakdown-loc-qty {
+        font-size: 8px;
+        padding: 0.15rem 0.3rem;
+        height: auto;
+    }
+
+    #breakdownTotalDisplay {
+        font-size: 11px;
+    }
+
+    #locationsListContainer .d-flex {
+        font-size: 8px;
+    }
+
     /* Total Row */
     .estimate-total-row {
         background: #faf5ff;
@@ -3159,12 +3181,7 @@ document.addEventListener('keydown', function(e) {
         window.currentEstimateLocations.forEach(function(name) {
             var existingQty = existingBreakdown[name];
             var row = document.createElement('div');
-            row.className = 'd-flex align-items-center gap-2 mb-2';
-
-            var checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input breakdown-loc-checkbox';
-            checkbox.checked = existingQty !== undefined;
+            row.className = 'd-flex align-items-center gap-2 mb-1 breakdown-loc-row';
 
             var label = document.createElement('span');
             label.textContent = name;
@@ -3175,17 +3192,12 @@ document.addEventListener('keydown', function(e) {
             qtyInput.min = '0';
             qtyInput.step = '0.01';
             qtyInput.className = 'form-control breakdown-loc-qty';
-            qtyInput.style.width = '100px';
+            qtyInput.style.width = '90px';
+            qtyInput.placeholder = '0';
             qtyInput.value = existingQty !== undefined ? existingQty : '';
-            qtyInput.disabled = !checkbox.checked;
 
-            checkbox.addEventListener('change', function() {
-                qtyInput.disabled = !checkbox.checked;
-                updateBreakdownTotal();
-            });
             qtyInput.addEventListener('input', updateBreakdownTotal);
 
-            row.appendChild(checkbox);
             row.appendChild(label);
             row.appendChild(qtyInput);
             container.appendChild(row);
@@ -3194,9 +3206,7 @@ document.addEventListener('keydown', function(e) {
 
     function updateBreakdownTotal() {
         var total = 0;
-        document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-checkbox').forEach(function(checkbox, idx) {
-            if (!checkbox.checked) return;
-            var qtyInput = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty')[idx];
+        document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty').forEach(function(qtyInput) {
             var val = parseFloat(qtyInput.value || '0');
             if (!isNaN(val)) total += val;
         });
@@ -3231,14 +3241,11 @@ document.addEventListener('keydown', function(e) {
         var itemName = breakdownItemName;
 
         var breakdown = {};
-        var checkboxes = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-checkbox');
         var qtyInputs = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty');
         window.currentEstimateLocations.forEach(function(name, idx) {
-            if (checkboxes[idx] && checkboxes[idx].checked) {
-                var qty = parseFloat(qtyInputs[idx].value || '0');
-                if (!isNaN(qty) && qty > 0) {
-                    breakdown[name] = qty;
-                }
+            var qty = parseFloat(qtyInputs[idx] ? qtyInputs[idx].value || '0' : '0');
+            if (!isNaN(qty) && qty > 0) {
+                breakdown[name] = qty;
             }
         });
 
