@@ -476,6 +476,7 @@
         <input type="hidden" id="ws-rate-map-field" name="ws_rate_map">
         <input type="hidden" id="ws-tp-percent-field" name="ws_tp_percent">
         <input type="hidden" id="ws-tp-type-field" name="ws_tp_type">
+        <input type="hidden" id="ws-existing-id-field" name="existing_workslip_id" value="">
 
         <div class="workslip-form-container">
             <!-- TP (Temporary Works) Section -->
@@ -581,6 +582,9 @@
             <button type="button" class="btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
+            <span id="autosave-status" style="align-self:center;font-size:0.8rem;color:#16a34a;opacity:0;transition:opacity 0.3s;">
+                <i class="bi bi-cloud-check"></i> Auto-saved
+            </span>
         </div>
     </form>
 </div>
@@ -595,6 +599,77 @@
 
     const rateMap = {};
     const execMap = {};
+
+    const csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+    // --- Auto-save: tracks which SavedWork row this entry session has
+    // persisted to, so every autosave (and the final manual save) updates
+    // that SAME record instead of each call minting a new Workslip-N.
+    const WS_SAVED_ID_KEY = 'ws_entry_savedId_{{ work_id }}';
+    let savedWorkslipId = '';
+    try { savedWorkslipId = sessionStorage.getItem(WS_SAVED_ID_KEY) || ''; } catch(e) {}
+
+    function setSavedWorkslipId(id) {
+        savedWorkslipId = id ? String(id) : '';
+        document.getElementById('ws-existing-id-field').value = savedWorkslipId;
+        try {
+            if (savedWorkslipId) sessionStorage.setItem(WS_SAVED_ID_KEY, savedWorkslipId);
+            else sessionStorage.removeItem(WS_SAVED_ID_KEY);
+        } catch(e) {}
+    }
+
+    let autoSaveTimer = null;
+    let autoSaveInFlight = false;
+
+    function scheduleAutoSave() {
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(function() { performAutoSave(); }, 1500);
+    }
+
+    function performAutoSave(opts) {
+        opts = opts || {};
+        if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+        if (autoSaveInFlight && !opts.keepalive) return;
+
+        const hasQty = Object.keys(execMap).some(function(k) { return (parseFloat(execMap[k]) || 0) > 0; });
+        if (!hasQty) return;
+
+        const formData = new FormData(document.getElementById('workslip-entry-form'));
+        formData.set('ws_exec_map', JSON.stringify(execMap));
+        formData.set('ws_rate_map', JSON.stringify(rateMap));
+        formData.set('ws_tp_percent', document.getElementById('tp-percent-input').value || 0);
+        formData.set('ws_tp_type', document.getElementById('tp-type-select').value);
+        formData.set('existing_workslip_id', savedWorkslipId);
+        formData.set('is_autosave', '1');
+
+        autoSaveInFlight = true;
+        fetch(document.getElementById('workslip-entry-form').action, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Accept': 'application/json' },
+            body: formData,
+            keepalive: !!opts.keepalive,
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            autoSaveInFlight = false;
+            if (data.success && data.work_id) {
+                setSavedWorkslipId(data.work_id);
+                flashAutoSaveIndicator();
+            }
+        })
+        .catch(function() { autoSaveInFlight = false; });
+    }
+
+    function flashAutoSaveIndicator() {
+        const el = document.getElementById('autosave-status');
+        if (!el) return;
+        el.style.opacity = '1';
+        clearTimeout(el._fadeTimer);
+        el._fadeTimer = setTimeout(function() { el.style.opacity = '0'; }, 2000);
+    }
+
+    // Best-effort flush when the user navigates away without saving.
+    window.addEventListener('pagehide', function() { performAutoSave({ keepalive: true }); });
 
     function initializeTable() {
         const tbody = document.getElementById('quantities-tbody');
@@ -660,10 +735,13 @@
                 execMap[key] = qty;
                 updateAmount(idx, qty, rateMap[key]);
                 updateSummary();
+                performAutoSave();
             });
 
             qtyInput.addEventListener('input', (e) => {
+                execMap[key] = parseFloat(e.target.value) || 0;
                 updateAmount(idx, parseFloat(e.target.value) || 0, rateMap[key]);
+                scheduleAutoSave();
             });
         });
     }
@@ -795,6 +873,8 @@
     // Update summary when TP changes
     document.getElementById('tp-percent-input').addEventListener('change', updateSummary);
     document.getElementById('tp-percent-input').addEventListener('input', updateSummary);
+    document.getElementById('tp-percent-input').addEventListener('change', performAutoSave);
+    document.getElementById('tp-type-select').addEventListener('change', performAutoSave);
 
     // --- Auto-save quantities to sessionStorage for refresh protection ---
     const WS_ENTRY_STORAGE_KEY = 'ws_entry_execMap_{{ work_id }}';
@@ -831,6 +911,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         initializeTable();
         restoreFromSession();
+        document.getElementById('ws-existing-id-field').value = savedWorkslipId;
     });
 
     // Save on every quantity input change
@@ -845,7 +926,10 @@
     var _origShowNotif = showNotification;
     showNotification = function(msg, type) {
         if (type === 'success') {
-            try { sessionStorage.removeItem(WS_ENTRY_STORAGE_KEY); } catch(e) {}
+            try {
+                sessionStorage.removeItem(WS_ENTRY_STORAGE_KEY);
+                sessionStorage.removeItem(WS_SAVED_ID_KEY);
+            } catch(e) {}
         }
         return _origShowNotif(msg, type);
     };

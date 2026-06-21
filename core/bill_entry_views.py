@@ -579,16 +579,21 @@ def _bill_entry_save_logic(request, work_id):
             bill_rate_map = json.loads(request.POST.get('bill_rate_map', '{}'))
         except (json.JSONDecodeError, TypeError, ValueError):
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
-        
+
+        is_autosave = request.POST.get('is_autosave') in ('1', 'true', 'True')
+
         # Validate that at least one quantity is entered
         try:
             has_qty = any(float(q or 0) > 0 for q in bill_exec_map.values())
         except (ValueError, TypeError):
             has_qty = False
-        
+
         if not has_qty:
+            if is_autosave:
+                # Nothing worth persisting yet — not an error, just a no-op.
+                return JsonResponse({'success': True, 'skipped': True})
             return JsonResponse({
-                'success': False, 
+                'success': False,
                 'error': 'Please enter at least one quantity'
             }, status=400)
     
@@ -1067,12 +1072,31 @@ def workslip_entry_save(request, work_id):
         ws_rate_map = json.loads(request.POST.get('ws_rate_map', '{}'))
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
-    
+
+    is_autosave = request.POST.get('is_autosave') in ('1', 'true', 'True')
+
+    # existing_workslip_id lets repeated saves (autosave + the final "Save &
+    # Continue") target the SAME workslip record instead of each call minting
+    # a new Workslip-N (workslip_number is otherwise derived from a count).
+    existing_workslip_id = (request.POST.get('existing_workslip_id') or '').strip()
+    target_workslip = None
+    if existing_workslip_id:
+        target_workslip = SavedWork.objects.filter(
+            id=existing_workslip_id,
+            organization=org,
+            user=user,
+            parent=source_estimate,
+            work_type='workslip',
+        ).first()
+
     # Validate that at least one quantity is entered
     has_qty = any(float(q or 0) > 0 for q in ws_exec_map.values())
     if not has_qty:
+        if is_autosave:
+            # Nothing worth persisting yet — not an error, just a no-op.
+            return JsonResponse({'success': True, 'skipped': True})
         return JsonResponse({
-            'success': False, 
+            'success': False,
             'error': 'Please enter at least one quantity'
         }, status=400)
     
@@ -1085,14 +1109,17 @@ def workslip_entry_save(request, work_id):
     estimate_items = estimate_data.get('fetched_items', [])
     
     # Determine workslip number
-    existing_workslips = SavedWork.objects.filter(
-        organization=org,
-        user=user,
-        work_type='workslip',
-        parent=source_estimate
-    ).order_by('-workslip_number')
-    
-    workslip_number = existing_workslips.first().workslip_number + 1 if existing_workslips.exists() else 1
+    if target_workslip:
+        workslip_number = target_workslip.workslip_number
+    else:
+        existing_workslips = SavedWork.objects.filter(
+            organization=org,
+            user=user,
+            work_type='workslip',
+            parent=source_estimate
+        ).order_by('-workslip_number')
+
+        workslip_number = existing_workslips.first().workslip_number + 1 if existing_workslips.exists() else 1
     
     # Build workslip data to save
     # Store estimate items with key preservation
@@ -1156,28 +1183,40 @@ def workslip_entry_save(request, work_id):
         'ws_work_mode': estimate_data.get('work_type', 'original'),
     }
     
-    # Create or update SavedWork for workslip (prevents duplicates)
+    # Create or update SavedWork for workslip (prevents duplicates).
+    # When target_workslip is set (autosave or a re-save within the same
+    # entry session) update it directly by id rather than re-deriving the
+    # workslip_number, which would otherwise mint a new Workslip-N each call.
     workslip_name = f"Workslip-{workslip_number} from {source_estimate.name}"
 
-    saved_workslip, ws_created = SavedWork.objects.update_or_create(
-        organization=org,
-        user=user,
-        parent=source_estimate,
-        work_type='workslip',
-        workslip_number=workslip_number,
-        defaults={
-            'name': workslip_name,
-            'work_data': workslip_data,
-            'category': source_estimate.category,
-            'status': 'in_progress',
-        },
-    )
-    
+    if target_workslip:
+        target_workslip.name = workslip_name
+        target_workslip.work_data = workslip_data
+        target_workslip.category = source_estimate.category
+        target_workslip.status = 'in_progress'
+        target_workslip.save()
+        saved_workslip = target_workslip
+    else:
+        saved_workslip, _ws_created = SavedWork.objects.update_or_create(
+            organization=org,
+            user=user,
+            parent=source_estimate,
+            work_type='workslip',
+            workslip_number=workslip_number,
+            defaults={
+                'name': workslip_name,
+                'work_data': workslip_data,
+                'category': source_estimate.category,
+                'status': 'in_progress',
+            },
+        )
+
     return JsonResponse({
         'success': True,
         'work_id': saved_workslip.id,
         'redirect_url': reverse('saved_work_detail', kwargs={'work_id': saved_workslip.id}),
-        'message': f'Workslip-{workslip_number} saved!'
+        'message': f'Workslip-{workslip_number} saved!' if not is_autosave else 'Workslip auto-saved',
+        'autosaved': is_autosave,
     })
 
 

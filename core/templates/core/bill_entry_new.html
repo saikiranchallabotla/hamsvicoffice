@@ -662,6 +662,9 @@
             <button type="button" class="btn btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
+            <span id="bill-autosave-status" style="align-self:center;font-size:0.72rem;color:#16a34a;opacity:0;transition:opacity 0.3s;">
+                <i class="bi bi-cloud-check"></i> Auto-saved
+            </span>
         </div>
     </form>
 </div>
@@ -783,6 +786,58 @@
     const rateMap = {};
     const execMap = {};    // Till Date quantities
     const deductMap = {};  // Previous bill quantities (for deduction)
+
+    // --- Auto-save to server: this view is already idempotent per
+    // bill_number (no incrementing counter), so repeated calls safely
+    // update the same Bill-N row — no extra id plumbing needed.
+    let billAutoSaveTimer = null;
+    let billAutoSaveInFlight = false;
+
+    function scheduleBillAutoSave() {
+        if (billAutoSaveTimer) clearTimeout(billAutoSaveTimer);
+        billAutoSaveTimer = setTimeout(function() { performBillAutoSave(); }, 1500);
+    }
+
+    function performBillAutoSave(opts) {
+        opts = opts || {};
+        if (billAutoSaveTimer) { clearTimeout(billAutoSaveTimer); billAutoSaveTimer = null; }
+        if (billAutoSaveInFlight && !opts.keepalive) return;
+
+        const hasQty = Object.values(execMap).some(function(q) { return (parseFloat(q) || 0) > 0; });
+        if (!hasQty) return;
+
+        const formData = new FormData(document.getElementById('bill-entry-form'));
+        formData.set('bill_exec_map', JSON.stringify(execMap));
+        formData.set('bill_deduct_map', JSON.stringify(deductMap));
+        formData.set('bill_rate_map', JSON.stringify(rateMap));
+        formData.set('action', 'save_bill_data');
+        formData.set('is_autosave', '1');
+
+        billAutoSaveInFlight = true;
+        fetch(SAVE_URL, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            keepalive: !!opts.keepalive,
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            billAutoSaveInFlight = false;
+            if (data.success) flashBillAutoSaveIndicator();
+        })
+        .catch(function() { billAutoSaveInFlight = false; });
+    }
+
+    function flashBillAutoSaveIndicator() {
+        const el = document.getElementById('bill-autosave-status');
+        if (!el) return;
+        el.style.opacity = '1';
+        clearTimeout(el._fadeTimer);
+        el._fadeTimer = setTimeout(function() { el.style.opacity = '0'; }, 2000);
+    }
+
+    // Best-effort flush when the user navigates away without saving.
+    window.addEventListener('pagehide', function() { performBillAutoSave({ keepalive: true }); });
 
     // Initialize on load
     document.addEventListener('DOMContentLoaded', function() {
@@ -917,10 +972,12 @@
                 execMap[key] = qty;
                 updateRowAmount(idx, key);
                 updateSummary();
+                scheduleBillAutoSave();
             });
             qtyInput.addEventListener('change', () => {
                 updateRowAmount(idx, key);
                 updateSummary();
+                performBillAutoSave();
             });
 
             // ── Inline AE row right after its parent item ──
@@ -1012,10 +1069,12 @@
                     execMap[aeKey] = qty;
                     updateAERowAmount(aeIdx, aeKey);
                     updateSummary();
+                    scheduleBillAutoSave();
                 });
                 aeQtyInput.addEventListener('change', () => {
                     updateAERowAmount(aeIdx, aeKey);
                     updateSummary();
+                    performBillAutoSave();
                 });
             }
         });
