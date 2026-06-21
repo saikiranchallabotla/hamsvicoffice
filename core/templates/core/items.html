@@ -454,20 +454,29 @@
     }
 
     .btn-manage-locations {
-        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: #319795;
         border: none;
-        color: #319795;
+        color: #fff;
         cursor: pointer;
-        padding: 0 0.2rem;
-        font-size: 0.8rem;
-        line-height: 1;
-        opacity: 0.75;
+        padding: 3px 7px;
+        margin-left: 4px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: none;
+        line-height: 1.4;
+        border-radius: 5px;
         vertical-align: middle;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+        transition: all 0.15s ease;
     }
 
     .btn-manage-locations:hover {
-        opacity: 1;
-        transform: scale(1.15);
+        background: #2c7a7b;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        transform: translateY(-1px);
     }
 
     #breakdownLocationsContainer .breakdown-loc-row {
@@ -1063,9 +1072,9 @@
                                 <th style="width: 50px;">Sl.No</th>
                                 <th>Item Description</th>
                                 <th style="width: 70px;">Unit</th>
-                                <th style="width: 120px;">Qty
+                                <th style="width: 140px;">Qty
                                     <button type="button" class="btn-manage-locations" onclick="openLocationsModal()" title="Manage Locations">
-                                        <i class="bi bi-geo-alt"></i>
+                                        <i class="bi bi-geo-alt"></i> Locations
                                     </button>
                                 </th>
                                 <th style="width: 80px;">Rate</th>
