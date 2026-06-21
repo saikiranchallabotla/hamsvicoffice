@@ -2507,7 +2507,15 @@ function collectExecMap() {
 // session FROM the DB record on every visit, wiping any unsaved session state.
 (function() {
     var _wsAutoTimer = null;
-    var _wsAutoInFlight = false;
+    // Auto-save and the manual "Save Work" button both run the same
+    // update_preview -> modal-data -> save sequence. Run them through this
+    // shared queue (FIFO) instead of firing independent overlapping fetches:
+    // two concurrent chains can interleave their requests, and whichever's
+    // /saved-works/save/ call lands on the server last wins — even if it
+    // captured an older exec_map snapshot — silently dropping the user's
+    // most recent quantity entries. Queuing guarantees only one chain runs
+    // at a time, and each chain reads the DOM fresh when its turn comes up.
+    window._wsSaveQueue = window._wsSaveQueue || Promise.resolve();
 
     function wsCsrfToken() {
         return document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -2541,20 +2549,12 @@ function collectExecMap() {
         el._fadeTimer = setTimeout(function() { el.style.opacity = '0'; }, 2000);
     }
 
-    function performAutoSave(opts) {
+    function runWorkslipSaveChain(opts) {
         opts = opts || {};
-        if (_wsAutoTimer) { clearTimeout(_wsAutoTimer); _wsAutoTimer = null; }
-        if (_wsAutoInFlight && !opts.keepalive) return;
-
-        var execMap = collectExecMap();
-        var hasQty = Object.keys(execMap).some(function(k) { return (parseFloat(execMap[k]) || 0) > 0; });
-        if (!hasQty) return;
-
         var csrfToken = wsCsrfToken();
-        _wsAutoInFlight = true;
 
         // 1) Sync exec/rate/TP into the session (cheap, existing behavior).
-        fetch('{% url "workslip_main" %}', {
+        return fetch('{% url "workslip_main" %}', {
             method: 'POST',
             body: buildWorkslipFormData('update_preview'),
             headers: { 'X-CSRFToken': csrfToken },
@@ -2567,26 +2567,48 @@ function collectExecMap() {
             return fetch('/saved-works/modal-data/', { keepalive: !!opts.keepalive });
         }).then(function(res) { return res.json(); })
         .then(function(data) {
-            if (!data || !data.current_work || !data.current_work.id) return null;
+            var cw = data && data.current_work;
+            if (!cw || !cw.id) return { needsModal: true };
             // 3) Persist the current session state into that SavedWork record.
             var formData = new FormData();
             formData.append('work_type', 'workslip');
             formData.append('category', 'electrical');
-            formData.append('work_id', data.current_work.id);
-            formData.append('work_name', data.current_work.name);
-            if (data.current_work.folder_id) formData.append('folder_id', data.current_work.folder_id);
-            formData.append('notes', data.current_work.notes || '');
+            formData.append('work_id', cw.id);
+            formData.append('work_name', cw.name);
+            if (cw.folder_id) formData.append('folder_id', cw.folder_id);
+            formData.append('notes', cw.notes || '');
             formData.append('csrfmiddlewaretoken', csrfToken);
             return fetch('/saved-works/save/', {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-CSRFToken': csrfToken },
                 keepalive: !!opts.keepalive,
+            }).then(function(res) {
+                if (opts.keepalive) return { ok: true };
+                return res.json().then(function(json) { return { result: json }; });
             });
-        }).then(function(res) {
-            _wsAutoInFlight = false;
-            if (res) flashAutoSaveIndicator();
-        }).catch(function() { _wsAutoInFlight = false; });
+        });
+    }
+
+    function queueWorkslipSave(opts) {
+        var chain = window._wsSaveQueue.then(function() { return runWorkslipSaveChain(opts); });
+        // Keep the queue alive even on failure so a later save isn't blocked forever.
+        window._wsSaveQueue = chain.catch(function() {});
+        return chain;
+    }
+    window._queueWorkslipSave = queueWorkslipSave;
+
+    function performAutoSave(opts) {
+        opts = opts || {};
+        if (_wsAutoTimer) { clearTimeout(_wsAutoTimer); _wsAutoTimer = null; }
+
+        var execMap = collectExecMap();
+        var hasQty = Object.keys(execMap).some(function(k) { return (parseFloat(execMap[k]) || 0) > 0; });
+        if (!hasQty) return;
+
+        queueWorkslipSave(opts).then(function(outcome) {
+            if (outcome && outcome.result) flashAutoSaveIndicator();
+        }).catch(function() {});
     }
 
     function scheduleAutoSave() {
@@ -2606,80 +2628,29 @@ function collectExecMap() {
 })();
 
 // Quick save function for workslip - saves directly if there's already a current work
+// Routed through window._queueWorkslipSave so this never races the debounced
+// auto-save chain (see the auto-save IIFE above) over the same session/DB write.
 function quickSaveWorkslip() {
     const saveBtn = document.querySelector('.save-work-btn');
     if (saveBtn) {
         saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
         saveBtn.disabled = true;
     }
-    
-    // First, save current execution quantities to session
-    const execMap = collectExecMap();
-    const tpPercent = document.getElementById('tp-percent-input')?.value || '0';
-    const tpType = document.getElementById('tp-type-select')?.value || 'Excess';
-    
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-                      document.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
-    
-    // Save session data first via update_preview action
-    const sessionFormData = new FormData();
-    sessionFormData.append('action', 'update_preview');
-    sessionFormData.append('exec_map', JSON.stringify(execMap));
-    sessionFormData.append('tp_percent', tpPercent);
-    sessionFormData.append('tp_type', tpType);
-    sessionFormData.append('csrfmiddlewaretoken', csrfToken);
-    
-    fetch('/workslip/main/', {
-        method: 'POST',
-        body: sessionFormData,
-        headers: {
-            'X-CSRFToken': csrfToken
-        },
-        redirect: 'manual'  // Don't follow the redirect
-    })
-    .then(() => {
-        // Now check if there's already a saved work we're continuing from
-        return fetch('/saved-works/modal-data/');
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.current_work && data.current_work.id) {
-            // There's already a current work - save directly without modal
-            const formData = new FormData();
-            formData.append('work_type', 'workslip');
-            formData.append('category', 'electrical');
-            formData.append('work_id', data.current_work.id);
-            formData.append('work_name', data.current_work.name);
-            if (data.current_work.folder_id) {
-                formData.append('folder_id', data.current_work.folder_id);
-            }
-            formData.append('notes', data.current_work.notes || '');
-            formData.append('csrfmiddlewaretoken', csrfToken);
-            
-            return fetch('/saved-works/save/', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            }).then(res => res.json());
-        } else {
+
+    window._queueWorkslipSave({})
+    .then(outcome => {
+        if (saveBtn) {
+            saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
+            saveBtn.disabled = false;
+        }
+        if (outcome && outcome.needsModal) {
             // No current work - show the modal to get work name
-            if (saveBtn) {
-                saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
-                saveBtn.disabled = false;
-            }
             const modal = new bootstrap.Modal(document.getElementById('saveWorkModal'));
             modal.show();
-            return null;
+            return;
         }
-    })
-    .then(result => {
+        const result = outcome && outcome.result;
         if (result) {
-            if (saveBtn) {
-                saveBtn.innerHTML = '<i class="bi bi-save"></i><span>Save Work</span>';
-                saveBtn.disabled = false;
-            }
             if (result.success) {
                 showToast(result.message || 'Work saved successfully!', 'success');
             } else {
