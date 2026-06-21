@@ -1080,6 +1080,7 @@ def collect_work_data(request, work_type):
             'item_spec_overrides': request.session.get('item_spec_overrides', {}),
             'estimate_locations': request.session.get('estimate_locations', []),
             'item_location_breakdown': request.session.get('item_location_breakdown', {}),
+            'project_area': request.session.get('project_area', 'municipal'),
             'estimate_source': request.session.get('estimate_source', ''),
             # Uploaded custom items data
             'uploaded_items': request.session.get('uploaded_items', []),
@@ -1334,6 +1335,7 @@ def restore_work_data(request, saved_work):
         request.session['fetched_items'] = work_data.get('fetched_items', [])
         request.session['current_project_name'] = work_data.get('current_project_name')
         request.session['work_type'] = work_data.get('work_type', 'original')
+        request.session['project_area'] = work_data.get('project_area', 'municipal')
         request.session['qty_map'] = work_data.get('qty_map', {})
         request.session['unit_map'] = work_data.get('unit_map', {})
         request.session['work_name'] = work_data.get('work_name', '')
@@ -1928,17 +1930,26 @@ def get_save_work_modal_data(request):
 # WORKFLOW CHAIN: ESTIMATE â†’ WORKSLIP â†’ BILL
 # ==============================================================================
 
-def load_item_rates_from_backend(category, item_names, backend_id=None, user=None, module_code=None):
+def load_item_rates_from_backend(category, item_names, backend_id=None, user=None, module_code=None, area=None, work_type=None):
     """
     Load item rates and descriptions from the backend Excel file for given item names.
     Uses the user's selected backend (ModuleBackend) if available, falling back to default.
     Returns a dict: {item_name: {'rate': value, 'unit': 'Nos/Mtrs/Pts', 'group': 'group_name', 'desc': 'description'}}
+
+    area/work_type adjust the GHMC-allowance/Overhead rows (see
+    compute_block_rate) for callers in the new_estimate flow; other callers
+    that don't pass them get the existing 'municipal'/'original' defaults,
+    which reproduce the unadjusted cached rate for any block lacking those
+    rows.
     """
     from django.conf import settings
     from openpyxl import load_workbook
+    from core.utils_excel import compute_block_rate
     import os
     import logging
     logger = logging.getLogger(__name__)
+    area = area or 'municipal'
+    work_type = work_type or 'original'
     
     logger.info(f"[LOAD_RATES DEBUG] Loading rates for category={category}, items={item_names}, backend_id={backend_id}")
     
@@ -1987,28 +1998,13 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
                     rate = 0
                 desc = info.get('_cached_desc') or name
             else:
-                # Find rate from bottom up (last value in column J)
-                # Try data_only workbook first (has calculated values), then formula workbook
-                for r in range(end_row, start_row - 1, -1):
-                    val = ws_data_only.cell(row=r, column=10).value  # column J (data_only)
-                    if val not in (None, ""):
-                        try:
-                            rate = float(val)
-                        except (ValueError, TypeError):
-                            rate = 0
-                        break
-
-                # If rate is still 0, try the formula workbook (ws_data)
-                # Some Excel files may only have literal values, not formula results
-                if rate == 0 and ws_data is not None:
-                    for r in range(end_row, start_row - 1, -1):
-                        val = ws_data.cell(row=r, column=10).value
-                        if val not in (None, ""):
-                            try:
-                                rate = float(val)
-                            except (ValueError, TypeError):
-                                rate = 0
-                            break
+                item_ws_vals = info.get('_source_ws_vals') or ws_data_only
+                item_ws_for = info.get('_source_ws') or ws_data
+                computed_rate = compute_block_rate(
+                    item_ws_vals, item_ws_for, start_row, end_row,
+                    area=area, work_type=work_type,
+                ) if item_ws_for is not None else None
+                rate = computed_rate if computed_rate is not None else 0
 
                 # Get description from row start_row + 2, column D (4)
                 desc = name  # default to item name
@@ -2262,7 +2258,9 @@ def generate_workslip_from_saved(request, work_id):
                 category, item_names,
                 backend_id=saved_backend_id,
                 user=request.user,
-                module_code=ws_module_code
+                module_code=ws_module_code,
+                area=work_data.get('project_area', 'municipal'),
+                work_type=work_data.get('work_type', 'original'),
             )
         
         # Convert to workslip format - match the format from estimate upload
@@ -2405,6 +2403,10 @@ def generate_workslip_from_saved(request, work_id):
     # This ensures prefixes from the backend Groups sheet are applied in Excel output
     estimate_work_mode = work_data.get('work_type', 'original')
     request.session['ws_work_mode'] = estimate_work_mode
+    # Propagate Municipal/Non-Municipal area so GHMC-allowance rows for any
+    # supplemental items added at the Workslip stage are adjusted consistently
+    # with how the estimate's own rates were computed.
+    request.session['ws_project_area'] = work_data.get('project_area', 'municipal')
 
     # ── Pre-create the SavedWork record for Workslip-1 so
     #    quickSaveWorkslip() finds it and auto-updates without asking

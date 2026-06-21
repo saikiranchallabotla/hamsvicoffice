@@ -1214,9 +1214,7 @@ def _safe_eval_expr(expr: str) -> float:
     Evaluate expression containing only numbers and + - * / ().
     """
     def _eval(node):
-        if isinstance(node, ast.Num):  # py<3.8
-            return float(node.n)
-        if isinstance(node, ast.Constant):  # py>=3.8
+        if isinstance(node, ast.Constant):
             if isinstance(node.value, (int, float)):
                 return float(node.value)
             return 0.0
@@ -1400,6 +1398,220 @@ def _safe_eval_arith(s):
         return _safe_eval_expr(s)
     except Exception:
         raise ValueError("Invalid arithmetic expression")
+
+
+# ---------- GHMC allowance / Overhead percentage policy adjustment ----------
+# Backend item blocks sometimes contain two specific calculated rows:
+#   "Add GHMC allowance @40%"  -- only applicable inside Municipal (GHMC) limits
+#   "Add Overhead @10.615%"    -- the file bakes in the *repair*-work percentage;
+#                                  original works use 13.615% instead.
+# Both are simple "<prior row> * <percent>" formulas, and the row immediately
+# after is always a SUM of the preceding rows. Most item blocks have neither
+# row, in which case these helpers are no-ops and today's cached rate is used
+# unchanged.
+
+_GHMC_LABEL_RE = re.compile(r"add\s+ghmc\s+allowance\s*@?\s*[\d.]+\s*%", re.I)
+_OVERHEAD_LABEL_RE = re.compile(r"add\s+overhead\s*@?\s*[\d.]+\s*%", re.I)
+# The GHMC/Overhead percentage appears in formulas in either decimal form
+# (=J85*0.4, =(J98)*0.10615) or Excel percent-literal form (=J623*10.615%),
+# depending on which item block. Both forms need substituting.
+_GHMC_DECIMAL_RE = re.compile(r"(?<![\d.])0\.4(?![\d])")
+_GHMC_PERCENT_RE = re.compile(r"(?<![\d.])40\s*%")
+_OVERHEAD_DECIMAL_RE = re.compile(r"0\.10615\d*")
+_OVERHEAD_PERCENT_RE = re.compile(r"10\.615\d*\s*%")
+ORIGINAL_OVERHEAD_DECIMAL = "0.13615"
+ORIGINAL_OVERHEAD_PERCENT = "13.615%"
+_SUM_CALL_RE = re.compile(r"SUM\(([^()]+)\)", re.I)
+_ROUND_CALL_RE = re.compile(r"ROUND\(([^()]+?),([^()]+?)\)", re.I)
+_RANGE_RE = re.compile(r"^\s*\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\s*$", re.I)
+_PERCENT_LITERAL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+
+
+def _zero_out_ghmc(expr):
+    expr = _GHMC_DECIMAL_RE.sub("0", expr)
+    expr = _GHMC_PERCENT_RE.sub("0%", expr)
+    return expr
+
+
+def _swap_overhead_to_original(expr):
+    expr = _OVERHEAD_DECIMAL_RE.sub(ORIGINAL_OVERHEAD_DECIMAL, expr)
+    expr = _OVERHEAD_PERCENT_RE.sub(ORIGINAL_OVERHEAD_PERCENT, expr)
+    return expr
+
+
+def find_policy_rows(ws_vals, start_row, end_row):
+    """
+    Scan column D of [start_row, end_row] for the GHMC-allowance and Overhead
+    labelled rows. Returns (ghmc_row_or_None, overhead_row_or_None).
+    """
+    ghmc_row = None
+    overhead_row = None
+    for r in range(start_row, end_row + 1):
+        label = ws_vals.cell(row=r, column=4).value
+        if not isinstance(label, str):
+            continue
+        if ghmc_row is None and _GHMC_LABEL_RE.search(label):
+            ghmc_row = r
+        elif overhead_row is None and _OVERHEAD_LABEL_RE.search(label):
+            overhead_row = r
+    return ghmc_row, overhead_row
+
+
+def _block_cached_rate(ws_vals, start_row, end_row):
+    """The rule used throughout the app: the last non-empty column J cell,
+    scanning bottom-up."""
+    for r in range(end_row, start_row - 1, -1):
+        v = ws_vals.cell(row=r, column=10).value
+        if v not in (None, ""):
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def _sum_part_value(part, col_j_value, cell_ref_value):
+    """Evaluate one comma-separated argument of a SUM(...) call: either a
+    range (J1:J3) or a standalone sub-expression (J5, J5/100, etc.)."""
+    part = part.strip()
+    range_m = _RANGE_RE.match(part)
+    if range_m:
+        col1, r1, col2, r2 = (
+            range_m.group(1).upper(), int(range_m.group(2)),
+            range_m.group(3).upper(), int(range_m.group(4)),
+        )
+        if col1 == col2 == "J":
+            return sum(col_j_value(rr) for rr in range(r1, r2 + 1))
+        return 0.0
+    sub_expr = _cell_ref_re.sub(lambda mm: str(cell_ref_value(mm.group(1))), part)
+    try:
+        return _safe_eval_arith(re.sub(r"[^0-9.\+\-\*/()\s]", "", sub_expr))
+    except Exception:
+        return 0.0
+
+
+def _expand_sum_calls(expr, col_j_value, cell_ref_value):
+    """Replace SUM(...) calls with their numeric result. Handles range form
+    (SUM(J21:J22)), comma-separated form (SUM(J617,J622)), and
+    single-expression form (SUM(J58/7))."""
+    def repl(m):
+        parts = m.group(1).split(",")
+        total = sum(_sum_part_value(p, col_j_value, cell_ref_value) for p in parts)
+        return str(total)
+
+    prev = None
+    while prev != expr:
+        prev = expr
+        expr = _SUM_CALL_RE.sub(repl, expr)
+    return expr
+
+
+def _expand_round_calls(expr, col_j_value, cell_ref_value):
+    """Replace ROUND(x, n) calls with their numeric, Excel-style rounded result."""
+    def repl(m):
+        a_expr = _expand_sum_calls(m.group(1).strip(), col_j_value, cell_ref_value)
+        a_expr = _cell_ref_re.sub(lambda mm: str(cell_ref_value(mm.group(1))), a_expr)
+        b_expr = _expand_sum_calls(m.group(2).strip(), col_j_value, cell_ref_value)
+        b_expr = _cell_ref_re.sub(lambda mm: str(cell_ref_value(mm.group(1))), b_expr)
+        try:
+            aval = _safe_eval_arith(re.sub(r"[^0-9.\+\-\*/()\s]", "", a_expr))
+            bval = _safe_eval_arith(re.sub(r"[^0-9.\+\-\*/()\s]", "", b_expr))
+            return str(_round_excel(aval, bval))
+        except Exception:
+            return "0"
+
+    prev = None
+    while prev != expr:
+        prev = expr
+        expr = _ROUND_CALL_RE.sub(repl, expr)
+    return expr
+
+
+def compute_block_rate(ws_vals, ws_formulas, start_row, end_row, area="municipal", work_type="original"):
+    """
+    Returns the rate for item block [start_row, end_row] -- the same cached
+    'last non-empty column J cell' value as today, UNLESS the block contains
+    a GHMC-allowance and/or Overhead row. When it does, that row's formula is
+    re-evaluated with the policy-adjusted percentage and the change cascades
+    through every dependent row (Sub-total, Total Rate, etc.) by
+    re-evaluating each row's formula top-down against the rows already
+    recomputed in this pass. No-op (returns the unchanged cached rate) if
+    neither row is present in this block.
+    """
+    ghmc_row, overhead_row = find_policy_rows(ws_vals, start_row, end_row)
+    if ghmc_row is None and overhead_row is None:
+        return _block_cached_rate(ws_vals, start_row, end_row)
+
+    computed = {}
+    has_content = {}
+
+    def col_j_value(row):
+        if row in computed:
+            return computed[row]
+        return _safe_float(ws_vals.cell(row=row, column=10).value) or 0.0
+
+    def cell_ref_value(addr):
+        col_letter, row = coordinate_from_string(addr.replace("$", ""))
+        col = column_index_from_string(col_letter)
+        r = int(row)
+        if col == 10 and start_row <= r <= end_row:
+            return col_j_value(r)
+        return _get_cell_value(ws_vals, ws_formulas, addr)
+
+    for r in range(start_row, end_row + 1):
+        j_formula = ws_formulas.cell(row=r, column=10).value
+        j_value = ws_vals.cell(row=r, column=10).value
+        has_content[r] = j_formula not in (None, "") or j_value not in (None, "")
+
+        if isinstance(j_formula, str) and j_formula.startswith("="):
+            expr = j_formula[1:].upper()
+            if r == ghmc_row and area == "non_municipal":
+                expr = _zero_out_ghmc(expr)
+            elif r == overhead_row and work_type == "original":
+                expr = _swap_overhead_to_original(expr)
+
+            expr = _PERCENT_LITERAL_RE.sub(r"(\1/100)", expr)
+            expr = _expand_sum_calls(expr, col_j_value, cell_ref_value)
+            expr = _expand_round_calls(expr, col_j_value, cell_ref_value)
+            expr = _cell_ref_re.sub(lambda m: str(cell_ref_value(m.group(1))), expr)
+            try:
+                computed[r] = float(_safe_eval_arith(re.sub(r"[^0-9.\+\-\*/()\s]", "", expr)))
+            except Exception:
+                computed[r] = _safe_float(j_value) or 0.0
+        else:
+            computed[r] = _safe_float(j_value) or 0.0
+
+    for r in range(end_row, start_row - 1, -1):
+        if has_content.get(r):
+            return computed.get(r)
+    return None
+
+
+def apply_policy_to_copied_block(ws_dst, dst_start_row, src_min_row, src_max_row, area, work_type):
+    """
+    Call AFTER copy_block_with_styles_and_formulas() has copied
+    [src_min_row, src_max_row] into ws_dst starting at dst_start_row.
+    Rewrites the GHMC-allowance and/or Overhead row's column-J FORMULA TEXT
+    in place (literal percentage substitution only -- row structure is
+    otherwise untouched) so Excel's own recalculation on file-open cascades
+    the change through every dependent Sub-total/Total Rate row
+    automatically. No-op if neither row exists in this block, or if
+    area/work_type don't require any change.
+    """
+    if area != "non_municipal" and work_type != "original":
+        return
+    dst_end_row = dst_start_row + (src_max_row - src_min_row)
+    ghmc_row, overhead_row = find_policy_rows(ws_dst, dst_start_row, dst_end_row)
+
+    if ghmc_row is not None and area == "non_municipal":
+        cell = ws_dst.cell(row=ghmc_row, column=10)
+        if isinstance(cell.value, str) and cell.value.startswith("="):
+            cell.value = _zero_out_ghmc(cell.value)
+
+    if overhead_row is not None and work_type == "original":
+        cell = ws_dst.cell(row=overhead_row, column=10)
+        if isinstance(cell.value, str) and cell.value.startswith("="):
+            cell.value = _swap_overhead_to_original(cell.value)
 
 
 def build_temp_day_rates(filepath, items_list):

@@ -392,7 +392,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         from openpyxl.styles import Alignment, Font, Border, Side
         from openpyxl.utils import get_column_letter
         from io import BytesIO
-        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively, normalize_external_sheet_refs, trim_to_xlsx_limits
+        from core.utils_excel import load_backend, copy_block_with_styles_and_formulas, copy_sheet_to_workbook, fix_cross_sheet_refs, find_referenced_sheets, expand_referenced_sheets_transitively, normalize_external_sheet_refs, trim_to_xlsx_limits, apply_policy_to_copied_block
         
         job = Job.objects.get(id=job_id)
         job.status = 'running'
@@ -475,6 +475,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         spec_overrides = job.result.get('spec_overrides', {}) if job.result else {}
         item_location_breakdown = job.result.get('item_location_breakdown', {}) if job.result else {}
         estimate_locations = job.result.get('estimate_locations', []) if job.result else []
+        project_area = (job.result.get('project_area', 'municipal') if job.result else 'municipal') or 'municipal'
 
         # Load uploaded workbook if needed
         ws_upload_src = None
@@ -626,6 +627,13 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 col_end=10,
                 external_sheets=external_sheets_all,
             )
+
+            # Rewrite the GHMC-allowance/Overhead row formulas (if present)
+            # for the project's Municipal/Non-Municipal area and Original/
+            # Repair work type, so Excel's own recalculation on open shows
+            # the correct Sub-total/Total Rate. No-op if the block has
+            # neither row, or if municipal+repair (today's baked-in default).
+            apply_policy_to_copied_block(ws_out, dst_start, src_min, src_max, project_area, work_type)
 
             ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"
             data_serial += 1

@@ -29,7 +29,7 @@ from ..decorators import org_required, role_required
 
 logger = logging.getLogger(__name__)
 from ..tasks import process_excel_upload, generate_bill_pdf, generate_workslip_pdf, generate_bill_document_task
-from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, find_referenced_sheets, expand_referenced_sheets_transitively
+from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, find_referenced_sheets, expand_referenced_sheets_transitively, compute_block_rate, apply_policy_to_copied_block
 from ..utils_group_order import apply_group_order, save_group_order
 
 p_engine = inflect.engine()
@@ -1988,17 +1988,14 @@ def workslip(request):
                     continue
                 desc_cell = ws_data.cell(row=start_row + 2, column=4).value
                 supp_desc_map[name] = str(desc_cell or "").strip()
-                # Rate from Master Datas col J
-                rate_val = 0.0
-                for r in range(end_row, start_row - 1, -1):
-                    v = ws_backend_vals.cell(row=r, column=10).value
-                    if v not in (None, ""):
-                        try:
-                            rate_val = float(v)
-                        except Exception:
-                            rate_val = 0.0
-                        break
-                supp_rate_map[name] = rate_val
+                # Rate from Master Datas col J, adjusted for the estimate's
+                # Municipal/Non-Municipal area and Original/Repair work type.
+                ws_project_area = request.session.get("ws_project_area", "municipal") or "municipal"
+                computed_rate = compute_block_rate(
+                    ws_backend_vals, ws_data, start_row, end_row,
+                    area=ws_project_area, work_type=ws_work_mode,
+                )
+                supp_rate_map[name] = computed_rate if computed_rate is not None else 0.0
 
             # Load prefix mapping for repair mode (used in both ItemBlocks and WorkSlip sheets)
             item_to_prefix_ws = {}
@@ -2099,6 +2096,15 @@ def workslip(request):
                         # Add Data serial number to column A of block header row
                         ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
                         data_serial_blocks += 1
+                        # Rewrite the GHMC-allowance/Overhead row formulas (if
+                        # present) for the estimate's Municipal/Non-Municipal
+                        # area and Original/Repair work type. No-op if the
+                        # block has neither row, or municipal+repair (default).
+                        apply_policy_to_copied_block(
+                            ws_blocks, current_row, start_row, end_row,
+                            request.session.get("ws_project_area", "municipal") or "municipal",
+                            ws_work_mode,
+                        )
                         # Apply repair prefix to description cell (row+2, col D)
                         if ws_work_mode == 'repair' and item_to_prefix_ws:
                             prefix = item_to_prefix_ws.get(name, "")

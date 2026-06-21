@@ -33,7 +33,7 @@ from ..decorators import org_required, role_required
 
 logger = logging.getLogger(__name__)
 from ..tasks import process_excel_upload, generate_bill_pdf, generate_workslip_pdf, generate_bill_document_task
-from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates
+from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, compute_block_rate, apply_policy_to_copied_block
 
 p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
@@ -82,6 +82,7 @@ def datas(request):
     request.session["item_spec_overrides"] = {}
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
+    request.session["project_area"] = "municipal"
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
     request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
     # Clear uploaded custom items
@@ -122,6 +123,7 @@ def select_project(request):
         request.session["item_spec_overrides"] = {}
         request.session["estimate_locations"] = []
         request.session["item_location_breakdown"] = {}
+        request.session["project_area"] = "municipal"
         return redirect("choose_category")
 
     if request.method == "POST":
@@ -133,6 +135,7 @@ def select_project(request):
             request.session["item_spec_overrides"] = {}
             request.session["estimate_locations"] = []
             request.session["item_location_breakdown"] = {}
+            request.session["project_area"] = "municipal"
             return redirect("choose_category")
 
     return render(request, "core/select_project.html", {"projects": projects})
@@ -299,6 +302,9 @@ def datas_items(request, category, group):
     wb_vals = load_workbook(filepath, data_only=True)
     ws_vals = wb_vals["Master Datas"]
 
+    project_area = request.session.get("project_area", "municipal") or "municipal"
+    work_type_for_rate = request.session.get("work_type", "original") or "original"
+
     item_rates = {}
     item_descs = {}
     for info in items_list:
@@ -311,12 +317,12 @@ def datas_items(request, category, group):
             if d:
                 item_descs[name] = d
             continue
-        rate = None
-        for r in range(end_row, start_row - 1, -1):
-            val = ws_vals.cell(row=r, column=10).value  # column J
-            if val not in (None, ""):
-                rate = val
-                break
+        item_ws_vals = info.get('_source_ws_vals') or ws_vals
+        item_ws_for = info.get('_source_ws') or ws_data
+        rate = compute_block_rate(
+            item_ws_vals, item_ws_for, start_row, end_row,
+            area=project_area, work_type=work_type_for_rate,
+        )
         item_rates[name] = rate
         # Scan rows below header for the best description text
         # Check columns B(2) and D(4) in rows start_row+1 through end_row
@@ -497,6 +503,7 @@ def datas_items(request, category, group):
         "work_name": work_name,
         "grand_total": grand_total,
         "work_type": work_type,
+        "project_area": project_area,
         "excess_tp_percent": excess_tp_percent,
         "ls_special_name": ls_special_name,
         "ls_special_amount": ls_special_amount,
@@ -633,6 +640,9 @@ def ajax_toggle_item(request, category):
                 wb_vals = load_workbook(filepath, data_only=True)
                 ws_vals = wb_vals["Master Datas"]
                 
+                project_area = request.session.get("project_area", "municipal") or "municipal"
+                work_type_for_rate = request.session.get("work_type", "original") or "original"
+
                 item_rate = None
                 for info in items_list:
                     if info["name"] == item:
@@ -644,11 +654,12 @@ def ajax_toggle_item(request, category):
                             break
                         start_row = info["start_row"]
                         end_row = info["end_row"]
-                        for r in range(end_row, start_row - 1, -1):
-                            val = ws_vals.cell(row=r, column=10).value  # column J
-                            if val not in (None, ""):
-                                item_rate = val
-                                break
+                        item_ws_vals = info.get('_source_ws_vals') or ws_vals
+                        item_ws_for = info.get('_source_ws') or ws_data
+                        item_rate = compute_block_rate(
+                            item_ws_vals, item_ws_for, start_row, end_row,
+                            area=project_area, work_type=work_type_for_rate,
+                        )
                         break
                 
                 # Get unit with smart fallback (same logic as datas_items)
@@ -835,6 +846,36 @@ def save_locations(request, category):
         return JsonResponse({"status": "ok", "locations": locations})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+# -----------------------
+# AJAX: MUNICIPAL / NON-MUNICIPAL AREA (GHMC allowance applicability)
+# -----------------------
+@login_required(login_url='login')
+def set_project_area(request, category):
+    """
+    AJAX endpoint to set the estimate's project area, which determines
+    whether the backend's "Add GHMC allowance @40%" rows apply. Only
+    callable while the estimate has no items yet (enforced by the frontend
+    disabling the control once items exist) -- this view itself doesn't
+    need to recompute anything since there's nothing selected to adjust.
+    POST with JSON or form: { "area": "municipal" | "non_municipal" }
+    Returns JSON: { "status": "ok", "project_area": "..." }
+    """
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "POST required"}, status=405)
+
+    if request.content_type and 'application/json' in request.content_type:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    else:
+        data = request.POST
+
+    area = (data.get("area") or "").strip()
+    if area not in ("municipal", "non_municipal"):
+        return JsonResponse({"status": "error", "message": "Invalid area"}, status=400)
+
+    request.session["project_area"] = area
+    return JsonResponse({"status": "ok", "project_area": area})
 
 
 @login_required(login_url='login')
@@ -1283,6 +1324,7 @@ def download_output(request, category):
             'spec_overrides': request.session.get('item_spec_overrides', {}) or {},
             'item_location_breakdown': request.session.get('item_location_breakdown', {}) or {},
             'estimate_locations': request.session.get('estimate_locations', []) or [],
+            'project_area': request.session.get('project_area', 'municipal') or 'municipal',
         }
         job.save()
 
@@ -1346,6 +1388,7 @@ def clear_output(request, category):
     request.session["item_spec_overrides"] = {}
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
+    request.session["project_area"] = "municipal"
     # Clear uploaded custom items
     request.session["uploaded_items"] = []
     request.session["uploaded_file_id"] = None
@@ -1677,6 +1720,7 @@ def new_project(request):
     request.session["item_spec_overrides"] = {}
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
+    request.session["project_area"] = "municipal"
     return redirect("datas")
 
 

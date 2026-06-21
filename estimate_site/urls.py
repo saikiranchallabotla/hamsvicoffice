@@ -186,6 +186,7 @@ urlpatterns = [
     path('datas/<str:category>/item-spec/save/', views.save_item_specification, name='save_item_specification'),
     path('datas/<str:category>/locations/', views.get_locations, name='get_locations'),
     path('datas/<str:category>/locations/save/', views.save_locations, name='save_locations'),
+    path('datas/<str:category>/project-area/save/', views.set_project_area, name='set_project_area'),
     path('datas/<str:category>/item-location-breakdown/', views.get_item_location_breakdown, name='get_item_location_breakdown'),
     path('datas/<str:category>/item-location-breakdown/save/', views.save_item_location_breakdown, name='save_item_location_breakdown'),
 
