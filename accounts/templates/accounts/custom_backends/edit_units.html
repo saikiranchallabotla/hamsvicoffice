@@ -130,6 +130,27 @@
         .cb-table tbody tr { padding: 0.4rem 0; border-bottom: 1px solid #eef2f7; }
         .cb-col-unit, .cb-col-prefix { width: auto; }
     }
+
+    .cb-module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem; margin-bottom: 0.9rem; }
+    .cb-module {
+        display: flex; align-items: center; gap: 0.55rem;
+        border: 1.3px solid #e2e8f0; border-radius: 10px;
+        padding: 0.6rem 0.8rem; cursor: pointer;
+        background: #fff; transition: all 0.15s;
+    }
+    .cb-module input { position: absolute; opacity: 0; pointer-events: none; }
+    .cb-module:hover { border-color: #c7d2fe; background: #fafbff; }
+    .cb-module.checked {
+        border-color: #6366f1; background: #eef2ff;
+    }
+    .cb-module-icon {
+        width: 30px; height: 30px; border-radius: 8px;
+        background: #f1f5f9; color: #64748b;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .cb-module.checked .cb-module-icon { background: #6366f1; color: #fff; }
+    .cb-module-text { font-weight: 600; color: #1e293b; font-size: 0.82rem; }
 </style>
 
 <div class="cb-wrap">
@@ -156,6 +177,37 @@
         <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
         {% endfor %}
     {% endif %}
+
+    <div class="cb-table-card" style="padding: 1rem 1.1rem; margin-bottom: 1rem;">
+        <div style="font-weight:700; font-size:0.9rem; color:#1e293b; margin-bottom:0.6rem;">
+            <i class="bi bi-grid-3x3-gap-fill me-1" style="color:#6366f1;"></i> Applies to modules
+        </div>
+        <div class="cb-help" style="margin-bottom:0.7rem;">
+            These items only appear in the module(s) checked below &mdash; uncheck a module to stop these items
+            from showing up there.
+        </div>
+        <form method="post" action="{% url 'custom_backend_edit_modules' backend.pk %}">
+            {% csrf_token %}
+            <div class="cb-module-grid">
+                <label class="cb-module {% if backend.applies_estimate %}checked{% endif %}">
+                    <input type="checkbox" name="applies_estimate" {% if backend.applies_estimate %}checked{% endif %}>
+                    <span class="cb-module-icon"><i class="bi bi-clipboard-data"></i></span>
+                    <span class="cb-module-text">Estimate</span>
+                </label>
+                <label class="cb-module {% if backend.applies_tempworks %}checked{% endif %}">
+                    <input type="checkbox" name="applies_tempworks" {% if backend.applies_tempworks %}checked{% endif %}>
+                    <span class="cb-module-icon"><i class="bi bi-tools"></i></span>
+                    <span class="cb-module-text">Temporary Works</span>
+                </label>
+                <label class="cb-module {% if backend.applies_amc %}checked{% endif %}">
+                    <input type="checkbox" name="applies_amc" {% if backend.applies_amc %}checked{% endif %}>
+                    <span class="cb-module-icon"><i class="bi bi-calendar-check"></i></span>
+                    <span class="cb-module-text">AMC</span>
+                </label>
+            </div>
+            <button type="submit" class="cb-btn-primary"><i class="bi bi-check2"></i> Save Modules</button>
+        </form>
+    </div>
 
     {% if not items %}
         <div class="cb-empty">
@@ -208,4 +260,13 @@
         </form>
     {% endif %}
 </div>
+<script>
+(function () {
+    document.querySelectorAll('.cb-module input[type="checkbox"]').forEach(function (c) {
+        c.addEventListener('change', function () {
+            c.closest('.cb-module').classList.toggle('checked', c.checked);
+        });
+    });
+})();
+</script>
 {% endblock %}

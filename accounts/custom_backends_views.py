@@ -199,6 +199,27 @@ def custom_backend_edit_units_view(request, backend_id):
 
 @login_required
 @require_POST
+def custom_backend_edit_modules_view(request, backend_id):
+    backend = get_object_or_404(UserCustomBackend, pk=backend_id, user=request.user)
+
+    applies_estimate = request.POST.get('applies_estimate') == 'on'
+    applies_tempworks = request.POST.get('applies_tempworks') == 'on'
+    applies_amc = request.POST.get('applies_amc') == 'on'
+
+    if not (applies_estimate or applies_tempworks or applies_amc):
+        messages.error(request, "Select at least one module for this upload to apply to.")
+        return redirect('custom_backend_edit_units', backend_id=backend.pk)
+
+    backend.applies_estimate = applies_estimate
+    backend.applies_tempworks = applies_tempworks
+    backend.applies_amc = applies_amc
+    backend.save(update_fields=['applies_estimate', 'applies_tempworks', 'applies_amc', 'updated_at'])
+    messages.success(request, "Updated which modules this upload applies to.")
+    return redirect('custom_backend_edit_units', backend_id=backend.pk)
+
+
+@login_required
+@require_POST
 def custom_backend_delete_view(request, backend_id):
     backend = get_object_or_404(UserCustomBackend, pk=backend_id, user=request.user)
     name = backend.name

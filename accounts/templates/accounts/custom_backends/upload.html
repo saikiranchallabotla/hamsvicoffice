@@ -214,9 +214,9 @@
         <div class="cb-section">
             <label class="cb-label"><span class="num">4</span> Applies to modules</label>
             <div class="cb-module-grid">
-                <label class="cb-module {% if pre_module == 'estimate' or not pre_module %}checked{% endif %}">
+                <label class="cb-module {% if pre_module == 'estimate' %}checked{% endif %}">
                     <input type="checkbox" name="applies_estimate"
-                           {% if pre_module == 'estimate' or not pre_module %}checked{% endif %}>
+                           {% if pre_module == 'estimate' %}checked{% endif %}>
                     <span class="cb-module-icon"><i class="bi bi-clipboard-data"></i></span>
                     <span class="cb-module-text">Estimate</span>
                 </label>
@@ -233,7 +233,7 @@
                     <span class="cb-module-text">AMC</span>
                 </label>
             </div>
-            <div class="cb-hint">These items also appear in Workslip when the work matches the selected module.</div>
+            <div class="cb-hint">Only check the module(s) you want these items to show up in &mdash; e.g. check only "AMC" if these items are for AMC work alone. They'll also appear in Workslip when the work matches a checked module.</div>
         </div>
 
         <div class="cb-section">

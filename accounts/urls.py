@@ -42,6 +42,7 @@ urlpatterns = [
     path('custom-backends/', custom_backends_views.custom_backend_list_view, name='custom_backend_list'),
     path('custom-backends/upload/', custom_backends_views.custom_backend_upload_view, name='custom_backend_upload'),
     path('custom-backends/<int:backend_id>/units/', custom_backends_views.custom_backend_edit_units_view, name='custom_backend_edit_units'),
+    path('custom-backends/<int:backend_id>/modules/', custom_backends_views.custom_backend_edit_modules_view, name='custom_backend_edit_modules'),
     path('custom-backends/<int:backend_id>/delete/', custom_backends_views.custom_backend_delete_view, name='custom_backend_delete'),
     path('custom-backends/<int:backend_id>/toggle/', custom_backends_views.custom_backend_toggle_view, name='custom_backend_toggle'),
     path('custom-backends/<int:backend_id>/download/', custom_backends_views.custom_backend_download_view, name='custom_backend_download'),
