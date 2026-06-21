@@ -2729,10 +2729,12 @@ def bill_choice(request, work_id):
             target_ws = ws
             break
 
-    # If only one workslip or we found the target workslip, go straight to bill entry
+    # If there's only one workslip, the bill must be Bill-N-from-Workslip-N for that
+    # workslip's own number (not "max existing bill + 1") — otherwise re-clicking this
+    # button after Bill-1 is already saved jumps straight to Bill-2 against the same W1.
     if len(all_workslips) == 1:
         from django.urls import reverse
-        url = reverse('bill_entry', args=[all_workslips[0].id]) + f'?bill_number={next_bill_number}'
+        url = reverse('bill_entry', args=[all_workslips[0].id]) + f'?bill_number={all_workslips[0].workslip_number or 1}'
         return redirect(url)
 
     if target_ws:
