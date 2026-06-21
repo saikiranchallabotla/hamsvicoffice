@@ -93,11 +93,25 @@
     // =========================================================================
 
     function fadeOut(el, duration) {
-        return Promise.resolve();
+        duration = duration || 120;
+        return new Promise(function(resolve) {
+            if (!el) { resolve(); return; }
+            el.style.transition = 'opacity ' + duration + 'ms ease';
+            el.style.opacity = '0';
+            setTimeout(resolve, duration);
+        });
     }
 
     function fadeIn(el, duration) {
-        el.style.opacity = '1';
+        duration = duration || 120;
+        if (!el) return;
+        el.style.transition = 'opacity ' + duration + 'ms ease';
+        // Force a reflow so the browser registers the current (faded-out) opacity
+        // before animating to 1 -- otherwise the transition has nothing to animate from.
+        void el.offsetHeight;
+        requestAnimationFrame(function() {
+            el.style.opacity = '1';
+        });
     }
 
     // =========================================================================
@@ -225,6 +239,23 @@
             // Last resort: native navigation (only on network error)
             window.location.replace(targetUrl);
         });
+    }
+
+    /**
+     * Swap head styles + body from a full HTML response without touching history.
+     * Used by back/forward (popstate) navigation, which must never push a new entry.
+     */
+    function swapFullBody(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var oldHeadEls = document.querySelectorAll('head style, head link[rel="stylesheet"]');
+        var newHeadEls = doc.querySelectorAll('head style, head link[rel="stylesheet"]');
+        oldHeadEls.forEach(function(el) { el.remove(); });
+        newHeadEls.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
+        document.body.innerHTML = doc.body.innerHTML;
+        executeInlineScripts(document.body);
+        document.title = FIXED_TITLE;
+        currentLayout = detectCurrentLayout();
+        window.scrollTo(0, 0);
     }
 
     /**
@@ -783,16 +814,10 @@
 
             if (data._fullHtml) {
                 // Full page — replace document but DON'T push history (we're going back)
-                var doc = new DOMParser().parseFromString(data._fullHtml, 'text/html');
-                var oldHeadEls = document.querySelectorAll('head style, head link[rel="stylesheet"]');
-                var newHeadEls = doc.querySelectorAll('head style, head link[rel="stylesheet"]');
-                oldHeadEls.forEach(function(el) { el.remove(); });
-                newHeadEls.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
-                document.body.innerHTML = doc.body.innerHTML;
-                executeInlineScripts(document.body);
-                document.title = FIXED_TITLE;
-                currentLayout = detectCurrentLayout();
-                window.scrollTo(0, 0);
+                fadeOut(document.body, 80).then(function() {
+                    swapFullBody(data._fullHtml);
+                    fadeIn(document.body, 80);
+                });
                 return;
             }
 
@@ -813,37 +838,25 @@
                     injectClassicContent(data);
                 } else {
                     // Unknown same-layout — full page replace without pushing history
-                    fetch(url, { method: 'GET', credentials: 'same-origin' })
-                        .then(function(r) { return r.text(); })
-                        .then(function(html) {
-                            var d = new DOMParser().parseFromString(html, 'text/html');
-                            var ohe = document.querySelectorAll('head style, head link[rel="stylesheet"]');
-                            var nhe = d.querySelectorAll('head style, head link[rel="stylesheet"]');
-                            ohe.forEach(function(el) { el.remove(); });
-                            nhe.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
-                            document.body.innerHTML = d.body.innerHTML;
-                            executeInlineScripts(document.body);
-                            document.title = FIXED_TITLE;
-                            currentLayout = detectCurrentLayout();
-                            window.scrollTo(0, 0);
-                        });
+                    fadeOut(document.body, 80).then(function() {
+                        return fetch(url, { method: 'GET', credentials: 'same-origin' })
+                            .then(function(r) { return r.text(); })
+                            .then(function(html) {
+                                swapFullBody(html);
+                                fadeIn(document.body, 80);
+                            });
+                    });
                 }
             } else {
                 // Cross-layout back: fetch full HTML and replace without pushing history
-                fetch(url, { method: 'GET', credentials: 'same-origin' })
-                    .then(function(r) { return r.text(); })
-                    .then(function(html) {
-                        var d = new DOMParser().parseFromString(html, 'text/html');
-                        var ohe = document.querySelectorAll('head style, head link[rel="stylesheet"]');
-                        var nhe = d.querySelectorAll('head style, head link[rel="stylesheet"]');
-                        ohe.forEach(function(el) { el.remove(); });
-                        nhe.forEach(function(el) { document.head.appendChild(el.cloneNode(true)); });
-                        document.body.innerHTML = d.body.innerHTML;
-                        executeInlineScripts(document.body);
-                        document.title = FIXED_TITLE;
-                        currentLayout = detectCurrentLayout();
-                        window.scrollTo(0, 0);
-                    });
+                fadeOut(document.body, 80).then(function() {
+                    return fetch(url, { method: 'GET', credentials: 'same-origin' })
+                        .then(function(r) { return r.text(); })
+                        .then(function(html) {
+                            swapFullBody(html);
+                            fadeIn(document.body, 80);
+                        });
+                });
             }
 
             document.title = FIXED_TITLE;
