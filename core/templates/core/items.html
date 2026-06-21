@@ -1064,21 +1064,21 @@
                        placeholder="Enter work name..."
                        value="{{ work_name|default_if_none:'' }}">
 
-                <!-- Project Area: Municipal / Non-Municipal (affects GHMC allowance rows) -->
+                <!-- Project Location: Municipal / Non-Municipal (affects GHMC allowance rows) -->
                 <div class="estimate-total-row" style="background: #f0f9ff; border-color: #7dd3fc; align-items: center;">
                     <label class="total-label" style="color: #075985;">
                         <i class="bi bi-geo me-1"></i>
-                        Project Area
+                        Project Location
                     </label>
                     {% if not estimate_rows %}
                     <div style="display: flex; gap: 1rem;" id="project-area-control">
-                        <label style="display: flex; align-items: center; gap: 0.3rem; font-weight: 500; cursor: pointer;">
+                        <label class="total-label" style="display: flex; align-items: center; gap: 0.3rem; color: #075985; cursor: pointer;">
                             <input type="radio" name="project_area_radio" value="municipal"
                                    {% if project_area != 'non_municipal' %}checked{% endif %}
                                    onchange="setProjectArea('municipal')">
                             Municipal
                         </label>
-                        <label style="display: flex; align-items: center; gap: 0.3rem; font-weight: 500; cursor: pointer;">
+                        <label class="total-label" style="display: flex; align-items: center; gap: 0.3rem; color: #075985; cursor: pointer;">
                             <input type="radio" name="project_area_radio" value="non_municipal"
                                    {% if project_area == 'non_municipal' %}checked{% endif %}
                                    onchange="setProjectArea('non_municipal')">
@@ -1086,7 +1086,7 @@
                         </label>
                     </div>
                     {% else %}
-                    <span style="font-weight: 600; color: #075985;" title="Locked once items are added -- start a new estimate to change this">
+                    <span class="total-label" style="color: #075985;" title="Locked once items are added -- start a new estimate to change this">
                         <i class="bi bi-lock-fill me-1"></i>
                         {% if project_area == 'non_municipal' %}Non-Municipal Area{% else %}Municipal Area{% endif %}
                     </span>
