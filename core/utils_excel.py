@@ -1425,6 +1425,10 @@ _SUM_CALL_RE = re.compile(r"SUM\(([^()]+)\)", re.I)
 _ROUND_CALL_RE = re.compile(r"ROUND\(([^()]+?),([^()]+?)\)", re.I)
 _RANGE_RE = re.compile(r"^\s*\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\s*$", re.I)
 _PERCENT_LITERAL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+# Matches the percentage figure inside the Overhead row's own label text
+# (column D), e.g. "Add Overhead @ 10.615%", so it can be rewritten to match
+# whichever percentage was actually substituted into the formula.
+_OVERHEAD_LABEL_NUM_RE = re.compile(r"(add\s+overhead\s*@?\s*)([\d.]+)(\s*%)", re.I)
 
 
 def _zero_out_ghmc(expr):
@@ -1592,11 +1596,22 @@ def apply_policy_to_copied_block(ws_dst, dst_start_row, src_min_row, src_max_row
     Call AFTER copy_block_with_styles_and_formulas() has copied
     [src_min_row, src_max_row] into ws_dst starting at dst_start_row.
     Rewrites the GHMC-allowance and/or Overhead row's column-J FORMULA TEXT
-    in place (literal percentage substitution only -- row structure is
-    otherwise untouched) so Excel's own recalculation on file-open cascades
-    the change through every dependent Sub-total/Total Rate row
-    automatically. No-op if neither row exists in this block, or if
-    area/work_type don't require any change.
+    in place (literal percentage substitution only -- cell positions and
+    every other row are otherwise untouched, so Excel's own recalculation on
+    file-open cascades the change through every dependent Sub-total/Total
+    Rate row automatically). No-op if neither row exists in this block, or
+    if area/work_type don't require any change.
+
+    For non-municipal areas, the now-zeroed GHMC row is hidden (row height 0)
+    rather than physically deleted -- deleting it would require rewriting
+    every other row's formula text in this block to fix up cell references,
+    which risks silently corrupting unrelated SUM ranges. Hiding achieves the
+    same visual result (no visible row, no gap, not printed/exported) while
+    keeping every formula's cell references intact and correct.
+
+    For original works, the Overhead row's own label text (column D) is also
+    rewritten so it reads "...@13.615%" instead of the baked-in
+    "...@10.615%", matching the substituted formula.
     """
     if area != "non_municipal" and work_type != "original":
         return
@@ -1607,11 +1622,18 @@ def apply_policy_to_copied_block(ws_dst, dst_start_row, src_min_row, src_max_row
         cell = ws_dst.cell(row=ghmc_row, column=10)
         if isinstance(cell.value, str) and cell.value.startswith("="):
             cell.value = _zero_out_ghmc(cell.value)
+        ws_dst.row_dimensions[ghmc_row].hidden = True
 
     if overhead_row is not None and work_type == "original":
         cell = ws_dst.cell(row=overhead_row, column=10)
         if isinstance(cell.value, str) and cell.value.startswith("="):
             cell.value = _swap_overhead_to_original(cell.value)
+        label_cell = ws_dst.cell(row=overhead_row, column=4)
+        if isinstance(label_cell.value, str):
+            label_cell.value = _OVERHEAD_LABEL_NUM_RE.sub(
+                lambda m: m.group(1) + "13.615" + m.group(3),
+                label_cell.value,
+            )
 
 
 def build_temp_day_rates(filepath, items_list):
