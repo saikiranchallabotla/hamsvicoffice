@@ -2500,10 +2500,20 @@ function collectExecMap() {
     return execMap;
 }
 
-// --- Auto-save workslip quantities to session ---
+// --- Auto-save: persists workslip quantities to the SavedWork DB record
+// (not just the session) so items/quantities survive even if the user
+// navigates away without clicking "Save Work" and revisits this workslip
+// later. Session-only sync isn't enough: resume_saved_work() re-seeds the
+// session FROM the DB record on every visit, wiping any unsaved session state.
 (function() {
     var _wsAutoTimer = null;
-    function saveWorkslipToSession() {
+    var _wsAutoInFlight = false;
+
+    function wsCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
+    function buildWorkslipFormData(action) {
         var execMap = collectExecMap();
         var rateMap = {};
         document.querySelectorAll('.rate-edit-input').forEach(function(inp) {
@@ -2514,39 +2524,85 @@ function collectExecMap() {
         var tpInput = document.getElementById('tp-percent-input');
         var tpSelect = document.getElementById('tp-type-select');
         var fd = new FormData();
-        fd.append('action', 'update_preview');
+        fd.append('action', action);
         fd.append('exec_map', JSON.stringify(execMap));
         fd.append('rate_map', JSON.stringify(rateMap));
         fd.append('tp_percent', tpInput ? tpInput.value : '');
         fd.append('tp_type', tpSelect ? tpSelect.value : 'Excess');
-        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-        fetch('{% url "workslip_main" %}', { method: 'POST', body: fd, redirect: 'manual' }).catch(function(){});
+        fd.append('csrfmiddlewaretoken', wsCsrfToken());
+        return fd;
     }
-    function debouncedSave() {
-        clearTimeout(_wsAutoTimer);
-        _wsAutoTimer = setTimeout(saveWorkslipToSession, 2000);
+
+    function flashAutoSaveIndicator() {
+        var el = document.getElementById('ws-autosave-status');
+        if (!el) return;
+        el.style.opacity = '1';
+        clearTimeout(el._fadeTimer);
+        el._fadeTimer = setTimeout(function() { el.style.opacity = '0'; }, 2000);
     }
+
+    function performAutoSave(opts) {
+        opts = opts || {};
+        if (_wsAutoTimer) { clearTimeout(_wsAutoTimer); _wsAutoTimer = null; }
+        if (_wsAutoInFlight && !opts.keepalive) return;
+
+        var execMap = collectExecMap();
+        var hasQty = Object.keys(execMap).some(function(k) { return (parseFloat(execMap[k]) || 0) > 0; });
+        if (!hasQty) return;
+
+        var csrfToken = wsCsrfToken();
+        _wsAutoInFlight = true;
+
+        // 1) Sync exec/rate/TP into the session (cheap, existing behavior).
+        fetch('{% url "workslip_main" %}', {
+            method: 'POST',
+            body: buildWorkslipFormData('update_preview'),
+            headers: { 'X-CSRFToken': csrfToken },
+            redirect: 'manual',
+            keepalive: !!opts.keepalive,
+        }).catch(function() {}).then(function() {
+            // 2) Find the SavedWork row this workslip is already linked to
+            //    (pre-created on W1/+W generation and on resume) — same
+            //    lookup quickSaveWorkslip() uses to skip the naming modal.
+            return fetch('/saved-works/modal-data/', { keepalive: !!opts.keepalive });
+        }).then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (!data || !data.current_work || !data.current_work.id) return null;
+            // 3) Persist the current session state into that SavedWork record.
+            var formData = new FormData();
+            formData.append('work_type', 'workslip');
+            formData.append('category', 'electrical');
+            formData.append('work_id', data.current_work.id);
+            formData.append('work_name', data.current_work.name);
+            if (data.current_work.folder_id) formData.append('folder_id', data.current_work.folder_id);
+            formData.append('notes', data.current_work.notes || '');
+            formData.append('csrfmiddlewaretoken', csrfToken);
+            return fetch('/saved-works/save/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': csrfToken },
+                keepalive: !!opts.keepalive,
+            });
+        }).then(function(res) {
+            _wsAutoInFlight = false;
+            if (res) flashAutoSaveIndicator();
+        }).catch(function() { _wsAutoInFlight = false; });
+    }
+
+    function scheduleAutoSave() {
+        if (_wsAutoTimer) clearTimeout(_wsAutoTimer);
+        _wsAutoTimer = setTimeout(function() { performAutoSave(); }, 2000);
+    }
+
     var wsTable = document.getElementById('ws-table');
-    if (wsTable) wsTable.addEventListener('input', debouncedSave);
-    window.addEventListener('beforeunload', function() {
-        var execMap = collectExecMap();
-        var rateMap = {};
-        document.querySelectorAll('.rate-edit-input').forEach(function(inp) {
-            var row = inp.closest('tr');
-            var key = row ? row.getAttribute('data-row-key') : '';
-            if (key && inp.value) rateMap[key] = inp.value;
-        });
-        var tpInput = document.getElementById('tp-percent-input');
-        var tpSelect = document.getElementById('tp-type-select');
-        var fd = new FormData();
-        fd.append('action', 'update_preview');
-        fd.append('exec_map', JSON.stringify(execMap));
-        fd.append('rate_map', JSON.stringify(rateMap));
-        fd.append('tp_percent', tpInput ? tpInput.value : '');
-        fd.append('tp_type', tpSelect ? tpSelect.value : 'Excess');
-        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-        navigator.sendBeacon('{% url "workslip_main" %}', fd);
-    });
+    if (wsTable) wsTable.addEventListener('input', scheduleAutoSave);
+    var tpPercentInputEl = document.getElementById('tp-percent-input');
+    var tpTypeSelectEl = document.getElementById('tp-type-select');
+    if (tpPercentInputEl) tpPercentInputEl.addEventListener('change', function() { performAutoSave(); });
+    if (tpTypeSelectEl) tpTypeSelectEl.addEventListener('change', function() { performAutoSave(); });
+
+    // Best-effort flush when the user navigates away without saving.
+    window.addEventListener('pagehide', function() { performAutoSave({ keepalive: true }); });
 })();
 
 // Quick save function for workslip - saves directly if there's already a current work
@@ -2646,6 +2702,9 @@ function quickSaveWorkslip() {
     <i class="bi bi-save"></i>
     <span>Save Work</span>
 </button>
+<span id="ws-autosave-status" style="position:fixed;bottom:18px;right:140px;z-index:1050;font-size:0.78rem;color:#16a34a;background:white;padding:4px 10px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.15);opacity:0;transition:opacity 0.3s;">
+    <i class="bi bi-cloud-check"></i> Auto-saved
+</span>
 {% include 'core/saved_works/save_modal.html' with work_type='workslip' category='electrical' %}
 {% include 'core/includes/spec_tooltip.html' %}
 
