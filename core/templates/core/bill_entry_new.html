@@ -659,7 +659,7 @@
             <button type="button" class="btn btn-amber" onclick="showCoveringLetterModal()">
                 <i class="bi bi-envelope"></i> Covering Letter
             </button>
-            <button type="button" class="btn btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));">
+            <button type="button" class="btn btn-outline" onclick="if (window.history.length > 1) { window.history.back(); } else { window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/')); }">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
             <span id="bill-autosave-status" style="align-self:center;font-size:0.72rem;color:#16a34a;opacity:0;transition:opacity 0.3s;">

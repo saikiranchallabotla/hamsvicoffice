@@ -647,7 +647,7 @@
                 <i class="bi bi-download"></i> Download Bill
             </a>
             {% endif %}
-            <button type="button" class="btn-outline" onclick="window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/'));">
+            <button type="button" class="btn-outline" onclick="if (window.history.length > 1) { window.history.back(); } else { window.spaNavigate ? spaNavigate('/dashboard/') : (window.location.replace('/dashboard/')); }">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
         </div>
