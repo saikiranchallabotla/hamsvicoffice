@@ -376,6 +376,7 @@ def verify_payment_view(request):
     """
     from subscriptions.services.payment_service import PaymentService
     import json
+    import logging
 
     try:
         data = json.loads(request.body)
@@ -386,12 +387,25 @@ def verify_payment_view(request):
     razorpay_payment_id = data.get('razorpay_payment_id')
     razorpay_signature = data.get('razorpay_signature')
 
-    # Verify payment (also creates/extends subscriptions on success)
-    result = PaymentService.verify_payment(
-        razorpay_order_id=razorpay_order_id,
-        razorpay_payment_id=razorpay_payment_id,
-        razorpay_signature=razorpay_signature
-    )
+    # Verify payment (also creates/extends subscriptions on success).
+    # Razorpay has already captured the money by the time this runs, so an
+    # unhandled exception here must not surface as a raw 500 to the user -
+    # log it loudly (Sentry picks up logger.exception) and tell them their
+    # payment is being reconciled instead of showing a dead-end error.
+    try:
+        result = PaymentService.verify_payment(
+            razorpay_order_id=razorpay_order_id,
+            razorpay_payment_id=razorpay_payment_id,
+            razorpay_signature=razorpay_signature
+        )
+    except Exception as e:
+        logging.getLogger('subscriptions.payment').exception(
+            f"verify_payment crashed for order {razorpay_order_id}: {e}"
+        )
+        return JsonResponse({
+            'ok': False,
+            'reason': 'Your payment is being confirmed. If access does not appear within a few minutes, contact support with your payment ID.',
+        }, status=202)
 
     if result['ok']:
         return JsonResponse({

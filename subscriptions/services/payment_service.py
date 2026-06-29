@@ -1016,39 +1016,63 @@ class PaymentService:
     
     @classmethod
     def _generate_invoice(cls, payment) -> None:
-        """Generate invoice for completed payment."""
+        """
+        Generate invoice for a completed payment.
+
+        This must never be able to undo a payment that Razorpay has already
+        confirmed. The webhook and the browser redirect can both race to
+        generate an invoice for the same payment, and invoice.payment is a
+        OneToOneField, so a naive create() can raise IntegrityError here and
+        (since this runs inside the caller's outer @transaction.atomic) roll
+        back the just-completed payment + subscription activation with it.
+        Isolate this in its own savepoint, make it idempotent, and only log
+        on failure instead of propagating.
+        """
         from subscriptions.models import Invoice
-        
-        # Build line items
-        line_items = []
-        for data in payment.pricing_snapshot.get('modules', []):
-            line_items.append({
-                "module": data['name'],
-                "duration": f"{data['duration']} Month(s)",
-                "price": data['price'],
-            })
-        
-        # Calculate tax split (simplified - same state = CGST+SGST, else IGST)
-        gst = payment.gst_amount
-        cgst = sgst = gst / 2
-        igst = Decimal('0.00')
-        
-        Invoice.objects.create(
-            invoice_number=Invoice.generate_invoice_number(),
-            payment=payment,
-            user=payment.user,
-            subtotal=payment.subtotal,
-            discount_amount=payment.discount_amount,
-            taxable_amount=payment.subtotal - payment.discount_amount,
-            cgst_amount=cgst,
-            sgst_amount=sgst,
-            igst_amount=igst,
-            total_amount=payment.total_amount,
-            line_items=line_items,
-            billing_name=payment.billing_name,
-            billing_address=payment.billing_address,
-            billing_gstin=payment.billing_gstin,
-        )
+        from django.db import IntegrityError
+
+        try:
+            with transaction.atomic():
+                if Invoice.objects.filter(payment=payment).exists():
+                    return
+
+                # Build line items
+                line_items = []
+                for data in payment.pricing_snapshot.get('modules', []):
+                    line_items.append({
+                        "module": data['name'],
+                        "duration": f"{data['duration']} Month(s)",
+                        "price": data['price'],
+                    })
+
+                # Calculate tax split (simplified - same state = CGST+SGST, else IGST)
+                gst = payment.gst_amount
+                cgst = sgst = gst / 2
+                igst = Decimal('0.00')
+
+                Invoice.objects.create(
+                    invoice_number=Invoice.generate_invoice_number(),
+                    payment=payment,
+                    user=payment.user,
+                    subtotal=payment.subtotal,
+                    discount_amount=payment.discount_amount,
+                    taxable_amount=payment.subtotal - payment.discount_amount,
+                    cgst_amount=cgst,
+                    sgst_amount=sgst,
+                    igst_amount=igst,
+                    total_amount=payment.total_amount,
+                    line_items=line_items,
+                    billing_name=payment.billing_name,
+                    billing_address=payment.billing_address,
+                    billing_gstin=payment.billing_gstin,
+                )
+        except IntegrityError:
+            # Lost the race to a concurrent invoice generation for the same
+            # payment (or a duplicate invoice_number) - not a real failure.
+            logger.info(f"Invoice already exists for payment {payment.order_id} (race), skipping.")
+        except Exception as e:
+            # Never let invoice generation take a confirmed payment down with it.
+            logger.exception(f"Invoice generation failed for payment {payment.order_id}: {e}")
     
     # =========================================================================
     # RESPONSE BUILDERS
