@@ -759,24 +759,46 @@ class PaymentService:
             
             # Calculate expiry
             expires_at = timezone.now() + timezone.timedelta(days=duration * 30)
-            
-            # Create or update subscription
-            subscription, created = UserModuleSubscription.objects.update_or_create(
+
+            # Create or update subscription. Use filter().first() rather than
+            # update_or_create()/get_or_create() - some users have duplicate
+            # (user, module) trial subscription rows pre-dating any unique
+            # constraint, and get_or_create() raises MultipleObjectsReturned
+            # in that case. Mirrors the same pattern already used in
+            # verify_payment() below.
+            existing_sub = UserModuleSubscription.objects.filter(
                 user=payment.user,
                 module=module,
-                defaults={
-                    'pricing': pricing,
-                    'status': 'active',
-                    'started_at': timezone.now(),
-                    'expires_at': expires_at,
-                    'usage_limit': pricing.usage_limit if pricing else 0,
-                    'payment': payment,
-                }
-            )
-            
+            ).first()
+
+            if existing_sub:
+                if existing_sub.expires_at and existing_sub.expires_at > timezone.now():
+                    existing_sub.expires_at = existing_sub.expires_at + timezone.timedelta(days=duration * 30)
+                else:
+                    existing_sub.expires_at = expires_at
+                existing_sub.status = 'active'
+                existing_sub.pricing = pricing
+                existing_sub.payment = payment
+                existing_sub.started_at = timezone.now()
+                existing_sub.usage_limit = pricing.usage_limit if pricing else 0
+                existing_sub.cancelled_at = None
+                existing_sub.save()
+                subscription = existing_sub
+            else:
+                subscription = UserModuleSubscription.objects.create(
+                    user=payment.user,
+                    module=module,
+                    pricing=pricing,
+                    status='active',
+                    started_at=timezone.now(),
+                    expires_at=expires_at,
+                    usage_limit=pricing.usage_limit if pricing else 0,
+                    payment=payment,
+                )
+
             subscriptions.append({
                 'module': module.code,
-                'expires_at': expires_at.isoformat(),
+                'expires_at': subscription.expires_at.isoformat(),
             })
         
         # Generate invoice
