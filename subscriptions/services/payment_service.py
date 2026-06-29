@@ -1058,13 +1058,16 @@ class PaymentService:
                 if Invoice.objects.filter(payment=payment).exists():
                     return
 
-                # Build line items
+                # Build line items. Bundle purchases snapshot {code, name,
+                # duration} per module with no per-module price - fall back
+                # to '' rather than KeyError so the invoice still generates;
+                # the authoritative totals come from payment.subtotal/total_amount.
                 line_items = []
                 for data in payment.pricing_snapshot.get('modules', []):
                     line_items.append({
-                        "module": data['name'],
-                        "duration": f"{data['duration']} Month(s)",
-                        "price": data['price'],
+                        "module": data.get('name', data.get('code', '')),
+                        "duration": f"{data.get('duration', '')} Month(s)",
+                        "price": data.get('price', ''),
                     })
 
                 # Calculate tax split (simplified - same state = CGST+SGST, else IGST)
