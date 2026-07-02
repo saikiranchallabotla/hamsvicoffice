@@ -2193,6 +2193,9 @@ document.addEventListener('DOMContentLoaded', function() {
             saveData.append('tp_percent', tpPercent);
             saveData.append('tp_type', tpType);
             saveData.append('csrfmiddlewaretoken', csrfToken);
+            // Include Work Details metadata so group navigation also persists them.
+            var _navMeta = collectWorkDetailsMetadata();
+            Object.keys(_navMeta).forEach(function(k) { saveData.append(k, _navMeta[k]); });
 
             var savePromise = fetch('{% url "workslip_main" %}', {
                 method: 'POST',
@@ -2521,6 +2524,16 @@ function collectExecMap() {
         return document.querySelector('[name=csrfmiddlewaretoken]').value;
     }
 
+    function collectWorkDetailsMetadata() {
+        return {
+            ws_estimate_amount: (document.getElementById('ws-estimate-amount-input') || {}).value || '',
+            ws_agency_name:     (document.getElementById('ws-agency-name-input')     || {}).value || '',
+            ws_admin_sanction:  (document.getElementById('ws-admin-sanction-input')  || {}).value || '',
+            ws_tech_sanction:   (document.getElementById('ws-tech-sanction-input')   || {}).value || '',
+            ws_agreement:       (document.getElementById('ws-agreement-input')        || {}).value || '',
+        };
+    }
+
     function buildWorkslipFormData(action) {
         var execMap = collectExecMap();
         var rateMap = {};
@@ -2538,6 +2551,9 @@ function collectExecMap() {
         fd.append('tp_percent', tpInput ? tpInput.value : '');
         fd.append('tp_type', tpSelect ? tpSelect.value : 'Excess');
         fd.append('csrfmiddlewaretoken', wsCsrfToken());
+        // Include Work Details fields so every autosave/quickSave captures them.
+        var meta = collectWorkDetailsMetadata();
+        Object.keys(meta).forEach(function(k) { fd.append(k, meta[k]); });
         return fd;
     }
 
@@ -2666,6 +2682,50 @@ function quickSaveWorkslip() {
         showToast('An error occurred. Please try again.', 'error');
     });
 }
+</script>
+
+<script>
+// Debounced auto-save of Work Details fields (admin sanction, agreement, etc.)
+// so they are persisted to session even if the user never clicks Download.
+(function() {
+    var metaUrl = "{% url 'workslip_save_metadata' %}";
+    var metaTimer = null;
+
+    function flushMetadataToSession() {
+        var el = document.getElementById('ws-admin-sanction-input');
+        if (!el) return; // Work Details panel not present (workslip 2+)
+        var payload = {
+            estimate_amount: (document.getElementById('ws-estimate-amount-input') || {}).value || '',
+            agency_name:     (document.getElementById('ws-agency-name-input')     || {}).value || '',
+            admin_sanction:  (document.getElementById('ws-admin-sanction-input')  || {}).value || '',
+            tech_sanction:   (document.getElementById('ws-tech-sanction-input')   || {}).value || '',
+            agreement:       (document.getElementById('ws-agreement-input')        || {}).value || '',
+        };
+        fetch(metaUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(payload),
+        }).catch(function() {});
+    }
+
+    ['ws-estimate-amount-input', 'ws-agency-name-input', 'ws-admin-sanction-input',
+     'ws-tech-sanction-input', 'ws-agreement-input'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', function() {
+            clearTimeout(metaTimer);
+            metaTimer = setTimeout(flushMetadataToSession, 600);
+        });
+        // Also save on blur (tab-away) immediately without debounce.
+        el.addEventListener('blur', function() {
+            clearTimeout(metaTimer);
+            flushMetadataToSession();
+        });
+    });
+})();
 </script>
 
 <!-- Save Work Button -->

@@ -777,6 +777,25 @@ def workslip(request):
             request.session["ws_tp_percent"] = ws_tp_percent
             request.session["ws_tp_type"] = ws_tp_type
 
+            # Also persist any Work Details metadata fields if supplied in this POST.
+            # buildWorkslipFormData() appends them so every autosave / quickSave /
+            # group-switch captures the values the user typed without waiting for download.
+            _meta = request.session.get("ws_metadata") or {}
+            _meta_updated = False
+            for _post_key, _meta_key in (
+                ("ws_estimate_amount", "estimate_amount"),
+                ("ws_agency_name",     "agency_name"),
+                ("ws_admin_sanction",  "admin_sanction"),
+                ("ws_tech_sanction",   "tech_sanction"),
+                ("ws_agreement",       "agreement"),
+            ):
+                _val = request.POST.get(_post_key)
+                if _val is not None:
+                    _meta[_meta_key] = _val
+                    _meta_updated = True
+            if _meta_updated:
+                request.session["ws_metadata"] = _meta
+
             return redirect(reverse('workslip_main') + '?preserve=1')
 
         # C) Add Supplemental items
@@ -3380,6 +3399,36 @@ def workslip_ajax_group_items(request):
         "supp_items_selected": ws_supp_items,
         "has_estimate": has_estimate,
     })
+@login_required(login_url='login')
+def save_workslip_metadata(request):
+    """
+    Lightweight AJAX endpoint: debounced save of the five Work Details fields
+    (estimate amount, agency name, admin/tech sanction, agreement) into
+    session['ws_metadata'] so that quickSave / auto-save always captures what
+    the user typed without requiring a Download first.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+
+    if not request.session.get('ws_estimate_rows'):
+        return JsonResponse({'ok': False, 'reason': 'no_active_workslip'})
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False}, status=400)
+
+    meta = request.session.get('ws_metadata') or {}
+    ALLOWED = ('estimate_amount', 'admin_sanction', 'tech_sanction', 'agreement', 'agency_name')
+    for key in ALLOWED:
+        if key in data:
+            meta[key] = str(data[key])
+    request.session['ws_metadata'] = meta
+    request.session.modified = True
+
+    return JsonResponse({'ok': True})
+
+
 # implemented during the ongoing refactor. This uses module-level
 # __getattr__ (PEP 562) so imports like `from core import views` succeed.
 _placeholder_views = {}

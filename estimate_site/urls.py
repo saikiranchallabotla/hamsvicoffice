@@ -126,6 +126,7 @@ urlpatterns = [
     path('temp-bill/', views.temp_bill, name='temp_bill_main'),  # Temporary Works (multi-event) bill
     path('workslip/ajax-toggle-supp/', views.workslip_ajax_toggle_supp, name='workslip_ajax_toggle_supp'),
     path('workslip/ajax-group-items/', views.workslip_ajax_group_items, name='workslip_ajax_group_items'),
+    path('workslip/save-metadata/', views.save_workslip_metadata, name='workslip_save_metadata'),
     
     # -------------------------
     # Workslip Entry (Sequential UI without file uploads)
