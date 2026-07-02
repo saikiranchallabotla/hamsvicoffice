@@ -219,6 +219,8 @@
         if (data._fullHtml) {
             return fadeOut(document.body, 80).then(function() {
                 replaceDocument(data._fullHtml, targetUrl);
+                document.body.style.opacity = '';
+                document.body.style.transition = '';
             });
         }
 
@@ -233,6 +235,8 @@
         .then(function(html) {
             return fadeOut(document.body, 80).then(function() {
                 replaceDocument(html, targetUrl);
+                document.body.style.opacity = '';
+                document.body.style.transition = '';
             });
         })
         .catch(function() {

@@ -816,7 +816,7 @@
                     {% for g in groups %}
                         <li data-group-name="{{ g|lower }}">
                             <a href="{% url 'workslip_main' %}?group={{ g|urlencode }}&preserve=1"
-                               class="group-link {% if g == current_group %}active{% endif %}">
+                               class="group-link no-spa {% if g == current_group %}active{% endif %}">
                                 <i class="bi bi-folder{% if g == current_group %}-fill{% endif %} me-2"></i>
                                 {{ g }}
                                 {% if g in custom_groups %}<span class="group-custom-tag" title="Your custom group">C</span>{% endif %}
@@ -844,7 +844,7 @@
         </div>
         <div class="panel-body">
             {% if items_info %}
-                <form id="supp-form" method="post" action="{% url 'workslip_main' %}">
+                <form id="supp-form" class="no-spa" method="post" action="{% url 'workslip_main' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_supplemental">
                     <input type="hidden" name="exec_map" id="supp-exec-map-field">
@@ -2011,7 +2011,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Rebuild form + items list
-        container.innerHTML = '<form id="supp-form" method="post" action="' + workslipMainUrl + '">' +
+        container.innerHTML = '<form id="supp-form" class="no-spa" method="post" action="' + workslipMainUrl + '">' +
             '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">' +
             '<input type="hidden" name="action" value="add_supplemental">' +
             '<input type="hidden" name="exec_map" id="supp-exec-map-field">' +
