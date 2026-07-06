@@ -883,6 +883,10 @@
         get: function() { return currentLogicalUrl; }
     });
 
+    // Allow AJAX-based in-page navigation (e.g. group switches) to sync the logical URL
+    // so back-button popstate guards behave correctly after a pushState.
+    window.spaSetLogicalUrl = function(url) { currentLogicalUrl = url; };
+
     // Global safe navigation helper — always avoids creating new history entries.
     // Use this everywhere instead of window.location.href = url
     window.safeNavigate = function(url) {

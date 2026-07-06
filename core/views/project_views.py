@@ -541,6 +541,73 @@ def fetch_item(request, category, group, item):
 
 
 # -----------------------
+# AJAX GROUP ITEMS (partial panel refresh — no rate computation)
+# -----------------------
+@login_required(login_url='login')
+def ajax_group_items(request, category, group):
+    """Return items list JSON for a group switch without reloading the full 3-panel page."""
+    selected_backend_id = request.session.get("selected_backend_id")
+    try:
+        items_list, groups_map, backend_units_map, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=selected_backend_id,
+            module_code='new_estimate',
+            user=request.user if request.user.is_authenticated else None
+        )
+    except Exception as e:
+        logger.error(f"ajax_group_items error for {category}/{group}: {e}")
+        return JsonResponse({'error': 'Could not load backend data'}, status=500)
+
+    group_items = groups_map.get(group, [])
+    detected_names = {i["name"] for i in items_list}
+    display_items = [name for name in group_items if name in detected_names]
+
+    _colon_re = re.compile(r'\s*:\s*')
+
+    item_subtypes = {}
+    for name in display_items:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            item_subtypes.setdefault(parent_name, []).append(name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": subtypes_list,
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": [],
+                "subtypes_count": 0,
+            })
+
+    fetched = request.session.get("fetched_items", [])
+    fetched_names = []
+    for item in fetched:
+        if isinstance(item, dict):
+            fetched_names.append(item.get('item_name') or item.get('display_name') or item.get('name') or str(item))
+        else:
+            fetched_names.append(item)
+
+    return JsonResponse({
+        'items_info': items_info,
+        'fetched': fetched_names,
+        'group': group,
+    })
+
+
+# -----------------------
 # AJAX TOGGLE ITEM (no page reload)
 # -----------------------
 @login_required(login_url='login')

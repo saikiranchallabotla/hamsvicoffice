@@ -179,6 +179,7 @@ urlpatterns = [
     path('datas/<str:category>/forwarding-letter/', views.download_forwarding_letter_live, name='download_forwarding_letter_live'),
     
     # AJAX endpoints for New Estimate module (queued item selection & drag-drop reorder)
+    path('datas/<str:category>/ajax-group-items/<str:group>/', views.ajax_group_items, name='ajax_group_items'),
     path('datas/<str:category>/ajax_toggle_item/', views.ajax_toggle_item, name='ajax_toggle_item'),
     path('datas/<str:category>/ajax_reorder_items/', views.ajax_reorder_items, name='ajax_reorder_items'),
     path('datas/<str:category>/ajax_save_group_order/', views.ajax_save_group_order, name='ajax_save_group_order'),
