@@ -2405,9 +2405,17 @@ document.addEventListener('keydown', function(e) {
             fetch(saveQtyMapUrl, { method: "POST", body: fd }).catch(function() {});
         }
 
-        // Update active group link immediately (no wait for response)
-        document.querySelectorAll('.group-link').forEach(function(l) { l.classList.remove('active'); });
-        if (clickedLink) clickedLink.classList.add('active');
+        // Update active group link and folder icons immediately (no wait for response)
+        document.querySelectorAll('.group-link').forEach(function(l) {
+            l.classList.remove('active');
+            var icon = l.querySelector('i.bi');
+            if (icon) { icon.className = icon.className.replace('bi-folder-fill', 'bi-folder'); }
+        });
+        if (clickedLink) {
+            clickedLink.classList.add('active');
+            var icon = clickedLink.querySelector('i.bi');
+            if (icon) { icon.className = icon.className.replace('bi-folder', 'bi-folder-fill'); }
+        }
 
         // Show a minimal loading state in the items panel body only
         var itemsPanel = document.getElementById('items-panel-items');
