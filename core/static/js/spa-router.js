@@ -165,14 +165,12 @@
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
         if (data.head) injectHead(data.head);
 
-        return fadeOut(contentArea, 50).then(function() {
-            contentArea.innerHTML = data.content;
-            if (data.scripts) executeScripts(data.scripts, contentArea);
-            executeInlineScripts(contentArea);
-            fadeIn(contentArea, 80);
-            contentArea.scrollTop = 0;
-            window.scrollTo(0, 0);
-        });
+        contentArea.innerHTML = data.content;
+        if (data.scripts) executeScripts(data.scripts, contentArea);
+        executeInlineScripts(contentArea);
+        contentArea.scrollTop = 0;
+        window.scrollTo(0, 0);
+        return Promise.resolve();
     }
 
     function injectAuthContent(data) {
@@ -184,14 +182,12 @@
         removeDynamicStyles();
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
 
-        return fadeOut(authContainer, 50).then(function() {
-            var logoHtml = '<div class="logo"><div class="logo-icon">H</div><span class="logo-text">HAMSVIC</span></div>';
-            authContainer.innerHTML = logoHtml + data.content;
-            if (data.scripts) executeScripts(data.scripts, authContainer);
-            executeInlineScripts(authContainer);
-            fadeIn(authContainer, 80);
-            window.scrollTo(0, 0);
-        });
+        var logoHtml = '<div class="logo"><div class="logo-icon">H</div><span class="logo-text">HAMSVIC</span></div>';
+        authContainer.innerHTML = logoHtml + data.content;
+        if (data.scripts) executeScripts(data.scripts, authContainer);
+        executeInlineScripts(authContainer);
+        window.scrollTo(0, 0);
+        return Promise.resolve();
     }
 
     function injectClassicContent(data) {
@@ -204,14 +200,12 @@
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
         if (data.head) injectHead(data.head);
 
-        return fadeOut(container, 50).then(function() {
-            container.innerHTML = data.content;
-            if (data.scripts) executeScripts(data.scripts, container);
-            executeInlineScripts(container);
-            fadeIn(container, 80);
-            container.scrollTop = 0;
-            window.scrollTo(0, 0);
-        });
+        container.innerHTML = data.content;
+        if (data.scripts) executeScripts(data.scripts, container);
+        executeInlineScripts(container);
+        container.scrollTop = 0;
+        window.scrollTo(0, 0);
+        return Promise.resolve();
     }
 
     // =========================================================================
@@ -231,16 +225,11 @@
 
         // If we already have full HTML (from prefetch or fallback), use it directly
         if (data._fullHtml) {
-            scheduleBodyOpacityRecovery();
-            return fadeOut(document.body, 80).then(function() {
-                replaceDocument(data._fullHtml, targetUrl);
-                document.body.style.opacity = '';
-                document.body.style.transition = '';
-            });
+            replaceDocument(data._fullHtml, targetUrl);
+            return Promise.resolve();
         }
 
         // Fetch full HTML without SPA header so the server returns the complete page
-        scheduleBodyOpacityRecovery();
         return fetch(targetUrl, {
             method: 'GET',
             credentials: 'same-origin'
@@ -249,15 +238,9 @@
             return response.text();
         })
         .then(function(html) {
-            return fadeOut(document.body, 80).then(function() {
-                replaceDocument(html, targetUrl);
-                document.body.style.opacity = '';
-                document.body.style.transition = '';
-            });
+            replaceDocument(html, targetUrl);
         })
         .catch(function() {
-            document.body.style.opacity = '';
-            document.body.style.transition = '';
             // Last resort: native navigation (only on network error)
             window.location.replace(targetUrl);
         });
@@ -594,11 +577,8 @@
 
                 // Full HTML fallback (middleware didn't intercept)
                 if (data._fullHtml) {
-                    return fadeOut(document.body, 80).then(function() {
-                        replaceDocument(data._fullHtml, url);
-                        document.body.style.opacity = '';
-                        document.body.style.transition = '';
-                    });
+                    replaceDocument(data._fullHtml, url);
+                    return;
                 }
 
                 // Handle redirect
@@ -838,10 +818,7 @@
 
             if (data._fullHtml) {
                 // Full page — replace document but DON'T push history (we're going back)
-                fadeOut(document.body, 80).then(function() {
-                    swapFullBody(data._fullHtml);
-                    fadeIn(document.body, 80);
-                });
+                swapFullBody(data._fullHtml);
                 return;
             }
 
@@ -862,25 +839,15 @@
                     injectClassicContent(data);
                 } else {
                     // Unknown same-layout — full page replace without pushing history
-                    fadeOut(document.body, 80).then(function() {
-                        return fetch(url, { method: 'GET', credentials: 'same-origin' })
-                            .then(function(r) { return r.text(); })
-                            .then(function(html) {
-                                swapFullBody(html);
-                                fadeIn(document.body, 80);
-                            });
-                    });
+                    fetch(url, { method: 'GET', credentials: 'same-origin' })
+                        .then(function(r) { return r.text(); })
+                        .then(function(html) { swapFullBody(html); });
                 }
             } else {
                 // Cross-layout back: fetch full HTML and replace without pushing history
-                fadeOut(document.body, 80).then(function() {
-                    return fetch(url, { method: 'GET', credentials: 'same-origin' })
-                        .then(function(r) { return r.text(); })
-                        .then(function(html) {
-                            swapFullBody(html);
-                            fadeIn(document.body, 80);
-                        });
-                });
+                fetch(url, { method: 'GET', credentials: 'same-origin' })
+                    .then(function(r) { return r.text(); })
+                    .then(function(html) { swapFullBody(html); });
             }
 
             document.title = FIXED_TITLE;
@@ -1083,6 +1050,22 @@
 
         return originalNavigate(url, options);
     };
+
+    // Restore opacity if browser restores page from back-forward cache (bfcache)
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) {
+            document.body.style.opacity = '';
+            document.body.style.transition = '';
+            var ca = document.querySelector('.content-area');
+            if (ca) { ca.style.opacity = ''; ca.style.transition = ''; }
+        }
+    });
+
+    // Ensure opacity is clean before browser snapshots the page for bfcache
+    window.addEventListener('pagehide', function() {
+        document.body.style.opacity = '';
+        document.body.style.transition = '';
+    });
 
     console.log('[SPA] Router initialized, layout:', currentLayout, ', URL:', currentLogicalUrl);
 
