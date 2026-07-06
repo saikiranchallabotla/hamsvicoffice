@@ -1528,7 +1528,7 @@ def _extract_labels_from_source_file(uploaded_file):
                 uploaded_file.seek(0)
                 pdf_bytes = uploaded_file.read()
 
-                # Convert PDF pages to images at 400 DPI for better OCR accuracy
+                # Convert PDF pages to images at 300 DPI for better OCR accuracy
                 images = convert_from_bytes(pdf_bytes, dpi=300)
 
                 ocr_lines = []

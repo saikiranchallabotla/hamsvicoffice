@@ -530,15 +530,54 @@
             grid-template-columns: 200px 250px 1fr;
         }
     }
-    
+
+    /* Mobile tab switcher bar */
+    .mobile-panel-tabs {
+        display: none;
+    }
+
     @media (max-width: 992px) {
+        .mobile-panel-tabs {
+            display: flex;
+            background: #2d3748;
+            border-radius: 10px 10px 0 0;
+            overflow: hidden;
+            margin-bottom: -2px;
+        }
+        .mobile-panel-tabs button {
+            flex: 1;
+            padding: 0.65rem 0.5rem;
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+        .mobile-panel-tabs button.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+        .mobile-panel-tabs button i { font-size: 0.9rem; }
+
         .layout-3panel {
             grid-template-columns: 1fr;
             height: auto;
         }
-        
-        .panel-card {
-            max-height: 400px;
+
+        .layout-3panel .panel-card {
+            display: none;
+            max-height: calc(100vh - 220px);
+            min-height: 300px;
+        }
+
+        .layout-3panel .panel-card.ws-tab-active {
+            display: flex;
         }
     }
     
@@ -799,10 +838,23 @@
     </div>
 </div>
 
+<!-- Mobile-only tab bar (hidden on desktop via CSS) -->
+<div class="mobile-panel-tabs" id="wsPanelTabs">
+    <button class="active" onclick="wsShowPanel('groups', this)">
+        <i class="bi bi-folder2-open"></i> Groups
+    </button>
+    <button onclick="wsShowPanel('items', this)">
+        <i class="bi bi-plus-square"></i> Items
+    </button>
+    <button onclick="wsShowPanel('preview', this)">
+        <i class="bi bi-clipboard-check"></i> Workslip
+    </button>
+</div>
+
 <div class="layout-3panel">
 
     <!-- LEFT: GROUPS (for supplemental items) -->
-    <div class="panel-card">
+    <div class="panel-card ws-tab-active" id="ws-panel-groups">
         <div class="panel-header">
             <i class="bi bi-folder2-open"></i>
             Groups (Supplemental)
@@ -834,7 +886,7 @@
     </div>
 
     <!-- MIDDLE: ITEMS (for supplemental items) -->
-    <div class="panel-card">
+    <div class="panel-card" id="ws-panel-items">
         <div class="panel-header items-header">
             <i class="bi bi-plus-square"></i>
             Items in {{ current_group }}
@@ -901,7 +953,7 @@
     </div>
 
     <!-- RIGHT: WORKSLIP PREVIEW -->
-    <div class="panel-card">
+    <div class="panel-card" id="ws-panel-preview">
         <div class="panel-header workslip-header">
             <span><i class="bi bi-clipboard-check"></i> Workslip Preview</span>
             <!-- Removed duplicate Clear All button -->
@@ -2153,15 +2205,13 @@ document.addEventListener('DOMContentLoaded', function() {
             clickedLink.classList.add('active');
             clickedLink.querySelector('i').className = 'bi bi-folder-fill me-2';
 
-            // 2) Show loading in items panel immediately
+            // 2) Update header and add a subtle loading indicator (keep existing items visible)
             var header = document.querySelector('.items-header');
-            if (header) header.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
+            if (header) header.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .5s linear infinite;margin-right:0.3rem;font-size:0.75rem;opacity:0.7;"></i> Items in ' + groupName;
 
             var container = document.querySelector('#items-list');
             if (container) container = container.closest('.panel-body');
-            if (container) {
-                container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:2rem;color:#94a3b8;"><i class="bi bi-arrow-repeat" style="animation:spin .6s linear infinite;margin-right:0.5rem;"></i> Loading items...</div>';
-            }
+            // Don't replace content yet — keep old items visible while loading
 
             // 3) Update URL immediately
             var newUrl = new URL(window.location);
@@ -2210,12 +2260,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Wait for group fetch only (save can finish in background)
             fetchPromise.then(function(data) {
+                // Restore header icon now that loading is done
+                var hdr = document.querySelector('.items-header');
+                if (hdr) hdr.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
                 if (data.status === 'ok') {
                     renderItemsPanel(data);
                 }
             })
             .catch(function(err) {
                 console.error('Error loading group:', err);
+                var hdr = document.querySelector('.items-header');
+                if (hdr) hdr.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
                 if (container) {
                     container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Failed to load items. Click the group again.</p></div>';
                 }
@@ -2726,6 +2781,27 @@ function quickSaveWorkslip() {
         });
     });
 })();
+</script>
+
+<script>
+// Mobile panel tab switcher for workslip
+function wsShowPanel(name, btn) {
+    var panelMap = {
+        groups: 'ws-panel-groups',
+        items: 'ws-panel-items',
+        preview: 'ws-panel-preview'
+    };
+    Object.values(panelMap).forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('ws-tab-active');
+    });
+    var target = document.getElementById(panelMap[name]);
+    if (target) target.classList.add('ws-tab-active');
+    document.querySelectorAll('#wsPanelTabs button').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    if (btn) btn.classList.add('active');
+}
 </script>
 
 <!-- Save Work Button -->

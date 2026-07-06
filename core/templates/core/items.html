@@ -613,15 +613,54 @@
             grid-template-columns: 160px 200px 1fr;
         }
     }
-    
+
+    /* Mobile tab switcher bar */
+    .mobile-panel-tabs {
+        display: none;
+    }
+
     @media (max-width: 992px) {
+        .mobile-panel-tabs {
+            display: flex;
+            background: #2d3748;
+            border-radius: 10px 10px 0 0;
+            overflow: hidden;
+            margin-bottom: -2px;
+        }
+        .mobile-panel-tabs button {
+            flex: 1;
+            padding: 0.65rem 0.5rem;
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+        .mobile-panel-tabs button.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+        .mobile-panel-tabs button i { font-size: 0.9rem; }
+
         .layout-3panel {
             grid-template-columns: 1fr;
             height: auto;
         }
-        
-        .panel-card {
-            max-height: 350px;
+
+        .layout-3panel .panel-card {
+            display: none;
+            max-height: calc(100vh - 220px);
+            min-height: 300px;
+        }
+
+        .layout-3panel .panel-card.ws-tab-active {
+            display: flex;
         }
     }
     
@@ -958,10 +997,23 @@
 }
 </style>
 
+<!-- Mobile-only tab bar (hidden on desktop via CSS) -->
+<div class="mobile-panel-tabs" id="itemsPanelTabs">
+    <button class="active" onclick="itemsShowPanel('groups', this)">
+        <i class="bi bi-folder2-open"></i> Groups
+    </button>
+    <button onclick="itemsShowPanel('items', this)">
+        <i class="bi bi-list-check"></i> Items
+    </button>
+    <button onclick="itemsShowPanel('preview', this)">
+        <i class="bi bi-file-earmark-ruled"></i> Estimate
+    </button>
+</div>
+
 <div class="layout-3panel">
 
     <!-- LEFT: GROUPS -->
-    <div class="panel-card">
+    <div class="panel-card ws-tab-active" id="items-panel-groups">
         <div class="panel-header">
             <i class="bi bi-folder2-open"></i>
             Groups
@@ -986,7 +1038,7 @@
     </div>
 
     <!-- MIDDLE: ITEMS -->
-    <div class="panel-card">
+    <div class="panel-card" id="items-panel-items">
         <div class="panel-header items-header">
             <i class="bi bi-check2-square"></i>
             Items in {{ group }}
@@ -1032,7 +1084,7 @@
     </div>
 
     <!-- RIGHT: ESTIMATE PREVIEW -->
-    <div class="panel-card">
+    <div class="panel-card" id="items-panel-preview">
         <div class="panel-header estimate-header">
             <i class="bi bi-calculator"></i>
             Estimate Preview
@@ -3626,6 +3678,27 @@ document.getElementById('saveWorkModal').addEventListener('show.bs.modal', funct
   var url = "{% url 'ajax_save_group_order' category %}";
   if (window.initGroupReorder) window.initGroupReorder({ saveUrl: url, csrfToken: token });
 })();
+</script>
+
+<script>
+// Mobile panel tab switcher for estimate items page
+function itemsShowPanel(name, btn) {
+    var panelMap = {
+        groups: 'items-panel-groups',
+        items: 'items-panel-items',
+        preview: 'items-panel-preview'
+    };
+    Object.values(panelMap).forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('ws-tab-active');
+    });
+    var target = document.getElementById(panelMap[name]);
+    if (target) target.classList.add('ws-tab-active');
+    document.querySelectorAll('#itemsPanelTabs button').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    if (btn) btn.classList.add('active');
+}
 </script>
 
 {% endblock %}

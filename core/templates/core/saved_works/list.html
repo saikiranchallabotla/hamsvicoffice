@@ -651,7 +651,7 @@
 
             <!-- Folders -->
             {% for folder in folders %}
-            <div class="work-card folder-card" ondblclick="window.location.replace('{% url 'saved_works_list' %}?folder={{ folder.id }}')"
+            <div class="work-card folder-card" data-folder-open-url="{% url 'saved_works_list' %}?folder={{ folder.id }}" ondblclick="spaNav(this.dataset.folderOpenUrl)"
                  oncontextmenu="showFolderMenu(event, {{ folder.id }}, '{{ folder.name }}')">
                 <div class="wc-main">
                     <div class="wc-icon" style="background: {{ folder.color }}20; color: {{ folder.color }};">
@@ -1236,6 +1236,10 @@
     let selectedFolderName = null;
     let selectedWorkId = null;
     let selectedWorkName = null;
+
+    function spaNav(url) {
+        if (window.spaNavigate) { window.spaNavigate(url); } else { window.location.replace(url); }
+    }
     const selectedWorkIds = new Set();
     let lastCheckedIndex = -1;
 
@@ -1281,7 +1285,11 @@
 
     // Folder actions
     function openFolder() {
-        window.location.replace(`/saved-works/?folder=${selectedFolderId}`);
+        if (window.spaNavigate) {
+            window.spaNavigate(`/saved-works/?folder=${selectedFolderId}`);
+        } else {
+            window.location.replace(`/saved-works/?folder=${selectedFolderId}`);
+        }
     }
 
     function createSubfolder() {
@@ -1394,11 +1402,19 @@
 
     // Work actions
     function resumeWork() {
-        window.location.replace(`/saved-works/${selectedWorkId}/resume/`);
+        if (window.spaNavigate) {
+            window.spaNavigate(`/saved-works/${selectedWorkId}/resume/`);
+        } else {
+            window.location.replace(`/saved-works/${selectedWorkId}/resume/`);
+        }
     }
 
     function viewWorkDetail() {
-        window.location.replace(`/saved-works/${selectedWorkId}/`);
+        if (window.spaNavigate) {
+            window.spaNavigate(`/saved-works/${selectedWorkId}/`);
+        } else {
+            window.location.replace(`/saved-works/${selectedWorkId}/`);
+        }
     }
 
     function moveWork() {

@@ -303,6 +303,11 @@
         .announcement-item.type-warning { background: #fffbeb; border-left: 4px solid #f59e0b; }
         .announcement-item.type-success { background: #f0fdf4; border-left: 4px solid #22c55e; }
         .announcement-item.type-urgent { background: #fef2f2; border-left: 4px solid #ef4444; }
+
+        @media (max-width: 768px) {
+            .letter-settings-prompt > div { min-width: unset !important; }
+            .action-btn { white-space: normal; }
+        }
 {% endblock %}
 
 {% block content %}

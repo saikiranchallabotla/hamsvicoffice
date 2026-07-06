@@ -49,7 +49,7 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-width: 380px;
+            max-width: min(380px, calc(100vw - 40px));
         }
         .toast-notification {
             display: flex;
@@ -633,30 +633,94 @@
                 width: 80px;
                 padding: 1rem;
             }
-            
+
             .sidebar-brand h1,
             .nav-section,
             .nav-link span {
                 display: none;
             }
-            
+
             .main-content {
                 margin-left: 80px;
             }
         }
-        
+
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
                 transition: transform 0.3s;
+                width: var(--sidebar-width);
+                padding: 1.5rem;
+                z-index: 1100;
             }
-            
+
             .sidebar.open {
                 transform: translateX(0);
             }
-            
+
+            /* restore text labels when sidebar is open on mobile */
+            .sidebar.open .sidebar-brand h1,
+            .sidebar.open .nav-section,
+            .sidebar.open .nav-link span {
+                display: block;
+            }
+            .sidebar.open .sidebar-brand h1 { display: block; }
+
+            /* sidebar backdrop */
+            .sidebar-backdrop {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.45);
+                z-index: 1050;
+            }
+            .sidebar-backdrop.show { display: block; }
+
             .main-content {
                 margin-left: 0;
+            }
+
+            .top-header {
+                padding: 0 1rem;
+            }
+
+            /* hamburger button */
+            .hamburger-btn {
+                display: flex !important;
+            }
+
+            /* hide user text, show only avatar on small screens */
+            .user-info,
+            .user-dropdown .bi-chevron-down {
+                display: none;
+            }
+
+            .user-dropdown {
+                padding: 0.4rem;
+                border-radius: 50%;
+            }
+
+            /* shrink page title on mobile */
+            .page-title h1 {
+                font-size: 1rem;
+                max-width: 140px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            /* notification dropdown full-width on mobile */
+            .notification-dropdown {
+                position: fixed;
+                top: var(--header-height);
+                right: 0;
+                left: 0;
+                width: 100%;
+                border-radius: 0 0 16px 16px;
+            }
+
+            .content-area {
+                padding: 1rem;
             }
         }
         
@@ -864,8 +928,11 @@
     <!-- SPA:APP:HEAD_START -->{% block extra_head %}{% endblock %}<!-- SPA:APP:HEAD_END -->
 </head>
 <body>
+    <!-- Sidebar backdrop (mobile only) -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="mainSidebar">
         <div class="sidebar-brand">
             <div class="logo" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border-radius: 10px;">
                 <svg width="28" height="28" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -923,6 +990,11 @@
         <!-- Header -->
         <header class="top-header">
             <div class="page-title">
+                <!-- Hamburger: only visible on mobile (hidden by default via CSS) -->
+                <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()"
+                    style="display:none; align-items:center; justify-content:center; width:40px; height:40px; background:rgba(79,70,229,0.1); border:none; border-radius:10px; color:var(--primary); font-size:1.3rem; cursor:pointer; margin-right:0.5rem; flex-shrink:0;">
+                    <i class="bi bi-list"></i>
+                </button>
                 <a href="{% url 'dashboard' %}" class="back-to-dashboard" title="Go Back" onclick="event.preventDefault(); if (window.history.length > 1) { window.history.back(); } else { window.location.href = '{% url 'dashboard' %}'; }">
                     <i class="bi bi-arrow-left"></i>
                 </a>
@@ -1195,6 +1267,43 @@
         // Refresh every 30 seconds (guard against duplicate intervals on SPA layout switch)
         if (!window._notificationInterval) {
             window._notificationInterval = setInterval(loadNotifications, 30000);
+        }
+    });
+
+    // =========================================================================
+    // MOBILE SIDEBAR TOGGLE
+    // =========================================================================
+    function toggleSidebar() {
+        const sidebar = document.getElementById('mainSidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        if (!sidebar) return;
+        const isOpen = sidebar.classList.contains('open');
+        if (isOpen) {
+            closeSidebar();
+        } else {
+            sidebar.classList.add('open');
+            if (backdrop) backdrop.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function closeSidebar() {
+        const sidebar = document.getElementById('mainSidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        if (sidebar) sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+
+    // Close sidebar when a nav link is clicked on mobile
+    document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('mainSidebar');
+        if (sidebar) {
+            sidebar.querySelectorAll('.nav-link').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 768) closeSidebar();
+                });
+            });
         }
     });
     

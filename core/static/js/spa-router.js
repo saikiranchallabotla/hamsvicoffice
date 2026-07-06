@@ -93,25 +93,39 @@
     // =========================================================================
 
     function fadeOut(el, duration) {
-        duration = duration || 120;
+        duration = (duration == null) ? 120 : duration;
         return new Promise(function(resolve) {
             if (!el) { resolve(); return; }
-            el.style.transition = 'opacity ' + duration + 'ms ease';
+            el.style.transition = duration > 0 ? ('opacity ' + duration + 'ms ease') : '';
             el.style.opacity = '0';
-            setTimeout(resolve, duration);
+            if (duration > 0) {
+                setTimeout(resolve, duration);
+            } else {
+                resolve();
+            }
         });
     }
 
     function fadeIn(el, duration) {
-        duration = duration || 120;
+        duration = (duration == null) ? 120 : duration;
         if (!el) return;
-        el.style.transition = 'opacity ' + duration + 'ms ease';
+        el.style.transition = duration > 0 ? ('opacity ' + duration + 'ms ease') : '';
         // Force a reflow so the browser registers the current (faded-out) opacity
         // before animating to 1 -- otherwise the transition has nothing to animate from.
         void el.offsetHeight;
         requestAnimationFrame(function() {
             el.style.opacity = '1';
         });
+    }
+
+    // Safety net: if body ever gets stuck at opacity 0, recover after 1.5s
+    function scheduleBodyOpacityRecovery() {
+        setTimeout(function() {
+            if (document.body.style.opacity === '0') {
+                document.body.style.opacity = '';
+                document.body.style.transition = '';
+            }
+        }, 1500);
     }
 
     // =========================================================================
@@ -151,11 +165,11 @@
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
         if (data.head) injectHead(data.head);
 
-        return fadeOut(contentArea).then(function() {
+        return fadeOut(contentArea, 50).then(function() {
             contentArea.innerHTML = data.content;
             if (data.scripts) executeScripts(data.scripts, contentArea);
             executeInlineScripts(contentArea);
-            fadeIn(contentArea);
+            fadeIn(contentArea, 80);
             contentArea.scrollTop = 0;
             window.scrollTo(0, 0);
         });
@@ -170,12 +184,12 @@
         removeDynamicStyles();
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
 
-        return fadeOut(authContainer).then(function() {
+        return fadeOut(authContainer, 50).then(function() {
             var logoHtml = '<div class="logo"><div class="logo-icon">H</div><span class="logo-text">HAMSVIC</span></div>';
             authContainer.innerHTML = logoHtml + data.content;
             if (data.scripts) executeScripts(data.scripts, authContainer);
             executeInlineScripts(authContainer);
-            fadeIn(authContainer);
+            fadeIn(authContainer, 80);
             window.scrollTo(0, 0);
         });
     }
@@ -190,11 +204,11 @@
         if (data.styles) injectStyles(data.styles, 'spa-dynamic-styles');
         if (data.head) injectHead(data.head);
 
-        return fadeOut(container).then(function() {
+        return fadeOut(container, 50).then(function() {
             container.innerHTML = data.content;
             if (data.scripts) executeScripts(data.scripts, container);
             executeInlineScripts(container);
-            fadeIn(container);
+            fadeIn(container, 80);
             container.scrollTop = 0;
             window.scrollTo(0, 0);
         });
@@ -217,6 +231,7 @@
 
         // If we already have full HTML (from prefetch or fallback), use it directly
         if (data._fullHtml) {
+            scheduleBodyOpacityRecovery();
             return fadeOut(document.body, 80).then(function() {
                 replaceDocument(data._fullHtml, targetUrl);
                 document.body.style.opacity = '';
@@ -225,6 +240,7 @@
         }
 
         // Fetch full HTML without SPA header so the server returns the complete page
+        scheduleBodyOpacityRecovery();
         return fetch(targetUrl, {
             method: 'GET',
             credentials: 'same-origin'
@@ -240,6 +256,8 @@
             });
         })
         .catch(function() {
+            document.body.style.opacity = '';
+            document.body.style.transition = '';
             // Last resort: native navigation (only on network error)
             window.location.replace(targetUrl);
         });
@@ -578,6 +596,8 @@
                 if (data._fullHtml) {
                     return fadeOut(document.body, 80).then(function() {
                         replaceDocument(data._fullHtml, url);
+                        document.body.style.opacity = '';
+                        document.body.style.transition = '';
                     });
                 }
 
