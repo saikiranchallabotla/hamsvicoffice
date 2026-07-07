@@ -2076,6 +2076,11 @@ def workslip(request):
                 ws_target_workslip = request.session.get("ws_target_workslip", 1) or 1
                 ws_blocks = wb_out.active
                 ws_blocks.title = f"Supplement Datas {ws_target_workslip}"
+                # Title used when linking WorkSlip rates back to this sheet.
+                supp_datas_sheet_title = ws_blocks.title
+                # name -> row in Supplement Datas whose col J holds the rate, so
+                # the WorkSlip sheet can LINK to it (mirrors estimate's rate_pos).
+                ws_supp_rate_pos = {}
                 # Title row
                 ws_blocks.merge_cells("A1:J1")
                 title_cell = ws_blocks["A1"]
@@ -2102,6 +2107,14 @@ def workslip(request):
                         start_row = info["start_row"]
                         end_row = info["end_row"]
                         _src_ws = info.get('_source_ws') or ws_data
+                        # Locate the rate cell (last non-empty in col J/10) within
+                        # the source block so the WorkSlip sheet can link to its
+                        # copied position, exactly like the estimate module does.
+                        _rate_src_row = None
+                        for _r in range(end_row, start_row, -1):
+                            if _src_ws.cell(row=_r, column=10).value not in (None, ""):
+                                _rate_src_row = _r
+                                break
                         copy_block_with_styles_and_formulas(
                             ws_src=_src_ws,
                             ws_dst=ws_blocks,
@@ -2112,6 +2125,8 @@ def workslip(request):
                             col_end=10,
                             external_sheets=ws_external_sheets_all,
                         )
+                        if _rate_src_row is not None:
+                            ws_supp_rate_pos[name] = current_row + (_rate_src_row - start_row)
                         # Add Data serial number to column A of block header row
                         ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
                         data_serial_blocks += 1
@@ -2575,7 +2590,15 @@ def workslip(request):
                     ws_ws.cell(out_row, COL_DESC, desc_supp)
                     ws_ws.cell(out_row, COL_UNIT, unit_pl)
                     ws_ws.cell(out_row, COL_EST_QTY, None)
-                    ws_ws.cell(out_row, COL_EST_RATE, rate)  # Put supp rate in Est Rate column for amount calculation
+                    # Link the rate to the Supplement Datas sheet (same as the
+                    # estimate module links to =Datas!J{row}) so editing the data
+                    # block reflows the workslip rate. Fall back to the numeric
+                    # rate when the block's rate row could not be located.
+                    _supp_rr = ws_supp_rate_pos.get(name)
+                    if _supp_rr and supp_datas_sheet_title:
+                        ws_ws.cell(out_row, COL_EST_RATE, f"='{supp_datas_sheet_title}'!J{_supp_rr}")
+                    else:
+                        ws_ws.cell(out_row, COL_EST_RATE, rate)  # Put supp rate in Est Rate column for amount calculation
                     ws_ws.cell(out_row, COL_EST_AMT, None)
                     
                     # Previous phases empty for current supplemental
