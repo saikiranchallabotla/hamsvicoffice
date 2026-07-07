@@ -2183,20 +2183,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- Auto-save quantities and TP on group navigation (AJAX, no page reload) ---
-    document.querySelectorAll('.group-link').forEach(function(link) {
-        link.addEventListener('click', function(e) {
+    // Delegated on document (not per-element) so the handler survives SPA content swaps.
+    // The flag prevents double-registration each time the IIFE re-runs after a swap.
+    if (!window._wsGroupNavHandlerAttached) {
+        window._wsGroupNavHandlerAttached = true;
+        document.addEventListener('click', function(e) {
+            var clickedLink = e.target.closest('.group-link');
+            if (!clickedLink) return;
+
             e.preventDefault();
 
-            var clickedLink = this;
-            // Extract group name from URL
             var url = new URL(clickedLink.href);
             var groupName = url.searchParams.get('group') || '';
             if (!groupName) return;
-
-            // Skip if already on this group
             if (clickedLink.classList.contains('active')) return;
 
-            // --- INSTANT visual feedback ---
             // 1) Switch active group immediately
             document.querySelectorAll('.group-link').forEach(function(gl) {
                 gl.classList.remove('active');
@@ -2205,15 +2206,14 @@ document.addEventListener('DOMContentLoaded', function() {
             clickedLink.classList.add('active');
             clickedLink.querySelector('i').className = 'bi bi-folder-fill me-2';
 
-            // 2) Update header and add a subtle loading indicator (keep existing items visible)
+            // 2) Update header with loading indicator (keep existing items visible)
             var header = document.querySelector('.items-header');
             if (header) header.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .5s linear infinite;margin-right:0.3rem;font-size:0.75rem;opacity:0.7;"></i> Items in ' + groupName;
 
             var container = document.querySelector('#items-list');
             if (container) container = container.closest('.panel-body');
-            // Don't replace content yet — keep old items visible while loading
 
-            // 3) Update URL immediately
+            // 3) Update URL
             var newUrl = new URL(window.location);
             newUrl.searchParams.set('group', groupName);
             newUrl.searchParams.set('preserve', '1');
@@ -2223,39 +2223,32 @@ document.addEventListener('DOMContentLoaded', function() {
             var allMap = {};
             document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
                 if (row.classList.contains("supp-heading-row")) return;
-                var rowType = row.getAttribute("data-row-type");
-                var rowKey  = row.getAttribute("data-row-key");
-                if (!rowType || !rowKey) return;
+                if (!row.getAttribute("data-row-type") || !row.getAttribute("data-row-key")) return;
                 var qtyInput = row.querySelector(".qty-exec-input");
-                if (!qtyInput) return;
-                allMap[rowKey] = qtyInput.value;
+                if (qtyInput) allMap[row.getAttribute("data-row-key")] = qtyInput.value;
             });
 
             var tpPercentInput = document.getElementById("tp-percent-input");
             var tpTypeSelect = document.getElementById("tp-type-select");
-            var tpPercent = tpPercentInput ? tpPercentInput.value : "";
-            var tpType = tpTypeSelect ? tpTypeSelect.value : "Excess";
+            // Read CSRF fresh from DOM — survives SPA token rotation
+            var _csrf = (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
 
-            // Fire-and-forget save via sendBeacon (avoids blocking the AJAX group fetch)
             var saveData = new FormData();
             saveData.append('action', 'update_preview');
             saveData.append('exec_map', JSON.stringify(allMap));
-            saveData.append('tp_percent', tpPercent);
-            saveData.append('tp_type', tpType);
-            saveData.append('csrfmiddlewaretoken', csrfToken);
-            // Include Work Details metadata so group navigation also persists them.
+            saveData.append('tp_percent', tpPercentInput ? tpPercentInput.value : '');
+            saveData.append('tp_type', tpTypeSelect ? tpTypeSelect.value : 'Excess');
+            saveData.append('csrfmiddlewaretoken', _csrf);
             var _navMeta = collectWorkDetailsMetadata();
             Object.keys(_navMeta).forEach(function(k) { saveData.append(k, _navMeta[k]); });
 
-            navigator.sendBeacon('{% url "workslip_main" %}', saveData);
+            navigator.sendBeacon(workslipMainUrl, saveData);
 
-            var fetchPromise = fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
-                headers: { 'X-CSRFToken': csrfToken }
-            }).then(function(response) { return response.json(); });
-
-            // Wait for group fetch only (save can finish in background)
-            fetchPromise.then(function(data) {
-                // Restore header icon now that loading is done
+            fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
+                headers: { 'X-CSRFToken': _csrf }
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
                 var hdr = document.querySelector('.items-header');
                 if (hdr) hdr.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
                 if (data.status === 'ok') {
@@ -2263,7 +2256,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(function(err) {
-                console.error('Error loading group:', err);
+                console.error('[WS] Error loading group:', err);
                 var hdr = document.querySelector('.items-header');
                 if (hdr) hdr.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
                 if (container) {
@@ -2271,7 +2264,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
-    });
+    }
     // --- Helper: recalc a single row amount ---
     function recalcRow(row) {
         var qtyInput = row.querySelector(".qty-exec-input");
