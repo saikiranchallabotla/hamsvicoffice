@@ -2214,7 +2214,10 @@ document.addEventListener('DOMContentLoaded', function() {
         saveData.append('tp_percent', tpPercentInput ? tpPercentInput.value : '');
         saveData.append('tp_type', tpTypeSelect ? tpTypeSelect.value : 'Excess');
         saveData.append('csrfmiddlewaretoken', _csrf);
-        var _navMeta = collectWorkDetailsMetadata();
+        // collectWorkDetailsMetadata is defined in a sibling IIFE and exposed on
+        // window; guard so a missing helper never aborts the group switch.
+        var _navMeta = (typeof window.collectWorkDetailsMetadata === 'function')
+            ? window.collectWorkDetailsMetadata() : {};
         Object.keys(_navMeta).forEach(function(k) { saveData.append(k, _navMeta[k]); });
         navigator.sendBeacon(workslipMainUrl, saveData);
 
@@ -2576,6 +2579,10 @@ function collectExecMap() {
             ws_agreement:       (document.getElementById('ws-agreement-input')        || {}).value || '',
         };
     }
+    // Shared with the group-navigation IIFE (switchWsGroupAjax) which lives in a
+    // separate IIFE and cannot see this local declaration. Exposing it on window
+    // keeps a single source of truth without a cross-scope ReferenceError.
+    window.collectWorkDetailsMetadata = collectWorkDetailsMetadata;
 
     function buildWorkslipFormData(action) {
         var execMap = collectExecMap();
