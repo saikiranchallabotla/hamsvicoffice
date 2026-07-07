@@ -2236,7 +2236,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var tpPercent = tpPercentInput ? tpPercentInput.value : "";
             var tpType = tpTypeSelect ? tpTypeSelect.value : "Excess";
 
-            // Fire save and group fetch in PARALLEL
+            // Fire-and-forget save via sendBeacon (avoids blocking the AJAX group fetch)
             var saveData = new FormData();
             saveData.append('action', 'update_preview');
             saveData.append('exec_map', JSON.stringify(allMap));
@@ -2247,12 +2247,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var _navMeta = collectWorkDetailsMetadata();
             Object.keys(_navMeta).forEach(function(k) { saveData.append(k, _navMeta[k]); });
 
-            var savePromise = fetch('{% url "workslip_main" %}', {
-                method: 'POST',
-                body: saveData,
-                headers: { 'X-CSRFToken': csrfToken },
-                redirect: 'manual'
-            });
+            navigator.sendBeacon('{% url "workslip_main" %}', saveData);
 
             var fetchPromise = fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
                 headers: { 'X-CSRFToken': csrfToken }
