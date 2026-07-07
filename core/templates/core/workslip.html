@@ -868,6 +868,7 @@
                     {% for g in groups %}
                         <li data-group-name="{{ g|lower }}">
                             <a href="{% url 'workslip_main' %}?group={{ g|urlencode }}&preserve=1"
+                               data-ajax-url="{% url 'workslip_ajax_group_items' %}?group={{ g|urlencode }}"
                                class="group-link no-spa {% if g == current_group %}active{% endif %}">
                                 <i class="bi bi-folder{% if g == current_group %}-fill{% endif %} me-2"></i>
                                 {{ g }}
@@ -2182,87 +2183,86 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- Auto-save quantities and TP on group navigation (AJAX, no page reload) ---
-    // Delegated on document (not per-element) so the handler survives SPA content swaps.
-    // The flag prevents double-registration each time the IIFE re-runs after a swap.
-    if (!window._wsGroupNavHandlerAttached) {
-        window._wsGroupNavHandlerAttached = true;
-        document.addEventListener('click', function(e) {
-            var clickedLink = e.target.closest('.group-link');
-            if (!clickedLink) return;
-
+    // --- Group link: AJAX partial update (items panel only, no full reload) ---
+    // Element-level handlers (same pattern as items.html) re-attached each time
+    // the IIFE runs after an SPA content swap, so listeners are always live.
+    document.querySelectorAll('.group-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
+            var ajaxUrl = link.getAttribute('data-ajax-url');
+            var pageUrl = link.getAttribute('href');
+            if (!ajaxUrl) { window.location.href = pageUrl; return; }
+            switchWsGroupAjax(ajaxUrl, pageUrl, link);
+        });
+    });
 
-            var url = new URL(clickedLink.href);
-            var groupName = url.searchParams.get('group') || '';
-            if (!groupName) return;
-            if (clickedLink.classList.contains('active')) return;
+    function switchWsGroupAjax(ajaxUrl, pageUrl, clickedLink) {
+        // Save current quantities fire-and-forget
+        var allMap = {};
+        document.querySelectorAll('#ws-table tbody tr').forEach(function(row) {
+            if (row.classList.contains('supp-heading-row')) return;
+            if (!row.getAttribute('data-row-type') || !row.getAttribute('data-row-key')) return;
+            var qtyInput = row.querySelector('.qty-exec-input');
+            if (qtyInput) allMap[row.getAttribute('data-row-key')] = qtyInput.value;
+        });
+        var tpPercentInput = document.getElementById('tp-percent-input');
+        var tpTypeSelect = document.getElementById('tp-type-select');
+        var _csrf = (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
+        var saveData = new FormData();
+        saveData.append('action', 'update_preview');
+        saveData.append('exec_map', JSON.stringify(allMap));
+        saveData.append('tp_percent', tpPercentInput ? tpPercentInput.value : '');
+        saveData.append('tp_type', tpTypeSelect ? tpTypeSelect.value : 'Excess');
+        saveData.append('csrfmiddlewaretoken', _csrf);
+        var _navMeta = collectWorkDetailsMetadata();
+        Object.keys(_navMeta).forEach(function(k) { saveData.append(k, _navMeta[k]); });
+        navigator.sendBeacon(workslipMainUrl, saveData);
 
-            // 1) Switch active group immediately
-            document.querySelectorAll('.group-link').forEach(function(gl) {
-                gl.classList.remove('active');
-                gl.querySelector('i').className = 'bi bi-folder me-2';
-            });
+        // Switch active group link and folder icons immediately
+        document.querySelectorAll('.group-link').forEach(function(l) {
+            l.classList.remove('active');
+            var icon = l.querySelector('i.bi');
+            if (icon) { icon.className = icon.className.replace('bi-folder-fill', 'bi-folder'); }
+        });
+        if (clickedLink) {
             clickedLink.classList.add('active');
-            clickedLink.querySelector('i').className = 'bi bi-folder-fill me-2';
+            var icon = clickedLink.querySelector('i.bi');
+            if (icon) { icon.className = icon.className.replace('bi-folder', 'bi-folder-fill'); }
+        }
 
-            // 2) Update header with loading indicator (keep existing items visible)
-            var header = document.querySelector('.items-header');
-            if (header) header.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .5s linear infinite;margin-right:0.3rem;font-size:0.75rem;opacity:0.7;"></i> Items in ' + groupName;
+        // Show loading state in items panel body
+        var wsItemsPanel = document.getElementById('ws-panel-items');
+        if (wsItemsPanel) {
+            var pb = wsItemsPanel.querySelector('.panel-body');
+            if (pb) pb.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;"><i class="bi bi-hourglass-split" style="font-size:1.5rem;"></i><p style="margin-top:0.5rem;font-size:0.85rem;">Loading...</p></div>';
+        }
 
-            var container = document.querySelector('#items-list');
-            if (container) container = container.closest('.panel-body');
+        // Update browser URL
+        history.replaceState(null, '', pageUrl);
 
-            // 3) Update URL
-            var newUrl = new URL(window.location);
-            newUrl.searchParams.set('group', groupName);
-            newUrl.searchParams.set('preserve', '1');
-            history.replaceState(null, '', newUrl.toString());
-
-            // Collect quantities for save
-            var allMap = {};
-            document.querySelectorAll("#ws-table tbody tr").forEach(function(row) {
-                if (row.classList.contains("supp-heading-row")) return;
-                if (!row.getAttribute("data-row-type") || !row.getAttribute("data-row-key")) return;
-                var qtyInput = row.querySelector(".qty-exec-input");
-                if (qtyInput) allMap[row.getAttribute("data-row-key")] = qtyInput.value;
-            });
-
-            var tpPercentInput = document.getElementById("tp-percent-input");
-            var tpTypeSelect = document.getElementById("tp-type-select");
-            // Read CSRF fresh from DOM — survives SPA token rotation
-            var _csrf = (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
-
-            var saveData = new FormData();
-            saveData.append('action', 'update_preview');
-            saveData.append('exec_map', JSON.stringify(allMap));
-            saveData.append('tp_percent', tpPercentInput ? tpPercentInput.value : '');
-            saveData.append('tp_type', tpTypeSelect ? tpTypeSelect.value : 'Excess');
-            saveData.append('csrfmiddlewaretoken', _csrf);
-            var _navMeta = collectWorkDetailsMetadata();
-            Object.keys(_navMeta).forEach(function(k) { saveData.append(k, _navMeta[k]); });
-
-            navigator.sendBeacon(workslipMainUrl, saveData);
-
-            fetch(ajaxGroupItemsUrl + '?group=' + encodeURIComponent(groupName), {
-                headers: { 'X-CSRFToken': _csrf }
-            })
-            .then(function(response) { return response.json(); })
-            .then(function(data) {
-                var hdr = document.querySelector('.items-header');
-                if (hdr) hdr.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
-                if (data.status === 'ok') {
-                    renderItemsPanel(data);
-                }
-            })
-            .catch(function(err) {
-                console.error('[WS] Error loading group:', err);
-                var hdr = document.querySelector('.items-header');
-                if (hdr) hdr.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + groupName;
-                if (container) {
-                    container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Failed to load items. Click the group again.</p></div>';
-                }
-            });
+        fetch(ajaxUrl, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': _csrf },
+            credentials: 'same-origin'
+        })
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                renderItemsPanel(data);
+            } else {
+                throw new Error(data.error || 'Server error');
+            }
+        })
+        .catch(function(err) {
+            console.error('[WS] Group load error:', err);
+            var panel = document.getElementById('ws-panel-items');
+            if (panel) {
+                var pb = panel.querySelector('.panel-body');
+                if (pb) pb.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Failed to load items. Click the group again.</p></div>';
+            }
         });
     }
     // --- Helper: recalc a single row amount ---
