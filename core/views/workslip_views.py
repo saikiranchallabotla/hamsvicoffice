@@ -3371,6 +3371,7 @@ def workslip_ajax_group_items(request):
             backend_id=ws_selected_backend_id,
             module_code=module_code,
             user=request.user,
+            nav_only=True,
         )
     except Exception:
         logger.exception("[WORKSLIP] load_backend failed (backend_id=%s, category=%s)", ws_selected_backend_id, category)

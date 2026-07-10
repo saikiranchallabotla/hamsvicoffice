@@ -242,8 +242,84 @@ def read_groups(ws_groups, unit_col=4):
     return groups, units
 
 
+# ---------- In-process cache for read-only group navigation ----------
+# Parsing a backend workbook with openpyxl costs ~300-500 ms. Group navigation
+# re-parses the SAME unchanged file on every click, so cache the derived plain
+# data (item names + groups + units) keyed by (filepath, mtime). Re-uploading a
+# backend changes its mtime and transparently invalidates the entry.
+_BACKEND_NAV_CACHE = {}
+
+def _file_mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0
+
+def _nav_cache_put(filepath, key, value):
+    # Drop any stale versions of the same file so the cache stays bounded.
+    for k in [k for k in _BACKEND_NAV_CACHE if k[0] == filepath and k != key]:
+        _BACKEND_NAV_CACHE.pop(k, None)
+    _BACKEND_NAV_CACHE[key] = value
+
+def _parse_backend_nav(filepath, category_key):
+    """
+    Cached parse of a MAIN backend for read-only group navigation.
+    Returns (names:tuple, groups_map:dict, units_map:dict). detect_items needs
+    cell fill colours, so this still parses with styles (not read_only), but only
+    once per file version thanks to the cache.
+    """
+    key = (filepath, _file_mtime(filepath), 'main', category_key.startswith('temp_'))
+    hit = _BACKEND_NAV_CACHE.get(key)
+    if hit is not None:
+        return hit
+    wb = load_workbook(filepath, data_only=False)
+    try:
+        if "Master Datas" not in wb.sheetnames:
+            raise ValueError("Sheet 'Master Datas' missing in backend Excel.")
+        if "Groups" not in wb.sheetnames:
+            raise ValueError("Sheet 'Groups' missing in backend Excel.")
+        names = tuple(it["name"] for it in detect_items(wb["Master Datas"]))
+        _unit_col = 3 if category_key.startswith('temp_') else 4
+        groups_map, units_map = read_groups(wb["Groups"], unit_col=_unit_col)
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+    result = (names, groups_map, units_map)
+    _nav_cache_put(filepath, key, result)
+    return result
+
+def _parse_custom_nav(cb_path):
+    """Cached parse of a user's custom backend file -> tuple of item names (all sheets)."""
+    key = (cb_path, _file_mtime(cb_path), 'custom')
+    hit = _BACKEND_NAV_CACHE.get(key)
+    if hit is not None:
+        return hit
+    names = []
+    try:
+        cb_wb = load_workbook(cb_path, data_only=False)
+        try:
+            for sheet_name in cb_wb.sheetnames:
+                try:
+                    cb_items = detect_items(cb_wb[sheet_name])
+                except Exception:
+                    continue
+                names.extend(it['name'] for it in cb_items)
+        finally:
+            try:
+                cb_wb.close()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    result = tuple(names)
+    _nav_cache_put(cb_path, key, result)
+    return result
+
+
 # ---------- Load workbook and sheets ----------
-def load_backend(category, base_dir, backend_id=None, module_code=None, user=None):
+def load_backend(category, base_dir, backend_id=None, module_code=None, user=None, nav_only=False):
     """
     Load backend Excel data.
     
@@ -380,6 +456,37 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
 
     if not filepath or not os.path.exists(filepath):
         raise FileNotFoundError(f"Excel file not found for category: {category_key}")
+
+    # Fast path for read-only group navigation: return cached plain data (item
+    # names + groups + units) without re-parsing the workbook or building live
+    # worksheets. Callers that need cell data / rates must use the full path.
+    if nav_only:
+        names, groups_c, units_c = _parse_backend_nav(filepath, category_key)
+        # Copy cached maps so the per-request custom merge below never mutates
+        # (and corrupts) the shared cache entry.
+        groups_map = {g: list(items) for g, items in groups_c.items()}
+        units_map = dict(units_c)
+        items_list = [{"name": n} for n in names]
+        if user is not None and getattr(user, 'is_authenticated', False) and module_code in ('new_estimate', 'temp_works', 'amc'):
+            try:
+                from accounts.models import UserCustomBackend
+                customs = UserCustomBackend.for_user_module(user, module_code, base_category)
+                for cb in customs:
+                    cb_path = _resolve_backend_path(cb)
+                    if not cb_path or not os.path.exists(cb_path):
+                        continue
+                    cb_group = (cb.group_name or cb.name or 'Custom').strip()
+                    existing = groups_map.setdefault(cb_group, [])
+                    for n in _parse_custom_nav(cb_path):
+                        items_list.append({"name": n})
+                        if n not in existing:
+                            existing.append(n)
+                    for itname, unit in (cb.units_override or {}).items():
+                        if unit:
+                            units_map[itname] = unit
+            except (OperationalError, ProgrammingError, Exception):
+                pass
+        return items_list, groups_map, units_map, None, filepath
 
     # Keep formulas (needed for rates, etc.)
     wb = load_workbook(filepath, data_only=False)

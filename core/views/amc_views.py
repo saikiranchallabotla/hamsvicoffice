@@ -347,6 +347,7 @@ def amc_ajax_group_items(request, category, group):
             backend_id=amc_selected_backend_id,
             module_code='amc',
             user=request.user if request.user.is_authenticated else None,
+            nav_only=True,
         )
     except Exception as e:
         logger.error(f"amc_ajax_group_items error for {category}/{group}: {e}")

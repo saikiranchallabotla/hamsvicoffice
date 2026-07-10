@@ -552,7 +552,8 @@ def ajax_group_items(request, category, group):
             category, settings.BASE_DIR,
             backend_id=selected_backend_id,
             module_code='new_estimate',
-            user=request.user if request.user.is_authenticated else None
+            user=request.user if request.user.is_authenticated else None,
+            nav_only=True,
         )
     except Exception as e:
         logger.error(f"ajax_group_items error for {category}/{group}: {e}")
