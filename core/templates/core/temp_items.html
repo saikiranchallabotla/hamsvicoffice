@@ -1013,10 +1013,10 @@
             <ul class="groups-list" id="groups-list">
                 {% for g in groups %}
                     <li data-group-name="{{ g|lower }}">
-                        <a href="#"
+                        <a href="{% url 'temp_items' category g %}"
                            data-nav-url="{% url 'temp_items' category g %}"
-                           onclick="saveAndNavigate(this.getAttribute('data-nav-url')); return false;"
-                           class="group-link {% if g == group %}active{% endif %}">
+                           data-ajax-url="{% url 'temp_ajax_group_items' category g %}"
+                           class="no-spa group-link {% if g == group %}active{% endif %}">
                             <i class="bi bi-folder{% if g == group %}-fill{% endif %} me-2"></i>
                             {{ g }}
                             {% if g in custom_groups %}<span class="group-custom-tag" title="Your custom group">C</span>{% endif %}
@@ -1028,7 +1028,7 @@
     </div>
 
     <!-- MIDDLE: ITEMS -->
-    <div class="panel-card">
+    <div class="panel-card" id="temp-items-panel">
         <div class="panel-header items-header">
             <i class="bi bi-plus-square"></i>
             Items in {{ group }}
@@ -2238,6 +2238,137 @@ document.addEventListener('click', function(e) {
     // Expose helpers for inline onclick handlers
     window.saveAndAdd = saveAndAdd;
     window.saveAndNavigate = saveAndNavigate;
+
+    // --- Group link behaviour: AJAX partial update (items panel only, no reload) ---
+    // Mirrors the New Estimate / Workslip / AMC modules for instant group nav.
+    function switchTempGroupAjax(ajaxUrl, pageUrl, clickedLink) {
+        // Fire-and-forget save of current entries (same payload as saveAndNavigate)
+        var list = [];
+        document.querySelectorAll('#estimate-table tbody tr[data-entry-id]').forEach(function(row) {
+            var id = row.getAttribute('data-entry-id');
+            var name = row.getAttribute('data-item-name');
+            var mode = row.getAttribute('data-mode') || 'single';
+            if (mode === 'multi') {
+                var events = (typeof collectEventsForRow === 'function') ? collectEventsForRow(row) : [];
+                list.push({ id: id, name: name, mode: 'multi', events: events });
+            } else {
+                var qtyInput = row.querySelector('.qty-input');
+                var daysInput = row.querySelector('.days-input');
+                var qty = qtyInput ? parseFloat(qtyInput.value || '0') : 0;
+                var days = daysInput ? parseInt(daysInput.value || '1', 10) : 1;
+                list.push({ id: id, name: name, qty: qty, days: days });
+            }
+        });
+        var workName = (document.getElementById('work-name-input') || {}).value || '';
+        var grandTotal = (document.getElementById('grand-total-input') || {}).value || '';
+        var tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        var csrftoken = tokenInput ? tokenInput.value : getCookie('csrftoken');
+        fetch('{% url "temp_save_state" category %}', {
+            method: 'POST', keepalive: true, credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ entries: list, work_name: workName, grand_total: grandTotal })
+        }).catch(function() {});
+
+        // Switch active group + folder icons immediately (no wait for response)
+        document.querySelectorAll('.group-link').forEach(function(l) {
+            l.classList.remove('active');
+            var icon = l.querySelector('i.bi');
+            if (icon) { icon.className = icon.className.replace('bi-folder-fill', 'bi-folder'); }
+        });
+        if (clickedLink) {
+            clickedLink.classList.add('active');
+            var icon = clickedLink.querySelector('i.bi');
+            if (icon) { icon.className = icon.className.replace('bi-folder', 'bi-folder-fill'); }
+        }
+
+        // Loading state in the items panel body only
+        var itemsPanel = document.getElementById('temp-items-panel');
+        if (itemsPanel) {
+            var pb = itemsPanel.querySelector('.panel-body');
+            if (pb) pb.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;"><i class="bi bi-hourglass-split" style="font-size:1.5rem;"></i><p style="margin-top:0.5rem;font-size:0.85rem;">Loading...</p></div>';
+        }
+
+        fetch(ajaxUrl, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrftoken },
+            credentials: 'same-origin'
+        })
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(data) {
+            if (data.error) throw new Error(data.error);
+
+            var newGroup = data.group || '';
+            if (itemsPanel) {
+                var ph = itemsPanel.querySelector('.panel-header');
+                if (ph) ph.innerHTML = '<i class="bi bi-plus-square"></i> Items in ' + escapeHtml(newGroup);
+            }
+
+            var newSubtypes = {};
+            var html = '';
+            if (data.items_info && data.items_info.length > 0) {
+                html = '<ul class="items-list" id="items-list">';
+                data.items_info.forEach(function(info, idx) {
+                    var safeAttr = escapeHtml(info.name).replace(/"/g, '&quot;');
+                    var safeText = escapeHtml(info.name);
+                    html += '<li data-item-name="' + safeAttr.toLowerCase() + '">';
+                    if (info.has_subtypes) {
+                        newSubtypes[idx] = info.subtypes || [];
+                        html += '<label class="item-label has-subtypes"'
+                              + ' data-parent-name="' + safeAttr + '"'
+                              + ' data-subtypes-index="' + idx + '"'
+                              + ' onclick="openSubtypesModal(this)">';
+                        html += '<span class="item-name">' + safeText + '</span>';
+                        html += '<span class="subtype-badge">' + (info.subtypes_count || 0) + ' types</span>';
+                        html += '</label>';
+                    } else {
+                        html += '<div class="item-row">';
+                        html += '<span class="item-name">' + safeText + '</span>';
+                        html += '<a class="btn-add" href="#" onclick="saveAndAdd(this); return false;">';
+                        html += '<i class="bi bi-plus-lg"></i> Add</a>';
+                        html += '</div>';
+                    }
+                    html += '</li>';
+                });
+                html += '</ul>';
+            } else {
+                html = '<div class="empty-state"><i class="bi bi-inbox"></i><p>No items found in this group.</p></div>';
+            }
+
+            if (itemsPanel) {
+                var pb2 = itemsPanel.querySelector('.panel-body');
+                if (pb2) pb2.innerHTML = html;
+            }
+
+            // Update global subtypesData (used by openSubtypesModal)
+            subtypesData = newSubtypes;
+
+            // Clear items search on group switch
+            var itemsSearch = document.getElementById('items-search');
+            if (itemsSearch) itemsSearch.value = '';
+
+            // Update browser URL and sync SPA router's logical URL
+            if (window.history && window.history.pushState) {
+                history.pushState({ spa: true, url: pageUrl }, '', pageUrl);
+                if (window.spaSetLogicalUrl) window.spaSetLogicalUrl(pageUrl);
+            }
+        })
+        .catch(function() {
+            // Fallback: full navigation on any error
+            saveAndNavigate(pageUrl);
+        });
+    }
+    window.switchTempGroupAjax = switchTempGroupAjax;
+
+    // Attach element-level click handlers to group links
+    document.querySelectorAll('.group-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var ajaxUrl = link.getAttribute('data-ajax-url');
+            var pageUrl = link.getAttribute('data-nav-url') || link.getAttribute('href');
+            if (!ajaxUrl) { saveAndNavigate(pageUrl); return; }
+            switchTempGroupAjax(ajaxUrl, pageUrl, link);
+        });
+    });
 
   // Submit → entries_json (send qty+days for each selected row)
   const form = document.getElementById("temp-estimate-form");

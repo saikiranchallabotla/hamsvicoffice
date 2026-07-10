@@ -334,6 +334,70 @@ def amc_items(request, category, group):
 
 
 @login_required(login_url='login')
+def amc_ajax_group_items(request, category, group):
+    """
+    AJAX endpoint: return items for an AMC group as JSON so the middle panel can
+    be swapped without a full page reload. Mirrors ajax_group_items (New Estimate)
+    and workslip_ajax_group_items so group navigation behaves identically.
+    """
+    amc_selected_backend_id = request.session.get("amc_selected_backend_id")
+    try:
+        items_list, groups_map, units_map, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=amc_selected_backend_id,
+            module_code='amc',
+            user=request.user if request.user.is_authenticated else None,
+        )
+    except Exception as e:
+        logger.error(f"amc_ajax_group_items error for {category}/{group}: {e}")
+        return JsonResponse({'error': 'Could not load backend data'}, status=500)
+
+    group_items = groups_map.get(group, [])
+    detected_names = {i["name"] for i in items_list}
+    display_items = [name for name in group_items if name in detected_names]
+
+    import re as _re
+    _colon_re = _re.compile(r'\s*:\s*')
+
+    item_subtypes = {}
+    for name in display_items:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            item_subtypes.setdefault(parent_name, []).append(name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": subtypes_list,
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": [],
+                "subtypes_count": 0,
+            })
+
+    fetched = request.session.get("amc_fetched_items", []) or []
+
+    return JsonResponse({
+        'status': 'ok',
+        'items_info': items_info,
+        'fetched': fetched,
+        'group': group,
+    })
+
+
+@login_required(login_url='login')
 def amc_fetch_item(request, category, group, item):
     """
     Toggle fetched items for AMC module.

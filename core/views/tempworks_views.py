@@ -479,6 +479,72 @@ def temp_items(request, category, group):
 
 
 @login_required(login_url='login')
+def temp_ajax_group_items(request, category, group):
+    """
+    AJAX endpoint: return items for a Temporary Works group as JSON so the middle
+    panel can be swapped without a full page reload. Mirrors ajax_group_items
+    (New Estimate) so group navigation behaves identically across modules.
+    """
+    from django.http import JsonResponse
+    temp_selected_backend_id = request.session.get("temp_selected_backend_id")
+    try:
+        items_list, groups_map, units_map, ws_src, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=temp_selected_backend_id,
+            module_code='temp_works',
+            user=request.user if request.user.is_authenticated else None,
+        )
+    except Exception as e:
+        logger.error(f"temp_ajax_group_items error for {category}/{group}: {e}")
+        return JsonResponse({'error': 'Could not load backend data'}, status=500)
+
+    group_items = groups_map.get(group, [])
+    detected_names = {i["name"] for i in items_list}
+    display_items = [name for name in group_items if name in detected_names]
+
+    import re as _re
+    _colon_re = _re.compile(r'\s*:\s*')
+
+    item_subtypes = {}
+    for name in display_items:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            item_subtypes.setdefault(parent_name, []).append(name)
+
+    items_info = []
+    seen_parents = set()
+    for name in display_items:
+        if _colon_re.search(name):
+            parent_name = _colon_re.split(name, 1)[0].strip()
+            if parent_name not in seen_parents:
+                subtypes_list = item_subtypes.get(parent_name, [])
+                items_info.append({
+                    "name": parent_name,
+                    "has_subtypes": True,
+                    "subtypes": subtypes_list,
+                    "subtypes_count": len(subtypes_list),
+                })
+                seen_parents.add(parent_name)
+        else:
+            items_info.append({
+                "name": name,
+                "has_subtypes": False,
+                "subtypes": [],
+                "subtypes_count": 0,
+            })
+
+    entries = request.session.get("temp_entries", []) or []
+    fetched = [(e or {}).get("name") for e in entries if (e or {}).get("name")]
+
+    return JsonResponse({
+        'status': 'ok',
+        'items_info': items_info,
+        'fetched': fetched,
+        'group': group,
+    })
+
+
+@login_required(login_url='login')
 def temp_day_rates_debug(request, category):
     """Debug endpoint: return JSON of computed day rates for a category.
     Useful to inspect what the view passes to the template.

@@ -268,6 +268,11 @@ urlpatterns = [
     
     # AJAX endpoints for Temporary Works module (queued item add & drag-drop reorder)
     path(
+        "tempdatas/<str:category>/ajax-group-items/<str:group>/",
+        views.temp_ajax_group_items,
+        name="temp_ajax_group_items",
+    ),
+    path(
         "tempdatas/<str:category>/ajax_add_item/",
         views.temp_ajax_add_item,
         name="temp_ajax_add_item",
@@ -341,6 +346,11 @@ urlpatterns = [
     ),
     
     # AJAX endpoints for AMC module (queued item selection & drag-drop reorder)
+    path(
+        "amc/<str:category>/ajax-group-items/<str:group>/",
+        views.amc_ajax_group_items,
+        name="amc_ajax_group_items",
+    ),
     path(
         "amc/<str:category>/ajax_toggle_item/",
         views.amc_ajax_toggle_item,
