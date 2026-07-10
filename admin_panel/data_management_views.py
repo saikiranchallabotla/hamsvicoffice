@@ -539,6 +539,52 @@ def preview_upload(request):
 # MODULE BACKEND VIEWS (Multi-State SOR Support)
 # ==============================================================================
 
+def _validate_backend_workbook(uploaded_file, module=None):
+    """
+    Validate an uploaded backend workbook BEFORE it is saved.
+
+    The app's load_backend() hard-requires a 'Master Datas' and a 'Groups' sheet;
+    without them every page that uses the backend throws and users get an error
+    page. So a workbook missing either sheet is REJECTED here (blocking), giving
+    the admin an immediate warning to re-check and re-upload.
+
+    Returns (errors, warnings): a non-empty `errors` list must block the save.
+    Leaves the file pointer reset for subsequent reads.
+    """
+    try:
+        uploaded_file.seek(0)
+        with pd.ExcelFile(uploaded_file) as xl:
+            sheets = set(xl.sheet_names)
+    except Exception as e:
+        return ([f'The file could not be read as an Excel workbook ({e}). '
+                 'Please upload a valid .xlsx/.xls file.'], [])
+    finally:
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+
+    errors, warnings = [], []
+    missing = [s for s in ('Master Datas', 'Groups') if s not in sheets]
+    if missing:
+        errors.append(
+            'Upload rejected — the workbook is missing required sheet(s): '
+            + ', '.join(f'"{m}"' for m in missing)
+            + '. A valid backend must contain both a "Master Datas" and a "Groups" '
+            'sheet (exact tab names). Found tabs: '
+            + (', '.join(f'"{s}"' for s in sorted(sheets)) or '(none)')
+            + '. Please fix the file and re-upload.'
+        )
+
+    mod_code = (getattr(module, 'code', '') or '').lower()
+    if 'temp' in mod_code and 'Daywise Rates' not in sheets:
+        warnings.append(
+            'Note: no "Daywise Rates" sheet was found — day-based rates may not '
+            'work for this Temporary Works backend.'
+        )
+    return errors, warnings
+
+
 @admin_required
 @require_http_methods(["GET", "POST"])
 def add_module_backend(request, module_code):
@@ -573,19 +619,19 @@ def add_module_backend(request, module_code):
                 messages.error(request, error)
             return redirect('admin_add_module_backend', module_code=module_code)
         
+        # Blocking validation: reject a workbook missing the required sheets so
+        # a wrong-format file never gets saved and silently breaks the module.
+        val_errors, val_warnings = _validate_backend_workbook(uploaded_file, module)
+        for w in val_warnings:
+            messages.warning(request, w)
+        if val_errors:
+            for e in val_errors:
+                messages.error(request, e)
+            return redirect('admin_add_module_backend', module_code=module_code)
+
         try:
-            # Validate Excel file
             MEDIA_BACKENDS_DIR.mkdir(parents=True, exist_ok=True)
-            
-            with pd.ExcelFile(uploaded_file) as xl:
-                sheet_names = xl.sheet_names
-                if 'Master Datas' not in sheet_names and 'Groups' not in sheet_names:
-                    messages.warning(
-                        request, 
-                        'File uploaded but does not contain standard sheets (Master Datas, Groups). '
-                        'Please verify the file format.'
-                    )
-            
+
             # Read file bytes for DB persistence
             uploaded_file.seek(0)
             file_bytes = uploaded_file.read()
@@ -663,11 +709,17 @@ def edit_module_backend(request, backend_id):
                 messages.error(request, 'File must be an Excel file.')
                 return redirect('admin_edit_module_backend', backend_id=backend_id)
             
-            try:
-                # Validate Excel file
-                with pd.ExcelFile(uploaded_file) as xl:
-                    pass  # Just validate it's a valid Excel file
+            # Blocking validation: reject a replacement workbook that is missing
+            # the required sheets, so the live backend can't be broken by a bad file.
+            val_errors, val_warnings = _validate_backend_workbook(uploaded_file, backend.module)
+            for w in val_warnings:
+                messages.warning(request, w)
+            if val_errors:
+                for e in val_errors:
+                    messages.error(request, e)
+                return redirect('admin_edit_module_backend', backend_id=backend_id)
 
+            try:
                 # Backup old file before replacing
                 if backend.file:
                     try:
