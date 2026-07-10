@@ -173,10 +173,11 @@ def datas_groups(request, category):
     
     try:
         items_list, groups_map, _, ws_data, filepath = load_backend(
-            category, settings.BASE_DIR, 
+            category, settings.BASE_DIR,
             backend_id=selected_backend_id,
             module_code='new_estimate',
-            user=request.user if request.user.is_authenticated else None
+            user=request.user if request.user.is_authenticated else None,
+            nav_only=True,
         )
     except FileNotFoundError as e:
         logger.info(f"No backend data available for category {category} - showing Coming Soon")
@@ -219,6 +220,12 @@ def datas_groups(request, category):
 # -----------------------
 # STEP 4: ITEMS IN GROUP (3-panel UI)
 # -----------------------
+# Rates/descriptions of the (non-custom) main-backend items are a pure function
+# of (file, mtime, project area, work type), so cache them per key to avoid a
+# second full workbook load + a per-item recompute on every page load.
+_DATAS_RATE_CACHE = {}
+
+
 @login_required(login_url='login')
 def datas_items(request, category, group):
     from core.utils_excel import get_available_backends_for_module
@@ -299,24 +306,39 @@ def datas_items(request, category, group):
     detected_names = {i["name"] for i in items_list}
     display_items = [name for name in group_items if name in detected_names]
 
-    wb_vals = load_workbook(filepath, data_only=True)
-    ws_vals = wb_vals["Master Datas"]
-
     project_area = request.session.get("project_area", "municipal") or "municipal"
     work_type_for_rate = request.session.get("work_type", "original") or "original"
+
+    # Warm-cache lookup for the non-custom main-backend rates/descs. On a hit we
+    # skip the (expensive) data_only workbook load and the per-item recompute.
+    from core.utils_excel import _file_mtime
+    _rate_key = (filepath, _file_mtime(filepath), project_area, work_type_for_rate)
+    _main_cache = _DATAS_RATE_CACHE.get(_rate_key)
+    _computing = _main_cache is None
+    ws_vals = None
+    if _computing:
+        wb_vals = load_workbook(filepath, data_only=True)
+        ws_vals = wb_vals["Master Datas"]
+        _main_cache = {}
 
     item_rates = {}
     item_descs = {}
     for info in items_list:
         name = info["name"]
-        start_row = info["start_row"]
-        end_row = info["end_row"]
         if info.get('_is_custom'):
             item_rates[name] = info.get('_cached_rate') or None
             d = info.get('_cached_desc') or ''
             if d:
                 item_descs[name] = d
             continue
+        # Non-custom main-backend item — serve from cache when warm.
+        if not _computing:
+            r_val, d_val = _main_cache.get(name, (None, name))
+            item_rates[name] = r_val
+            item_descs[name] = d_val
+            continue
+        start_row = info["start_row"]
+        end_row = info["end_row"]
         item_ws_vals = info.get('_source_ws_vals') or ws_vals
         item_ws_for = info.get('_source_ws') or ws_data
         rate = compute_block_rate(
@@ -335,11 +357,15 @@ def datas_items(request, category, group):
                     # Skip if it's just a number, rate value, or unit
                     if txt and len(txt) > 5 and not txt.replace('.', '').replace(',', '').isdigit():
                         desc_candidates.append(txt)
-        if desc_candidates:
-            # Pick the longest candidate as the most detailed description
-            item_descs[name] = max(desc_candidates, key=len)
-        else:
-            item_descs[name] = name
+        # Pick the longest candidate as the most detailed description
+        desc = max(desc_candidates, key=len) if desc_candidates else name
+        item_descs[name] = desc
+        _main_cache[name] = (rate, desc)
+    if _computing:
+        # Keep only the latest version per file so the cache stays bounded.
+        for _k in [k for k in _DATAS_RATE_CACHE if k[0] == filepath and k != _rate_key]:
+            _DATAS_RATE_CACHE.pop(_k, None)
+        _DATAS_RATE_CACHE[_rate_key] = _main_cache
 
     item_to_group = {}
     for grp_name, item_list_in_grp in groups_map.items():
