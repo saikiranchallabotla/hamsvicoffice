@@ -1264,6 +1264,255 @@ def ajax_upload_custom_items(request, category):
 
 
 # -----------------------
+# AJAX UPLOAD PREPARED ESTIMATE
+# -----------------------
+@login_required(login_url='login')
+@require_POST
+def ajax_upload_prepared_estimate(request, category):
+    """
+    AJAX endpoint to re-import an already-prepared estimate workbook so it can
+    be edited instead of rebuilt from scratch.
+
+    The uploaded .xlsx is expected to contain BOTH:
+      - an item-blocks sheet ("Datas"): one block per item, each headed by a
+        yellow-background / red-text cell (the item name shown in the preview);
+      - an "Estimate" sheet: Sl.No / Quantity / Unit / Item Description / Rate /
+        ... rows, one per item, in the SAME ORDER as the blocks.
+
+    We match each block to its estimate row by position (block count == item
+    count), read the quantity + unit + description from the Estimate sheet, and
+    load everything into the session so the preview renders the items with
+    their quantities pre-filled. The estimate-sheet description is stored as a
+    spec override so that on re-download BOTH the Estimate description and the
+    Datas block's description row (heading row + 2) show that same text -- i.e.
+    any mismatch between the two in the source file is reconciled.
+
+    Returns JSON: { status, count, work_name, warnings }.
+    """
+    from ..models import Upload
+    from ..utils_excel import _extract_items_from_sheet, _determine_unit_from_heading
+    from .bill_parsing import find_estimate_sheet_and_header_row, parse_estimate_items
+
+    try:
+        uploaded_file = request.FILES.get('prepared_estimate_file')
+        if not uploaded_file:
+            return JsonResponse({"status": "error", "message": "No file uploaded"}, status=400)
+
+        if uploaded_file.size == 0:
+            return JsonResponse({"status": "error", "message": "Uploaded file is empty"}, status=400)
+
+        if uploaded_file.size > 10 * 1024 * 1024:
+            return JsonResponse({"status": "error", "message": "File too large (max 10MB)"}, status=400)
+
+        if not uploaded_file.name.endswith('.xlsx'):
+            return JsonResponse({"status": "error", "message": "Only .xlsx files are supported"}, status=400)
+
+        org = get_org_from_request(request)
+
+        # Load twice: formulas (for block copy fidelity later) and values
+        # (so quantities/rates come through even though they are formulas).
+        uploaded_file.seek(0)
+        try:
+            wb_formulas = load_workbook(uploaded_file, data_only=False)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Failed to read Excel file: {e}"}, status=400)
+
+        uploaded_file.seek(0)
+        try:
+            wb_values = load_workbook(uploaded_file, data_only=True)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Failed to process Excel file: {e}"}, status=400)
+
+        # Units map from a Groups sheet, if the file carries one.
+        upload_units_map = {}
+        try:
+            if "Groups" in wb_formulas.sheetnames:
+                from ..utils_excel import read_groups
+                _, upload_units_map = read_groups(wb_formulas["Groups"])
+        except Exception:
+            pass
+
+        # ---- 1) Collect item blocks (yellow/red headings), preserving order ----
+        blocks = []  # [{name, start, end, sheet, rate, block_desc}]
+        used_sheet_name = ""
+        for sheet_name in wb_formulas.sheetnames:
+            ws_src = wb_formulas[sheet_name]
+            fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
+            if not fetched_names:
+                continue
+            if not used_sheet_name:
+                used_sheet_name = sheet_name
+            ws_vals = wb_values[sheet_name]
+            for item_name in fetched_names:
+                src_min, src_max = item_blocks[item_name]
+                # Rate: last non-empty value in column J (computed value).
+                rate = None
+                for r in range(src_max, src_min - 1, -1):
+                    v = ws_vals.cell(row=r, column=10).value
+                    if v not in (None, ""):
+                        try:
+                            rate = float(v)
+                        except (ValueError, TypeError):
+                            rate = None
+                        break
+                block_desc = str(ws_vals.cell(row=src_min + 2, column=4).value or "").strip()
+                blocks.append({
+                    "name": item_name,
+                    "start": src_min,
+                    "end": src_max,
+                    "sheet": sheet_name,
+                    "rate": rate,
+                    "block_desc": block_desc,
+                })
+
+        if not blocks:
+            return JsonResponse({
+                "status": "error",
+                "message": "No item blocks found. This does not look like a prepared estimate "
+                           "(expected item headers with yellow background and red text)."
+            }, status=400)
+
+        # ---- 2) Parse the Estimate sheet rows (quantities, units, descriptions) ----
+        ws_est, header_row = find_estimate_sheet_and_header_row(wb_values)
+        est_items = parse_estimate_items(ws_est, header_row) if ws_est is not None else []
+
+        warnings = []
+
+        # ---- 3) Match blocks to estimate rows ----
+        # App-generated files list blocks and estimate rows in the same order,
+        # so a positional match is authoritative. If counts differ (hand-edited
+        # file), fall back to best description similarity and warn.
+        matched = {}  # block index -> estimate item dict
+        if est_items and len(est_items) == len(blocks):
+            for i, blk in enumerate(blocks):
+                matched[i] = est_items[i]
+        elif est_items:
+            warnings.append(
+                f"Found {len(blocks)} item block(s) but {len(est_items)} estimate row(s); "
+                "matched by description where possible."
+            )
+            remaining = list(range(len(est_items)))
+            for i, blk in enumerate(blocks):
+                best_j, best_score = None, 0.0
+                target = (blk["block_desc"] or blk["name"]).lower()
+                for j in remaining:
+                    cand = str(est_items[j].get("desc", "")).lower()
+                    score = SequenceMatcher(None, target, cand).ratio()
+                    if score > best_score:
+                        best_j, best_score = j, score
+                if best_j is not None and best_score >= 0.4:
+                    matched[i] = est_items[best_j]
+                    remaining.remove(best_j)
+        else:
+            warnings.append("No Estimate sheet rows found; quantities could not be imported.")
+
+        # ---- 4) Build session payload (replace current selection) ----
+        fetched = []
+        qty_map = {}
+        unit_map = {}
+        item_rates = {}
+        item_descs = {}
+        spec_overrides = {}
+        uploaded_item_blocks = {}
+        seen = set()
+
+        for i, blk in enumerate(blocks):
+            name = blk["name"]
+            if name in seen:
+                warnings.append(f"Duplicate item '{name}' merged (kept first occurrence).")
+                continue
+            seen.add(name)
+
+            est = matched.get(i)
+            # Description: estimate sheet is authoritative (human-facing); fall
+            # back to the block's own description row, then the heading name.
+            desc = ""
+            if est:
+                desc = str(est.get("desc", "") or "").strip()
+            if not desc:
+                desc = blk["block_desc"] or name
+
+            unit = ""
+            if est:
+                unit = str(est.get("unit", "") or "").strip()
+            if not unit:
+                unit = _determine_unit_from_heading(name, upload_units_map)
+
+            qty = None
+            if est:
+                try:
+                    qty = float(est.get("qty"))
+                except (TypeError, ValueError):
+                    qty = None
+
+            fetched.append(name)
+            item_rates[name] = blk["rate"]
+            unit_map[name] = unit
+            item_descs[name] = desc
+            # Force estimate-desc <-> block-row+2 to reconcile on re-download.
+            spec_overrides[name] = desc
+            if qty is not None:
+                qty_map[name] = qty
+            uploaded_item_blocks[name] = [blk["start"], blk["end"], blk["sheet"]]
+
+        # Work name from the estimate sheet header ("Name of the work : ...").
+        work_name = ""
+        try:
+            for r in range(1, 6):
+                for c in range(1, 4):
+                    val = str(ws_est.cell(row=r, column=c).value or "")
+                    if "name of the work" in val.lower():
+                        work_name = val.split(":", 1)[1].strip() if ":" in val else ""
+                        break
+                if work_name:
+                    break
+        except Exception:
+            work_name = ""
+
+        # Persist the uploaded file so the download step can copy blocks from it.
+        uploaded_file.seek(0)
+        upload_obj = Upload.objects.create(
+            organization=org,
+            user=request.user,
+            file=uploaded_file,
+            filename=uploaded_file.name,
+            file_size=uploaded_file.size,
+            status='completed',
+        )
+
+        # Replace the working set entirely -- the point of this feature is to
+        # start from the prepared estimate, not merge into an existing one.
+        request.session['fetched_items'] = fetched
+        request.session['qty_map'] = qty_map
+        request.session['unit_map'] = unit_map
+        request.session['item_rates'] = item_rates
+        request.session['item_descs'] = item_descs
+        request.session['item_spec_overrides'] = spec_overrides
+        request.session['uploaded_items'] = fetched
+        request.session['uploaded_file_id'] = upload_obj.id
+        request.session['uploaded_item_blocks'] = uploaded_item_blocks
+        request.session['uploaded_sheet_name'] = used_sheet_name
+        if work_name:
+            request.session['work_name'] = work_name
+        # Fresh estimate -> clear per-location breakdown / grand total carryover.
+        request.session['grand_total'] = ""
+        request.session['item_location_breakdown'] = {}
+        request.session['estimate_locations'] = []
+        request.session.modified = True
+
+        return JsonResponse({
+            "status": "ok",
+            "count": len(fetched),
+            "work_name": work_name,
+            "warnings": warnings,
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to import prepared estimate: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+# -----------------------
 # STEP 6: OUTPUT PANEL
 # -----------------------
 @login_required(login_url='login')

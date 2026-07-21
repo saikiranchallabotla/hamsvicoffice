@@ -925,15 +925,27 @@
             <i class="bi bi-info-circle me-1"></i>
             Changing SOR will reload groups and items
         </span>
+        <button type="button" class="btn-ribbon-upload btn-upload-prepared ms-auto"
+                onclick="document.getElementById('prepared-estimate-file').click()"
+                title="Re-import an already-prepared estimate (Estimate + item-blocks sheets) to edit its quantities/items">
+            <i class="bi bi-arrow-repeat"></i>
+            <span>Upload Prepared Estimate</span>
+        </button>
         <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}"
-           class="btn-ribbon-upload ms-auto" title="Upload your own group &amp; items">
+           class="btn-ribbon-upload" title="Upload your own group &amp; items">
             <i class="bi bi-cloud-upload"></i>
             <span>Upload Custom Items</span>
         </a>
     </div>
 </div>
 {% else %}
-<div class="d-flex justify-content-end mb-3">
+<div class="d-flex justify-content-end gap-2 mb-3">
+    <button type="button" class="btn-ribbon-upload btn-upload-prepared"
+            onclick="document.getElementById('prepared-estimate-file').click()"
+            title="Re-import an already-prepared estimate (Estimate + item-blocks sheets) to edit its quantities/items">
+        <i class="bi bi-arrow-repeat"></i>
+        <span>Upload Prepared Estimate</span>
+    </button>
     <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}"
        class="btn-ribbon-upload" title="Upload your own group &amp; items">
         <i class="bi bi-cloud-upload"></i>
@@ -941,6 +953,8 @@
     </a>
 </div>
 {% endif %}
+<input type="file" id="prepared-estimate-file" accept=".xlsx" style="display:none;">
+<div id="prepared-estimate-status" class="prepared-estimate-status" style="display:none;"></div>
 
 <style>
 .backend-selection-bar {
@@ -983,6 +997,29 @@
     box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 .btn-ribbon-upload i { font-size: 1rem; }
+.btn-upload-prepared {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    cursor: pointer;
+}
+.btn-upload-prepared:hover {
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);
+}
+.prepared-estimate-status {
+    margin: -0.5rem 0 1rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 8px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+}
+.prepared-estimate-status.error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
 .group-custom-tag {
     display: inline-block;
     margin-left: 0.4rem;
@@ -1917,7 +1954,76 @@ document.addEventListener('keydown', function(e) {
     var ajaxToggleUrl = "{% url 'ajax_toggle_item' category %}";
     var ajaxReorderUrl = "{% url 'ajax_reorder_items' category %}";
     var ajaxUploadUrl = "{% url 'ajax_upload_custom_items' category %}";
+    var ajaxUploadPreparedUrl = "{% url 'ajax_upload_prepared_estimate' category %}";
     var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+
+    // ========================================
+    // UPLOAD PREPARED ESTIMATE (re-import & edit)
+    // ========================================
+    var _preparedFileEl = document.getElementById('prepared-estimate-file');
+    if (_preparedFileEl) {
+        _preparedFileEl.addEventListener('change', function() {
+            if (!this.files || !this.files.length) return;
+            var file = this.files[0];
+            if (!file.name.endsWith('.xlsx')) {
+                alert('Please select a .xlsx file');
+                this.value = '';
+                return;
+            }
+            handlePreparedEstimateUpload(file);
+            this.value = '';
+        });
+    }
+
+    function showPreparedStatus(html, isError) {
+        var el = document.getElementById('prepared-estimate-status');
+        if (!el) return;
+        el.style.display = '';
+        el.className = 'prepared-estimate-status' + (isError ? ' error' : '');
+        el.innerHTML = html;
+    }
+
+    function handlePreparedEstimateUpload(file) {
+        var btn = document.querySelector('.btn-upload-prepared');
+        showPreparedStatus('<i class="bi bi-hourglass-split"></i> Importing prepared estimate...', false);
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+        var formData = new FormData();
+        formData.append('prepared_estimate_file', file);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(ajaxUploadPreparedUrl, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+        .then(function(response) { return response.json().then(function(data) { return {ok: response.ok, data: data}; }); })
+        .then(function(result) {
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+            if (!result.ok || result.data.status !== 'ok') {
+                showPreparedStatus('<i class="bi bi-exclamation-triangle"></i> ' +
+                    escapeHtml((result.data && result.data.message) || 'Import failed'), true);
+                return;
+            }
+            var data = result.data;
+            var msg = '<i class="bi bi-check-circle"></i> Imported <strong>' + data.count +
+                      '</strong> item(s) with quantities. Reloading preview...';
+            if (data.warnings && data.warnings.length) {
+                msg += '<br><small style="color:#b45309;">' +
+                       escapeHtml(data.warnings.join(' ')) + '</small>';
+            }
+            showPreparedStatus(msg, false);
+            // Reload so the server-rendered preview shows the imported items,
+            // quantities and descriptions. Small delay lets the user see warnings.
+            var delay = (data.warnings && data.warnings.length) ? 1400 : 400;
+            setTimeout(function() { window.location.reload(); }, delay);
+        })
+        .catch(function(err) {
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+            showPreparedStatus('<i class="bi bi-exclamation-triangle"></i> ' +
+                escapeHtml(String(err)), true);
+        });
+    }
 
     // ========================================
     // UPLOADED CUSTOM ITEMS TRACKING
