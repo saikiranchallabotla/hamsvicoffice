@@ -329,7 +329,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
         data_start = 5
 
     fmt_money = "#,##0.00"
-    fmt_qty = "#,##0.##"
+    fmt_qty = "#,##0.0"
 
     def write_event_row(r, desc, qty, rate, qty_prev, remark, is_ae=False, sl_value=None, unit=""):
         """Write a single data row in the active layout."""

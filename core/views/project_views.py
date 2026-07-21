@@ -1584,6 +1584,24 @@ def download_output(request, category):
     to the download URL.
     """
     fetched = request.session.get("fetched_items", [])
+
+    # The preview form posts the exact list of items currently shown. Trust it
+    # over the session so that items the user just deleted from the preview are
+    # excluded from the output even if the delete AJAX has not yet flushed to
+    # the session. Also sync it back so the rest of the flow stays consistent.
+    if request.method == "POST":
+        posted_fetched = request.POST.get("fetched_items", "")
+        if posted_fetched:
+            try:
+                names = json.loads(posted_fetched)
+                if isinstance(names, list):
+                    names = [str(n) for n in names if str(n).strip()]
+                    fetched = names
+                    request.session["fetched_items"] = names
+                    request.session.modified = True
+            except Exception:
+                pass
+
     if not fetched:
         return JsonResponse({"error": "No items selected"}, status=400)
 

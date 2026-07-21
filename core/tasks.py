@@ -700,7 +700,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         ws_est.column_dimensions["G"].width = 10
         ws_est.column_dimensions["H"].width = 15
 
-        fmt_qty = '#,##0.##'
+        fmt_qty = '#,##0.0'
         fmt_money = '#,##0.00'
         
         # Fill estimate rows

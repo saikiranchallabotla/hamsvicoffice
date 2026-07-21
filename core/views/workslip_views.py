@@ -2892,9 +2892,9 @@ def workslip(request):
             for r in range(1, ws_ws.max_row + 1):
                 ws_ws.row_dimensions[r].height = None
 
-            # Apply number_format to numeric columns - use #,##0.00 for amounts/rates, #,##0.## for quantities
+            # Apply number_format to numeric columns - use #,##0.00 for amounts/rates, #,##0.0 for quantities
             fmt_money = '#,##0.00'
-            fmt_qty = '#,##0.##'
+            fmt_qty = '#,##0.0'
             amt_cols = {COL_EST_RATE, COL_EST_AMT, COL_CURR_AMT, COL_MORE, COL_LESS}
             qty_cols = {COL_EST_QTY, COL_CURR_QTY}
             # Add phase columns

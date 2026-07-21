@@ -189,7 +189,7 @@ def create_first_bill_sheet(
         ws_bill.cell(row=row_idx, column=8, value=f"=ROUND(B{row_idx}*E{row_idx},2)")
 
         fmt_money = '#,##0.00'
-        fmt_qty = '#,##0.##'
+        fmt_qty = '#,##0.0'
         for c_idx in range(1, 9):
             cell = ws_bill.cell(row=row_idx, column=c_idx)
             cell.border = border_all
@@ -470,7 +470,7 @@ def build_nth_bill_wb(items, header_data, title_text,
         ws.cell(row=r, column=11, value="")
 
         fmt_money = '#,##0.00'
-        fmt_qty = '#,##0.##'
+        fmt_qty = '#,##0.0'
         for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
@@ -531,7 +531,7 @@ def build_nth_bill_wb(items, header_data, title_text,
             if col in (5, 6, 8, 10):
                 cell.number_format = '#,##0.00'
             elif col in (3, 7, 9):
-                cell.number_format = '#,##0.##'
+                cell.number_format = '#,##0.0'
 
     for rr in range(1, ws.max_row + 1):
         ws.row_dimensions[rr].height = None
@@ -708,7 +708,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
         ws.cell(row=r, column=11, value="")
 
         fmt_money = '#,##0.00'
-        fmt_qty = '#,##0.##'
+        fmt_qty = '#,##0.0'
         for col in range(1, 12):
             cell = ws.cell(row=r, column=col)
             cell.border = border_all
@@ -768,7 +768,7 @@ def _populate_nth_bill_sheet(ws, items, header_data, title_text,
             if col in (5, 6, 8, 10):
                 cell.number_format = '#,##0.00'
             elif col in (3, 7, 9):
-                cell.number_format = '#,##0.##'
+                cell.number_format = '#,##0.0'
 
     for rr in range(1, ws.max_row + 1):
         ws.row_dimensions[rr].height = None
