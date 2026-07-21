@@ -1376,95 +1376,77 @@ def ajax_upload_prepared_estimate(request, category):
                            "(expected item headers with yellow background and red text)."
             }, status=400)
 
-        # ---- 2) Parse the Estimate sheet rows (quantities, units, descriptions) ----
-        # Read permissively: keep every described row until the totals block, so
-        # items whose Rate cell is an *uncached* formula (blank under data_only)
-        # are NOT dropped. Quantity (col B) is a literal the user typed, so it
-        # survives regardless of whether the file was opened in Excel.
+        # ---- 2) Parse the Estimate sheet ITEM rows (quantities, units, descriptions) ----
+        # Item rows carry a Sl.No in column A; the ECV / LC / QC / NAC / GST /
+        # L.S / Sub Total / Grand Total / Deduct rows do NOT. Keying on the Sl.No
+        # column cleanly separates real items from the totals block and avoids
+        # stopping early on an intermediate "Total"-like row. Quantity (col B) is
+        # a literal the user typed, so it survives even when the Rate formula has
+        # no cached value.
         ws_est, header_row = find_estimate_sheet_and_header_row(wb_values)
+
+        def _has_slno(v):
+            if v is None:
+                return False
+            s = str(v).strip()
+            if not s:
+                return False
+            # Accept "1", "1.", "12" etc.; reject stray text.
+            return bool(re.match(r'^\d+\.?$', s))
+
         est_items = []
         if ws_est is not None:
-            _stop = ("ecv", "sub total", "subtotal", "total", "grand")
-            _skip = ("deduct old material", "add lc", "add qc", "add nac",
-                     "add gst", "add excess", "l.s provision")
             for r in range(header_row + 1, min(ws_est.max_row, 5000) + 1):
-                desc = str(ws_est.cell(row=r, column=4).value or "").strip()
-                low = desc.lower()
-                if low.startswith(_stop):
-                    break
-                if low.startswith(_skip):
-                    continue
-                qty = to_number(ws_est.cell(row=r, column=2).value)
-                amt = to_number(ws_est.cell(row=r, column=8).value)
-                if not desc and qty == 0 and amt == 0:
-                    continue  # blank spacer row
+                sl = ws_est.cell(row=r, column=1).value
+                if not _has_slno(sl):
+                    continue  # totals/tax/blank row -> not an item
                 est_items.append({
-                    "qty": qty,
+                    "qty": to_number(ws_est.cell(row=r, column=2).value),
                     "unit": str(ws_est.cell(row=r, column=3).value or "").strip(),
-                    "desc": desc,
-                    "amount": amt,
+                    "desc": str(ws_est.cell(row=r, column=4).value or "").strip(),
+                    "amount": to_number(ws_est.cell(row=r, column=8).value),
                 })
+            # Fallback for files whose item rows lack a Sl.No: read every
+            # described, non-totals row in order.
+            if not est_items:
+                _stop = ("ecv", "sub total", "subtotal", "total", "grand")
+                _skip = ("deduct old material", "add lc", "add qc", "add nac",
+                         "add gst", "add excess", "l.s provision")
+                for r in range(header_row + 1, min(ws_est.max_row, 5000) + 1):
+                    desc = str(ws_est.cell(row=r, column=4).value or "").strip()
+                    low = desc.lower()
+                    if low.startswith(_stop):
+                        break
+                    if not desc or low.startswith(_skip):
+                        continue
+                    est_items.append({
+                        "qty": to_number(ws_est.cell(row=r, column=2).value),
+                        "unit": str(ws_est.cell(row=r, column=3).value or "").strip(),
+                        "desc": desc,
+                        "amount": to_number(ws_est.cell(row=r, column=8).value),
+                    })
 
         warnings = []
 
-        # ---- 3) Match blocks to estimate rows ----
-        # The Datas item blocks and the Estimate rows are generated together, in
-        # the SAME ORDER, one row per block. So position is the ground truth:
-        #   * equal counts  -> block i corresponds to estimate row i (positional).
-        #     This is exact even when several items share near-identical
-        #     descriptions (e.g. "Split AC 1.5 TR" vs "Split AC 2.0 TR"), which a
-        #     similarity-first matcher would wrongly swap.
-        #   * unequal counts -> some item was added/removed on one side, so we
-        #     fall back to an ORDER-PRESERVING alignment (best monotonic pairing
-        #     by description similarity). Order is kept, so near-identical
-        #     descriptions still can't jump out of sequence.
-        def _norm(s):
-            return re.sub(r'[^a-z0-9]+', ' ', str(s or '').lower()).strip()
-
+        # ---- 3) Pair blocks to estimate rows BY POSITION ----
+        # The Datas item blocks and the Estimate rows were generated together,
+        # one row per block, in the same order. So the estimate row and the
+        # block simply correspond by index -- no description matching. The
+        # estimate row's description is what we carry back into the block's
+        # description row (start+2) via the spec override, and its quantity is
+        # the quantity for that item.
         matched = {}  # block index -> estimate item dict
+        pair_n = min(len(blocks), len(est_items))
+        for i in range(pair_n):
+            matched[i] = est_items[i]
 
-        if est_items and len(est_items) == len(blocks):
-            for i in range(len(blocks)):
-                matched[i] = est_items[i]
-        elif est_items:
+        if not est_items:
+            warnings.append("No Estimate sheet rows found; quantities could not be imported.")
+        elif len(est_items) != len(blocks):
             warnings.append(
                 f"Found {len(blocks)} item block(s) but {len(est_items)} estimate "
-                "row(s); matched in order by description similarity."
+                f"row(s); paired the first {pair_n} in order."
             )
-            bnorm = [_norm(b["block_desc"] or b["name"]) for b in blocks]
-            enorm = [_norm(e["desc"]) for e in est_items]
-            m, n = len(blocks), len(est_items)
-            # Similarity matrix + DP for the highest-scoring monotonic alignment.
-            S = [[SequenceMatcher(None, bnorm[i], enorm[j]).ratio()
-                  for j in range(n)] for i in range(m)]
-            dp = [[0.0] * (n + 1) for _ in range(m + 1)]
-            for i in range(m - 1, -1, -1):
-                for j in range(n - 1, -1, -1):
-                    dp[i][j] = max(S[i][j] + dp[i + 1][j + 1],
-                                   dp[i + 1][j], dp[i][j + 1])
-            # Traceback; accept an aligned pair only above a light floor so an
-            # added/removed item is skipped rather than mis-paired.
-            FLOOR = 0.35
-            i = j = 0
-            while i < m and j < n:
-                diag = S[i][j] + dp[i + 1][j + 1]
-                if diag >= dp[i + 1][j] and diag >= dp[i][j + 1]:
-                    if S[i][j] >= FLOOR:
-                        matched[i] = est_items[j]
-                    i += 1
-                    j += 1
-                elif dp[i + 1][j] >= dp[i][j + 1]:
-                    i += 1
-                else:
-                    j += 1
-            unmatched = len(blocks) - len(matched)
-            if unmatched > 0:
-                warnings.append(
-                    f"{unmatched} item(s) could not be paired with an estimate row; "
-                    "their quantities were left blank."
-                )
-        else:
-            warnings.append("No Estimate sheet rows found; quantities could not be imported.")
 
         # ---- 4) Build session payload (replace current selection) ----
         fetched = []
