@@ -1408,51 +1408,55 @@ def ajax_upload_prepared_estimate(request, category):
         warnings = []
 
         # ---- 3) Match blocks to estimate rows ----
-        # Primary: description similarity. The estimate row and its item block
-        # describe the same work, so we pair them by how similar their
-        # descriptions are (>= 70%), best matches first, each side used once.
-        # This is what recovers quantities even when the estimate description
-        # was lightly edited away from the block's own description.
-        # Fallback: any block still unmatched is paired, in order, with the
-        # left-over estimate rows -- this catches items whose description was
-        # changed so heavily it no longer resembles the block text.
+        # The Datas item blocks and the Estimate rows are generated together, in
+        # the SAME ORDER, one row per block. So position is the ground truth:
+        #   * equal counts  -> block i corresponds to estimate row i (positional).
+        #     This is exact even when several items share near-identical
+        #     descriptions (e.g. "Split AC 1.5 TR" vs "Split AC 2.0 TR"), which a
+        #     similarity-first matcher would wrongly swap.
+        #   * unequal counts -> some item was added/removed on one side, so we
+        #     fall back to an ORDER-PRESERVING alignment (best monotonic pairing
+        #     by description similarity). Order is kept, so near-identical
+        #     descriptions still can't jump out of sequence.
         def _norm(s):
             return re.sub(r'[^a-z0-9]+', ' ', str(s or '').lower()).strip()
 
-        SIM_THRESHOLD = 0.70
-        matched = {}          # block index -> estimate item dict
-        used_blocks = set()
-        used_est = set()
+        matched = {}  # block index -> estimate item dict
 
-        if est_items:
-            pairs = []  # (score, block_idx, est_idx)
-            for i, blk in enumerate(blocks):
-                btext = _norm(blk["block_desc"] or blk["name"])
-                if not btext:
-                    continue
-                for j, est in enumerate(est_items):
-                    etext = _norm(est["desc"])
-                    if not etext:
-                        continue
-                    pairs.append((SequenceMatcher(None, btext, etext).ratio(), i, j))
-            pairs.sort(key=lambda p: p[0], reverse=True)
-            for score, i, j in pairs:
-                if score < SIM_THRESHOLD:
-                    break
-                if i in used_blocks or j in used_est:
-                    continue
-                matched[i] = est_items[j]
-                used_blocks.add(i)
-                used_est.add(j)
-
-            # Order-preserving fallback for the leftovers.
-            rem_blocks = [i for i in range(len(blocks)) if i not in used_blocks]
-            rem_est = [j for j in range(len(est_items)) if j not in used_est]
-            for i, j in zip(rem_blocks, rem_est):
-                matched[i] = est_items[j]
-                used_blocks.add(i)
-                used_est.add(j)
-
+        if est_items and len(est_items) == len(blocks):
+            for i in range(len(blocks)):
+                matched[i] = est_items[i]
+        elif est_items:
+            warnings.append(
+                f"Found {len(blocks)} item block(s) but {len(est_items)} estimate "
+                "row(s); matched in order by description similarity."
+            )
+            bnorm = [_norm(b["block_desc"] or b["name"]) for b in blocks]
+            enorm = [_norm(e["desc"]) for e in est_items]
+            m, n = len(blocks), len(est_items)
+            # Similarity matrix + DP for the highest-scoring monotonic alignment.
+            S = [[SequenceMatcher(None, bnorm[i], enorm[j]).ratio()
+                  for j in range(n)] for i in range(m)]
+            dp = [[0.0] * (n + 1) for _ in range(m + 1)]
+            for i in range(m - 1, -1, -1):
+                for j in range(n - 1, -1, -1):
+                    dp[i][j] = max(S[i][j] + dp[i + 1][j + 1],
+                                   dp[i + 1][j], dp[i][j + 1])
+            # Traceback; accept an aligned pair only above a light floor so an
+            # added/removed item is skipped rather than mis-paired.
+            FLOOR = 0.35
+            i = j = 0
+            while i < m and j < n:
+                diag = S[i][j] + dp[i + 1][j + 1]
+                if diag >= dp[i + 1][j] and diag >= dp[i][j + 1]:
+                    if S[i][j] >= FLOOR:
+                        matched[i] = est_items[j]
+                    i += 1
+                    j += 1
+                elif dp[i + 1][j] >= dp[i][j + 1]:
+                    i += 1
+                else:
+                    j += 1
             unmatched = len(blocks) - len(matched)
             if unmatched > 0:
                 warnings.append(
