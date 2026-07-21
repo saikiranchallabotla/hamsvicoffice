@@ -1142,8 +1142,10 @@ def ajax_upload_custom_items(request, category):
         all_item_blocks = {}    # {name: [start_row, end_row, sheet_name]}
         used_sheet_name = ""
 
-        for sheet_name in wb_formulas.sheetnames:
-            ws_src = wb_formulas[sheet_name]
+        # Iterate .worksheets (not .sheetnames) so chart-only tabs (Chartsheet
+        # objects, which lack .max_row) are skipped instead of crashing.
+        for ws_src in wb_formulas.worksheets:
+            sheet_name = ws_src.title
             fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
             if not fetched_names:
                 continue
@@ -1335,8 +1337,10 @@ def ajax_upload_prepared_estimate(request, category):
         # ---- 1) Collect item blocks (yellow/red headings), preserving order ----
         blocks = []  # [{name, start, end, sheet, rate, block_desc}]
         used_sheet_name = ""
-        for sheet_name in wb_formulas.sheetnames:
-            ws_src = wb_formulas[sheet_name]
+        # Iterate .worksheets (not .sheetnames) so chart-only tabs (Chartsheet
+        # objects, which lack .max_row) are skipped instead of crashing.
+        for ws_src in wb_formulas.worksheets:
+            sheet_name = ws_src.title
             fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
             if not fetched_names:
                 continue
