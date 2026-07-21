@@ -1293,7 +1293,7 @@ def ajax_upload_prepared_estimate(request, category):
     """
     from ..models import Upload
     from ..utils_excel import _extract_items_from_sheet, _determine_unit_from_heading
-    from .bill_parsing import find_estimate_sheet_and_header_row, parse_estimate_items
+    from .bill_parsing import find_estimate_sheet_and_header_row, to_number
 
     try:
         uploaded_file = request.FILES.get('prepared_estimate_file')
@@ -1377,36 +1377,88 @@ def ajax_upload_prepared_estimate(request, category):
             }, status=400)
 
         # ---- 2) Parse the Estimate sheet rows (quantities, units, descriptions) ----
+        # Read permissively: keep every described row until the totals block, so
+        # items whose Rate cell is an *uncached* formula (blank under data_only)
+        # are NOT dropped. Quantity (col B) is a literal the user typed, so it
+        # survives regardless of whether the file was opened in Excel.
         ws_est, header_row = find_estimate_sheet_and_header_row(wb_values)
-        est_items = parse_estimate_items(ws_est, header_row) if ws_est is not None else []
+        est_items = []
+        if ws_est is not None:
+            _stop = ("ecv", "sub total", "subtotal", "total", "grand")
+            _skip = ("deduct old material", "add lc", "add qc", "add nac",
+                     "add gst", "add excess", "l.s provision")
+            for r in range(header_row + 1, min(ws_est.max_row, 5000) + 1):
+                desc = str(ws_est.cell(row=r, column=4).value or "").strip()
+                low = desc.lower()
+                if low.startswith(_stop):
+                    break
+                if low.startswith(_skip):
+                    continue
+                qty = to_number(ws_est.cell(row=r, column=2).value)
+                amt = to_number(ws_est.cell(row=r, column=8).value)
+                if not desc and qty == 0 and amt == 0:
+                    continue  # blank spacer row
+                est_items.append({
+                    "qty": qty,
+                    "unit": str(ws_est.cell(row=r, column=3).value or "").strip(),
+                    "desc": desc,
+                    "amount": amt,
+                })
 
         warnings = []
 
         # ---- 3) Match blocks to estimate rows ----
-        # App-generated files list blocks and estimate rows in the same order,
-        # so a positional match is authoritative. If counts differ (hand-edited
-        # file), fall back to best description similarity and warn.
-        matched = {}  # block index -> estimate item dict
-        if est_items and len(est_items) == len(blocks):
+        # Primary: description similarity. The estimate row and its item block
+        # describe the same work, so we pair them by how similar their
+        # descriptions are (>= 70%), best matches first, each side used once.
+        # This is what recovers quantities even when the estimate description
+        # was lightly edited away from the block's own description.
+        # Fallback: any block still unmatched is paired, in order, with the
+        # left-over estimate rows -- this catches items whose description was
+        # changed so heavily it no longer resembles the block text.
+        def _norm(s):
+            return re.sub(r'[^a-z0-9]+', ' ', str(s or '').lower()).strip()
+
+        SIM_THRESHOLD = 0.70
+        matched = {}          # block index -> estimate item dict
+        used_blocks = set()
+        used_est = set()
+
+        if est_items:
+            pairs = []  # (score, block_idx, est_idx)
             for i, blk in enumerate(blocks):
-                matched[i] = est_items[i]
-        elif est_items:
-            warnings.append(
-                f"Found {len(blocks)} item block(s) but {len(est_items)} estimate row(s); "
-                "matched by description where possible."
-            )
-            remaining = list(range(len(est_items)))
-            for i, blk in enumerate(blocks):
-                best_j, best_score = None, 0.0
-                target = (blk["block_desc"] or blk["name"]).lower()
-                for j in remaining:
-                    cand = str(est_items[j].get("desc", "")).lower()
-                    score = SequenceMatcher(None, target, cand).ratio()
-                    if score > best_score:
-                        best_j, best_score = j, score
-                if best_j is not None and best_score >= 0.4:
-                    matched[i] = est_items[best_j]
-                    remaining.remove(best_j)
+                btext = _norm(blk["block_desc"] or blk["name"])
+                if not btext:
+                    continue
+                for j, est in enumerate(est_items):
+                    etext = _norm(est["desc"])
+                    if not etext:
+                        continue
+                    pairs.append((SequenceMatcher(None, btext, etext).ratio(), i, j))
+            pairs.sort(key=lambda p: p[0], reverse=True)
+            for score, i, j in pairs:
+                if score < SIM_THRESHOLD:
+                    break
+                if i in used_blocks or j in used_est:
+                    continue
+                matched[i] = est_items[j]
+                used_blocks.add(i)
+                used_est.add(j)
+
+            # Order-preserving fallback for the leftovers.
+            rem_blocks = [i for i in range(len(blocks)) if i not in used_blocks]
+            rem_est = [j for j in range(len(est_items)) if j not in used_est]
+            for i, j in zip(rem_blocks, rem_est):
+                matched[i] = est_items[j]
+                used_blocks.add(i)
+                used_est.add(j)
+
+            unmatched = len(blocks) - len(matched)
+            if unmatched > 0:
+                warnings.append(
+                    f"{unmatched} item(s) could not be paired with an estimate row; "
+                    "their quantities were left blank."
+                )
         else:
             warnings.append("No Estimate sheet rows found; quantities could not be imported.")
 
