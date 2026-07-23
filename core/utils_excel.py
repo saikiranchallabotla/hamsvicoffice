@@ -164,6 +164,13 @@ def _find_item_block_end(ws_src, start_row, max_row):
     return last_rate_row, next_heading_row
 
 
+# "Data 1", "Data 2" ... are serial labels this app writes into column A of each
+# generated block; they are NOT item names. When re-importing a prepared estimate
+# that cell is yellow/red-styled too, so it must be skipped when reading the real
+# item name (which is the other yellow/red cell on the row, usually column D).
+_DATA_LABEL_RE = re.compile(r'^data\s*\d+$', re.IGNORECASE)
+
+
 def _extract_items_from_sheet(ws_src):
     """Extract all item blocks from a single sheet."""
     fetched_items = []
@@ -176,9 +183,12 @@ def _extract_items_from_sheet(ws_src):
         heading_name = None
         for c in range(1, 11):
             cell = ws_src.cell(row=r, column=c)
-            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
-                heading_name = str(cell.value).strip()
-                break
+            if _is_yellow_and_red(cell):
+                txt = str(cell.value or "").strip()
+                # Skip the "Data N" serial label; keep scanning for the real name.
+                if txt and not _DATA_LABEL_RE.match(txt):
+                    heading_name = txt
+                    break
 
         if heading_name:
             start_row = r
