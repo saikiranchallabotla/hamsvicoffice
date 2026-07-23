@@ -2231,15 +2231,24 @@ document.addEventListener('keydown', function(e) {
                 msg = '<i class="bi bi-check-circle"></i> Imported <strong>' + data.count +
                       '</strong> item(s) with quantities. Reloading preview...';
             }
-            if (data.warnings && data.warnings.length) {
+            var hasWarnings = data.warnings && data.warnings.length;
+            if (hasWarnings) {
                 msg += '<br><small style="color:#b45309;">' +
                        escapeHtml(data.warnings.join(' ')) + '</small>';
             }
             showPreparedStatus(msg, false);
             // Reload so the server-rendered preview shows the imported items,
-            // quantities and descriptions. Small delay lets the user see warnings.
-            var delay = (data.warnings && data.warnings.length) ? 1400 : 400;
-            setTimeout(function() { window.location.reload(); }, delay);
+            // quantities and descriptions.
+            if (hasWarnings) {
+                // Genuine pop-up: format problems (missing/extra items, or sheets
+                // with unrelated data that were skipped) must be acknowledged, not
+                // flashed by. The import already succeeded, so reload on dismiss.
+                window.alert('Import completed with warnings:\n\n• ' +
+                    data.warnings.join('\n• '));
+                window.location.reload();
+            } else {
+                setTimeout(function() { window.location.reload(); }, 400);
+            }
         })
         .catch(function(err) {
             if (btn) { btn.disabled = false; btn.style.opacity = ''; }

@@ -1320,8 +1320,11 @@ def ajax_upload_prepared_estimate(request, category):
     Returns JSON: { status, count, work_name, warnings }.
     """
     from ..models import Upload
-    from ..utils_excel import _extract_items_from_sheet, _determine_unit_from_heading
-    from .bill_parsing import find_estimate_sheet_and_header_row, to_number
+    from ..utils_excel import (
+        _extract_items_from_sheet, _determine_unit_from_heading,
+        _is_yellow_and_red, _DATA_LABEL_RE,
+    )
+    from .bill_parsing import to_number
 
     try:
         uploaded_file = request.FILES.get('prepared_estimate_file')
@@ -1362,15 +1365,40 @@ def ajax_upload_prepared_estimate(request, category):
         except Exception:
             pass
 
+        # Detect a sheet that TRIED to be item blocks: it carries at least one
+        # yellow-background / red-text heading cell (other than a "Data N" serial
+        # label). Used to tell "unrelated data" sheets (which we warn about and
+        # skip) apart from ordinary metadata sheets like Groups / Master Datas /
+        # Estimate, which have no such headings and are silently ignored.
+        def _has_heading_attempt(ws):
+            try:
+                max_r = min(ws.max_row or 0, 500)
+            except Exception:
+                return False
+            for r in range(1, max_r + 1):
+                for c in range(1, 11):
+                    cell = ws.cell(row=r, column=c)
+                    if _is_yellow_and_red(cell):
+                        txt = str(cell.value or "").strip()
+                        if txt and not _DATA_LABEL_RE.match(txt):
+                            return True
+            return False
+
         # ---- 1) Collect item blocks (yellow/red headings), preserving order ----
         blocks = []  # [{name, start, end, sheet, rate, block_desc}]
         used_sheet_name = ""
+        unrelated_sheets = []  # sheets that looked like blocks but had none valid
         # Iterate .worksheets (not .sheetnames) so chart-only tabs (Chartsheet
         # objects, which lack .max_row) are skipped instead of crashing.
         for ws_src in wb_formulas.worksheets:
             sheet_name = ws_src.title
             fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
             if not fetched_names:
+                # No valid blocks here. If the sheet nonetheless has our-format
+                # headings, it's unrelated/malformed data -> warn but keep going
+                # with the sheets that do follow the format.
+                if _has_heading_attempt(ws_src):
+                    unrelated_sheets.append(sheet_name)
                 continue
             if not used_sheet_name:
                 used_sheet_name = sheet_name
@@ -1428,6 +1456,12 @@ def ajax_upload_prepared_estimate(request, category):
             )
 
             multi_warnings = []
+            if unrelated_sheets:
+                multi_warnings.append(
+                    "Skipped sheet(s) with unrelated data: "
+                    + ", ".join(unrelated_sheets)
+                    + ". Processed only the sheets that follow the estimate format."
+                )
             multi_estimates = []
             for sheet_name in sheets_in_order:
                 seen_names = set()
@@ -1495,7 +1529,31 @@ def ajax_upload_prepared_estimate(request, category):
         # stopping early on an intermediate "Total"-like row. Quantity (col B) is
         # a literal the user typed, so it survives even when the Rate formula has
         # no cached value.
-        ws_est, header_row = find_estimate_sheet_and_header_row(wb_values)
+        #
+        # Only match to an Estimate sheet when the upload GENUINELY contains one.
+        # An item-blocks-only file has no Sl.No/Quantity/Item-Description header
+        # anywhere except (accidentally) inside the Datas blocks, so we must
+        # exclude the block sheets themselves from the search. If no real
+        # Estimate sheet exists, ws_est stays None -> no matching: each item just
+        # uses its own block description (heading row + 2) and block rate.
+        # (find_estimate_sheet_and_header_row's worksheets[0] fallback is exactly
+        # what mis-read the Datas sheet as an estimate and shuffled descriptions.)
+        block_sheet_names = {blk["sheet"] for blk in blocks}
+        ws_est = None
+        header_row = 3
+        for ws in wb_values.worksheets:
+            if ws.title in block_sheet_names:
+                continue
+            for r in range(1, 26):
+                a = str(ws.cell(row=r, column=1).value or "").strip().lower()
+                b = str(ws.cell(row=r, column=2).value or "").strip().lower()
+                d = str(ws.cell(row=r, column=4).value or "").strip().lower()
+                if "sl" in a and "quantity" in b and ("item" in d or "description" in d):
+                    ws_est = ws
+                    header_row = r
+                    break
+            if ws_est is not None:
+                break
 
         def _has_slno(v):
             if v is None:
@@ -1539,6 +1597,12 @@ def ajax_upload_prepared_estimate(request, category):
                     })
 
         warnings = []
+        if unrelated_sheets:
+            warnings.append(
+                "Skipped sheet(s) with unrelated data: "
+                + ", ".join(unrelated_sheets)
+                + ". Processed only the sheets that follow the estimate format."
+            )
 
         # ---- 3) Pair blocks to estimate rows BY POSITION ----
         # The Datas item blocks and the Estimate rows were generated together,
@@ -1552,12 +1616,20 @@ def ajax_upload_prepared_estimate(request, category):
         for i in range(pair_n):
             matched[i] = est_items[i]
 
-        if not est_items:
+        if ws_est is None:
+            # Item-blocks-only upload: no Estimate sheet to match against. Each
+            # item keeps its own block description (heading row + 2) and block
+            # rate; quantities are left blank for the user to enter. This is the
+            # expected path, so no warning.
+            pass
+        elif not est_items:
             warnings.append("No Estimate sheet rows found; quantities could not be imported.")
         elif len(est_items) != len(blocks):
+            extra = "extra estimate row(s)" if len(est_items) > len(blocks) else "missing estimate row(s)"
             warnings.append(
-                f"Found {len(blocks)} item block(s) but {len(est_items)} estimate "
-                f"row(s); paired the first {pair_n} in order."
+                f"Format mismatch: {len(blocks)} item block(s) but {len(est_items)} "
+                f"estimate row(s) ({extra}). Paired the first {pair_n} in order; "
+                f"please check the file for missing or extra items."
             )
 
         # ---- 4) Build session payload (replace current selection) ----

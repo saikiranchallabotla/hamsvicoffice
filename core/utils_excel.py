@@ -143,7 +143,16 @@ def _is_valid_item_block(ws_src, start_row, end_row):
 
 
 def _find_item_block_end(ws_src, start_row, max_row):
-    """Find the true end of an item block by looking for the rate row in column J."""
+    """An item block runs from its yellow heading row up to the row just BEFORE
+    the next yellow heading (or the end of the sheet for the last block). That is
+    the boundary the user relies on: block 1 starts at the first yellow row,
+    block 2 at the second, and so on -- so the block owns every row between its
+    heading and the next one, not merely up to its rate row.
+
+    We only trim trailing rows that are completely empty across columns A-J, so
+    the blank gap before the next block isn't absorbed while any real trailing
+    content (spec/notes rows below the rate) is preserved.
+    """
     next_heading_row = max_row + 1
     for rr in range(start_row + 1, max_row + 1):
         for c in range(1, 11):
@@ -154,14 +163,15 @@ def _find_item_block_end(ws_src, start_row, max_row):
         if next_heading_row <= max_row:
             break
 
-    potential_end = next_heading_row - 1
-    last_rate_row = start_row
-    for r in range(start_row, potential_end + 1):
-        val = ws_src.cell(row=r, column=10).value
-        if val not in (None, "") and str(val).strip():
-            last_rate_row = r
+    end_row = min(next_heading_row - 1, max_row)
+    # Trim trailing fully-empty rows (A-J) so inter-block gaps aren't included.
+    while end_row > start_row:
+        if any(str(ws_src.cell(row=end_row, column=c).value or "").strip()
+               for c in range(1, 11)):
+            break
+        end_row -= 1
 
-    return last_rate_row, next_heading_row
+    return end_row, next_heading_row
 
 
 # "Data 1", "Data 2" ... are serial labels this app writes into column A of each
