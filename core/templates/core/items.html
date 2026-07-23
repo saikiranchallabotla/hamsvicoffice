@@ -927,9 +927,15 @@
         </span>
         <button type="button" class="btn-ribbon-upload btn-upload-prepared ms-auto"
                 onclick="document.getElementById('prepared-estimate-file').click()"
-                title="Re-import an already-prepared estimate (Estimate + item-blocks sheets) to edit its quantities/items">
+                title="Re-import ONE already-prepared estimate (Estimate sheet + item-blocks sheet) to edit its quantities/items">
             <i class="bi bi-arrow-repeat"></i>
             <span>Upload Prepared Estimate</span>
+        </button>
+        <button type="button" class="btn-ribbon-upload btn-upload-prepared"
+                onclick="document.getElementById('prepared-datas-file').click()"
+                title="Import prepared item blocks (Datas) as one or more estimates (one per sheet), with quantities, Download All, Spec Report and Forwarding Letter">
+            <i class="bi bi-collection"></i>
+            <span>Upload Prepared Datas</span>
         </button>
     </div>
 </div>
@@ -937,13 +943,20 @@
 <div class="d-flex justify-content-end gap-2 mb-3">
     <button type="button" class="btn-ribbon-upload btn-upload-prepared"
             onclick="document.getElementById('prepared-estimate-file').click()"
-            title="Re-import an already-prepared estimate (Estimate + item-blocks sheets) to edit its quantities/items">
+            title="Re-import ONE already-prepared estimate (Estimate sheet + item-blocks sheet) to edit its quantities/items">
         <i class="bi bi-arrow-repeat"></i>
         <span>Upload Prepared Estimate</span>
+    </button>
+    <button type="button" class="btn-ribbon-upload btn-upload-prepared"
+            onclick="document.getElementById('prepared-datas-file').click()"
+            title="Import prepared item blocks (Datas) as one or more estimates (one per sheet), with quantities, Download All, Spec Report and Forwarding Letter">
+        <i class="bi bi-collection"></i>
+        <span>Upload Prepared Datas</span>
     </button>
 </div>
 {% endif %}
 <input type="file" id="prepared-estimate-file" accept=".xlsx" style="display:none;">
+<input type="file" id="prepared-datas-file" accept=".xlsx" style="display:none;">
 <div id="prepared-estimate-status" class="prepared-estimate-status" style="display:none;"></div>
 
 <style>
@@ -1224,6 +1237,7 @@
                                         <th style="width: 80px;">Rate</th>
                                         <th style="width: 110px;">Qty</th>
                                         <th style="width: 110px;">Amount</th>
+                                        <th style="width: 40px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1240,9 +1254,14 @@
                                                    data-rate="{{ row.rate|default_if_none:0 }}">
                                         </td>
                                         <td class="amount-cell"></td>
+                                        <td class="delete-cell">
+                                            <button type="button" class="btn-delete-item multi-est-delete" title="Remove item">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                            </button>
+                                        </td>
                                     </tr>
                                     {% empty %}
-                                    <tr><td colspan="6"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items in this sheet.</p></div></td></tr>
+                                    <tr><td colspan="7"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items in this sheet.</p></div></td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -1321,12 +1340,25 @@
                         <i class="bi bi-download"></i>
                         Download All Estimates
                     </button>
+                    <button type="button" class="btn-action btn-download" id="multi-spec-btn"
+                            data-url="{% url 'download_specification_report_multi' category %}"
+                            style="background:linear-gradient(135deg, #38a169 0%, #2f855a 100%);">
+                        <i class="bi bi-file-earmark-text"></i>
+                        Specification Report
+                    </button>
+                    <button type="button" class="btn-action btn-download" id="multi-fwd-btn"
+                            data-url="{% url 'download_forwarding_letter_multi' category %}"
+                            style="background:linear-gradient(135deg, #2b6cb0 0%, #1d4ed8 100%);">
+                        <i class="bi bi-envelope-paper"></i>
+                        Forwarding Letter
+                    </button>
                     <a href="{% url 'clear_output' category %}?group={{ group }}" class="btn-action btn-clear">
                         <i class="bi bi-x-circle"></i>
                         Clear All
                     </a>
                 </div>
                 <div id="multi-download-status" style="display:none; margin-top:8px; font-size:0.8rem;"></div>
+                <script type="application/json" id="multi-estimate-data">{{ multi_estimate_data_json|safe }}</script>
             </div>
             {% endif %}
             <form id="estimate-form" class="no-spa" method="post" action="{% url 'download_output' category %}"{% if multi_estimate_mode %} style="display:none;"{% endif %}>
@@ -2171,6 +2203,7 @@ document.addEventListener('keydown', function(e) {
     var ajaxReorderUrl = "{% url 'ajax_reorder_items' category %}";
     var ajaxUploadUrl = "{% url 'ajax_upload_custom_items' category %}";
     var ajaxUploadPreparedUrl = "{% url 'ajax_upload_prepared_estimate' category %}";
+    var ajaxUploadDatasUrl = "{% url 'ajax_upload_prepared_datas' category %}";
     var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
 
     // ========================================
@@ -2243,6 +2276,70 @@ document.addEventListener('keydown', function(e) {
                 // Genuine pop-up: format problems (missing/extra items, or sheets
                 // with unrelated data that were skipped) must be acknowledged, not
                 // flashed by. The import already succeeded, so reload on dismiss.
+                window.alert('Import completed with warnings:\n\n• ' +
+                    data.warnings.join('\n• '));
+                window.location.reload();
+            } else {
+                setTimeout(function() { window.location.reload(); }, 400);
+            }
+        })
+        .catch(function(err) {
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+            showPreparedStatus('<i class="bi bi-exclamation-triangle"></i> ' +
+                escapeHtml(String(err)), true);
+        });
+    }
+
+    // ========================================
+    // UPLOAD PREPARED DATAS (item blocks -> one estimate per sheet)
+    // ========================================
+    var _preparedDatasEl = document.getElementById('prepared-datas-file');
+    if (_preparedDatasEl) {
+        _preparedDatasEl.addEventListener('change', function() {
+            if (!this.files || !this.files.length) return;
+            var file = this.files[0];
+            if (!file.name.endsWith('.xlsx')) {
+                alert('Please select a .xlsx file');
+                this.value = '';
+                return;
+            }
+            handlePreparedDatasUpload(file);
+            this.value = '';
+        });
+    }
+
+    function handlePreparedDatasUpload(file) {
+        var btn = document.querySelector('.btn-upload-prepared');
+        showPreparedStatus('<i class="bi bi-hourglass-split"></i> Importing prepared item blocks...', false);
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+        var formData = new FormData();
+        formData.append('prepared_datas_file', file);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch(ajaxUploadDatasUrl, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+        .then(function(response) { return response.json().then(function(data) { return {ok: response.ok, data: data}; }); })
+        .then(function(result) {
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+            if (!result.ok || result.data.status !== 'ok') {
+                showPreparedStatus('<i class="bi bi-exclamation-triangle"></i> ' +
+                    escapeHtml((result.data && result.data.message) || 'Import failed'), true);
+                return;
+            }
+            var data = result.data;
+            var msg = '<i class="bi bi-check-circle"></i> Found <strong>' + data.estimate_count +
+                      '</strong> estimate(s) (' + data.count + ' items). Opening sliding preview...';
+            var hasWarnings = data.warnings && data.warnings.length;
+            if (hasWarnings) {
+                msg += '<br><small style="color:#b45309;">' +
+                       escapeHtml(data.warnings.join(' ')) + '</small>';
+            }
+            showPreparedStatus(msg, false);
+            if (hasWarnings) {
                 window.alert('Import completed with warnings:\n\n• ' +
                     data.warnings.join('\n• '));
                 window.location.reload();
@@ -4188,6 +4285,30 @@ function itemsShowPanel(name, btn) {
     var currentLabel = document.getElementById('multi-current');
     var total = slides.length;
 
+    // Self-contained per-estimate data (item names/rates/units/descs, block
+    // ranges, file id) embedded server-side. Posted back on every action so
+    // downloads / spec reports / forwarding letters survive session loss.
+    var embeddedBySheet = {};
+    var uploadedFileId = null;
+    try {
+        var _rawEl = document.getElementById('multi-estimate-data');
+        if (_rawEl) {
+            var _parsed = JSON.parse(_rawEl.textContent || '{}');
+            uploadedFileId = _parsed.uploaded_file_id || null;
+            (_parsed.estimates || []).forEach(function(g) { embeddedBySheet[g.sheet] = g; });
+        }
+    } catch (e) { /* non-fatal: server falls back to session */ }
+
+    function descForItem(sheet, name) {
+        var g = embeddedBySheet[sheet];
+        if (g && g.items) {
+            for (var i = 0; i < g.items.length; i++) {
+                if (g.items[i].name === name) return g.items[i].desc || name;
+            }
+        }
+        return name;
+    }
+
     function fmt(n) {
         return n.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
@@ -4296,6 +4417,16 @@ function itemsShowPanel(name, btn) {
         recalcSlide(slide);
     });
 
+    // ----- Delete an item from a slide (excluded from downloads/docs) -----
+    track.addEventListener('click', function(e) {
+        var btn = e.target.closest && e.target.closest('.multi-est-delete');
+        if (!btn) return;
+        var row = btn.closest('tr[data-item-name]');
+        var slide = btn.closest('.multi-est-slide');
+        if (row && row.parentNode) row.parentNode.removeChild(row);
+        if (slide) recalcSlide(slide);
+    });
+
     // ----- Slide navigation -----
     function currentIndex() {
         if (!slides.length) return 0;
@@ -4325,29 +4456,82 @@ function itemsShowPanel(name, btn) {
     window.addEventListener('resize', syncNav);
     syncNav();
 
+    // Slide ECV = sum(qty*rate) over its surviving rows.
+    function slideEcv(slide) {
+        var ecv = 0;
+        slide.querySelectorAll('tr[data-item-name]').forEach(function(row) {
+            var input = row.querySelector('.multi-est-qty');
+            if (!input) return;
+            var qty = parseFloat(input.value) || 0;
+            var rate = parseFloat(input.getAttribute('data-rate')) || 0;
+            ecv += Math.round(qty * rate * 100) / 100;
+        });
+        return ecv;
+    }
+
     // ----- Download all -----
+    // Self-contained: carry surviving item names + the embedded items/blocks so
+    // the server needs neither the session nor deleted rows.
     function gatherEstimates() {
         return slides.map(function(slide) {
+            var sheet = slide.getAttribute('data-sheet');
             var qtyMap = {};
+            var survivorNames = [];
             slide.querySelectorAll('tr[data-item-name]').forEach(function(row) {
                 var name = row.getAttribute('data-item-name');
                 var input = row.querySelector('.multi-est-qty');
-                if (!name || !input) return;
-                var v = input.value.trim();
-                if (v !== '') qtyMap[name] = parseFloat(v) || 0;
+                if (!name) return;
+                survivorNames.push(name);
+                if (input) {
+                    var v = input.value.trim();
+                    if (v !== '') qtyMap[name] = parseFloat(v) || 0;
+                }
             });
             var wn = slide.querySelector('.multi-est-workname');
             var t = readTax(slide);
+            var emb = embeddedBySheet[sheet] || {};
             return {
-                sheet: slide.getAttribute('data-sheet'),
+                sheet: sheet,
                 work_name: wn ? wn.value.trim() : '',
                 qty_map: qtyMap,
+                item_names: survivorNames,
+                items: emb.items || [],
+                blocks: emb.blocks || {},
                 grand_total: t.grand || null,
                 excess_tp_enabled: t.tpEnabled,
                 excess_tp_percent: t.tpEnabled ? t.tpPct : null,
                 ls_special_enabled: t.lsEnabled,
                 ls_special_name: t.lsEnabled ? t.lsName : null,
                 ls_special_amount: t.lsEnabled ? t.lsAmount : null
+            };
+        });
+    }
+
+    // Per-estimate payload for Spec Report / Forwarding Letter docs: surviving
+    // items with description + qty + unit, and a total amount (grand if entered,
+    // else ECV).
+    function gatherDocEstimates() {
+        return slides.map(function(slide) {
+            var sheet = slide.getAttribute('data-sheet');
+            var items = [];
+            slide.querySelectorAll('tr[data-item-name]').forEach(function(row) {
+                var name = row.getAttribute('data-item-name');
+                if (!name) return;
+                var input = row.querySelector('.multi-est-qty');
+                var unitCell = row.querySelector('.unit-cell');
+                items.push({
+                    desc: descForItem(sheet, name),
+                    qty: input ? input.value.trim() : '',
+                    unit: unitCell ? unitCell.textContent.trim() : ''
+                });
+            });
+            var wn = slide.querySelector('.multi-est-workname');
+            var t = readTax(slide);
+            var total = (t.grand && t.grand > 0) ? t.grand : slideEcv(slide);
+            return {
+                work_name: wn ? wn.value.trim() : '',
+                total_amount: fmt(total),
+                items: items
             };
         });
     }
@@ -4374,6 +4558,7 @@ function itemsShowPanel(name, btn) {
 
             var fd = new FormData();
             fd.append('estimates_json', JSON.stringify(payload));
+            if (uploadedFileId) fd.append('uploaded_file_id', uploadedFileId);
             fd.append('csrfmiddlewaretoken', token);
 
             fetch(url, { method: 'POST', body: fd, headers: { 'X-CSRFToken': token } })
@@ -4404,6 +4589,54 @@ function itemsShowPanel(name, btn) {
                 });
         });
     }
+
+    // ----- Spec Report / Forwarding Letter (one combined .docx, page per estimate) -----
+    function wireDocButton(btn, downloadName, buildingLabel) {
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            var token = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+            var url = btn.getAttribute('data-url');
+            var payload = gatherDocEstimates();
+
+            btn.disabled = true;
+            var origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> ' + buildingLabel;
+            showStatus('<i class="bi bi-hourglass-split"></i> Generating ' + buildingLabel, false);
+
+            var fd = new FormData();
+            fd.append('estimates_json', JSON.stringify(payload));
+            fd.append('csrfmiddlewaretoken', token);
+
+            fetch(url, { method: 'POST', body: fd, headers: { 'X-CSRFToken': token } })
+                .then(function(resp) {
+                    if (!resp.ok) {
+                        return resp.json().then(function(d) { throw new Error(d.error || 'Generation failed'); });
+                    }
+                    return resp.blob();
+                })
+                .then(function(blob) {
+                    var a = document.createElement('a');
+                    var objUrl = URL.createObjectURL(blob);
+                    a.href = objUrl;
+                    var ts = new Date().toTimeString().slice(0, 8).replace(/:/g, '');
+                    a.download = downloadName + '_' + ts + '.docx';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(objUrl);
+                    showStatus('<i class="bi bi-check-circle"></i> Downloaded ' + payload.length + ' page(s).', false);
+                })
+                .catch(function(err) {
+                    showStatus('<i class="bi bi-exclamation-triangle"></i> ' + (err.message || 'Generation failed'), true);
+                })
+                .finally(function() {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                });
+        });
+    }
+    wireDocButton(document.getElementById('multi-spec-btn'), 'Spec_Reports', 'spec report...');
+    wireDocButton(document.getElementById('multi-fwd-btn'), 'Fwd_Letters', 'forwarding letter...');
 })();
 </script>
 

@@ -178,6 +178,8 @@ urlpatterns = [
     path('datas/<str:category>/save_qty_map/', views.save_qty_map, name='save_qty_map'),
     path('datas/<str:category>/specification-report/', views.download_specification_report_live, name='download_specification_report_live'),
     path('datas/<str:category>/forwarding-letter/', views.download_forwarding_letter_live, name='download_forwarding_letter_live'),
+    path('datas/<str:category>/specification-report-multi/', views.download_specification_report_multi, name='download_specification_report_multi'),
+    path('datas/<str:category>/forwarding-letter-multi/', views.download_forwarding_letter_multi, name='download_forwarding_letter_multi'),
     
     # AJAX endpoints for New Estimate module (queued item selection & drag-drop reorder)
     path('datas/<str:category>/ajax-group-items/<str:group>/', views.ajax_group_items, name='ajax_group_items'),
@@ -186,6 +188,7 @@ urlpatterns = [
     path('datas/<str:category>/ajax_save_group_order/', views.ajax_save_group_order, name='ajax_save_group_order'),
     path('datas/<str:category>/ajax_upload_custom_items/', views.ajax_upload_custom_items, name='ajax_upload_custom_items'),
     path('datas/<str:category>/ajax_upload_prepared_estimate/', views.ajax_upload_prepared_estimate, name='ajax_upload_prepared_estimate'),
+    path('datas/<str:category>/ajax_upload_prepared_datas/', views.ajax_upload_prepared_datas, name='ajax_upload_prepared_datas'),
     path('datas/<str:category>/item-spec/', views.get_item_specification, name='get_item_specification'),
     path('datas/<str:category>/item-spec/save/', views.save_item_specification, name='save_item_specification'),
     path('datas/<str:category>/locations/', views.get_locations, name='get_locations'),

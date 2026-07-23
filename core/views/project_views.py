@@ -570,6 +570,15 @@ def datas_items(request, category, group):
         "multi_estimate_mode": multi_estimate_mode,
         "multi_estimate_views": multi_estimate_views,
         "multi_estimate_count": len(multi_estimate_views),
+        # Self-contained per-estimate data the carousel posts back on download
+        # (item names/rates/units/descs/block ranges + file id), so downloads,
+        # spec reports and forwarding letters survive session loss.
+        "multi_estimate_data_json": json.dumps({
+            "estimates": multi_estimates_session,
+            "uploaded_file_id": request.session.get("uploaded_file_id"),
+            "work_type": work_type,
+            "project_area": project_area,
+        }),
     })
 
 
@@ -1294,14 +1303,84 @@ def ajax_upload_custom_items(request, category):
 
 
 # -----------------------
-# AJAX UPLOAD PREPARED ESTIMATE
+# SHARED: collect item blocks from an uploaded workbook
+# -----------------------
+def _collect_prepared_blocks(wb_formulas, wb_values):
+    """Scan every worksheet of an uploaded workbook and collect item blocks
+    (yellow-background / red-text headings), preserving order.
+
+    Returns (blocks, unrelated_sheets):
+      - blocks: ordered list of {name, start, end, sheet, rate, block_desc}.
+        rate = last non-empty value in column J (the block's last row/last
+        column); block_desc = heading row + 2, column D.
+      - unrelated_sheets: sheets that carried our-format headings but yielded no
+        valid block (malformed/unrelated data the caller warns about and skips).
+
+    Iterates .worksheets (not .sheetnames) so chart-only tabs (which lack
+    .max_row) are skipped instead of crashing.
+    """
+    from ..utils_excel import (
+        _extract_items_from_sheet, _is_yellow_and_red, _DATA_LABEL_RE,
+    )
+
+    def _has_heading_attempt(ws):
+        try:
+            max_r = min(ws.max_row or 0, 500)
+        except Exception:
+            return False
+        for r in range(1, max_r + 1):
+            for c in range(1, 11):
+                cell = ws.cell(row=r, column=c)
+                if _is_yellow_and_red(cell):
+                    txt = str(cell.value or "").strip()
+                    if txt and not _DATA_LABEL_RE.match(txt):
+                        return True
+        return False
+
+    blocks = []
+    unrelated_sheets = []
+    for ws_src in wb_formulas.worksheets:
+        sheet_name = ws_src.title
+        fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
+        if not fetched_names:
+            # No valid blocks. If the sheet still has our-format headings it's
+            # unrelated/malformed data -> flag it but keep processing the rest.
+            if _has_heading_attempt(ws_src):
+                unrelated_sheets.append(sheet_name)
+            continue
+        ws_vals = wb_values[sheet_name]
+        for item_name in fetched_names:
+            src_min, src_max = item_blocks[item_name]
+            rate = None
+            for r in range(src_max, src_min - 1, -1):
+                v = ws_vals.cell(row=r, column=10).value
+                if v not in (None, ""):
+                    try:
+                        rate = float(v)
+                    except (ValueError, TypeError):
+                        rate = None
+                    break
+            block_desc = str(ws_vals.cell(row=src_min + 2, column=4).value or "").strip()
+            blocks.append({
+                "name": item_name,
+                "start": src_min,
+                "end": src_max,
+                "sheet": sheet_name,
+                "rate": rate,
+                "block_desc": block_desc,
+            })
+    return blocks, unrelated_sheets
+
+
+# -----------------------
+# AJAX UPLOAD PREPARED ESTIMATE  (single estimate: Estimate sheet + item blocks)
 # -----------------------
 @login_required(login_url='login')
 @require_POST
 def ajax_upload_prepared_estimate(request, category):
     """
-    AJAX endpoint to re-import an already-prepared estimate workbook so it can
-    be edited instead of rebuilt from scratch.
+    AJAX endpoint to re-import a SINGLE already-prepared estimate so it can be
+    edited instead of rebuilt from scratch.
 
     The uploaded .xlsx is expected to contain BOTH:
       - an item-blocks sheet ("Datas"): one block per item, each headed by a
@@ -1309,21 +1388,18 @@ def ajax_upload_prepared_estimate(request, category):
       - an "Estimate" sheet: Sl.No / Quantity / Unit / Item Description / Rate /
         ... rows, one per item, in the SAME ORDER as the blocks.
 
-    We match each block to its estimate row by position (block count == item
-    count), read the quantity + unit + description from the Estimate sheet, and
-    load everything into the session so the preview renders the items with
-    their quantities pre-filled. The estimate-sheet description is stored as a
-    spec override so that on re-download BOTH the Estimate description and the
-    Datas block's description row (heading row + 2) show that same text -- i.e.
-    any mismatch between the two in the source file is reconciled.
+    We use the FIRST item-blocks sheet and the FIRST Estimate-format sheet, match
+    each block to its estimate row by position (block count == item count), read
+    the quantity + unit + description from the Estimate sheet, and load
+    everything into the session so the preview renders with quantities
+    pre-filled -- with all the normal single-estimate features (delete, spec
+    report, forwarding letter). For item-block-only files (multiple estimates)
+    use ajax_upload_prepared_datas instead.
 
     Returns JSON: { status, count, work_name, warnings }.
     """
     from ..models import Upload
-    from ..utils_excel import (
-        _extract_items_from_sheet, _determine_unit_from_heading,
-        _is_yellow_and_red, _DATA_LABEL_RE,
-    )
+    from ..utils_excel import _determine_unit_from_heading
     from .bill_parsing import to_number
 
     try:
@@ -1365,162 +1441,22 @@ def ajax_upload_prepared_estimate(request, category):
         except Exception:
             pass
 
-        # Detect a sheet that TRIED to be item blocks: it carries at least one
-        # yellow-background / red-text heading cell (other than a "Data N" serial
-        # label). Used to tell "unrelated data" sheets (which we warn about and
-        # skip) apart from ordinary metadata sheets like Groups / Master Datas /
-        # Estimate, which have no such headings and are silently ignored.
-        def _has_heading_attempt(ws):
-            try:
-                max_r = min(ws.max_row or 0, 500)
-            except Exception:
-                return False
-            for r in range(1, max_r + 1):
-                for c in range(1, 11):
-                    cell = ws.cell(row=r, column=c)
-                    if _is_yellow_and_red(cell):
-                        txt = str(cell.value or "").strip()
-                        if txt and not _DATA_LABEL_RE.match(txt):
-                            return True
-            return False
-
         # ---- 1) Collect item blocks (yellow/red headings), preserving order ----
-        blocks = []  # [{name, start, end, sheet, rate, block_desc}]
-        used_sheet_name = ""
-        unrelated_sheets = []  # sheets that looked like blocks but had none valid
-        # Iterate .worksheets (not .sheetnames) so chart-only tabs (Chartsheet
-        # objects, which lack .max_row) are skipped instead of crashing.
-        for ws_src in wb_formulas.worksheets:
-            sheet_name = ws_src.title
-            fetched_names, item_blocks = _extract_items_from_sheet(ws_src)
-            if not fetched_names:
-                # No valid blocks here. If the sheet nonetheless has our-format
-                # headings, it's unrelated/malformed data -> warn but keep going
-                # with the sheets that do follow the format.
-                if _has_heading_attempt(ws_src):
-                    unrelated_sheets.append(sheet_name)
-                continue
-            if not used_sheet_name:
-                used_sheet_name = sheet_name
-            ws_vals = wb_values[sheet_name]
-            for item_name in fetched_names:
-                src_min, src_max = item_blocks[item_name]
-                # Rate: last non-empty value in column J (computed value).
-                rate = None
-                for r in range(src_max, src_min - 1, -1):
-                    v = ws_vals.cell(row=r, column=10).value
-                    if v not in (None, ""):
-                        try:
-                            rate = float(v)
-                        except (ValueError, TypeError):
-                            rate = None
-                        break
-                block_desc = str(ws_vals.cell(row=src_min + 2, column=4).value or "").strip()
-                blocks.append({
-                    "name": item_name,
-                    "start": src_min,
-                    "end": src_max,
-                    "sheet": sheet_name,
-                    "rate": rate,
-                    "block_desc": block_desc,
-                })
+        all_blocks, unrelated_sheets = _collect_prepared_blocks(wb_formulas, wb_values)
 
-        if not blocks:
+        if not all_blocks:
             return JsonResponse({
                 "status": "error",
                 "message": "No item blocks found. This does not look like a prepared estimate "
                            "(expected item headers with yellow background and red text)."
             }, status=400)
 
-        # ---- 1b) MULTI-ESTIMATE AUTO-SPLIT ----
-        # When item blocks are spread across more than one worksheet, treat each
-        # sheet as its own estimate: the user prepared several estimates at once
-        # (one sheet each) and wants to slide between them, enter quantities and
-        # download them all as one workbook. A genuine single prepared estimate
-        # keeps all its blocks on one sheet -> falls through to the normal path.
-        sheets_in_order = []
-        for blk in blocks:
-            if blk["sheet"] not in sheets_in_order:
-                sheets_in_order.append(blk["sheet"])
-
-        if len(sheets_in_order) > 1:
-            # Persist the uploaded file so the download step can copy blocks from it.
-            uploaded_file.seek(0)
-            upload_obj = Upload.objects.create(
-                organization=org,
-                user=request.user,
-                file=uploaded_file,
-                filename=uploaded_file.name,
-                file_size=uploaded_file.size,
-                status='completed',
-            )
-
-            multi_warnings = []
-            if unrelated_sheets:
-                multi_warnings.append(
-                    "Skipped sheet(s) with unrelated data: "
-                    + ", ".join(unrelated_sheets)
-                    + ". Processed only the sheets that follow the estimate format."
-                )
-            multi_estimates = []
-            for sheet_name in sheets_in_order:
-                seen_names = set()
-                items = []
-                grp_blocks = {}
-                for blk in blocks:
-                    if blk["sheet"] != sheet_name:
-                        continue
-                    name = blk["name"]
-                    if name in seen_names:
-                        multi_warnings.append(
-                            f"Duplicate item '{name}' in sheet '{sheet_name}' skipped."
-                        )
-                        continue
-                    seen_names.add(name)
-                    desc = blk["block_desc"] or name
-                    unit = _determine_unit_from_heading(name, upload_units_map)
-                    items.append({
-                        "name": name,
-                        "rate": blk["rate"],
-                        "unit": unit,
-                        "desc": desc,
-                    })
-                    grp_blocks[name] = [blk["start"], blk["end"], blk["sheet"]]
-                if not items:
-                    continue
-                multi_estimates.append({
-                    "sheet": sheet_name,
-                    "work_name": sheet_name,
-                    "items": items,
-                    "blocks": grp_blocks,
-                    "qty_map": {},
-                })
-
-            # Replace the working set with the multi-estimate payload and clear
-            # single-estimate session keys so the preview renders the carousel.
-            request.session['multi_estimate_mode'] = True
-            request.session['multi_estimates'] = multi_estimates
-            request.session['uploaded_file_id'] = upload_obj.id
-            request.session['fetched_items'] = []
-            request.session['qty_map'] = {}
-            request.session['unit_map'] = {}
-            request.session['uploaded_items'] = []
-            request.session['uploaded_item_blocks'] = {}
-            request.session['item_spec_overrides'] = {}
-            request.session['grand_total'] = ""
-            request.session['item_location_breakdown'] = {}
-            request.session['estimate_locations'] = []
-            request.session.modified = True
-
-            total_items = sum(len(g["items"]) for g in multi_estimates)
-            return JsonResponse({
-                "status": "ok",
-                "multi": True,
-                "estimate_count": len(multi_estimates),
-                "sheet_names": [g["work_name"] for g in multi_estimates],
-                "count": total_items,
-                "warnings": multi_warnings,
-            })
+        # SINGLE estimate: use only the FIRST item-blocks sheet. If the file
+        # carries several block sheets, that's a multi-estimate file -> tell the
+        # user to use the dedicated Datas button (which keeps every estimate).
+        used_sheet_name = all_blocks[0]["sheet"]
+        blocks = [b for b in all_blocks if b["sheet"] == used_sheet_name]
+        other_block_sheets = [b["sheet"] for b in all_blocks if b["sheet"] != used_sheet_name]
 
         # ---- 2) Parse the Estimate sheet ITEM rows (quantities, units, descriptions) ----
         # Item rows carry a Sl.No in column A; the ECV / LC / QC / NAC / GST /
@@ -1530,15 +1466,10 @@ def ajax_upload_prepared_estimate(request, category):
         # a literal the user typed, so it survives even when the Rate formula has
         # no cached value.
         #
-        # Only match to an Estimate sheet when the upload GENUINELY contains one.
-        # An item-blocks-only file has no Sl.No/Quantity/Item-Description header
-        # anywhere except (accidentally) inside the Datas blocks, so we must
-        # exclude the block sheets themselves from the search. If no real
-        # Estimate sheet exists, ws_est stays None -> no matching: each item just
-        # uses its own block description (heading row + 2) and block rate.
-        # (find_estimate_sheet_and_header_row's worksheets[0] fallback is exactly
-        # what mis-read the Datas sheet as an estimate and shuffled descriptions.)
-        block_sheet_names = {blk["sheet"] for blk in blocks}
+        # Find the FIRST genuine Estimate-format sheet -- one with a
+        # Sl.No / Quantity / Item-Description header row -- excluding every
+        # item-block sheet (whose Datas blocks can accidentally look header-ish).
+        block_sheet_names = {blk["sheet"] for blk in all_blocks}
         ws_est = None
         header_row = 3
         for ws in wb_values.worksheets:
@@ -1554,6 +1485,16 @@ def ajax_upload_prepared_estimate(request, category):
                     break
             if ws_est is not None:
                 break
+
+        # This button is for a single prepared estimate, which needs BOTH an
+        # Estimate sheet and an item-blocks sheet. If there's no Estimate sheet,
+        # it's an item-blocks-only file -> point the user at the Datas button.
+        if ws_est is None:
+            return JsonResponse({
+                "status": "error",
+                "message": "No Estimate sheet found in this file. For item-block-only "
+                           "files (one or more estimates), use \"Upload Prepared Datas\".",
+            }, status=400)
 
         def _has_slno(v):
             if v is None:
@@ -1603,6 +1544,13 @@ def ajax_upload_prepared_estimate(request, category):
                 + ", ".join(unrelated_sheets)
                 + ". Processed only the sheets that follow the estimate format."
             )
+        if other_block_sheets:
+            warnings.append(
+                f"This file has multiple item-block sheets. Imported only the first "
+                f"('{used_sheet_name}') as one estimate; ignored: "
+                + ", ".join(dict.fromkeys(other_block_sheets))
+                + ". Use \"Upload Prepared Datas\" to build all of them as separate estimates."
+            )
 
         # ---- 3) Pair blocks to estimate rows BY POSITION ----
         # The Datas item blocks and the Estimate rows were generated together,
@@ -1616,13 +1564,7 @@ def ajax_upload_prepared_estimate(request, category):
         for i in range(pair_n):
             matched[i] = est_items[i]
 
-        if ws_est is None:
-            # Item-blocks-only upload: no Estimate sheet to match against. Each
-            # item keeps its own block description (heading row + 2) and block
-            # rate; quantities are left blank for the user to enter. This is the
-            # expected path, so no warning.
-            pass
-        elif not est_items:
+        if not est_items:
             warnings.append("No Estimate sheet rows found; quantities could not be imported.")
         elif len(est_items) != len(blocks):
             extra = "extra estimate row(s)" if len(est_items) > len(blocks) else "missing estimate row(s)"
@@ -1738,6 +1680,159 @@ def ajax_upload_prepared_estimate(request, category):
 
     except Exception as e:
         logger.error(f"Failed to import prepared estimate: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+# -----------------------
+# AJAX UPLOAD PREPARED DATAS  (item-blocks only -> one estimate per sheet)
+# -----------------------
+@login_required(login_url='login')
+@require_POST
+def ajax_upload_prepared_datas(request, category):
+    """
+    AJAX endpoint to re-import prepared item-block ("Datas") sheets and build
+    MULTIPLE estimates -- one per worksheet -- rendered in the sliding carousel
+    with full features (delete, Download All, per-estimate Specification Report
+    and Forwarding Letter).
+
+    No Estimate sheet is required or used: each item's description comes from its
+    block heading row + 2 and its rate from the block's last row/last column.
+    A single-sheet file simply produces a one-slide carousel.
+
+    Returns JSON: { status, multi, estimate_count, sheet_names, count, warnings }.
+    """
+    from ..models import Upload
+    from ..utils_excel import _determine_unit_from_heading
+
+    try:
+        uploaded_file = request.FILES.get('prepared_datas_file')
+        if not uploaded_file:
+            return JsonResponse({"status": "error", "message": "No file uploaded"}, status=400)
+        if uploaded_file.size == 0:
+            return JsonResponse({"status": "error", "message": "Uploaded file is empty"}, status=400)
+        if uploaded_file.size > 10 * 1024 * 1024:
+            return JsonResponse({"status": "error", "message": "File too large (max 10MB)"}, status=400)
+        if not uploaded_file.name.endswith('.xlsx'):
+            return JsonResponse({"status": "error", "message": "Only .xlsx files are supported"}, status=400)
+
+        org = get_org_from_request(request)
+
+        uploaded_file.seek(0)
+        try:
+            wb_formulas = load_workbook(uploaded_file, data_only=False)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Failed to read Excel file: {e}"}, status=400)
+        uploaded_file.seek(0)
+        try:
+            wb_values = load_workbook(uploaded_file, data_only=True)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": f"Failed to process Excel file: {e}"}, status=400)
+
+        upload_units_map = {}
+        try:
+            if "Groups" in wb_formulas.sheetnames:
+                from ..utils_excel import read_groups
+                _, upload_units_map = read_groups(wb_formulas["Groups"])
+        except Exception:
+            pass
+
+        blocks, unrelated_sheets = _collect_prepared_blocks(wb_formulas, wb_values)
+        if not blocks:
+            return JsonResponse({
+                "status": "error",
+                "message": "No item blocks found. This does not look like prepared item "
+                           "blocks (expected item headers with yellow background and red text)."
+            }, status=400)
+
+        warnings = []
+        if unrelated_sheets:
+            warnings.append(
+                "Skipped sheet(s) with unrelated data: "
+                + ", ".join(unrelated_sheets)
+                + ". Processed only the sheets that follow the item-block format."
+            )
+
+        # Persist the uploaded file so the download step can copy blocks from it.
+        uploaded_file.seek(0)
+        upload_obj = Upload.objects.create(
+            organization=org,
+            user=request.user,
+            file=uploaded_file,
+            filename=uploaded_file.name,
+            file_size=uploaded_file.size,
+            status='completed',
+        )
+
+        # One estimate per sheet, in the order sheets first appear.
+        sheets_in_order = []
+        for blk in blocks:
+            if blk["sheet"] not in sheets_in_order:
+                sheets_in_order.append(blk["sheet"])
+
+        multi_estimates = []
+        for sheet_name in sheets_in_order:
+            seen_names = set()
+            items = []
+            grp_blocks = {}
+            for blk in blocks:
+                if blk["sheet"] != sheet_name:
+                    continue
+                name = blk["name"]
+                if name in seen_names:
+                    warnings.append(f"Duplicate item '{name}' in sheet '{sheet_name}' skipped.")
+                    continue
+                seen_names.add(name)
+                items.append({
+                    "name": name,
+                    "rate": blk["rate"],
+                    "unit": _determine_unit_from_heading(name, upload_units_map),
+                    "desc": blk["block_desc"] or name,
+                })
+                grp_blocks[name] = [blk["start"], blk["end"], blk["sheet"]]
+            if not items:
+                continue
+            multi_estimates.append({
+                "sheet": sheet_name,
+                "work_name": sheet_name,
+                "items": items,
+                "blocks": grp_blocks,
+                "qty_map": {},
+            })
+
+        if not multi_estimates:
+            return JsonResponse({
+                "status": "error",
+                "message": "No usable item blocks found in the uploaded sheets."
+            }, status=400)
+
+        # Replace the working set with the multi-estimate payload; clear the
+        # single-estimate session keys so the preview renders the carousel.
+        request.session['multi_estimate_mode'] = True
+        request.session['multi_estimates'] = multi_estimates
+        request.session['uploaded_file_id'] = upload_obj.id
+        request.session['fetched_items'] = []
+        request.session['qty_map'] = {}
+        request.session['unit_map'] = {}
+        request.session['uploaded_items'] = []
+        request.session['uploaded_item_blocks'] = {}
+        request.session['item_spec_overrides'] = {}
+        request.session['grand_total'] = ""
+        request.session['item_location_breakdown'] = {}
+        request.session['estimate_locations'] = []
+        request.session.modified = True
+
+        total_items = sum(len(g["items"]) for g in multi_estimates)
+        return JsonResponse({
+            "status": "ok",
+            "multi": True,
+            "estimate_count": len(multi_estimates),
+            "sheet_names": [g["work_name"] for g in multi_estimates],
+            "count": total_items,
+            "warnings": warnings,
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to import prepared datas: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
@@ -1982,28 +2077,43 @@ def download_multi_estimate(request, category):
     from io import BytesIO
     from core.utils_excel import copy_sheet_to_workbook
 
-    multi_estimates = request.session.get("multi_estimates", []) or []
-    if not multi_estimates:
-        return JsonResponse({"error": "No multi-estimate session found. Re-upload your file."}, status=400)
-
-    # Map sheet -> group for quick lookup; posted quantities/work names win.
-    groups_by_sheet = {g.get("sheet"): g for g in multi_estimates}
-
     posted = []
     try:
         posted = json.loads(request.POST.get("estimates_json", "[]")) or []
     except Exception:
         posted = []
-    if not isinstance(posted, list) or not posted:
-        # Fall back to session order with empty quantities.
+    if not isinstance(posted, list):
+        posted = []
+
+    # Session is the fast path but can be cleared by intervening navigation, so
+    # the client also posts self-contained per-estimate data (items/blocks). We
+    # build from the posted payload and fall back to the session per sheet.
+    session_estimates = request.session.get("multi_estimates", []) or []
+    groups_by_sheet = {g.get("sheet"): g for g in session_estimates}
+
+    if not posted and not session_estimates:
+        return JsonResponse({"error": "No multi-estimate data found. Re-upload your file."}, status=400)
+    if not posted:
         posted = [{"sheet": g.get("sheet"), "work_name": g.get("work_name"), "qty_map": {}}
-                  for g in multi_estimates]
+                  for g in session_estimates]
 
     work_type = (request.session.get("work_type") or "original").lower()
     project_area = request.session.get("project_area", "municipal") or "municipal"
-    uploaded_file_id = request.session.get("uploaded_file_id")
     selected_backend_id = request.session.get("selected_backend_id")
     org = get_org_from_request(request)
+
+    # uploaded_file_id: prefer session; else the client-posted id, ownership-checked
+    # against this org so a user can't reference another org's upload.
+    uploaded_file_id = request.session.get("uploaded_file_id")
+    posted_file_id = request.POST.get("uploaded_file_id")
+    if not uploaded_file_id and posted_file_id:
+        try:
+            from ..models import Upload
+            up = Upload.objects.filter(id=int(posted_file_id), organization=org).first()
+            if up:
+                uploaded_file_id = up.id
+        except (TypeError, ValueError):
+            pass
 
     combined = Workbook()
     combined.remove(combined.active)  # drop default sheet; we add per estimate
@@ -2027,9 +2137,24 @@ def download_multi_estimate(request, category):
         sheet = entry.get("sheet")
         grp = groups_by_sheet.get(sheet)
         if not grp:
-            continue
+            # No session record -> use the self-contained data the client posted.
+            if entry.get("items"):
+                grp = {
+                    "sheet": sheet,
+                    "work_name": entry.get("work_name") or sheet,
+                    "items": entry.get("items") or [],
+                    "blocks": entry.get("blocks") or {},
+                    "qty_map": {},
+                }
+            else:
+                continue
 
         items = grp.get("items", [])
+        # Honor per-slide deletions: keep only items the client still shows.
+        survivors = entry.get("item_names")
+        if isinstance(survivors, list) and survivors:
+            keep = set(survivors)
+            items = [it for it in items if it.get("name") in keep]
         item_names = [it["name"] for it in items]
         rate_values = {it["name"]: it.get("rate") for it in items if it.get("rate") is not None}
         unit_map = {it["name"]: it.get("unit", "") for it in items}
@@ -2634,6 +2759,100 @@ def download_specification_report(request, estimate_id):
         return redirect('view_estimate', estimate_id=estimate_id)
 
 
+def _build_spec_report_body(doc, items, work_name, total_amount):
+    """Append one specification-report section (title, intro, bulleted items,
+    footer, FUNDS) for a single estimate to `doc`. Shared by the single-estimate
+    live endpoint and the multi (page-per-estimate) endpoint."""
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    title = doc.add_heading('Specification report accompanying the estimate :-', level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    for run in title.runs:
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.underline = True
+
+    intro_para = doc.add_paragraph()
+    intro_para.add_run(f'The estimate is prepared for the work {work_name}')
+
+    doc.add_paragraph()
+
+    amount_para = doc.add_paragraph()
+    amount_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    amount_run = amount_para.add_run(f'Est.Amount: Rs. {total_amount}')
+    amount_run.font.bold = True
+    amount_run.font.underline = True
+
+    doc.add_paragraph()
+
+    body_para = doc.add_paragraph('{{BODY_OF_LETTER}}')
+    for run in body_para.runs:
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(128, 128, 128)
+
+    doc.add_paragraph()
+
+    doc.add_paragraph('Hence, this estimate has been prepared accordingly.')
+
+    doc.add_paragraph()
+
+    for item in items:
+        desc = item.get('desc', '')
+        qty = item.get('qty', '')
+        unit = item.get('unit', '')
+
+        if qty:
+            try:
+                qty_float = float(qty)
+                if qty_float == int(qty_float):
+                    qty = str(int(qty_float))
+                else:
+                    qty = str(qty_float)
+            except:
+                pass
+
+        if qty and unit:
+            bullet_text = f'{desc}  -  {qty} {unit}'
+        elif qty:
+            bullet_text = f'{desc}  -  {qty}'
+        else:
+            bullet_text = desc
+
+        bullet_para = doc.add_paragraph(bullet_text, style='List Bullet')
+        for run in bullet_para.runs:
+            run.font.size = Pt(11)
+            run.font.bold = True
+
+    doc.add_paragraph()
+
+    from datetime import datetime
+    today = datetime.now()
+    if today.month >= 4:
+        fy_start = today.year
+        fy_end = (today.year + 1) % 100
+    else:
+        fy_start = today.year - 1
+        fy_end = today.year % 100
+    financial_year = f"{fy_start}-{fy_end:02d}"
+
+    footer_text = (f'The rates proposed in the estimate are as per SOR {financial_year} and Approved rates. L.S. Provision is made in the '
+                  'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
+                  'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
+    footer_para = doc.add_paragraph(footer_text)
+    for run in footer_para.runs:
+        run.font.size = Pt(10)
+
+    doc.add_paragraph()
+
+    funds_para = doc.add_paragraph()
+    funds_run = funds_para.add_run('FUNDS: ')
+    funds_run.font.bold = True
+    funds_run.font.underline = True
+    funds_para.add_run('The estimate requires Administrative sanction and also fixes up the agency with provision of funds '
+                      'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
+
+
 @login_required(login_url='login')
 def download_specification_report_live(request, category):
     """
@@ -2641,8 +2860,6 @@ def download_specification_report_live(request, category):
     Receives items as JSON from the frontend.
     """
     from docx import Document
-    from docx.shared import Pt, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     if request.method != 'POST':
         return redirect('datas_groups', category=category)
@@ -2660,99 +2877,12 @@ def download_specification_report_live(request, category):
             return redirect('datas_groups', category=category)
 
         doc = Document()
-
-        title = doc.add_heading('Specification report accompanying the estimate :-', level=1)
-        title.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        for run in title.runs:
-            run.font.size = Pt(12)
-            run.font.bold = True
-            run.font.underline = True
-
-        intro_para = doc.add_paragraph()
-        intro_para.add_run(f'The estimate is prepared for the work {work_name}')
-
-        doc.add_paragraph()
-
-        amount_para = doc.add_paragraph()
-        amount_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        amount_run = amount_para.add_run(f'Est.Amount: Rs. {total_amount}')
-        amount_run.font.bold = True
-        amount_run.font.underline = True
-
-        doc.add_paragraph()
-
-        body_para = doc.add_paragraph('{{BODY_OF_LETTER}}')
-        for run in body_para.runs:
-            run.font.italic = True
-            run.font.color.rgb = RGBColor(128, 128, 128)
-
-        doc.add_paragraph()
-
-        doc.add_paragraph('Hence, this estimate has been prepared accordingly.')
-
-        doc.add_paragraph()
-
-        for item in items:
-            desc = item.get('desc', '')
-            qty = item.get('qty', '')
-            unit = item.get('unit', '')
-
-            if qty:
-                try:
-                    qty_float = float(qty)
-                    if qty_float == int(qty_float):
-                        qty = str(int(qty_float))
-                    else:
-                        qty = str(qty_float)
-                except:
-                    pass
-
-            if qty and unit:
-                bullet_text = f'{desc}  -  {qty} {unit}'
-            elif qty:
-                bullet_text = f'{desc}  -  {qty}'
-            else:
-                bullet_text = desc
-
-            bullet_para = doc.add_paragraph(bullet_text, style='List Bullet')
-            for run in bullet_para.runs:
-                run.font.size = Pt(11)
-                run.font.bold = True
-
-        doc.add_paragraph()
-
-        from datetime import datetime
-        today = datetime.now()
-        if today.month >= 4:
-            fy_start = today.year
-            fy_end = (today.year + 1) % 100
-        else:
-            fy_start = today.year - 1
-            fy_end = today.year % 100
-        financial_year = f"{fy_start}-{fy_end:02d}"
-
-        footer_text = (f'The rates proposed in the estimate are as per SOR {financial_year} and Approved rates. L.S. Provision is made in the '
-                      'estimate towards GST at 18%, QC amount at 1%, Labour Cess at 1% and NAC amount at 0.1% as per actual '
-                      'and LS Provision Towards, unforeseen items & rounding off also proposed in the estimate.')
-        footer_para = doc.add_paragraph(footer_text)
-        for run in footer_para.runs:
-            run.font.size = Pt(10)
-
-        doc.add_paragraph()
-
-        funds_para = doc.add_paragraph()
-        funds_run = funds_para.add_run('FUNDS: ')
-        funds_run.font.bold = True
-        funds_run.font.underline = True
-        funds_para.add_run('The estimate requires Administrative sanction and also fixes up the agency with provision of funds '
-                          'under relevant head of account for taking up the work from the Government, Telangana State Hyderabad')
-
-        filename = 'Spec_Report.docx'
+        _build_spec_report_body(doc, items, work_name, total_amount)
 
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = 'attachment; filename="Spec_Report.docx"'
         doc.save(response)
         return response
 
@@ -2764,15 +2894,317 @@ def download_specification_report_live(request, category):
 
 
 @login_required(login_url='login')
+@require_POST
+def download_specification_report_multi(request, category):
+    """
+    Combined specification report for the multi-estimate (Datas) carousel: one
+    page per estimate in a single .docx. The client posts `estimates_json`: a
+    list of {work_name, total_amount, items:[{desc,qty,unit}, ...]}.
+    """
+    from docx import Document
+
+    try:
+        estimates = json.loads(request.POST.get('estimates_json', '[]')) or []
+    except Exception:
+        estimates = []
+    estimates = [e for e in estimates if isinstance(e, dict) and e.get('items')]
+    if not estimates:
+        return JsonResponse({"error": "No estimates with items to generate a specification report."}, status=400)
+
+    doc = Document()
+    for i, est in enumerate(estimates):
+        if i > 0:
+            doc.add_page_break()
+        _build_spec_report_body(
+            doc,
+            est.get('items') or [],
+            est.get('work_name') or '{{NAME_OF_WORK}}',
+            est.get('total_amount') or '0.00',
+        )
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    response['Content-Disposition'] = 'attachment; filename="Spec_Reports.docx"'
+    doc.save(response)
+    return response
+
+
+def _build_forwarding_letter_body(doc, work_name, total_amount, letter_settings):
+    """Append one forwarding-letter section (headers, from/to, subject, single-
+    row estimate table, sign-off) for one estimate to `doc`. Shared by the
+    single-estimate live endpoint and the multi (page-per-estimate) endpoint.
+    Document-level page style is idempotent, so calling once per estimate is
+    safe."""
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    try:
+        grand_total = float(str(total_amount).replace(',', '').replace('Rs.', '').replace('\u20b9', '').strip())
+    except Exception:
+        grand_total = 0.0
+
+    financial_year = _get_current_financial_year()
+    today = timezone.now().date()
+
+    placeholder_color = RGBColor(169, 169, 169)
+
+    # Tight spacing throughout
+    normal_style = doc.styles['Normal']
+    normal_style.paragraph_format.space_after = Pt(4)
+    normal_style.paragraph_format.space_before = Pt(0)
+
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(0.6)
+        section.bottom_margin = Inches(0.6)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
+
+    # Header - Government/Organization name
+    header1 = doc.add_paragraph()
+    header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if letter_settings and letter_settings.government_name:
+        run1 = header1.add_run(letter_settings.government_name.upper())
+        run1.font.bold = True
+        run1.font.size = Pt(14)
+    else:
+        run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
+        run1.font.bold = True
+        run1.font.size = Pt(14)
+        run1.font.color.rgb = placeholder_color
+
+    # Header - Department name
+    header2 = doc.add_paragraph()
+    header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    header2.paragraph_format.space_after = Pt(8)
+    if letter_settings and letter_settings.department_name:
+        run2 = header2.add_run(letter_settings.department_name.upper())
+        run2.font.bold = True
+        run2.font.size = Pt(13)
+    else:
+        run2 = header2.add_run('[DEPARTMENT NAME]')
+        run2.font.bold = True
+        run2.font.size = Pt(13)
+        run2.font.color.rgb = placeholder_color
+
+    # From/To section in a table
+    from_to_table = doc.add_table(rows=1, cols=2)
+    from_to_table.autofit = True
+
+    from_cell = from_to_table.cell(0, 0)
+    from_para = from_cell.paragraphs[0]
+    from_label = from_para.add_run('From: -\n')
+    from_label.font.bold = True
+
+    if letter_settings and letter_settings.officer_name:
+        name_qual = letter_settings.officer_name
+        if letter_settings.officer_qualification:
+            name_qual += f", {letter_settings.officer_qualification}"
+        from_run1 = from_para.add_run(f'{name_qual},\n')
+    else:
+        from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
+        from_run1.font.color.rgb = placeholder_color
+
+    if letter_settings and letter_settings.officer_designation:
+        from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
+    else:
+        from_run2 = from_para.add_run('[Designation],\n')
+        from_run2.font.color.rgb = placeholder_color
+
+    if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
+        sub_addr = letter_settings.sub_division
+        if letter_settings.office_address:
+            sub_addr += f", {letter_settings.office_address}" if sub_addr else letter_settings.office_address
+        from_run3 = from_para.add_run(f'{sub_addr}.')
+    else:
+        from_run3 = from_para.add_run('[Sub Division, Office Address].')
+        from_run3.font.color.rgb = placeholder_color
+
+    # To section
+    to_cell = from_to_table.cell(0, 1)
+    to_para = to_cell.paragraphs[0]
+    to_label = to_para.add_run('To,\n')
+    to_label.font.bold = True
+
+    if letter_settings and letter_settings.recipient_designation:
+        to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
+    else:
+        to_run1 = to_para.add_run('[Officer Designation],\n')
+        to_run1.font.color.rgb = placeholder_color
+
+    if letter_settings and letter_settings.recipient_division:
+        to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
+    else:
+        to_run2 = to_para.add_run('[Division Name],\n')
+        to_run2.font.color.rgb = placeholder_color
+
+    if letter_settings and letter_settings.recipient_address:
+        to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
+    else:
+        to_run3 = to_para.add_run('[Address].')
+        to_run3.font.color.rgb = placeholder_color
+
+    # Letter number and date
+    lr_para = doc.add_paragraph()
+    lr_para.paragraph_format.space_before = Pt(8)
+    lr_run = lr_para.add_run('Lr No. ')
+    lr_run.font.bold = True
+    lr_run.font.underline = True
+    if letter_settings and letter_settings.office_code:
+        lr_code = lr_para.add_run(letter_settings.office_code)
+        lr_code.font.underline = True
+        lr_code.font.bold = True
+    else:
+        lr_placeholder = lr_para.add_run('[Office Code]')
+        lr_placeholder.font.color.rgb = placeholder_color
+        lr_placeholder.font.underline = True
+        lr_placeholder.font.bold = True
+    lr_fy = lr_para.add_run(f'/{financial_year}/          ')
+    lr_fy.font.bold = True
+    lr_fy.font.underline = True
+    lr_date = lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
+    lr_date.font.bold = True
+    lr_date.font.underline = True
+
+    sir_para = doc.add_paragraph()
+    sir_para.paragraph_format.space_before = Pt(6)
+    sir_para.add_run('Sir,')
+
+    # Subject
+    subject_para = doc.add_paragraph()
+    subject_para.paragraph_format.space_before = Pt(6)
+    subj_run = subject_para.add_run('Sub:-')
+    subj_run.font.underline = True
+    subject_para.add_run('\t')
+    subj_work = subject_para.add_run(f'{work_name} ')
+    subj_work.font.bold = True
+    subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
+
+    # Reference
+    ref_para = doc.add_paragraph()
+    ref_run = ref_para.add_run('Ref:-')
+    ref_run.font.underline = True
+    ref_para.add_run('\tMemo No.')
+    ref_placeholder = ref_para.add_run('[Reference Number]')
+    ref_placeholder.font.color.rgb = placeholder_color
+    ref_placeholder.font.underline = True
+    ref_para.add_run(f'/{financial_year} Dt.')
+    ref_date_placeholder = ref_para.add_run('[DD.MM.YYYY]')
+    ref_date_placeholder.font.color.rgb = placeholder_color
+    ref_date_placeholder.font.underline = True
+
+    stars_para = doc.add_paragraph()
+    stars_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    stars_para.add_run('**.**')
+
+    body_para = doc.add_paragraph()
+    body_para.add_run('With reference to the subject cited, I submit here ')
+    with_run = body_para.add_run('with  1')
+    with_run.font.underline = True
+    body_para.add_run(' No. estimate for the following work for the amount specified.')
+
+    # Create table for estimate
+    table = doc.add_table(rows=2, cols=3)
+    table.style = 'Table Grid'
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    for cell in table.columns[0].cells:
+        cell.width = Inches(0.5)
+    for cell in table.columns[1].cells:
+        cell.width = Inches(4.5)
+    for cell in table.columns[2].cells:
+        cell.width = Inches(1.5)
+
+    header_cells = table.rows[0].cells
+    header_cells[0].text = 'Sl.\nNo'
+    header_cells[1].text = 'Name of work'
+    header_cells[2].text = 'Amount'
+
+    for cell in header_cells:
+        for para in cell.paragraphs:
+            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in para.runs:
+                run.font.bold = True
+
+    row_cells = table.rows[1].cells
+    row_cells[0].text = '1'
+    row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    row_cells[1].text = work_name
+
+    formatted_amount = _format_indian_number(grand_total)
+    row_cells[2].text = f"Rs.{formatted_amount}"
+    row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    spec_para = doc.add_paragraph()
+    spec_para.paragraph_format.space_before = Pt(6)
+    spec_para.add_run("Specification report accompanying the estimate explains the necessity and provisions made therein in detail.")
+
+    request_para = doc.add_paragraph()
+    request_para.add_run('I request the ')
+    if letter_settings and letter_settings.superior_designation:
+        req_run = request_para.add_run(letter_settings.superior_designation)
+    else:
+        req_placeholder = request_para.add_run('[Superior Officer Designation]')
+        req_placeholder.font.color.rgb = placeholder_color
+    request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
+
+    enc_para = doc.add_paragraph()
+    enc_para.paragraph_format.space_before = Pt(6)
+    enc_para.add_run('Enclosure: -')
+    doc.add_paragraph('Estimate  - 1 No.')
+
+    sign_para = doc.add_paragraph()
+    sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    sign_para.paragraph_format.space_before = Pt(14)
+    sign_para.add_run('Yours faithfully,')
+
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    title_para.paragraph_format.space_before = Pt(18)
+
+    if letter_settings and letter_settings.officer_designation:
+        run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
+        run_title.font.bold = True
+    else:
+        run_title = title_para.add_run('[Officer Designation]\n')
+        run_title.font.bold = True
+        run_title.font.color.rgb = placeholder_color
+
+    if letter_settings and letter_settings.sub_division:
+        sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
+    else:
+        sub_div_run = title_para.add_run('[Sub Division Name],\n')
+        sub_div_run.font.color.rgb = placeholder_color
+
+    if letter_settings and letter_settings.office_address:
+        addr_run = title_para.add_run(f'{letter_settings.office_address}.')
+    else:
+        addr_run = title_para.add_run('[Office Address].')
+        addr_run.font.color.rgb = placeholder_color
+
+    copy_para = doc.add_paragraph()
+    copy_para.paragraph_format.space_before = Pt(8)
+    copy_para.add_run('Copy to the ')
+    if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
+        copy_text = letter_settings.copy_to_designation or ''
+        if letter_settings.copy_to_section:
+            copy_text += f", {letter_settings.copy_to_section}" if copy_text else letter_settings.copy_to_section
+        copy_run = copy_para.add_run(copy_text)
+    else:
+        copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
+        copy_placeholder.font.color.rgb = placeholder_color
+    copy_para.add_run(' for information.')
+
+
+@login_required(login_url='login')
 def download_forwarding_letter_live(request, category):
     """
     Generate forwarding letter from live estimate items (New Estimate module).
     Receives items as JSON from the frontend.
     """
     from docx import Document
-    from docx.shared import Pt, Inches, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT
 
     if request.method != 'POST':
         return redirect('datas_groups', category=category)
@@ -2789,274 +3221,15 @@ def download_forwarding_letter_live(request, category):
             messages.error(request, 'No items with quantities to generate forwarding letter')
             return redirect('datas_groups', category=category)
 
-        try:
-            grand_total = float(total_amount.replace(',', '').replace('Rs.', '').replace('\u20b9', '').strip())
-        except:
-            grand_total = 0.0
-
-        current_date = _get_current_date_formatted()
-        financial_year = _get_current_financial_year()
-        today = timezone.now().date()
-
         letter_settings = _get_letter_settings(request.user)
 
         doc = Document()
-
-        placeholder_color = RGBColor(169, 169, 169)
-
-        # Tight spacing throughout
-        normal_style = doc.styles['Normal']
-        normal_style.paragraph_format.space_after = Pt(4)
-        normal_style.paragraph_format.space_before = Pt(0)
-
-        sections = doc.sections
-        for section in sections:
-            section.top_margin = Inches(0.6)
-            section.bottom_margin = Inches(0.6)
-            section.left_margin = Inches(0.8)
-            section.right_margin = Inches(0.8)
-
-        # Header - Government/Organization name
-        header1 = doc.add_paragraph()
-        header1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        if letter_settings and letter_settings.government_name:
-            run1 = header1.add_run(letter_settings.government_name.upper())
-            run1.font.bold = True
-            run1.font.size = Pt(14)
-        else:
-            run1 = header1.add_run('[GOVERNMENT / ORGANIZATION NAME]')
-            run1.font.bold = True
-            run1.font.size = Pt(14)
-            run1.font.color.rgb = placeholder_color
-
-        # Header - Department name
-        header2 = doc.add_paragraph()
-        header2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        header2.paragraph_format.space_after = Pt(8)
-        if letter_settings and letter_settings.department_name:
-            run2 = header2.add_run(letter_settings.department_name.upper())
-            run2.font.bold = True
-            run2.font.size = Pt(13)
-        else:
-            run2 = header2.add_run('[DEPARTMENT NAME]')
-            run2.font.bold = True
-            run2.font.size = Pt(13)
-            run2.font.color.rgb = placeholder_color
-
-        # From/To section in a table
-        from_to_table = doc.add_table(rows=1, cols=2)
-        from_to_table.autofit = True
-
-        from_cell = from_to_table.cell(0, 0)
-        from_para = from_cell.paragraphs[0]
-        from_label = from_para.add_run('From: -\n')
-        from_label.font.bold = True
-
-        if letter_settings and letter_settings.officer_name:
-            name_qual = letter_settings.officer_name
-            if letter_settings.officer_qualification:
-                name_qual += f", {letter_settings.officer_qualification}"
-            from_run1 = from_para.add_run(f'{name_qual},\n')
-        else:
-            from_run1 = from_para.add_run('[Officer Name, Qualification],\n')
-            from_run1.font.color.rgb = placeholder_color
-
-        if letter_settings and letter_settings.officer_designation:
-            from_run2 = from_para.add_run(f'{letter_settings.officer_designation},\n')
-        else:
-            from_run2 = from_para.add_run('[Designation],\n')
-            from_run2.font.color.rgb = placeholder_color
-
-        if letter_settings and (letter_settings.sub_division or letter_settings.office_address):
-            sub_addr = letter_settings.sub_division
-            if letter_settings.office_address:
-                sub_addr += f", {letter_settings.office_address}" if sub_addr else letter_settings.office_address
-            from_run3 = from_para.add_run(f'{sub_addr}.')
-        else:
-            from_run3 = from_para.add_run('[Sub Division, Office Address].')
-            from_run3.font.color.rgb = placeholder_color
-
-        # To section
-        to_cell = from_to_table.cell(0, 1)
-        to_para = to_cell.paragraphs[0]
-        to_label = to_para.add_run('To,\n')
-        to_label.font.bold = True
-
-        if letter_settings and letter_settings.recipient_designation:
-            to_run1 = to_para.add_run(f'{letter_settings.recipient_designation},\n')
-        else:
-            to_run1 = to_para.add_run('[Officer Designation],\n')
-            to_run1.font.color.rgb = placeholder_color
-
-        if letter_settings and letter_settings.recipient_division:
-            to_run2 = to_para.add_run(f'{letter_settings.recipient_division},\n')
-        else:
-            to_run2 = to_para.add_run('[Division Name],\n')
-            to_run2.font.color.rgb = placeholder_color
-
-        if letter_settings and letter_settings.recipient_address:
-            to_run3 = to_para.add_run(f'{letter_settings.recipient_address}.')
-        else:
-            to_run3 = to_para.add_run('[Address].')
-            to_run3.font.color.rgb = placeholder_color
-
-        # Letter number and date
-        lr_para = doc.add_paragraph()
-        lr_para.paragraph_format.space_before = Pt(8)
-        lr_run = lr_para.add_run('Lr No. ')
-        lr_run.font.bold = True
-        lr_run.font.underline = True
-        if letter_settings and letter_settings.office_code:
-            lr_code = lr_para.add_run(letter_settings.office_code)
-            lr_code.font.underline = True
-            lr_code.font.bold = True
-        else:
-            lr_placeholder = lr_para.add_run('[Office Code]')
-            lr_placeholder.font.color.rgb = placeholder_color
-            lr_placeholder.font.underline = True
-            lr_placeholder.font.bold = True
-        lr_fy = lr_para.add_run(f'/{financial_year}/          ')
-        lr_fy.font.bold = True
-        lr_fy.font.underline = True
-        lr_date = lr_para.add_run(f'\t\t\t\t\tDate:-    - {today.strftime("%m")} - {today.year}.')
-        lr_date.font.bold = True
-        lr_date.font.underline = True
-
-        sir_para = doc.add_paragraph()
-        sir_para.paragraph_format.space_before = Pt(6)
-        sir_para.add_run('Sir,')
-
-        # Subject
-        subject_para = doc.add_paragraph()
-        subject_para.paragraph_format.space_before = Pt(6)
-        subj_run = subject_para.add_run('Sub:-')
-        subj_run.font.underline = True
-        subject_para.add_run('\t')
-        subj_work = subject_para.add_run(f'{work_name} ')
-        subj_work.font.bold = True
-        subject_para.add_run(f'for the year {financial_year}.  -  Submission  -  Request for obtaining administrative sanction  -  Regarding.')
-
-        # Reference
-        ref_para = doc.add_paragraph()
-        ref_run = ref_para.add_run('Ref:-')
-        ref_run.font.underline = True
-        ref_para.add_run('\tMemo No.')
-        ref_placeholder = ref_para.add_run('[Reference Number]')
-        ref_placeholder.font.color.rgb = placeholder_color
-        ref_placeholder.font.underline = True
-        ref_para.add_run(f'/{financial_year} Dt.')
-        ref_date_placeholder = ref_para.add_run('[DD.MM.YYYY]')
-        ref_date_placeholder.font.color.rgb = placeholder_color
-        ref_date_placeholder.font.underline = True
-
-        stars_para = doc.add_paragraph()
-        stars_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        stars_para.add_run('**.**')
-
-        body_para = doc.add_paragraph()
-        body_para.add_run('With reference to the subject cited, I submit here ')
-        with_run = body_para.add_run('with  1')
-        with_run.font.underline = True
-        body_para.add_run(' No. estimate for the following work for the amount specified.')
-
-        # Create table for estimate
-        table = doc.add_table(rows=2, cols=3)
-        table.style = 'Table Grid'
-        table.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-        for cell in table.columns[0].cells:
-            cell.width = Inches(0.5)
-        for cell in table.columns[1].cells:
-            cell.width = Inches(4.5)
-        for cell in table.columns[2].cells:
-            cell.width = Inches(1.5)
-
-        header_cells = table.rows[0].cells
-        header_cells[0].text = 'Sl.\nNo'
-        header_cells[1].text = 'Name of work'
-        header_cells[2].text = 'Amount'
-
-        for cell in header_cells:
-            for para in cell.paragraphs:
-                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                for run in para.runs:
-                    run.font.bold = True
-
-        row_cells = table.rows[1].cells
-        row_cells[0].text = '1'
-        row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        row_cells[1].text = work_name
-
-        formatted_amount = _format_indian_number(grand_total)
-        row_cells[2].text = f"Rs.{formatted_amount}"
-        row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-
-        spec_para = doc.add_paragraph()
-        spec_para.paragraph_format.space_before = Pt(6)
-        spec_para.add_run("Specification report accompanying the estimate explains the necessity and provisions made therein in detail.")
-
-        request_para = doc.add_paragraph()
-        request_para.add_run('I request the ')
-        if letter_settings and letter_settings.superior_designation:
-            req_run = request_para.add_run(letter_settings.superior_designation)
-        else:
-            req_placeholder = request_para.add_run('[Superior Officer Designation]')
-            req_placeholder.font.color.rgb = placeholder_color
-        request_para.add_run(' to kindly arrange to obtain administrative sanction for the above estimate and arrange to finalize the agency at the earliest for taking up the work.')
-
-        enc_para = doc.add_paragraph()
-        enc_para.paragraph_format.space_before = Pt(6)
-        enc_para.add_run('Enclosure: -')
-        doc.add_paragraph('Estimate  - 1 No.')
-
-        sign_para = doc.add_paragraph()
-        sign_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        sign_para.paragraph_format.space_before = Pt(14)
-        sign_para.add_run('Yours faithfully,')
-
-        title_para = doc.add_paragraph()
-        title_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        title_para.paragraph_format.space_before = Pt(18)
-
-        if letter_settings and letter_settings.officer_designation:
-            run_title = title_para.add_run(f'{letter_settings.officer_designation}\n')
-            run_title.font.bold = True
-        else:
-            run_title = title_para.add_run('[Officer Designation]\n')
-            run_title.font.bold = True
-            run_title.font.color.rgb = placeholder_color
-
-        if letter_settings and letter_settings.sub_division:
-            sub_div_run = title_para.add_run(f'{letter_settings.sub_division},\n')
-        else:
-            sub_div_run = title_para.add_run('[Sub Division Name],\n')
-            sub_div_run.font.color.rgb = placeholder_color
-
-        if letter_settings and letter_settings.office_address:
-            addr_run = title_para.add_run(f'{letter_settings.office_address}.')
-        else:
-            addr_run = title_para.add_run('[Office Address].')
-            addr_run.font.color.rgb = placeholder_color
-
-        copy_para = doc.add_paragraph()
-        copy_para.paragraph_format.space_before = Pt(8)
-        copy_para.add_run('Copy to the ')
-        if letter_settings and (letter_settings.copy_to_designation or letter_settings.copy_to_section):
-            copy_text = letter_settings.copy_to_designation or ''
-            if letter_settings.copy_to_section:
-                copy_text += f", {letter_settings.copy_to_section}" if copy_text else letter_settings.copy_to_section
-            copy_run = copy_para.add_run(copy_text)
-        else:
-            copy_placeholder = copy_para.add_run('[Officer Designation, Section Name]')
-            copy_placeholder.font.color.rgb = placeholder_color
-        copy_para.add_run(' for information.')
-
-        filename = 'Fwd_Letter.docx'
+        _build_forwarding_letter_body(doc, work_name, total_amount, letter_settings)
 
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = 'attachment; filename="Fwd_Letter.docx"'
         doc.save(response)
         return response
 
@@ -3065,6 +3238,45 @@ def download_forwarding_letter_live(request, category):
         from django.contrib import messages
         messages.error(request, f'Error generating forwarding letter: {str(e)}')
         return redirect('datas_groups', category=category)
+
+
+@login_required(login_url='login')
+@require_POST
+def download_forwarding_letter_multi(request, category):
+    """
+    Combined forwarding letter for the multi-estimate (Datas) carousel: one page
+    per estimate in a single .docx. The client posts `estimates_json`: a list of
+    {work_name, total_amount, ...}.
+    """
+    from docx import Document
+
+    try:
+        estimates = json.loads(request.POST.get('estimates_json', '[]')) or []
+    except Exception:
+        estimates = []
+    estimates = [e for e in estimates if isinstance(e, dict)]
+    if not estimates:
+        return JsonResponse({"error": "No estimates to generate a forwarding letter."}, status=400)
+
+    letter_settings = _get_letter_settings(request.user)
+
+    doc = Document()
+    for i, est in enumerate(estimates):
+        if i > 0:
+            doc.add_page_break()
+        _build_forwarding_letter_body(
+            doc,
+            est.get('work_name') or '{{NAME_OF_WORK}}',
+            est.get('total_amount') or '0.00',
+            letter_settings,
+        )
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    response['Content-Disposition'] = 'attachment; filename="Fwd_Letters.docx"'
+    doc.save(response)
+    return response
 
 
 
