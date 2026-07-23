@@ -672,6 +672,105 @@ def ajax_group_items(request, category, group):
 
 
 # -----------------------
+# AJAX ITEM META (rate/unit/desc for backend items)
+# -----------------------
+@login_required(login_url='login')
+@require_POST
+def ajax_items_meta(request, category):
+    """
+    Return {name: {rate, unit, desc}} for a list of backend item names.
+
+    Used by the Datas multi-estimate carousel's "Add Items" picker so newly
+    added backend items get a real (literal) rate -- essential because the
+    carousel download lifts out only the self-contained Estimate sheet, so a
+    "=Datas!J" link would have no backing sheet.
+    """
+    from ..utils_excel import normalize_text
+
+    try:
+        names = json.loads(request.POST.get("items", "[]")) or []
+    except Exception:
+        names = []
+    names = [str(n) for n in names if str(n).strip()]
+    if not names:
+        return JsonResponse({"meta": {}})
+
+    selected_backend_id = request.session.get("selected_backend_id")
+    try:
+        items_list, groups_map, units_map, ws_data, filepath = load_backend(
+            category, settings.BASE_DIR,
+            backend_id=selected_backend_id,
+            module_code='new_estimate',
+            user=request.user,
+        )
+    except Exception as e:
+        logger.error(f"ajax_items_meta: load_backend failed for {category}: {e}")
+        return JsonResponse({"error": "Could not load backend data"}, status=500)
+
+    name_to_info = {it["name"]: it for it in items_list}
+    project_area = request.session.get("project_area", "municipal") or "municipal"
+    work_type_for_rate = request.session.get("work_type", "original") or "original"
+
+    try:
+        wb_vals = load_workbook(filepath, data_only=True)
+        ws_vals_default = wb_vals["Master Datas"] if "Master Datas" in wb_vals.sheetnames else None
+    except Exception:
+        wb_vals = None
+        ws_vals_default = None
+
+    def _group_unit(nm):
+        u = units_map.get(nm, "")
+        if u:
+            return u
+        for grp_name, grp_items in groups_map.items():
+            if nm in grp_items:
+                if grp_name in ("Piping", "Wiring & Cables", "Run of Mains",
+                                "Sheathed Cables", "U.G Cabling"):
+                    return "Mtrs"
+                if grp_name == "Points":
+                    return "Pts"
+                break
+        return "Nos"
+
+    meta = {}
+    for nm in names:
+        info = name_to_info.get(nm)
+        if not info:
+            continue
+        rate = None
+        try:
+            if info.get('_is_custom'):
+                try:
+                    rate = float(info.get('_cached_rate') or 0) or None
+                except Exception:
+                    rate = None
+            else:
+                item_ws_vals = info.get('_source_ws_vals') or ws_vals_default
+                item_ws_for = info.get('_source_ws') or ws_data
+                rate = compute_block_rate(
+                    item_ws_vals, item_ws_for,
+                    info["start_row"], info["end_row"],
+                    area=project_area, work_type=work_type_for_rate,
+                )
+        except Exception:
+            rate = None
+        desc = ""
+        try:
+            _dws = info.get('_source_ws') or ws_data
+            desc = normalize_text(str(_dws.cell(row=info["start_row"] + 2, column=4).value or "").strip())
+        except Exception:
+            desc = ""
+        meta[nm] = {"rate": rate, "unit": _group_unit(nm), "desc": desc or nm}
+
+    if wb_vals is not None:
+        try:
+            wb_vals.close()
+        except Exception:
+            pass
+    return JsonResponse({"meta": meta})
+
+
+# -----------------------
 # AJAX TOGGLE ITEM (no page reload)
 # -----------------------
 @login_required(login_url='login')
@@ -1648,9 +1747,34 @@ def ajax_upload_prepared_estimate(request, category):
             status='completed',
         )
 
-        # Replace the working set entirely -- the point of this feature is to
-        # start from the prepared estimate, not merge into an existing one.
-        request.session['fetched_items'] = fetched
+        # MERGE with the current selection: preserve any items the user picked
+        # from the item/group panel (backend items) so they still appear in the
+        # download alongside the uploaded estimate. Only the uploaded portion is
+        # refreshed to this file (uploaded_item_blocks reference a single
+        # uploaded workbook, so we can't keep blocks from an older upload).
+        prev_fetched = request.session.get('fetched_items', []) or []
+        prev_uploaded = set(request.session.get('uploaded_items', []) or [])
+        prev_qty = request.session.get('qty_map', {}) or {}
+        prev_unit = request.session.get('unit_map', {}) or {}
+        prev_rates = request.session.get('item_rates', {}) or {}
+        prev_descs = request.session.get('item_descs', {}) or {}
+        uploaded_set = set(fetched)
+        # Backend (panel-selected) items to keep: previously selected, not from an
+        # upload, and not colliding with a just-uploaded item name.
+        kept_backend = [n for n in prev_fetched
+                        if n not in prev_uploaded and n not in uploaded_set]
+        for n in kept_backend:
+            if n in prev_qty:
+                qty_map.setdefault(n, prev_qty[n])
+            if n in prev_unit:
+                unit_map.setdefault(n, prev_unit[n])
+            if n in prev_rates:
+                item_rates.setdefault(n, prev_rates[n])
+            if n in prev_descs:
+                item_descs.setdefault(n, prev_descs[n])
+        merged_fetched = fetched + kept_backend
+
+        request.session['fetched_items'] = merged_fetched
         request.session['qty_map'] = qty_map
         request.session['unit_map'] = unit_map
         request.session['item_rates'] = item_rates
@@ -2164,6 +2288,8 @@ def download_multi_estimate(request, category):
         descs = {it["name"]: it.get("desc", it["name"]) for it in items}
         blocks = grp.get("blocks", {})
 
+        uploaded_names = list(item_names)  # items backed by uploaded blocks
+
         # Quantities: posted values (what the user just typed) win over session.
         posted_q = entry.get("qty_map") or {}
         qty_map = {}
@@ -2173,6 +2299,33 @@ def download_multi_estimate(request, category):
                 qty_map[name] = float(v)
             except (TypeError, ValueError):
                 continue
+
+        # Backend items the user added to this estimate via the "Add Items"
+        # picker. They are NOT uploaded blocks -> generation pulls them from the
+        # backend SOR. They need LITERAL rates because the combined workbook
+        # keeps only each self-contained Estimate sheet (no Datas sheet for
+        # "=Datas!J" links).
+        backend_names = []
+        for bi in (entry.get("backend_items") or []):
+            nm = (bi.get("name") or "").strip()
+            if not nm or nm in uploaded_names or nm in backend_names:
+                continue
+            backend_names.append(nm)
+            if bi.get("rate") is not None:
+                try:
+                    rate_values[nm] = float(bi.get("rate"))
+                except (TypeError, ValueError):
+                    pass
+            unit_map[nm] = bi.get("unit", "") or unit_map.get(nm, "")
+            if bi.get("desc"):
+                descs[nm] = bi.get("desc")
+            qv = posted_q.get(nm, bi.get("qty"))
+            try:
+                qty_map[nm] = float(qv)
+            except (TypeError, ValueError):
+                pass
+
+        all_names = uploaded_names + backend_names
 
         work_name = (entry.get("work_name") or grp.get("work_name") or sheet or "").strip()
 
@@ -2200,12 +2353,12 @@ def download_multi_estimate(request, category):
             current_step="Processing estimate...",
         )
         job.result = {
-            'fetched_items': item_names,
+            'fetched_items': all_names,
             'qty_map': qty_map,
             'unit_map': unit_map,
             'work_name': work_name,
             'work_type': work_type,
-            'uploaded_items': item_names,
+            'uploaded_items': uploaded_names,
             'uploaded_file_id': uploaded_file_id,
             'uploaded_item_blocks': blocks,
             'uploaded_sheet_name': sheet,

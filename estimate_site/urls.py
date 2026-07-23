@@ -189,6 +189,7 @@ urlpatterns = [
     path('datas/<str:category>/ajax_upload_custom_items/', views.ajax_upload_custom_items, name='ajax_upload_custom_items'),
     path('datas/<str:category>/ajax_upload_prepared_estimate/', views.ajax_upload_prepared_estimate, name='ajax_upload_prepared_estimate'),
     path('datas/<str:category>/ajax_upload_prepared_datas/', views.ajax_upload_prepared_datas, name='ajax_upload_prepared_datas'),
+    path('datas/<str:category>/ajax_items_meta/', views.ajax_items_meta, name='ajax_items_meta'),
     path('datas/<str:category>/item-spec/', views.get_item_specification, name='get_item_specification'),
     path('datas/<str:category>/item-spec/save/', views.save_item_specification, name='save_item_specification'),
     path('datas/<str:category>/locations/', views.get_locations, name='get_locations'),
