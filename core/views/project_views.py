@@ -518,7 +518,32 @@ def datas_items(request, category, group):
     ls_special_name = ""
     ls_special_amount = ""
     deduct_old_material = ""
-    
+
+    # Multi-estimate mode: one sliding preview per uploaded sheet.
+    multi_estimate_mode = request.session.get("multi_estimate_mode", False)
+    multi_estimates_session = request.session.get("multi_estimates", []) or []
+    multi_estimate_views = []
+    if multi_estimate_mode and multi_estimates_session:
+        for gi, grp in enumerate(multi_estimates_session):
+            grp_qty = grp.get("qty_map", {}) or {}
+            rows = []
+            for si, it in enumerate(grp.get("items", []), start=1):
+                rows.append({
+                    "sl": si,
+                    "name": it["name"],
+                    "unit": it.get("unit", ""),
+                    "rate": it.get("rate"),
+                    "qty": grp_qty.get(it["name"], ""),
+                })
+            multi_estimate_views.append({
+                "index": gi,
+                "sheet": grp.get("sheet", ""),
+                "work_name": grp.get("work_name") or grp.get("sheet", ""),
+                "rows": rows,
+                "count": len(rows),
+            })
+    multi_estimate_mode = bool(multi_estimate_views)
+
     return render(request, "core/items.html", {
         "category": category,
         "group": group,
@@ -542,6 +567,9 @@ def datas_items(request, category, group):
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'new_estimate', category),
         "estimate_locations": request.session.get("estimate_locations", []),
         "estimate_locations_json": json.dumps(request.session.get("estimate_locations", [])),
+        "multi_estimate_mode": multi_estimate_mode,
+        "multi_estimate_views": multi_estimate_views,
+        "multi_estimate_count": len(multi_estimate_views),
     })
 
 
@@ -1376,6 +1404,90 @@ def ajax_upload_prepared_estimate(request, category):
                            "(expected item headers with yellow background and red text)."
             }, status=400)
 
+        # ---- 1b) MULTI-ESTIMATE AUTO-SPLIT ----
+        # When item blocks are spread across more than one worksheet, treat each
+        # sheet as its own estimate: the user prepared several estimates at once
+        # (one sheet each) and wants to slide between them, enter quantities and
+        # download them all as one workbook. A genuine single prepared estimate
+        # keeps all its blocks on one sheet -> falls through to the normal path.
+        sheets_in_order = []
+        for blk in blocks:
+            if blk["sheet"] not in sheets_in_order:
+                sheets_in_order.append(blk["sheet"])
+
+        if len(sheets_in_order) > 1:
+            # Persist the uploaded file so the download step can copy blocks from it.
+            uploaded_file.seek(0)
+            upload_obj = Upload.objects.create(
+                organization=org,
+                user=request.user,
+                file=uploaded_file,
+                filename=uploaded_file.name,
+                file_size=uploaded_file.size,
+                status='completed',
+            )
+
+            multi_warnings = []
+            multi_estimates = []
+            for sheet_name in sheets_in_order:
+                seen_names = set()
+                items = []
+                grp_blocks = {}
+                for blk in blocks:
+                    if blk["sheet"] != sheet_name:
+                        continue
+                    name = blk["name"]
+                    if name in seen_names:
+                        multi_warnings.append(
+                            f"Duplicate item '{name}' in sheet '{sheet_name}' skipped."
+                        )
+                        continue
+                    seen_names.add(name)
+                    desc = blk["block_desc"] or name
+                    unit = _determine_unit_from_heading(name, upload_units_map)
+                    items.append({
+                        "name": name,
+                        "rate": blk["rate"],
+                        "unit": unit,
+                        "desc": desc,
+                    })
+                    grp_blocks[name] = [blk["start"], blk["end"], blk["sheet"]]
+                if not items:
+                    continue
+                multi_estimates.append({
+                    "sheet": sheet_name,
+                    "work_name": sheet_name,
+                    "items": items,
+                    "blocks": grp_blocks,
+                    "qty_map": {},
+                })
+
+            # Replace the working set with the multi-estimate payload and clear
+            # single-estimate session keys so the preview renders the carousel.
+            request.session['multi_estimate_mode'] = True
+            request.session['multi_estimates'] = multi_estimates
+            request.session['uploaded_file_id'] = upload_obj.id
+            request.session['fetched_items'] = []
+            request.session['qty_map'] = {}
+            request.session['unit_map'] = {}
+            request.session['uploaded_items'] = []
+            request.session['uploaded_item_blocks'] = {}
+            request.session['item_spec_overrides'] = {}
+            request.session['grand_total'] = ""
+            request.session['item_location_breakdown'] = {}
+            request.session['estimate_locations'] = []
+            request.session.modified = True
+
+            total_items = sum(len(g["items"]) for g in multi_estimates)
+            return JsonResponse({
+                "status": "ok",
+                "multi": True,
+                "estimate_count": len(multi_estimates),
+                "sheet_names": [g["work_name"] for g in multi_estimates],
+                "count": total_items,
+                "warnings": multi_warnings,
+            })
+
         # ---- 2) Parse the Estimate sheet ITEM rows (quantities, units, descriptions) ----
         # Item rows carry a Sl.No in column A; the ECV / LC / QC / NAC / GST /
         # L.S / Sub Total / Grand Total / Deduct rows do NOT. Keying on the Sl.No
@@ -1540,6 +1652,9 @@ def ajax_upload_prepared_estimate(request, category):
         request.session['grand_total'] = ""
         request.session['item_location_breakdown'] = {}
         request.session['estimate_locations'] = []
+        # Single-sheet upload -> leave multi-estimate mode.
+        request.session['multi_estimate_mode'] = False
+        request.session['multi_estimates'] = []
         request.session.modified = True
 
         return JsonResponse({
@@ -1774,6 +1889,183 @@ def download_output(request, category):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+# -----------------------
+# DOWNLOAD MULTIPLE ESTIMATES (one workbook, one Estimate sheet per uploaded sheet)
+# -----------------------
+@login_required(login_url='login')
+@require_POST
+def download_multi_estimate(request, category):
+    """
+    Build ONE workbook containing a self-contained Estimate sheet for every
+    estimate the user prepared from a multi-sheet upload.
+
+    The preview posts `estimates_json`: a list of
+        {"sheet": ..., "work_name": ..., "qty_map": {item: qty}}
+    in slide order. For each one we reuse the proven single-estimate generator
+    (generate_output_excel) to build a full workbook, then lift out just its
+    "Estimate" sheet -- rates written as literal values so it needs no backing
+    Datas sheet -- and copy it into the combined workbook.
+    """
+    from openpyxl import Workbook, load_workbook
+    from io import BytesIO
+    from core.utils_excel import copy_sheet_to_workbook
+
+    multi_estimates = request.session.get("multi_estimates", []) or []
+    if not multi_estimates:
+        return JsonResponse({"error": "No multi-estimate session found. Re-upload your file."}, status=400)
+
+    # Map sheet -> group for quick lookup; posted quantities/work names win.
+    groups_by_sheet = {g.get("sheet"): g for g in multi_estimates}
+
+    posted = []
+    try:
+        posted = json.loads(request.POST.get("estimates_json", "[]")) or []
+    except Exception:
+        posted = []
+    if not isinstance(posted, list) or not posted:
+        # Fall back to session order with empty quantities.
+        posted = [{"sheet": g.get("sheet"), "work_name": g.get("work_name"), "qty_map": {}}
+                  for g in multi_estimates]
+
+    work_type = (request.session.get("work_type") or "original").lower()
+    project_area = request.session.get("project_area", "municipal") or "municipal"
+    uploaded_file_id = request.session.get("uploaded_file_id")
+    selected_backend_id = request.session.get("selected_backend_id")
+    org = get_org_from_request(request)
+
+    combined = Workbook()
+    combined.remove(combined.active)  # drop default sheet; we add per estimate
+    used_titles = set()
+
+    def _unique_title(base):
+        # Excel sheet titles: <=31 chars, unique, no []:*?/\
+        clean = re.sub(r'[\[\]:*?/\\]', ' ', str(base or "Estimate")).strip() or "Estimate"
+        clean = clean[:31]
+        title = clean
+        n = 2
+        while title.lower() in used_titles:
+            suffix = f" ({n})"
+            title = clean[:31 - len(suffix)] + suffix
+            n += 1
+        used_titles.add(title.lower())
+        return title
+
+    any_sheet = False
+    for entry in posted:
+        sheet = entry.get("sheet")
+        grp = groups_by_sheet.get(sheet)
+        if not grp:
+            continue
+
+        items = grp.get("items", [])
+        item_names = [it["name"] for it in items]
+        rate_values = {it["name"]: it.get("rate") for it in items if it.get("rate") is not None}
+        unit_map = {it["name"]: it.get("unit", "") for it in items}
+        descs = {it["name"]: it.get("desc", it["name"]) for it in items}
+        blocks = grp.get("blocks", {})
+
+        # Quantities: posted values (what the user just typed) win over session.
+        posted_q = entry.get("qty_map") or {}
+        qty_map = {}
+        for name in item_names:
+            v = posted_q.get(name, grp.get("qty_map", {}).get(name))
+            try:
+                qty_map[name] = float(v)
+            except (TypeError, ValueError):
+                continue
+
+        work_name = (entry.get("work_name") or grp.get("work_name") or sheet or "").strip()
+
+        # Per-estimate tax options (same set as the single estimate).
+        def _num(v):
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        grand_total = _num(entry.get("grand_total"))
+        excess_tp_percent = _num(entry.get("excess_tp_percent")) if entry.get("excess_tp_enabled") else None
+        if entry.get("ls_special_enabled"):
+            ls_special_name = (entry.get("ls_special_name") or "").strip() or None
+            ls_special_amount = _num(entry.get("ls_special_amount"))
+        else:
+            ls_special_name = None
+            ls_special_amount = None
+
+        job = Job.objects.create(
+            organization=org,
+            user=request.user,
+            job_type='generate_output_excel',
+            status='queued',
+            current_step="Processing estimate...",
+        )
+        job.result = {
+            'fetched_items': item_names,
+            'qty_map': qty_map,
+            'unit_map': unit_map,
+            'work_name': work_name,
+            'work_type': work_type,
+            'uploaded_items': item_names,
+            'uploaded_file_id': uploaded_file_id,
+            'uploaded_item_blocks': blocks,
+            'uploaded_sheet_name': sheet,
+            'item_descs': descs,
+            'item_units_saved': unit_map,
+            'spec_overrides': descs,
+            'item_rates': rate_values,
+            'rate_values': rate_values,
+            'project_area': project_area,
+            'backend_id': selected_backend_id,
+        }
+        job.save()
+
+        from core.tasks import generate_output_excel
+        generate_output_excel.apply(args=(
+            job.id,
+            category,
+            json.dumps(qty_map),
+            json.dumps(unit_map),
+            work_name,
+            work_type,
+            grand_total,
+            excess_tp_percent,
+            ls_special_name,
+            ls_special_amount,
+            None,  # deduct_old_material (repair-only; not used in multi-estimate)
+            selected_backend_id,
+        ), kwargs={'rate_values': rate_values}).get()
+
+        job.refresh_from_db()
+        output_file = job.output_files.first()
+        if not (output_file and output_file.file):
+            logger.warning(f"Multi-estimate: no output for sheet '{sheet}'")
+            continue
+
+        try:
+            wb_i = load_workbook(BytesIO(output_file.file.read()), data_only=False)
+        except Exception as e:
+            logger.warning(f"Multi-estimate: could not reload output for '{sheet}': {e}")
+            continue
+
+        if "Estimate" not in wb_i.sheetnames:
+            continue
+
+        ws_copied = copy_sheet_to_workbook(wb_i, "Estimate", combined)
+        if ws_copied is not None:
+            ws_copied.title = _unique_title(work_name or sheet)
+            any_sheet = True
+
+    if not any_sheet:
+        return JsonResponse({"error": "No estimates could be generated."}, status=400)
+
+    from django.utils.timezone import localtime
+    ts = localtime().strftime('%H%M%S')
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="Estimates_{ts}.xlsx"'
+    combined.save(response)
+    return response
 
 
 
@@ -1797,6 +2089,9 @@ def clear_output(request, category):
     request.session["uploaded_file_id"] = None
     request.session["uploaded_item_blocks"] = {}
     request.session["uploaded_sheet_name"] = ""
+    # Clear multi-estimate mode
+    request.session["multi_estimate_mode"] = False
+    request.session["multi_estimates"] = []
 
     group = request.GET.get("group")
     if group:

@@ -362,7 +362,7 @@ def generate_workslip_pdf(self, job_id, project_id):
 
 
 @shared_task(bind=True, max_retries=2)
-def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, work_name, work_type, grand_total=None, excess_tp_percent=None, ls_special_name=None, ls_special_amount=None, deduct_old_material=None, backend_id=None):
+def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, work_name, work_type, grand_total=None, excess_tp_percent=None, ls_special_name=None, ls_special_amount=None, deduct_old_material=None, backend_id=None, rate_values=None):
     """
     Generate Output + Estimate Excel workbook asynchronously.
     
@@ -476,6 +476,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         item_location_breakdown = job.result.get('item_location_breakdown', {}) if job.result else {}
         estimate_locations = job.result.get('estimate_locations', []) if job.result else []
         project_area = (job.result.get('project_area', 'municipal') if job.result else 'municipal') or 'municipal'
+
+        # Multi-estimate download passes literal rates so each Estimate sheet is
+        # self-contained. Accept them from job.result when not passed directly.
+        if rate_values is None and job.result:
+            rate_values = job.result.get('rate_values') or None
 
         # Load uploaded workbook if needed
         ws_upload_src = None
@@ -743,7 +748,17 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 desc = spec_overrides[name]
 
             rr = rate_pos.get(name)
-            rate_formula = f"=Datas!J{rr}" if rr else ""
+            # Multi-estimate mode: write the rate as a literal value so the
+            # Estimate sheet is self-contained (it will be lifted out of this
+            # workbook without its backing Datas sheet). Otherwise link live to
+            # the Datas rate cell as usual.
+            if rate_values is not None and name in rate_values:
+                try:
+                    rate_formula = round(float(rate_values[name]), 2)
+                except (TypeError, ValueError):
+                    rate_formula = f"=Datas!J{rr}" if rr else ""
+            else:
+                rate_formula = f"=Datas!J{rr}" if rr else ""
 
             # Priority for unit: 1) user-entered unit_map, 2) saved/backend unit, 3) group-based default
             custom_unit = unit_map.get(name, "").strip()

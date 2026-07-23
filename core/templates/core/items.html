@@ -931,11 +931,6 @@
             <i class="bi bi-arrow-repeat"></i>
             <span>Upload Prepared Estimate</span>
         </button>
-        <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}"
-           class="btn-ribbon-upload" title="Upload your own group &amp; items">
-            <i class="bi bi-cloud-upload"></i>
-            <span>Upload Custom Items</span>
-        </a>
     </div>
 </div>
 {% else %}
@@ -946,11 +941,6 @@
         <i class="bi bi-arrow-repeat"></i>
         <span>Upload Prepared Estimate</span>
     </button>
-    <a href="{% url 'custom_backend_upload' %}?module=estimate&amp;category={{ category }}"
-       class="btn-ribbon-upload" title="Upload your own group &amp; items">
-        <i class="bi bi-cloud-upload"></i>
-        <span>Upload Custom Items</span>
-    </a>
 </div>
 {% endif %}
 <input type="file" id="prepared-estimate-file" accept=".xlsx" style="display:none;">
@@ -1031,6 +1021,69 @@
     border-radius: 4px;
     letter-spacing: 0.3px;
     vertical-align: middle;
+}
+
+/* ===== Multi-estimate carousel ===== */
+#multi-estimate-carousel { display: flex; flex-direction: column; }
+.multi-est-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.multi-est-count { font-size: 0.78rem; color: #475569; }
+.multi-est-count strong { color: #6366f1; }
+.multi-est-nav { display: flex; align-items: center; gap: 8px; }
+.multi-est-position { font-size: 0.8rem; font-weight: 600; color: #334155; min-width: 46px; text-align: center; }
+.multi-est-arrow {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid #cbd5e1;
+    background: #fff; color: #475569; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; transition: all .15s;
+}
+.multi-est-arrow:hover:not(:disabled) { background: #6366f1; color: #fff; border-color: #6366f1; }
+.multi-est-arrow:disabled { opacity: .4; cursor: default; }
+.multi-est-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; }
+.multi-est-dot {
+    width: 9px; height: 9px; border-radius: 50%; border: none; padding: 0;
+    background: #cbd5e1; cursor: pointer; transition: all .15s;
+}
+.multi-est-dot.active { background: #6366f1; transform: scale(1.25); }
+.multi-est-track {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    scroll-behavior: smooth; gap: 0; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.multi-est-track::-webkit-scrollbar { display: none; }
+.multi-est-slide {
+    flex: 0 0 100%; min-width: 100%; scroll-snap-align: start;
+    padding: 2px 4px;
+}
+.multi-est-table .rate-cell { text-align: center; }
+.mest-options {
+    margin-top: 8px; padding: 10px 12px; border: 1px solid #e5e7eb;
+    border-radius: 6px; background: #fafafa; font-size: 0.75rem; color: #475569;
+}
+.mest-check { display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 4px 0; }
+.mest-check input { width: 14px; height: 14px; accent-color: #6366f1; cursor: pointer; }
+.mest-excess-tp-fields, .mest-ls-special-fields {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    margin: 4px 0 8px 22px; padding: 6px 8px; background: #fff;
+    border: 1px solid #e5e7eb; border-radius: 4px;
+}
+.mest-ls-special-fields { display: block; }
+.mest-tax { margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.mest-tax-head {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    padding: 7px 12px; font-size: 0.72rem; font-weight: 600; color: #92400e;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.mest-tax-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; background: #fffbeb; }
+.mest-tax-table td { padding: 3px 12px; color: #78350f; }
+.mest-tax-table td:last-child { text-align: right; font-weight: 600; }
+.mest-tax-table tr.mest-sep td { border-top: 1px dashed #d97706; font-weight: 700; padding-top: 5px; }
+.mest-tax-table tr.mest-strong td { border-top: 2px solid #d97706; background: #fef3c7; font-weight: 700; padding: 6px 12px; }
+.mest-ls-unforeseen { color: #22c55e; }
+.mest-ls-warning {
+    margin: 8px 12px; padding: 6px 10px; background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 4px; color: #dc2626; font-size: 0.7rem;
 }
 </style>
 
@@ -1128,7 +1181,155 @@
             Estimate Preview
         </div>
         <div class="panel-body">
-            <form id="estimate-form" class="no-spa" method="post" action="{% url 'download_output' category %}">
+            {% if multi_estimate_mode %}
+            <!-- MULTI-ESTIMATE CAROUSEL: one sliding estimate per uploaded sheet -->
+            <div id="multi-estimate-carousel" data-download-url="{% url 'download_multi_estimate' category %}">
+                <div class="multi-est-toolbar">
+                    <div class="multi-est-count">
+                        <i class="bi bi-collection"></i>
+                        <strong>{{ multi_estimate_count }}</strong> estimate{{ multi_estimate_count|pluralize }} ready &mdash;
+                        slide to review, enter quantities, then download all as one workbook.
+                    </div>
+                    <div class="multi-est-nav">
+                        <button type="button" class="multi-est-arrow" id="multi-prev" title="Previous estimate">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        <span class="multi-est-position"><span id="multi-current">1</span> / {{ multi_estimate_count }}</span>
+                        <button type="button" class="multi-est-arrow" id="multi-next" title="Next estimate">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="multi-est-dots" id="multi-dots">
+                    {% for est in multi_estimate_views %}
+                    <button type="button" class="multi-est-dot {% if forloop.first %}active{% endif %}"
+                            data-slide="{{ forloop.counter0 }}" title="{{ est.work_name }}"></button>
+                    {% endfor %}
+                </div>
+                <div class="multi-est-track" id="multi-track">
+                    {% for est in multi_estimate_views %}
+                    <div class="multi-est-slide" data-index="{{ est.index }}" data-sheet="{{ est.sheet }}">
+                        <label class="work-name-label">
+                            <i class="bi bi-pencil-square me-1"></i> Name of the Work (Estimate {{ forloop.counter }})
+                        </label>
+                        <input type="text" class="work-name-input multi-est-workname"
+                               value="{{ est.work_name }}" placeholder="Enter work name...">
+                        <div class="estimate-table-wrapper">
+                            <table class="estimate-table multi-est-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px;">Sl.No</th>
+                                        <th>Item Description</th>
+                                        <th style="width: 70px;">Unit</th>
+                                        <th style="width: 80px;">Rate</th>
+                                        <th style="width: 110px;">Qty</th>
+                                        <th style="width: 110px;">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in est.rows %}
+                                    <tr data-item-name="{{ row.name }}">
+                                        <td class="sl-cell">{{ row.sl }}</td>
+                                        <td class="desc-col"><span class="item-text" title="{{ row.name }}">{{ row.name }}</span></td>
+                                        <td class="unit-cell">{{ row.unit }}</td>
+                                        <td class="rate-cell">{% if row.rate is not None %}₹{{ row.rate }}{% endif %}</td>
+                                        <td class="qty-cell">
+                                            <input type="number" min="0" step="0.01"
+                                                   class="qty-input multi-est-qty"
+                                                   value="{{ row.qty|default_if_none:'' }}"
+                                                   data-rate="{{ row.rate|default_if_none:0 }}">
+                                        </td>
+                                        <td class="amount-cell"></td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="6"><div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No items in this sheet.</p></div></td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="estimate-total-row">
+                            <span class="total-label"><i class="bi bi-currency-rupee me-1"></i> ECV Amount</span>
+                            <span class="total-amount">₹<span class="multi-est-ecv">0.00</span></span>
+                        </div>
+
+                        <!-- Grand Total (Manual Entry) -->
+                        <div class="estimate-total-row" style="background: #e6fffa; border-color: #38b2ac;">
+                            <label class="total-label" style="color: #234e52;">
+                                <i class="bi bi-calculator me-1"></i> Grand Total (Manual Entry)
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="font-weight: 600; color: #319795;">₹</span>
+                                <input type="number" class="qty-input mest-grand-total"
+                                       style="width: 100px; font-weight: 700; color: #319795; border-color: #38b2ac;"
+                                       step="0.01" min="0" placeholder="Enter amount">
+                            </div>
+                        </div>
+
+                        <!-- Additional Options: Excess T.P + L.S Special -->
+                        <div class="mest-options">
+                            <label class="mest-check">
+                                <input type="checkbox" class="mest-excess-tp-cb"> Add Excess T.P?
+                            </label>
+                            <div class="mest-excess-tp-fields" style="display: none;">
+                                <span>Percentage:</span>
+                                <input type="number" class="qty-input mest-excess-tp-pct"
+                                       style="width: 55px; text-align: center;" step="0.01" min="0" max="100" placeholder="5">
+                                <span>%</span>
+                            </div>
+                            <label class="mest-check">
+                                <input type="checkbox" class="mest-ls-special-cb"> L.S. Provision towards Special Items?
+                            </label>
+                            <div class="mest-ls-special-fields" style="display: none;">
+                                <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                                    <span style="min-width:55px;">Name:</span>
+                                    <input type="text" class="qty-input mest-ls-special-name" style="flex:1;" placeholder="Special Equipment">
+                                </div>
+                                <div style="display:flex; align-items:center; gap:6px;">
+                                    <span style="min-width:55px;">Amount:</span><span>₹</span>
+                                    <input type="number" class="qty-input mest-ls-special-amount" style="width:90px;" step="0.01" min="0" placeholder="50000">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tax & Provision Breakdown -->
+                        <div class="mest-tax">
+                            <div class="mest-tax-head"><i class="bi bi-receipt me-1"></i>Tax &amp; Provision Preview</div>
+                            <table class="mest-tax-table">
+                                <tbody>
+                                    <tr><td>ECV (Items Total)</td><td>₹<span class="mest-ecv">0.00</span></td></tr>
+                                    <tr class="mest-excess-tp-row" style="display:none;"><td>Add Excess T.P @ <span class="mest-excess-tp-pct-out">0</span>%</td><td>₹<span class="mest-excess-tp-val">0.00</span></td></tr>
+                                    <tr><td>Add LC @ 1%</td><td>₹<span class="mest-lc">0.00</span></td></tr>
+                                    <tr><td>Add QC @ 1%</td><td>₹<span class="mest-qc">0.00</span></td></tr>
+                                    <tr><td>Add NAC @ 0.1%</td><td>₹<span class="mest-nac">0.00</span></td></tr>
+                                    <tr class="mest-sep"><td>Sub Total</td><td>₹<span class="mest-subtotal">0.00</span></td></tr>
+                                    <tr><td>Add GST @ 18%</td><td>₹<span class="mest-gst">0.00</span></td></tr>
+                                    <tr class="mest-ls-special-row" style="display:none;"><td>L.S Provision (<span class="mest-ls-special-name-out">Special Items</span>)</td><td>₹<span class="mest-ls-special-val">0.00</span></td></tr>
+                                    <tr class="mest-strong"><td>L.S Provision (Unforeseen Items)</td><td><span class="mest-ls-unforeseen">₹0.00</span></td></tr>
+                                    <tr class="mest-strong"><td>Grand Total</td><td>₹<span class="mest-grand-out">0.00</span></td></tr>
+                                </tbody>
+                            </table>
+                            <div class="mest-ls-warning" style="display:none;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                L.S Provision is negative. Minimum Grand Total needed: ₹<span class="mest-min-grand">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="action-buttons" style="margin-top: 12px;">
+                    <button type="button" class="btn-action btn-download" id="multi-download-btn">
+                        <i class="bi bi-download"></i>
+                        Download All Estimates
+                    </button>
+                    <a href="{% url 'clear_output' category %}?group={{ group }}" class="btn-action btn-clear">
+                        <i class="bi bi-x-circle"></i>
+                        Clear All
+                    </a>
+                </div>
+                <div id="multi-download-status" style="display:none; margin-top:8px; font-size:0.8rem;"></div>
+            </div>
+            {% endif %}
+            <form id="estimate-form" class="no-spa" method="post" action="{% url 'download_output' category %}"{% if multi_estimate_mode %} style="display:none;"{% endif %}>
                 {% csrf_token %}
                 <input type="hidden" name="qty_map" id="qty-map-field">
                 <input type="hidden" name="unit_map" id="unit-map-field">
@@ -2021,8 +2222,15 @@ document.addEventListener('keydown', function(e) {
                 return;
             }
             var data = result.data;
-            var msg = '<i class="bi bi-check-circle"></i> Imported <strong>' + data.count +
+            var msg;
+            if (data.multi) {
+                msg = '<i class="bi bi-check-circle"></i> Found <strong>' + data.estimate_count +
+                      '</strong> estimates (' + data.count + ' items) across your sheets. ' +
+                      'Opening sliding preview...';
+            } else {
+                msg = '<i class="bi bi-check-circle"></i> Imported <strong>' + data.count +
                       '</strong> item(s) with quantities. Reloading preview...';
+            }
             if (data.warnings && data.warnings.length) {
                 msg += '<br><small style="color:#b45309;">' +
                        escapeHtml(data.warnings.join(' ')) + '</small>';
@@ -3951,6 +4159,243 @@ function itemsShowPanel(name, btn) {
     });
     if (btn) btn.classList.add('active');
 }
+</script>
+
+<script>
+// ========================================
+// MULTI-ESTIMATE CAROUSEL
+// One sliding estimate per uploaded sheet; enter quantities and download
+// them all as a single workbook (one Estimate sheet each).
+// ========================================
+(function() {
+    var carousel = document.getElementById('multi-estimate-carousel');
+    if (!carousel) return;
+
+    var track = document.getElementById('multi-track');
+    var slides = Array.prototype.slice.call(track.querySelectorAll('.multi-est-slide'));
+    var dots = Array.prototype.slice.call(document.querySelectorAll('#multi-dots .multi-est-dot'));
+    var prevBtn = document.getElementById('multi-prev');
+    var nextBtn = document.getElementById('multi-next');
+    var currentLabel = document.getElementById('multi-current');
+    var total = slides.length;
+
+    function fmt(n) {
+        return n.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function setText(slide, sel, txt) {
+        var el = slide.querySelector(sel);
+        if (el) el.textContent = txt;
+    }
+
+    // Read a slide's tax option values (mirrors the single-estimate controls).
+    function readTax(slide) {
+        var tpCb = slide.querySelector('.mest-excess-tp-cb');
+        var lsCb = slide.querySelector('.mest-ls-special-cb');
+        var tpEnabled = tpCb && tpCb.checked;
+        var lsEnabled = lsCb && lsCb.checked;
+        return {
+            tpEnabled: tpEnabled,
+            tpPct: tpEnabled ? (parseFloat((slide.querySelector('.mest-excess-tp-pct') || {}).value) || 0) : 0,
+            lsEnabled: lsEnabled,
+            lsName: lsEnabled ? ((slide.querySelector('.mest-ls-special-name') || {}).value || '').trim() : '',
+            lsAmount: lsEnabled ? (parseFloat((slide.querySelector('.mest-ls-special-amount') || {}).value) || 0) : 0,
+            grand: parseFloat((slide.querySelector('.mest-grand-total') || {}).value) || 0
+        };
+    }
+
+    // Recompute a slide's amounts, ECV and full tax breakdown.
+    function recalcSlide(slide) {
+        var ecv = 0;
+        slide.querySelectorAll('tr[data-item-name]').forEach(function(row) {
+            var input = row.querySelector('.multi-est-qty');
+            if (!input) return;
+            var qty = parseFloat(input.value) || 0;
+            var rate = parseFloat(input.getAttribute('data-rate')) || 0;
+            var amt = Math.round(qty * rate * 100) / 100;
+            var cell = row.querySelector('.amount-cell');
+            if (cell) cell.textContent = amt ? '₹' + fmt(amt) : '';
+            ecv += amt;
+        });
+        setText(slide, '.multi-est-ecv', fmt(ecv));
+
+        // Tax breakdown (same math as the single estimate; QC included).
+        var t = readTax(slide);
+        var excessTP = t.tpEnabled ? ecv * (t.tpPct / 100) : 0;
+        var lc = ecv * 0.01, qc = ecv * 0.01, nac = ecv * 0.001;
+        var subTotal = ecv + excessTP + lc + qc + nac;
+        var gst = subTotal * 0.18;
+        var lsUnforeseen = t.grand - subTotal - gst - t.lsAmount;
+        var minGrand = subTotal + gst + t.lsAmount;
+
+        setText(slide, '.mest-ecv', fmt(ecv));
+        setText(slide, '.mest-lc', fmt(lc));
+        setText(slide, '.mest-qc', fmt(qc));
+        setText(slide, '.mest-nac', fmt(nac));
+        setText(slide, '.mest-subtotal', fmt(subTotal));
+        setText(slide, '.mest-gst', fmt(gst));
+        setText(slide, '.mest-grand-out', fmt(t.grand));
+
+        var tpRow = slide.querySelector('.mest-excess-tp-row');
+        if (tpRow) {
+            if (t.tpEnabled && t.tpPct > 0) {
+                tpRow.style.display = '';
+                setText(slide, '.mest-excess-tp-pct-out', t.tpPct);
+                setText(slide, '.mest-excess-tp-val', fmt(excessTP));
+            } else { tpRow.style.display = 'none'; }
+        }
+        var lsRow = slide.querySelector('.mest-ls-special-row');
+        if (lsRow) {
+            if (t.lsEnabled && t.lsAmount > 0) {
+                lsRow.style.display = '';
+                setText(slide, '.mest-ls-special-name-out', t.lsName || 'Special Items');
+                setText(slide, '.mest-ls-special-val', fmt(t.lsAmount));
+            } else { lsRow.style.display = 'none'; }
+        }
+        var lsEl = slide.querySelector('.mest-ls-unforeseen');
+        if (lsEl) {
+            lsEl.textContent = '₹' + fmt(lsUnforeseen);
+            lsEl.style.color = lsUnforeseen < 0 ? '#dc2626' : '#22c55e';
+        }
+        var warn = slide.querySelector('.mest-ls-warning');
+        if (warn) {
+            if (t.grand > 0 && lsUnforeseen < 0) {
+                warn.style.display = '';
+                setText(slide, '.mest-min-grand', fmt(minGrand));
+            } else { warn.style.display = 'none'; }
+        }
+    }
+
+    slides.forEach(recalcSlide);
+
+    // Recompute on any qty / tax input; toggle option fields on checkbox change.
+    track.addEventListener('input', function(e) {
+        var slide = e.target.closest && e.target.closest('.multi-est-slide');
+        if (slide) recalcSlide(slide);
+    });
+    track.addEventListener('change', function(e) {
+        var slide = e.target.closest && e.target.closest('.multi-est-slide');
+        if (!slide) return;
+        if (e.target.classList.contains('mest-excess-tp-cb')) {
+            var f = slide.querySelector('.mest-excess-tp-fields');
+            if (f) f.style.display = e.target.checked ? 'flex' : 'none';
+        }
+        if (e.target.classList.contains('mest-ls-special-cb')) {
+            var f2 = slide.querySelector('.mest-ls-special-fields');
+            if (f2) f2.style.display = e.target.checked ? 'block' : 'none';
+        }
+        recalcSlide(slide);
+    });
+
+    // ----- Slide navigation -----
+    function currentIndex() {
+        if (!slides.length) return 0;
+        return Math.round(track.scrollLeft / track.clientWidth);
+    }
+    function goTo(i) {
+        i = Math.max(0, Math.min(total - 1, i));
+        track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
+    }
+    function syncNav() {
+        var i = currentIndex();
+        if (currentLabel) currentLabel.textContent = (i + 1);
+        dots.forEach(function(d, di) { d.classList.toggle('active', di === i); });
+        if (prevBtn) prevBtn.disabled = (i <= 0);
+        if (nextBtn) nextBtn.disabled = (i >= total - 1);
+    }
+    if (prevBtn) prevBtn.addEventListener('click', function() { goTo(currentIndex() - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function() { goTo(currentIndex() + 1); });
+    dots.forEach(function(d) {
+        d.addEventListener('click', function() { goTo(parseInt(d.getAttribute('data-slide'), 10) || 0); });
+    });
+    var _scrollTimer = null;
+    track.addEventListener('scroll', function() {
+        if (_scrollTimer) window.clearTimeout(_scrollTimer);
+        _scrollTimer = window.setTimeout(syncNav, 80);
+    });
+    window.addEventListener('resize', syncNav);
+    syncNav();
+
+    // ----- Download all -----
+    function gatherEstimates() {
+        return slides.map(function(slide) {
+            var qtyMap = {};
+            slide.querySelectorAll('tr[data-item-name]').forEach(function(row) {
+                var name = row.getAttribute('data-item-name');
+                var input = row.querySelector('.multi-est-qty');
+                if (!name || !input) return;
+                var v = input.value.trim();
+                if (v !== '') qtyMap[name] = parseFloat(v) || 0;
+            });
+            var wn = slide.querySelector('.multi-est-workname');
+            var t = readTax(slide);
+            return {
+                sheet: slide.getAttribute('data-sheet'),
+                work_name: wn ? wn.value.trim() : '',
+                qty_map: qtyMap,
+                grand_total: t.grand || null,
+                excess_tp_enabled: t.tpEnabled,
+                excess_tp_percent: t.tpEnabled ? t.tpPct : null,
+                ls_special_enabled: t.lsEnabled,
+                ls_special_name: t.lsEnabled ? t.lsName : null,
+                ls_special_amount: t.lsEnabled ? t.lsAmount : null
+            };
+        });
+    }
+
+    var downloadBtn = document.getElementById('multi-download-btn');
+    var statusEl = document.getElementById('multi-download-status');
+    function showStatus(html, isError) {
+        if (!statusEl) return;
+        statusEl.style.display = '';
+        statusEl.style.color = isError ? '#dc2626' : '#065f46';
+        statusEl.innerHTML = html;
+    }
+
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function() {
+            var token = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+            var url = carousel.getAttribute('data-download-url');
+            var payload = gatherEstimates();
+
+            downloadBtn.disabled = true;
+            var origHtml = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Building estimates...';
+            showStatus('<i class="bi bi-hourglass-split"></i> Generating ' + payload.length + ' estimate(s)...', false);
+
+            var fd = new FormData();
+            fd.append('estimates_json', JSON.stringify(payload));
+            fd.append('csrfmiddlewaretoken', token);
+
+            fetch(url, { method: 'POST', body: fd, headers: { 'X-CSRFToken': token } })
+                .then(function(resp) {
+                    if (!resp.ok) {
+                        return resp.json().then(function(d) { throw new Error(d.error || 'Download failed'); });
+                    }
+                    return resp.blob();
+                })
+                .then(function(blob) {
+                    var a = document.createElement('a');
+                    var objUrl = URL.createObjectURL(blob);
+                    a.href = objUrl;
+                    var ts = new Date().toTimeString().slice(0, 8).replace(/:/g, '');
+                    a.download = 'Estimates_' + ts + '.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(objUrl);
+                    showStatus('<i class="bi bi-check-circle"></i> Downloaded ' + payload.length + ' estimate(s).', false);
+                })
+                .catch(function(err) {
+                    showStatus('<i class="bi bi-exclamation-triangle"></i> ' + (err.message || 'Download failed'), true);
+                })
+                .finally(function() {
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = origHtml;
+                });
+        });
+    }
+})();
 </script>
 
 {% endblock %}

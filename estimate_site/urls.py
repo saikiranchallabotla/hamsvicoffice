@@ -173,6 +173,7 @@ urlpatterns = [
     path('datas/<str:category>/save/', views.save_project, name='save_project'),
     path('datas/<str:category>/output/', views.output_panel, name='output_panel'),
     path('datas/<str:category>/download/', views.download_output, name='download_output'),
+    path('datas/<str:category>/download_multi/', views.download_multi_estimate, name='download_multi_estimate'),
     path('datas/<str:category>/clear/', views.clear_output, name='clear_output'),
     path('datas/<str:category>/save_qty_map/', views.save_qty_map, name='save_qty_map'),
     path('datas/<str:category>/specification-report/', views.download_specification_report_live, name='download_specification_report_live'),
