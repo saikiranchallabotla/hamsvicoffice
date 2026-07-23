@@ -1580,7 +1580,6 @@ def ajax_upload_prepared_estimate(request, category):
         unit_map = {}
         item_rates = {}
         item_descs = {}
-        spec_overrides = {}
         uploaded_item_blocks = {}
         seen = set()
 
@@ -1616,9 +1615,10 @@ def ajax_upload_prepared_estimate(request, category):
             fetched.append(name)
             item_rates[name] = blk["rate"]
             unit_map[name] = unit
+            # item_descs feeds ONLY the Estimate sheet row. The Datas block's
+            # own row+2 is copied verbatim on download (no spec override), so its
+            # description keeps the exact text/spacing of the uploaded file.
             item_descs[name] = desc
-            # Force estimate-desc <-> block-row+2 to reconcile on re-download.
-            spec_overrides[name] = desc
             if qty is not None:
                 qty_map[name] = qty
             uploaded_item_blocks[name] = [blk["start"], blk["end"], blk["sheet"]]
@@ -1655,7 +1655,10 @@ def ajax_upload_prepared_estimate(request, category):
         request.session['unit_map'] = unit_map
         request.session['item_rates'] = item_rates
         request.session['item_descs'] = item_descs
-        request.session['item_spec_overrides'] = spec_overrides
+        # No auto spec override: uploaded blocks must reproduce their source row+2
+        # exactly. Only genuine in-app spec edits (save_item_specification) set
+        # item_spec_overrides.
+        request.session['item_spec_overrides'] = {}
         request.session['uploaded_items'] = fetched
         request.session['uploaded_file_id'] = upload_obj.id
         request.session['uploaded_item_blocks'] = uploaded_item_blocks
@@ -2208,7 +2211,9 @@ def download_multi_estimate(request, category):
             'uploaded_sheet_name': sheet,
             'item_descs': descs,
             'item_units_saved': unit_map,
-            'spec_overrides': descs,
+            # No spec override: the uploaded block's row+2 is copied verbatim so
+            # its description keeps the exact spacing/format of the uploaded file.
+            'spec_overrides': {},
             'item_rates': rate_values,
             'rate_values': rate_values,
             'project_area': project_area,
