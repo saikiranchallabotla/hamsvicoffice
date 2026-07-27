@@ -78,3 +78,8 @@ htmlcov/
 .coverage
 .coverage.*
 coverage.xml
+
+# Node.js (Playwright / video demo tooling)
+node_modules/
+package.json
+package-lock.json
