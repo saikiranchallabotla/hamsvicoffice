@@ -1,0 +1,38 @@
+HAMSVIC Office — Product Demo Narration Script
+================================================
+
+[INTRO — 0:00 to 0:15]
+Welcome to HAMSVIC Office — the smart estimation platform built for Indian government contractors and engineers. Whether you work in electrical or civil construction, HAMSVIC helps you build smarter and estimate faster.
+
+[LANDING PAGE — 0:15 to 0:30]
+Here is the HAMSVIC landing page. The platform offers smart estimates powered by official Schedule of Rates, automated workslip generation, professional bill creation, and complete project management — all from one place.
+
+[LOGIN — 0:30 to 0:55]
+Logging in is simple and secure. HAMSVIC uses passwordless OTP authentication. You enter your registered email address, and a six-digit one-time password is sent to you instantly. Just enter the code and you are in — no passwords to remember, no credentials to manage.
+
+[DASHBOARD — 0:55 to 1:25]
+This is the dashboard — your command center. You can see all available modules at a glance — Estimate, Workslip, Bill, Self-Formatted Forms, Temporary Works, and Annual Maintenance Contracts. Each module shows its subscription status. From here, you can jump directly into any workflow.
+
+[NEW ESTIMATE — 1:25 to 2:15]
+Let us create a new estimate. The process follows three clear steps. First, select the work type — Original Work for new construction, or Repair Work for maintenance jobs. Next, choose your category — Electrical or Civil. The system automatically loads the correct Schedule of Rates for your state. Now you browse the SOR groups and select the items you need. Each item comes with the official government rate, unit of measurement, and detailed description. You can select multiple items, set quantities, and the system calculates everything automatically. You can also drag and drop to reorder groups, upload custom items, and assign items to specific project locations.
+
+[WORKSLIP — 2:15 to 2:40]
+The Workslip module lets you generate professional measurement books directly from your saved estimates. Select the work type and category, and HAMSVIC creates a properly formatted workslip with all measurements, rates, and calculations already filled in — saving hours of manual data entry.
+
+[BILL GENERATION — 2:40 to 3:05]
+Need to create a bill? HAMSVIC supports four bill types — First Part Bill from Estimate, First Part Bill from Workslip, Nth Part Bill from First Part, and Nth Part Bill from Nth Part. The entire billing chain from Estimate to Workslip to Bill is linked automatically with sequential numbering.
+
+[SELF-FORMATTED FORMS — 3:05 to 3:25]
+The Self-Formatted Forms module is a powerful template engine. Upload your own Excel templates with placeholders, and HAMSVIC fills them automatically. Templates can be locked to prevent accidental edits, and the system maintains automatic backups so you can restore any template instantly.
+
+[SAVED WORKS — 3:25 to 3:45]
+All your work is organized in a professional file manager. Create folders, move documents between them, and access your complete project history. From any saved estimate, you can generate workslips, bills, and progress reports with a single click.
+
+[LETTER SETTINGS — 3:45 to 4:00]
+Configure your letter settings once, and every forwarding letter, covering letter, and official document will be automatically populated with the correct officer names, designations, division details, and office addresses — eliminating repetitive data entry across all documents.
+
+[PRICING — 4:00 to 4:20]
+HAMSVIC offers flexible pricing. Subscribe to individual modules starting at just two hundred and ninety-nine rupees per month, or get the All Modules Bundle for the best value. Every module includes a free trial so you can evaluate before purchasing. All payments are processed securely through Razorpay.
+
+[OUTRO — 4:20 to 4:40]
+HAMSVIC Office transforms how government contractors manage their construction billing. From estimates to workslips to bills — the complete workflow is automated, accurate, and professional. Visit hamsvic dot com to start your free trial today. Build Smarter, Estimate Faster — with HAMSVIC Office.

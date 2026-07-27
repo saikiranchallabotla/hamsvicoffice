@@ -1,0 +1,11 @@
+# Generated output files (regenerate with: bash assemble-video.sh)
+final-demo.mp4
+voice.mp3
+recordings/
+screenshots/
+frames/
+node_modules/
+
+# Keep these in git:
+# narration.txt, captions.srt, record-demo.js, assemble-video.sh,
+# generate-voice.py, create_demo_data.py, README.md

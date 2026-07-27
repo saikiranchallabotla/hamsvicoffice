@@ -1,0 +1,159 @@
+1
+00:00:01,000 --> 00:00:05,000
+Welcome to HAMSVIC Office — the smart estimation
+platform for Indian government contractors.
+
+2
+00:00:05,000 --> 00:00:10,000
+Whether you work in electrical or civil construction,
+HAMSVIC helps you build smarter and estimate faster.
+
+3
+00:00:10,000 --> 00:00:15,000
+Let's take a tour of the platform
+and see what it can do.
+
+4
+00:00:15,000 --> 00:00:20,000
+The landing page showcases key features —
+smart estimates, workslips, bills, and project management.
+
+5
+00:00:20,000 --> 00:00:26,000
+All powered by official government
+Schedule of Rates from your state.
+
+6
+00:00:26,000 --> 00:00:32,000
+Login is simple and secure.
+HAMSVIC uses passwordless OTP authentication.
+
+7
+00:00:32,000 --> 00:00:38,000
+Enter your email, receive a six-digit code,
+and you're in — no passwords to manage.
+
+8
+00:00:38,000 --> 00:00:42,000
+A one-time password is sent to your
+registered email instantly.
+
+9
+00:00:42,000 --> 00:00:47,000
+Enter the code and you're securely
+logged into your account.
+
+10
+00:00:47,000 --> 00:00:53,000
+This is the Dashboard — your command center.
+All modules are visible at a glance.
+
+11
+00:00:53,000 --> 00:00:59,000
+Estimate, Workslip, Bill, Self-Formatted Forms,
+Temporary Works, and AMC modules.
+
+12
+00:00:59,000 --> 00:01:04,000
+Each module shows its subscription status
+so you always know what's available.
+
+13
+00:01:04,000 --> 00:01:10,000
+Let's create a new estimate.
+First, select the work type.
+
+14
+00:01:10,000 --> 00:01:16,000
+Choose Original Work for new construction
+or Repair Work for maintenance jobs.
+
+15
+00:01:16,000 --> 00:01:22,000
+Select your category — Electrical or Civil.
+The system loads the correct SOR rates automatically.
+
+16
+00:01:22,000 --> 00:01:28,000
+Browse the SOR groups to find the items
+you need for your estimate.
+
+17
+00:01:28,000 --> 00:01:34,000
+Each item includes the official government rate,
+unit of measurement, and detailed description.
+
+18
+00:01:34,000 --> 00:01:40,000
+Select items, set quantities, and the system
+calculates everything automatically.
+
+19
+00:01:40,000 --> 00:01:46,000
+The Workslip module generates professional
+measurement books from your saved estimates.
+
+20
+00:01:46,000 --> 00:01:52,000
+All measurements, rates, and calculations
+are filled in automatically — saving hours of work.
+
+21
+00:01:52,000 --> 00:01:58,000
+The Bill module supports four bill types —
+from First Part to Nth Part Bills.
+
+22
+00:01:58,000 --> 00:02:04,000
+The entire billing chain from Estimate to Workslip
+to Bill is linked with sequential numbering.
+
+23
+00:02:04,000 --> 00:02:10,000
+Self-Formatted Forms let you upload your own
+Excel templates with placeholders.
+
+24
+00:02:10,000 --> 00:02:16,000
+Templates can be locked to prevent edits,
+and automatic backups enable instant recovery.
+
+25
+00:02:16,000 --> 00:02:22,000
+The Saved Works manager organizes all your
+documents in a professional file system.
+
+26
+00:02:22,000 --> 00:02:28,000
+Create folders, manage documents, and generate
+workslips or bills with a single click.
+
+27
+00:02:28,000 --> 00:02:34,000
+Letter Settings auto-populate officer names,
+designations, and addresses across all documents.
+
+28
+00:02:34,000 --> 00:02:40,000
+Configure once and every forwarding letter
+is generated with the correct details.
+
+29
+00:02:40,000 --> 00:02:46,000
+Flexible pricing starts at just 299 rupees
+per month for individual modules.
+
+30
+00:02:46,000 --> 00:02:52,000
+The All Modules Bundle offers the best value.
+Every module includes a free trial.
+
+31
+00:02:52,000 --> 00:02:58,000
+HAMSVIC Office transforms construction billing.
+Estimates, workslips, bills — all automated.
+
+32
+00:02:58,000 --> 00:03:04,000
+Visit hamsvic.com to start your free trial.
+Build Smarter, Estimate Faster.
