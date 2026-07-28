@@ -592,3 +592,71 @@ def test_selection_follows_a_real_saved_work_chain():
     old_estimate = mk('Old', 'new_estimate', {})
     old_workslip = mk('Old - W1', 'workslip', {}, parent=old_estimate)
     assert resolve_work_project_area(old_workslip) == zone_policy.LEGACY_MUNICIPAL
+
+
+@pytest.mark.django_db
+def test_supplemental_item_block_matches_the_estimates_own_block(monkeypatch):
+    """
+    A supplemental item added at the Workslip stage must come out byte-for-byte
+    like the same item in the estimate: same zone labour rates, same allowance
+    percentage and label, same rate.
+
+    The estimate's blocks are written by tasks.py from job.result['project_area'];
+    the workslip's by workslip_views from session['ws_project_area']. Both call
+    apply_policy_to_copied_block, so parity holds exactly when both are handed
+    the same area -- which is what the resolver chain guarantees.
+    """
+    from django.contrib.auth.models import User
+    from core.models import Organization, SavedWork
+    from core.saved_works_views import resolve_work_project_area, resolve_work_mode
+
+    monkeypatch.setattr(zone_policy, "area_allowance_map",
+                        lambda: {("zone_2", "industrial_area"): 20.0})
+
+    user = User.objects.create_user('supp-parity', password='x')
+    org = Organization.objects.create(name='T', slug='t-supp-parity', owner=user)
+    estimate = SavedWork.objects.create(
+        organization=org, user=user, name='E', work_type='new_estimate',
+        category='electrical',
+        work_data={'project_area': 'zone_2:industrial_area', 'work_type': 'repair'},
+    )
+    # A workslip saved before ws_project_area was persisted -- the worst case.
+    workslip = SavedWork.objects.create(
+        organization=org, user=user, name='E - W1', work_type='workslip',
+        category='electrical', work_data={}, parent=estimate,
+    )
+
+    estimate_area = estimate.work_data['project_area']
+    workslip_area = resolve_work_project_area(workslip)
+    work_mode = resolve_work_mode(workslip)
+    assert workslip_area == estimate_area
+    assert work_mode == 'repair'
+
+    # Same block, priced by each stage.
+    wv, wf_estimate = _make_block()
+    _, wf_workslip = _make_block()
+    estimate_rate = compute_block_rate(wv, wf_estimate, 1, 24,
+                                       area=estimate_area, work_type='repair')
+    workslip_rate = compute_block_rate(wv, wf_workslip, 1, 24,
+                                       area=workslip_area, work_type=work_mode)
+    assert workslip_rate == estimate_rate == _expected_rounded(40, 20)
+
+    # Same block, written into each stage's Excel.
+    apply_policy_to_copied_block(wf_estimate, 1, 1, 24, estimate_area, 'repair')
+    apply_policy_to_copied_block(wf_workslip, 1, 1, 24, workslip_area, work_mode)
+
+    for row in (5, 6, 7, 8):
+        for col in (2, 9):  # zone marker, labour rate
+            assert wf_workslip.cell(row=row, column=col).value == \
+                   wf_estimate.cell(row=row, column=col).value
+    for col in (4, 10):     # allowance label, allowance formula
+        assert wf_workslip.cell(row=11, column=col).value == \
+               wf_estimate.cell(row=11, column=col).value
+
+    # And those values are the zone-adjusted ones, not the backend's originals.
+    assert [wf_workslip.cell(row=r, column=9).value for r in (5, 6, 7, 8)] == \
+        [735, 610, 610, 640]
+    assert [wf_workslip.cell(row=r, column=2).value for r in (5, 6, 7, 8)] == \
+        ["Zone-II"] * 4
+    assert wf_workslip.cell(row=11, column=4).value == " Add Industrial Area allowance@20%"
+    assert wf_workslip.cell(row=11, column=10).value == "=J10*0.2"
