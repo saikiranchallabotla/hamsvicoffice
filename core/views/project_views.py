@@ -82,6 +82,7 @@ def datas(request):
     request.session["item_spec_overrides"] = {}
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
+    request.session["estimate_token"] = get_random_string(24)  # rotate local-backup namespace
     request.session["project_area"] = "municipal"
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
     request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
@@ -123,6 +124,7 @@ def select_project(request):
         request.session["item_spec_overrides"] = {}
         request.session["estimate_locations"] = []
         request.session["item_location_breakdown"] = {}
+        request.session["estimate_token"] = get_random_string(24)
         request.session["project_area"] = "municipal"
         return redirect("choose_category")
 
@@ -135,6 +137,7 @@ def select_project(request):
             request.session["item_spec_overrides"] = {}
             request.session["estimate_locations"] = []
             request.session["item_location_breakdown"] = {}
+            request.session["estimate_token"] = get_random_string(24)
             request.session["project_area"] = "municipal"
             return redirect("choose_category")
 
@@ -544,6 +547,18 @@ def datas_items(request, category, group):
             })
     multi_estimate_mode = bool(multi_estimate_views)
 
+    # Stable token identifying "this estimate" so the browser can keep a
+    # local backup of per-location quantity breakdowns that survives a
+    # server-side session eviction without bleeding across different estimates.
+    _saved_work_id = request.session.get("current_saved_work_id")
+    if _saved_work_id:
+        estimate_token = "work_" + str(_saved_work_id)
+    else:
+        estimate_token = request.session.get("estimate_token")
+        if not estimate_token:
+            estimate_token = get_random_string(24)
+            request.session["estimate_token"] = estimate_token
+
     return render(request, "core/items.html", {
         "category": category,
         "group": group,
@@ -567,6 +582,8 @@ def datas_items(request, category, group):
         "custom_groups": UserCustomBackend.custom_group_names(request.user, 'new_estimate', category),
         "estimate_locations": request.session.get("estimate_locations", []),
         "estimate_locations_json": json.dumps(request.session.get("estimate_locations", [])),
+        "item_location_breakdown_json": json.dumps(request.session.get("item_location_breakdown", {}) or {}),
+        "estimate_token": estimate_token,
         "multi_estimate_mode": multi_estimate_mode,
         "multi_estimate_views": multi_estimate_views,
         "multi_estimate_count": len(multi_estimate_views),
@@ -1793,6 +1810,7 @@ def ajax_upload_prepared_estimate(request, category):
         request.session['grand_total'] = ""
         request.session['item_location_breakdown'] = {}
         request.session['estimate_locations'] = []
+        request.session['estimate_token'] = get_random_string(24)
         # Single-sheet upload -> leave multi-estimate mode.
         request.session['multi_estimate_mode'] = False
         request.session['multi_estimates'] = []
@@ -1946,6 +1964,7 @@ def ajax_upload_prepared_datas(request, category):
         request.session['grand_total'] = ""
         request.session['item_location_breakdown'] = {}
         request.session['estimate_locations'] = []
+        request.session['estimate_token'] = get_random_string(24)
         request.session.modified = True
 
         total_items = sum(len(g["items"]) for g in multi_estimates)
@@ -2438,6 +2457,7 @@ def clear_output(request, category):
     request.session["item_spec_overrides"] = {}
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
+    request.session["estimate_token"] = get_random_string(24)
     request.session["project_area"] = "municipal"
     # Clear uploaded custom items
     request.session["uploaded_items"] = []
@@ -2773,6 +2793,7 @@ def new_project(request):
     request.session["item_spec_overrides"] = {}
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
+    request.session["estimate_token"] = get_random_string(24)
     request.session["project_area"] = "municipal"
     return redirect("datas")
 

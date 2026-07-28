@@ -498,6 +498,25 @@
         font-size: 13px;
     }
 
+    #breakdownLocationsContainer .breakdown-mic {
+        padding: 0.15rem 0.4rem;
+        line-height: 1;
+        border-radius: 6px;
+    }
+
+    #breakdownLocationsContainer .breakdown-mic.listening {
+        background: #e53e3e;
+        border-color: #e53e3e;
+        color: #fff;
+        animation: micPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes micPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.5); }
+        70%  { box-shadow: 0 0 0 6px rgba(229, 62, 62, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
+    }
+
     #locationsListContainer .d-flex {
         font-size: 13px;
         margin-bottom: 2px !important;
@@ -3759,14 +3778,140 @@ document.addEventListener('keydown', function(e) {
     </div>
 </div>
 
+<!-- Warning: typing Qty directly for an item that already has a location breakup -->
+<div class="modal fade" id="directQtyWarnModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #dd6b20, #c05621); color: white;">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Location breakup already entered</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">You have already entered the quantity <strong>location-wise</strong> for
+                    <strong id="directQtyWarnItem"></strong>.</p>
+                <p class="mb-0 text-danger">A quantity you type directly here will <strong>not be reflected in the
+                    location break-up list</strong> — the location split is kept as it is, so the two figures may differ.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="directQtyEditLocBtn">
+                    <i class="bi bi-geo-alt-fill me-1"></i>Edit locations instead
+                </button>
+                <button type="button" class="btn btn-warning" id="directQtyProceedBtn">
+                    Continue typing (keep breakup)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Shared locations list + per-item qty breakdown by location
 (function() {
     var category = "{{ category }}";
     window.currentEstimateLocations = {{ estimate_locations_json|safe }};
 
+    // Per-item location quantity breakdowns. Source of truth is the server
+    // session; we keep an in-memory copy plus a per-estimate localStorage
+    // backup so the numbers survive a server-side session eviction.
+    window.currentEstimateBreakdown = {{ item_location_breakdown_json|safe }} || {};
+    window.itemsWithBreakdown = {};      // itemName -> true when it has a saved breakdown
+    var estimateToken = "{{ estimate_token|escapejs }}";
+    var LS_KEY = 'hamsvic_locbd_' + estimateToken;
+
     var locationsDraftList = [];
     var breakdownItemName = null;
+
+    function hasBreakdown(bd) {
+        if (!bd) return false;
+        for (var k in bd) { if (bd.hasOwnProperty(k)) return true; }
+        return false;
+    }
+
+    function sumBreakdown(bd) {
+        var total = 0;
+        for (var k in bd) {
+            if (bd.hasOwnProperty(k)) {
+                var v = parseFloat(bd[k]);
+                if (!isNaN(v)) total += v;
+            }
+        }
+        return total;
+    }
+
+    // --- localStorage backup helpers ---------------------------------------
+    function persistBreakdownLocally() {
+        try {
+            localStorage.setItem(LS_KEY, JSON.stringify(window.currentEstimateBreakdown || {}));
+        } catch (e) { /* storage full / disabled — ignore */ }
+    }
+
+    function readLocalBreakdown() {
+        try {
+            var raw = localStorage.getItem(LS_KEY);
+            return raw ? (JSON.parse(raw) || {}) : {};
+        } catch (e) { return {}; }
+    }
+
+    function pushBreakdownToServer(itemName, breakdown, cb) {
+        var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        fetch("/datas/" + category + "/item-location-breakdown/save/", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ item: itemName, breakdown: breakdown || {} }),
+            keepalive: true
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(d) { if (cb) cb(d); })
+            .catch(function() { if (cb) cb(null); });
+    }
+
+    // Rebuild the "which items have a breakdown" index from the in-memory map.
+    function rebuildBreakdownIndex() {
+        window.itemsWithBreakdown = {};
+        var map = window.currentEstimateBreakdown || {};
+        for (var name in map) {
+            if (map.hasOwnProperty(name) && hasBreakdown(map[name])) {
+                window.itemsWithBreakdown[name] = true;
+            }
+        }
+    }
+
+    // On load, recover any breakdowns the server session may have dropped from
+    // the localStorage backup (only for items still present in the table).
+    function recoverBreakdownsFromLocal() {
+        var local = readLocalBreakdown();
+        var recovered = [];
+        for (var name in local) {
+            if (!local.hasOwnProperty(name) || !hasBreakdown(local[name])) continue;
+            var serverBd = window.currentEstimateBreakdown[name];
+            if (hasBreakdown(serverBd)) continue;  // server still has it — nothing to do
+            var row = document.querySelector('#estimate-table tbody tr[data-item-name="' +
+                      window.escapeCssSelector(name) + '"]');
+            if (!row) continue;  // item no longer in this estimate — do not resurrect
+            window.currentEstimateBreakdown[name] = local[name];
+            recovered.push(name);
+        }
+        recovered.forEach(function(name) {
+            var bd = window.currentEstimateBreakdown[name];
+            pushBreakdownToServer(name, bd);  // rehydrate the session
+            var row = document.querySelector('#estimate-table tbody tr[data-item-name="' +
+                      window.escapeCssSelector(name) + '"]');
+            if (row) {
+                var qtyInput = row.querySelector('.qty-input');
+                if (qtyInput && (qtyInput.value === '' || parseFloat(qtyInput.value) === 0)) {
+                    qtyInput.value = sumBreakdown(bd);
+                    qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+        });
+        rebuildBreakdownIndex();
+        persistBreakdownLocally();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        rebuildBreakdownIndex();
+        recoverBreakdownsFromLocal();
+    });
 
     function renderLocationsList() {
         var container = document.getElementById('locationsListContainer');
@@ -3875,6 +4020,109 @@ document.addEventListener('keydown', function(e) {
             });
     };
 
+    // --- Voice recognition (Web Speech API) --------------------------------
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var voiceSupported = !!SpeechRecognition;
+    var activeRecognition = null;
+
+    var NUMBER_WORDS = {
+        zero: 0, oh: 0, one: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4,
+        five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11,
+        twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+        seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30,
+        forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90
+    };
+    var NUMBER_SCALES = { hundred: 100, thousand: 1000 };
+
+    // Turn a spoken phrase into a number. Handles bare digits ("5", "3.5"),
+    // digit words ("twenty five"), and decimals ("three point five").
+    function parseSpokenNumber(text) {
+        if (!text) return null;
+        text = String(text).toLowerCase().trim();
+
+        // Direct numeric match first (e.g. "3.5", "12").
+        var direct = text.replace(/[, ]+/g, '');
+        if (/^\d+(\.\d+)?$/.test(direct)) return parseFloat(direct);
+
+        var tokens = text.replace(/[-]/g, ' ').split(/\s+/).filter(Boolean);
+        var intPart = 0, current = 0, sawWord = false, decimalStr = null, inDecimal = false;
+
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i].replace(/[^a-z0-9.]/g, '');
+            if (!t) continue;
+            if (t === 'point' || t === 'dot' || t === 'decimal') { inDecimal = true; decimalStr = ''; continue; }
+            if (inDecimal) {
+                if (/^\d+$/.test(t)) { decimalStr += t; sawWord = true; }
+                else if (NUMBER_WORDS.hasOwnProperty(t)) { decimalStr += String(NUMBER_WORDS[t]); sawWord = true; }
+                continue;
+            }
+            if (/^\d+(\.\d+)?$/.test(t)) { current += parseFloat(t); sawWord = true; continue; }
+            if (NUMBER_WORDS.hasOwnProperty(t)) { current += NUMBER_WORDS[t]; sawWord = true; continue; }
+            if (NUMBER_SCALES.hasOwnProperty(t)) {
+                var scale = NUMBER_SCALES[t];
+                if (current === 0) current = 1;
+                if (scale === 100) { current *= 100; }
+                else { intPart += current * scale; current = 0; }
+                sawWord = true;
+                continue;
+            }
+        }
+        if (!sawWord) return null;
+        var result = intPart + current;
+        if (decimalStr) result = parseFloat(result + '.' + decimalStr);
+        return isNaN(result) ? null : result;
+    }
+
+    function stopActiveRecognition() {
+        if (activeRecognition) {
+            try { activeRecognition.stop(); } catch (e) {}
+            activeRecognition = null;
+        }
+        document.querySelectorAll('#breakdownLocationsContainer .breakdown-mic.listening')
+            .forEach(function(b) { b.classList.remove('listening'); });
+    }
+
+    function startVoiceForInput(micBtn, qtyInput) {
+        if (!voiceSupported) return;
+        stopActiveRecognition();
+
+        var rec = new SpeechRecognition();
+        rec.lang = 'en-IN';
+        rec.interimResults = false;
+        rec.maxAlternatives = 3;
+        activeRecognition = rec;
+        micBtn.classList.add('listening');
+        qtyInput.focus();
+
+        rec.onresult = function(event) {
+            var num = null;
+            var res = event.results[0];
+            for (var i = 0; i < res.length && num === null; i++) {
+                num = parseSpokenNumber(res[i].transcript);
+            }
+            if (num !== null) {
+                qtyInput.value = num;
+                updateBreakdownTotal();
+                scheduleBreakdownAutoSave();
+            } else if (typeof showSaveToast === 'function') {
+                // Nothing recognisable — leave the field untouched.
+                console.warn('Voice: could not parse a number from', res[0] && res[0].transcript);
+            }
+        };
+        rec.onerror = function() { micBtn.classList.remove('listening'); activeRecognition = null; };
+        rec.onend = function() { micBtn.classList.remove('listening'); if (activeRecognition === rec) activeRecognition = null; };
+        try { rec.start(); } catch (e) { micBtn.classList.remove('listening'); activeRecognition = null; }
+    }
+
+    function focusBreakdownInput(offsetFromCurrent, currentInput) {
+        var inputs = Array.prototype.slice.call(
+            document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty'));
+        var idx = inputs.indexOf(currentInput);
+        var next = inputs[idx + offsetFromCurrent];
+        if (next) { next.focus(); next.select(); return true; }
+        return false;
+    }
+
     function renderBreakdownRows(existingBreakdown) {
         var container = document.getElementById('breakdownLocationsContainer');
         if (!window.currentEstimateLocations.length) {
@@ -3898,12 +4146,44 @@ document.addEventListener('keydown', function(e) {
             qtyInput.className = 'form-control breakdown-loc-qty';
             qtyInput.style.width = '90px';
             qtyInput.placeholder = '0';
+            qtyInput.setAttribute('data-loc', name);
             qtyInput.value = existingQty !== undefined ? existingQty : '';
 
-            qtyInput.addEventListener('input', updateBreakdownTotal);
+            qtyInput.addEventListener('input', function() {
+                updateBreakdownTotal();
+                scheduleBreakdownAutoSave();
+            });
+
+            // Enter / Arrow Down -> next location, Arrow Up -> previous.
+            qtyInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!focusBreakdownInput(1, qtyInput) && e.key === 'Enter') {
+                        // On the last field, Enter saves & closes.
+                        window.saveItemBreakdown();
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    focusBreakdownInput(-1, qtyInput);
+                }
+            });
 
             row.appendChild(label);
             row.appendChild(qtyInput);
+
+            if (voiceSupported) {
+                var mic = document.createElement('button');
+                mic.type = 'button';
+                mic.className = 'btn btn-outline-secondary btn-sm breakdown-mic';
+                mic.title = 'Speak the quantity';
+                mic.innerHTML = '<i class="bi bi-mic-fill"></i>';
+                mic.addEventListener('click', function() {
+                    if (mic.classList.contains('listening')) { stopActiveRecognition(); }
+                    else { startVoiceForInput(mic, qtyInput); }
+                });
+                row.appendChild(mic);
+            }
+
             container.appendChild(row);
         });
     }
@@ -3917,19 +4197,83 @@ document.addEventListener('keydown', function(e) {
         document.getElementById('breakdownTotalDisplay').textContent = total;
     }
 
+    // Read the current modal inputs into a {location: qty} object.
+    function collectBreakdownFromModal() {
+        var breakdown = {};
+        var qtyInputs = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty');
+        qtyInputs.forEach(function(inp) {
+            var loc = inp.getAttribute('data-loc');
+            var qty = parseFloat(inp.value || '0');
+            if (loc && !isNaN(qty) && qty > 0) breakdown[loc] = qty;
+        });
+        return breakdown;
+    }
+
+    // Persist a breakdown everywhere: in-memory index, localStorage backup,
+    // the item's Qty cell, and the server session.
+    function commitBreakdown(itemName, breakdown, opts) {
+        opts = opts || {};
+        if (hasBreakdown(breakdown)) {
+            window.currentEstimateBreakdown[itemName] = breakdown;
+            window.itemsWithBreakdown[itemName] = true;
+        } else {
+            delete window.currentEstimateBreakdown[itemName];
+            delete window.itemsWithBreakdown[itemName];
+        }
+        persistBreakdownLocally();
+
+        var total = sumBreakdown(breakdown);
+        if (!opts.skipQtyFill) {
+            var row = document.querySelector('#estimate-table tbody tr[data-item-name="' +
+                      window.escapeCssSelector(itemName) + '"]');
+            if (row) {
+                var qtyInput = row.querySelector('.qty-input');
+                if (qtyInput) {
+                    qtyInput.value = hasBreakdown(breakdown) ? total : '';
+                    qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+        }
+        pushBreakdownToServer(itemName, breakdown, opts.done || null);
+    }
+
+    // --- Debounced auto-save while the modal is open -----------------------
+    var _bdAutoSaveTimer = null;
+    var _bdSuppressHideSave = false;
+    function scheduleBreakdownAutoSave() {
+        if (_bdAutoSaveTimer) clearTimeout(_bdAutoSaveTimer);
+        _bdAutoSaveTimer = setTimeout(function() {
+            if (!breakdownItemName) return;
+            commitBreakdown(breakdownItemName, collectBreakdownFromModal());
+        }, 500);
+    }
+    function flushBreakdownAutoSave() {
+        if (_bdAutoSaveTimer) { clearTimeout(_bdAutoSaveTimer); _bdAutoSaveTimer = null; }
+        if (breakdownItemName) {
+            commitBreakdown(breakdownItemName, collectBreakdownFromModal());
+        }
+    }
+
     window.openItemBreakdownModal = function(itemName) {
         breakdownItemName = itemName;
         document.getElementById('breakdownItemName').textContent = itemName;
         var modalEl = document.getElementById('itemBreakdownModal');
         var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-        renderBreakdownRows({});
+        // Seed from our in-memory copy immediately (instant, survives eviction),
+        // then reconcile with the server.
+        renderBreakdownRows(window.currentEstimateBreakdown[itemName] || {});
+        updateBreakdownTotal();
         modal.show();
 
         fetch("/datas/" + category + "/item-location-breakdown/?item=" + encodeURIComponent(itemName))
             .then(function(response) { return response.json(); })
             .then(function(data) {
-                var breakdown = (data.status === 'ok' && data.breakdown) ? data.breakdown : {};
+                var serverBd = (data.status === 'ok' && data.breakdown) ? data.breakdown : {};
+                // Prefer server data when it has something; otherwise keep our
+                // local copy (server session may have been evicted).
+                var breakdown = hasBreakdown(serverBd) ? serverBd
+                              : (window.currentEstimateBreakdown[itemName] || {});
                 renderBreakdownRows(breakdown);
                 updateBreakdownTotal();
             })
@@ -3938,56 +4282,106 @@ document.addEventListener('keydown', function(e) {
             });
     };
 
+    // Save whatever is typed when the modal is dismissed any way (X, Cancel,
+    // backdrop, Esc) so nothing is lost by forgetting the Save button.
+    (function() {
+        var modalEl = document.getElementById('itemBreakdownModal');
+        if (modalEl) {
+            modalEl.addEventListener('hide.bs.modal', function() {
+                stopActiveRecognition();
+                if (_bdSuppressHideSave) { _bdSuppressHideSave = false; return; }
+                flushBreakdownAutoSave();
+            });
+        }
+    })();
+
     window.saveItemBreakdown = function() {
         if (!breakdownItemName) return;
-        var csrfToken = document.querySelector('[name="csrfmiddlewaretoken"]').value;
+        stopActiveRecognition();
+        if (_bdAutoSaveTimer) { clearTimeout(_bdAutoSaveTimer); _bdAutoSaveTimer = null; }
+
         var saveBtn = document.getElementById('breakdownSaveBtn');
         var itemName = breakdownItemName;
-
-        var breakdown = {};
-        var qtyInputs = document.querySelectorAll('#breakdownLocationsContainer .breakdown-loc-qty');
-        window.currentEstimateLocations.forEach(function(name, idx) {
-            var qty = parseFloat(qtyInputs[idx] ? qtyInputs[idx].value || '0' : '0');
-            if (!isNaN(qty) && qty > 0) {
-                breakdown[name] = qty;
-            }
-        });
+        var breakdown = collectBreakdownFromModal();
 
         saveBtn.disabled = true;
-        fetch("/datas/" + category + "/item-location-breakdown/save/", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ item: itemName, breakdown: breakdown })
-        })
-            .then(function(response) { return response.json(); })
-            .then(function(data) {
+        commitBreakdown(itemName, breakdown, {
+            done: function(data) {
                 saveBtn.disabled = false;
-                if (data.status === 'ok') {
-                    var row = document.querySelector('#estimate-table tbody tr[data-item-name="' + window.escapeCssSelector(itemName) + '"]');
-                    if (row) {
-                        var qtyInput = row.querySelector('.qty-input');
-                        if (qtyInput) {
-                            qtyInput.value = data.total;
-                            qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                    }
-                    var modalEl = document.getElementById('itemBreakdownModal');
-                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    if (typeof showSaveToast === 'function') {
-                        showSaveToast('Quantity split saved');
-                    }
-                } else {
-                    alert('Error: ' + (data.message || 'Could not save breakdown'));
+                _bdSuppressHideSave = true;  // commit already done — don't re-save on hide
+                var modalEl = document.getElementById('itemBreakdownModal');
+                bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                if (typeof showSaveToast === 'function') {
+                    showSaveToast('Quantity split saved');
                 }
-            })
-            .catch(function(err) {
-                saveBtn.disabled = false;
-                alert('Error saving breakdown: ' + err);
-            });
+            }
+        });
     };
+
+    // Remove an item's whole location breakup (used when the user opts to type
+    // the quantity directly instead). Leaves the Qty cell for the user to fill.
+    window.clearItemBreakdown = function(itemName, done) {
+        commitBreakdown(itemName, {}, { skipQtyFill: true, done: done || null });
+    };
+})();
+</script>
+
+<script>
+// Warn when the user edits an item's Qty cell directly while a location
+// breakup already exists for that item.
+(function() {
+    var warnModalEl = document.getElementById('directQtyWarnModal');
+    if (!warnModalEl) return;
+    var pendingInput = null;
+    var pendingItem = null;
+    // Items for which the user has already seen & dismissed the warning this
+    // session — don't nag on every keystroke afterwards.
+    var acknowledged = {};
+
+    function warnModal() { return bootstrap.Modal.getOrCreateInstance(warnModalEl); }
+
+    function itemForInput(inp) {
+        if (!inp || !inp.classList || !inp.classList.contains('qty-input')) return null;
+        if (!inp.closest('.qty-cell')) return null;  // only the item Qty cells
+        var row = inp.closest('tr[data-item-name]');
+        return row ? row.getAttribute('data-item-name') : null;
+    }
+
+    // Intercept the first real edit (typing/paste) on a breakup item's Qty cell.
+    document.addEventListener('beforeinput', function(e) {
+        var itemName = itemForInput(e.target);
+        if (!itemName) return;
+        if (!window.itemsWithBreakdown || !window.itemsWithBreakdown[itemName]) return;
+        if (acknowledged[itemName]) return;  // already warned — allow direct edits
+        e.preventDefault();
+        pendingInput = e.target;
+        pendingItem = itemName;
+        var nameSpan = document.getElementById('directQtyWarnItem');
+        if (nameSpan) nameSpan.textContent = itemName;
+        warnModal().show();
+    });
+
+    // Continue typing: keep the location breakup untouched, just let the user
+    // type a direct quantity (the two figures are allowed to differ).
+    document.getElementById('directQtyProceedBtn').addEventListener('click', function() {
+        var inp = pendingInput, item = pendingItem;
+        if (item) acknowledged[item] = true;
+        warnModal().hide();
+        if (inp) {
+            setTimeout(function() { inp.focus(); inp.select(); }, 150);
+        }
+        pendingInput = null; pendingItem = null;
+    });
+
+    // Edit locations instead: open the split-by-location modal.
+    document.getElementById('directQtyEditLocBtn').addEventListener('click', function() {
+        var item = pendingItem;
+        warnModal().hide();
+        pendingInput = null; pendingItem = null;
+        if (item && typeof window.openItemBreakdownModal === 'function') {
+            setTimeout(function() { window.openItemBreakdownModal(item); }, 200);
+        }
+    });
 })();
 </script>
 
