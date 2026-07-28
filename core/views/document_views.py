@@ -173,6 +173,9 @@ def bill_document(request):
     # Current month + year
     now = timezone.now()
     mm_yyyy = f"{now.month:02d}.{now.year}"
+    # Current financial year (April-March) for the {{FINANCIAL_YEAR}} placeholder
+    # in user templates' letter numbers, e.g. "Rc.No. 1234/{{FINANCIAL_YEAR}}".
+    financial_year = _get_current_financial_year()
 
     # Helper function to extract total from a single sheet
     def _extract_total_from_sheet(ws, ws_formulas=None):
@@ -324,6 +327,8 @@ def bill_document(request):
                     "AMOUNT": sheet_total_str,
                     "TOTAL_AMOUNT": sheet_total_str,
                     "AMOUNT_IN_WORDS": sheet_amount_words,
+                    "FINANCIAL_YEAR": financial_year,
+                    "FIN_YEAR": financial_year,
                 }
                 
                 # Load fresh template for this sheet
@@ -394,8 +399,10 @@ def bill_document(request):
                 "AMOUNT": total_amount_str,
                 "TOTAL_AMOUNT": total_amount_str,
                 "AMOUNT_IN_WORDS": _number_to_words_rupees(total_amount),
+                "FINANCIAL_YEAR": financial_year,
+                "FIN_YEAR": financial_year,
             }
-            
+
             try:
                 wb_out = _fill_excel_template(template_name, ctx)
             except FileNotFoundError:
@@ -544,6 +551,8 @@ def bill_document(request):
                     "{{AMOUNT}}": sheet_total_str,
                     "{{TOTAL_AMOUNT}}": sheet_total_str,
                     "{{AMOUNT_IN_WORDS}}": sheet_amount_words,
+                    "{{FINANCIAL_YEAR}}": financial_year,
+                    "{{FIN_YEAR}}": financial_year,
                 }
 
                 # Load fresh template for this sheet
@@ -663,6 +672,8 @@ def bill_document(request):
                 "{{AMOUNT}}": total_amount_str,
                 "{{TOTAL_AMOUNT}}": total_amount_str,
                 "{{AMOUNT_IN_WORDS}}": _number_to_words_rupees(total_amount),
+                "{{FINANCIAL_YEAR}}": financial_year,
+                "{{FIN_YEAR}}": financial_year,
             }
 
             doc = Document(io.BytesIO(template_bytes))

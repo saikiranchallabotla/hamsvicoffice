@@ -47,6 +47,17 @@
                                 <li>Make sure the document is properly formatted before uploading.</li>
                             </ul>
                         </div>
+
+                        <div class="alert alert-secondary">
+                            <h6><i class="bi bi-braces me-2"></i>Placeholders you can use</h6>
+                            <p class="mb-2 small">Type any of these in your template (including inside the letter number) and the system fills them automatically on download:</p>
+                            <ul class="mb-2 small">
+                                <li><code>{{FINANCIAL_YEAR}}</code> &ndash; current financial year (April&ndash;March), e.g. <code>2026-27</code>. Use it in the letter number so the year is always current: <code>Rc.No. 1234/{{FINANCIAL_YEAR}}</code></li>
+                                <li><code>{{NAME_OF_WORK}}</code>, <code>{{AGENCY_NAME}}</code>, <code>{{AGREEMENT_REF}}</code></li>
+                                <li><code>{{AMOUNT}}</code>, <code>{{AMOUNT_IN_WORDS}}</code>, <code>{{MB_DETAILS}}</code></li>
+                            </ul>
+                            <p class="mb-0 small text-muted">The date token <code>dd.mm.yyyy</code> is also replaced with the current month/year.</p>
+                        </div>
                         
                         <div class="d-flex justify-content-between">
                             <a href="{% url 'template_list' %}" class="btn btn-outline-secondary">

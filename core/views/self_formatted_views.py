@@ -35,7 +35,7 @@ p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
 _inflect_engine = inflect.engine()
 
-from .utils import get_org_from_request
+from .utils import get_org_from_request, _get_current_financial_year
 
 def _extract_value_part_from_line(s: str) -> str:
     """
@@ -1957,6 +1957,10 @@ def _build_placeholder_map(labels, lines, custom_text: str):
         "{{EST_GRAND_TOTAL}}":  est_grand_total,
 
         "{{AMOUNT_IN_WORDS}}":  amount_in_words,
+
+        # Current financial year (April-March), for letter numbers etc.
+        "{{FINANCIAL_YEAR}}":   _get_current_financial_year(),
+        "{{FIN_YEAR}}":         _get_current_financial_year(),
     }
 
     # -------- CUSTOM PLACEHOLDERS (from textarea) --------
