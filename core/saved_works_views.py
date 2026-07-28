@@ -1060,6 +1060,31 @@ def collect_work_data(request, work_type):
             except (ValueError, TypeError):
                 pass
 
+        # ---- estimate_locations: prefer direct POST JSON over session ----
+        # (browser holds the authoritative copy; session may have been evicted)
+        estimate_locations = request.session.get('estimate_locations', [])
+        estimate_locations_json = request.POST.get('estimate_locations_json', '')
+        if estimate_locations_json:
+            try:
+                parsed = _json.loads(estimate_locations_json)
+                if isinstance(parsed, list):
+                    estimate_locations = parsed
+                    request.session['estimate_locations'] = estimate_locations
+            except (ValueError, TypeError):
+                pass
+
+        # ---- item_location_breakdown: prefer direct POST JSON over session ----
+        item_location_breakdown = request.session.get('item_location_breakdown', {})
+        item_location_breakdown_json = request.POST.get('item_location_breakdown_json', '')
+        if item_location_breakdown_json:
+            try:
+                parsed = _json.loads(item_location_breakdown_json)
+                if isinstance(parsed, dict):
+                    item_location_breakdown = parsed
+                    request.session['item_location_breakdown'] = item_location_breakdown
+            except (ValueError, TypeError):
+                pass
+
         work_data = {
             'fetched_items': fetched_items,
             'current_project_name': request.session.get('current_project_name'),
@@ -1078,8 +1103,8 @@ def collect_work_data(request, work_type):
             'item_units': request.session.get('item_units', {}),
             'item_descs': request.session.get('item_descs', {}),
             'item_spec_overrides': request.session.get('item_spec_overrides', {}),
-            'estimate_locations': request.session.get('estimate_locations', []),
-            'item_location_breakdown': request.session.get('item_location_breakdown', {}),
+            'estimate_locations': estimate_locations,
+            'item_location_breakdown': item_location_breakdown,
             'project_area': request.session.get('project_area', 'municipal'),
             'estimate_source': request.session.get('estimate_source', ''),
             # Uploaded custom items data

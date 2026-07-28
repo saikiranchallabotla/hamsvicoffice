@@ -4554,6 +4554,12 @@ function saveCurrentWork() {
     });
     formData.append('fetched_items_json', JSON.stringify(fetchedItemsList));
 
+    // Include locations + per-location qty breakdown directly (the browser
+    // holds the authoritative, localStorage-backed copy) so the saved work
+    // keeps them even if the server session was evicted.
+    formData.append('estimate_locations_json', JSON.stringify(window.currentEstimateLocations || []));
+    formData.append('item_location_breakdown_json', JSON.stringify(window.currentEstimateBreakdown || {}));
+
     // Also save quantities to session (for group navigation, etc.)
     const saveQtyData = new FormData();
     saveQtyData.append('csrfmiddlewaretoken', csrfToken);
