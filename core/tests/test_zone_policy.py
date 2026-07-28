@@ -401,3 +401,62 @@ def test_a_sheet_in_neither_layout_is_rejected(tmp_path):
     rows, errors = _parse_area_allowance_workbook(path)
     assert rows == []
     assert "Missing required column(s)" in errors[0]
+
+
+# ---------------------------------------------------------------------------
+# The allowance row's label names the selected project location
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("label,expected", [
+    # Every spelling the backends actually use, with spacing/casing preserved.
+    ("Add GHMC Allowance @40%", "Add Industrial Area Allowance @20%"),
+    ("Add GHMC allowance @40%", "Add Industrial Area allowance @20%"),
+    ("Add GHMC allowance@40%", "Add Industrial Area allowance@20%"),
+    (" Add GHMC Allowance @ 40 %", " Add Industrial Area Allowance @ 20 %"),
+    # Not an allowance row -- left alone.
+    ("Labour Sub  total", "Labour Sub  total"),
+    # A differently-worded allowance the GHMC matcher never picks up anyway.
+    ("Add Muncipality area allowance (Mahbubnagar)@20%",
+     "Add Muncipality area allowance (Mahbubnagar)@20%"),
+])
+def test_rewrite_allowance_label(label, expected):
+    from core.utils_excel import rewrite_allowance_label
+    assert rewrite_allowance_label(label, "Industrial Area", 20.0) == expected
+
+
+def test_rewrite_allowance_label_without_a_location_keeps_the_name():
+    from core.utils_excel import rewrite_allowance_label
+    assert rewrite_allowance_label("Add GHMC Allowance @40%", None, 0) == \
+        "Add GHMC Allowance @0%"
+
+
+@pytest.mark.parametrize("area,expected_label", [
+    # Zone 1 / GHMC is the one case the backend already names correctly.
+    ("zone_1:ghmc", " Add GHMC allowance@40%"),
+    ("zone_1:other_than_ghmc", " Add Other than GHMC allowance@25%"),
+    ("zone_2:municipal_area", " Add Municipal Area or District HQ allowance@20%"),
+    ("zone_2:industrial_area", " Add Industrial Area allowance@20%"),
+    ("zone_3:upto_16_kms", " Add Agency or Tribal Area (Upto 16 Kms) allowance@25%"),
+    ("zone_3:beyond_16_kms", " Add Agency or Tribal Area (Beyond 16 Kms) allowance@40%"),
+])
+def test_copied_block_allowance_row_names_the_selected_location(monkeypatch, area, expected_label):
+    monkeypatch.setattr(zone_policy, "area_allowance_map", lambda: {
+        ("zone_1", "ghmc"): 40.0,
+        ("zone_1", "other_than_ghmc"): 25.0,
+        ("zone_2", "municipal_area"): 20.0,
+        ("zone_2", "industrial_area"): 20.0,
+        ("zone_3", "upto_16_kms"): 25.0,
+        ("zone_3", "beyond_16_kms"): 40.0,
+    })
+    _, wf = _make_block()
+    apply_policy_to_copied_block(wf, 1, 1, 24, area, "repair")
+    assert wf.cell(row=11, column=4).value == expected_label
+
+
+def test_legacy_non_municipal_leaves_the_label_name_alone(monkeypatch):
+    monkeypatch.setattr(zone_policy, "area_allowance_map", dict)
+    _, wf = _make_block()
+    apply_policy_to_copied_block(wf, 1, 1, 24, "non_municipal", "repair")
+    # No location category to name, and the row is hidden anyway.
+    assert wf.cell(row=11, column=4).value == " Add GHMC allowance@0%"
+    assert wf.row_dimensions[11].hidden

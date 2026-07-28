@@ -1544,7 +1544,14 @@ def _safe_eval_arith(s):
 # is applied to each of those rates before the block is evaluated.
 
 _GHMC_LABEL_RE = re.compile(r"add\s+ghmc\s+allowance\s*@?\s*[\d.]+\s*%", re.I)
-_GHMC_LABEL_NUM_RE = re.compile(r"(add\s+ghmc\s+allowance\s*@?\s*)([\d.]+)(\s*%)", re.I)
+# Splits the allowance row's label so both the area it names and its
+# percentage can be rewritten: "Add GHMC Allowance @40%" for a Zone-2
+# estimate becomes "Add Municipal Area or District HQ Allowance @20%".
+# The backend always writes "GHMC" here regardless of area, so the name is
+# only accurate for Zone 1 / GHMC and has to be replaced for every other
+# project location.
+_GHMC_LABEL_NUM_RE = re.compile(
+    r"(add\s+)(ghmc)(\s+allowance\s*@?\s*)([\d.]+)(\s*%)", re.I)
 # Start of the labour section inside an item block, e.g. "a) Labour charges :"
 _LABOUR_HEADER_RE = re.compile(r"labour\s+charges\s*:", re.I)
 # The zone marker some backends put in column B of each labour line, e.g.
@@ -1608,6 +1615,36 @@ def _substitute_allowance(expr, baked_percent, new_percent):
     expr = dec_re.sub(_fmt_num(new_percent / 100.0), expr)
     expr = pct_re.sub(_fmt_num(new_percent) + "%", expr)
     return expr
+
+
+def _location_label(location_code):
+    """Display name for a project location category, or None when the
+    estimate has none (the legacy 'non_municipal' value)."""
+    if not location_code:
+        return None
+    from core.zone_policy import location_label
+    return location_label(location_code) or None
+
+
+def rewrite_allowance_label(label, area_name, percent):
+    """
+    Rewrite an allowance row's label to name the estimate's actual project
+    location and percentage, e.g.::
+
+        "Add GHMC Allowance @40%"  ->  "Add Industrial Area Allowance @20%"
+
+    The surrounding words and their casing are preserved, so a block reading
+    "Add GHMC allowance@40%" keeps its own spacing. ``area_name`` of None
+    leaves the name alone and rewrites only the percentage. Returns the label
+    unchanged if it isn't shaped like an allowance row.
+    """
+    if not isinstance(label, str):
+        return label
+    return _GHMC_LABEL_NUM_RE.sub(
+        lambda m: (m.group(1) + (area_name or m.group(2)) + m.group(3)
+                   + _fmt_num(percent) + m.group(5)),
+        label,
+    )
 
 
 def zone_labour_rate(zone1_rate, deduction):
@@ -1883,7 +1920,9 @@ def apply_policy_to_copied_block(ws_dst, dst_start_row, src_min_row, src_max_row
         match;
       * the Area-allowance row's column-J percentage is replaced by the one
         the uploaded Area Allowance sheet gives for this zone + location, and
-        its label is rewritten to match;
+        its label is rewritten to name both -- the backend hardcodes "Add
+        GHMC Allowance @40%" whatever the area, so on a Zone-2 estimate that
+        becomes e.g. "Add Industrial Area Allowance @20%";
       * for original works, the Overhead row's percentage and label are
         switched from the baked-in 10.615% to 13.615%.
 
@@ -1926,11 +1965,12 @@ def apply_policy_to_copied_block(ws_dst, dst_start_row, src_min_row, src_max_row
         cell = ws_dst.cell(row=ghmc_row, column=10)
         if isinstance(cell.value, str) and cell.value.startswith("="):
             cell.value = _substitute_allowance(cell.value, baked, allowance_percent)
-        if isinstance(label_cell.value, str):
-            label_cell.value = _GHMC_LABEL_NUM_RE.sub(
-                lambda m: m.group(1) + _fmt_num(allowance_percent) + m.group(3),
-                label_cell.value,
-            )
+        # The backend hardcodes "GHMC" in this label whatever the area, so the
+        # row would read "Add GHMC Allowance @20%" on a Zone-2 estimate. Name
+        # the location the user actually picked.
+        label_cell.value = rewrite_allowance_label(
+            label_cell.value, _location_label(policy["location"]), allowance_percent,
+        )
         if not allowance_percent:
             ws_dst.row_dimensions[ghmc_row].hidden = True
 
