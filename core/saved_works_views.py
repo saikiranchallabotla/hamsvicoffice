@@ -1961,11 +1961,11 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
     Uses the user's selected backend (ModuleBackend) if available, falling back to default.
     Returns a dict: {item_name: {'rate': value, 'unit': 'Nos/Mtrs/Pts', 'group': 'group_name', 'desc': 'description'}}
 
-    area/work_type adjust the GHMC-allowance/Overhead rows (see
-    compute_block_rate) for callers in the new_estimate flow; other callers
-    that don't pass them get the existing 'municipal'/'original' defaults,
-    which reproduce the unadjusted cached rate for any block lacking those
-    rows.
+    area/work_type adjust the zone labour rates and the Area-allowance /
+    Overhead rows (see compute_block_rate) for callers in the new_estimate
+    flow; other callers that don't pass them get the 'municipal'/'original'
+    defaults, i.e. Zone 1 / GHMC with the workbook's own percentages, which
+    reproduce the unadjusted cached rate for any block lacking those rows.
     """
     from django.conf import settings
     from openpyxl import load_workbook
@@ -2428,9 +2428,10 @@ def generate_workslip_from_saved(request, work_id):
     # This ensures prefixes from the backend Groups sheet are applied in Excel output
     estimate_work_mode = work_data.get('work_type', 'original')
     request.session['ws_work_mode'] = estimate_work_mode
-    # Propagate Municipal/Non-Municipal area so GHMC-allowance rows for any
-    # supplemental items added at the Workslip stage are adjusted consistently
-    # with how the estimate's own rates were computed.
+    # Propagate the estimate's Zone / project location so labour rates and
+    # Area-allowance rows for any supplemental items added at the Workslip
+    # stage are adjusted consistently with how the estimate's own rates were
+    # computed.
     request.session['ws_project_area'] = work_data.get('project_area', 'municipal')
 
     # ── Pre-create the SavedWork record for Workslip-1 so

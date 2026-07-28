@@ -1436,34 +1436,48 @@
                        placeholder="Enter work name..."
                        value="{{ work_name|default_if_none:'' }}">
 
-                <!-- Project Location: Municipal / Non-Municipal (affects GHMC allowance rows) -->
+                <!-- Project Location: Zone -> location category.
+                     Drives the zone labour rates and the Area Allowance percentage. -->
+                {{ zones|json_script:"project-zones-data" }}
                 <div class="estimate-total-row" style="background: #f0f9ff; border-color: #7dd3fc; align-items: center;">
                     <label class="total-label" style="color: #075985;">
                         <i class="bi bi-geo me-1"></i>
                         Project Location
                     </label>
                     {% if not estimate_rows %}
-                    <div style="display: flex; gap: 1rem;" id="project-area-control">
-                        <label class="total-label" style="display: flex; align-items: center; gap: 0.3rem; color: #075985; cursor: pointer;">
-                            <input type="radio" name="project_area_radio" value="municipal"
-                                   {% if project_area != 'non_municipal' %}checked{% endif %}
-                                   onchange="setProjectArea('municipal')">
-                            Municipal
-                        </label>
-                        <label class="total-label" style="display: flex; align-items: center; gap: 0.3rem; color: #075985; cursor: pointer;">
-                            <input type="radio" name="project_area_radio" value="non_municipal"
-                                   {% if project_area == 'non_municipal' %}checked{% endif %}
-                                   onchange="setProjectArea('non_municipal')">
-                            Non-Municipal
-                        </label>
+                    <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;" id="project-area-control">
+                        <select id="project-zone-select" class="form-select form-select-sm"
+                                style="width: auto; min-width: 120px;"
+                                onchange="onProjectZoneChange()"
+                                aria-label="Zone">
+                            {% for z in zones %}
+                            <option value="{{ z.code }}" {% if z.code == project_zone %}selected{% endif %}>{{ z.label }}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="project-location-select" class="form-select form-select-sm"
+                                style="width: auto; min-width: 180px;"
+                                onchange="onProjectLocationChange()"
+                                aria-label="Project Location Category">
+                        </select>
+                        <span class="total-label" id="area-allowance-badge" style="color: #075985; font-weight: 600;"></span>
                     </div>
                     {% else %}
                     <span class="total-label" style="color: #075985;" title="Locked once items are added -- start a new estimate to change this">
                         <i class="bi bi-lock-fill me-1"></i>
-                        {% if project_area == 'non_municipal' %}Non-Municipal Area{% else %}Municipal Area{% endif %}
+                        {{ project_location_label }}
+                        {% if area_allowance_percent is not None %}
+                        &nbsp;&middot;&nbsp;Area Allowance {{ area_allowance_percent|floatformat:"-2" }}%
+                        {% endif %}
                     </span>
                     {% endif %}
                 </div>
+                {% if not estimate_rows and not area_allowance_uploaded %}
+                <div class="text-muted" style="font-size: 0.8rem; margin: -0.4rem 0 0.6rem 0.2rem;">
+                    <i class="bi bi-info-circle me-1"></i>
+                    No Area Allowance sheet has been uploaded yet — Zone 1 / GHMC uses the
+                    backend workbook's own percentage and every other combination uses 0%.
+                </div>
+                {% endif %}
 
                 <div class="estimate-table-wrapper">
                     <table class="estimate-table" id="estimate-table">
@@ -1986,7 +2000,57 @@ function closeSubtypesModal() {
     currentParentLabel = null;
 }
 
-function setProjectArea(area) {
+// ---- Project Location: Zone -> location category ----------------------------
+// The second-level options depend on the chosen zone, so they're rebuilt from
+// the zone catalogue rendered into #project-zones-data whenever the zone
+// changes. Saving reloads the page so every rate on screen reflects the new
+// zone labour rates and Area Allowance.
+var PROJECT_ZONES = (function () {
+    var el = document.getElementById('project-zones-data');
+    try { return el ? JSON.parse(el.textContent) : []; } catch (e) { return []; }
+})();
+
+function projectZoneByCode(code) {
+    for (var i = 0; i < PROJECT_ZONES.length; i++) {
+        if (PROJECT_ZONES[i].code === code) return PROJECT_ZONES[i];
+    }
+    return null;
+}
+
+function renderProjectLocationOptions(zoneCode, selectedLocation) {
+    var sel = document.getElementById('project-location-select');
+    if (!sel) return;
+    var zone = projectZoneByCode(zoneCode);
+    sel.innerHTML = '';
+    if (!zone) return;
+    zone.locations.forEach(function (loc) {
+        var opt = document.createElement('option');
+        opt.value = loc.code;
+        opt.textContent = loc.label;
+        if (loc.code === selectedLocation) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+function onProjectZoneChange() {
+    var zoneSel = document.getElementById('project-zone-select');
+    if (!zoneSel) return;
+    var zone = projectZoneByCode(zoneSel.value);
+    if (!zone || !zone.locations.length) return;
+    // Zone changed -> the previous category no longer belongs to it, so fall
+    // back to the new zone's first category and save straight away.
+    renderProjectLocationOptions(zoneSel.value, zone.locations[0].code);
+    saveProjectLocation(zoneSel.value, zone.locations[0].code);
+}
+
+function onProjectLocationChange() {
+    var zoneSel = document.getElementById('project-zone-select');
+    var locSel = document.getElementById('project-location-select');
+    if (!zoneSel || !locSel || !locSel.value) return;
+    saveProjectLocation(zoneSel.value, locSel.value);
+}
+
+function saveProjectLocation(zone, location) {
     var category = "{{ category }}";
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
     fetch("/datas/" + category + "/project-area/save/", {
@@ -1995,10 +2059,36 @@ function setProjectArea(area) {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken
         },
-        body: JSON.stringify({ area: area })
+        body: JSON.stringify({ zone: zone, location: location })
     })
     .then(function(response) { return response.json(); })
-    .then(function() { window.location.reload(); });
+    .then(function(data) {
+        if (data && data.status === 'error') {
+            alert(data.message || 'Could not save the project location.');
+            return;
+        }
+        window.location.reload();
+    });
+}
+
+function initProjectLocationControl() {
+    var zoneSel = document.getElementById('project-zone-select');
+    if (!zoneSel) return;
+    renderProjectLocationOptions(zoneSel.value, "{{ project_location|default:'' }}");
+    var badge = document.getElementById('area-allowance-badge');
+    if (badge) {
+        {% if area_allowance_percent is not None %}
+        badge.textContent = 'Area Allowance {{ area_allowance_percent|floatformat:"-2" }}%';
+        {% else %}
+        badge.textContent = 'Area Allowance as per backend';
+        {% endif %}
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initProjectLocationControl);
+} else {
+    initProjectLocationControl();
 }
 
 function selectSubtype(subtypeName, buttonElement) {

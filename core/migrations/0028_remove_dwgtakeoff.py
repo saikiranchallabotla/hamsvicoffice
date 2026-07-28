@@ -3,6 +3,22 @@
 from django.db import migrations
 
 
+def drop_dwgtakeoff(apps, schema_editor):
+    """
+    Drop the retired core_dwgtakeoff table.
+
+    CASCADE is PostgreSQL syntax and is a hard syntax error on SQLite, which
+    left this migration unrunnable on local SQLite development databases.
+    The clause is emitted only where the backend understands it; elsewhere a
+    plain DROP is enough, since SQLite drops dependent indexes itself.
+    """
+    connection = schema_editor.connection
+    if 'core_dwgtakeoff' not in connection.introspection.table_names():
+        return
+    cascade = ' CASCADE' if connection.vendor == 'postgresql' else ''
+    schema_editor.execute(f'DROP TABLE IF EXISTS core_dwgtakeoff{cascade};')
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,8 +26,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            "DROP TABLE IF EXISTS core_dwgtakeoff CASCADE;",
-            reverse_sql=migrations.RunSQL.noop,
-        ),
+        migrations.RunPython(drop_dwgtakeoff, migrations.RunPython.noop),
     ]

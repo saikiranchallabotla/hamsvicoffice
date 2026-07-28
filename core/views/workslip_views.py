@@ -2008,7 +2008,7 @@ def workslip(request):
                 desc_cell = ws_data.cell(row=start_row + 2, column=4).value
                 supp_desc_map[name] = str(desc_cell or "").strip()
                 # Rate from Master Datas col J, adjusted for the estimate's
-                # Municipal/Non-Municipal area and Original/Repair work type.
+                # Zone / project location and Original/Repair work type.
                 ws_project_area = request.session.get("ws_project_area", "municipal") or "municipal"
                 computed_rate = compute_block_rate(
                     ws_backend_vals, ws_data, start_row, end_row,
@@ -2130,10 +2130,11 @@ def workslip(request):
                         # Add Data serial number to column A of block header row
                         ws_blocks.cell(row=current_row, column=1).value = f"Data {data_serial_blocks}"
                         data_serial_blocks += 1
-                        # Rewrite the GHMC-allowance/Overhead row formulas (if
-                        # present) for the estimate's Municipal/Non-Municipal
-                        # area and Original/Repair work type. No-op if the
-                        # block has neither row, or municipal+repair (default).
+                        # Rewrite the block's labour rates for the estimate's
+                        # Zone and the Area-allowance/Overhead row formulas
+                        # (if present) for its project location and
+                        # Original/Repair work type. No-op for Zone 1 / GHMC
+                        # + repair (the baked-in default).
                         apply_policy_to_copied_block(
                             ws_blocks, current_row, start_row, end_row,
                             request.session.get("ws_project_area", "municipal") or "municipal",

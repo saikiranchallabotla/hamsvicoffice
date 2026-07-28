@@ -214,8 +214,8 @@ def pytest_configure(config):
     )
 
 
-# Auto-apply django_db marker
-@pytest.fixture
-def django_db_blocker(django_db_blocker):
-    """Allow all tests to access database."""
-    return django_db_blocker
+# NOTE: there used to be a `django_db_blocker` fixture here that took
+# pytest-django's own session-scoped fixture and re-exported it unchanged.
+# Because a plain @pytest.fixture is function-scoped, that narrowing made
+# every test in this directory fail at setup with ScopeMismatch. It did
+# nothing else, so it has been removed rather than re-scoped.

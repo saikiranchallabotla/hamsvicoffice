@@ -5,6 +5,7 @@ Supports multiple backends per module (state-wise SOR rates).
 """
 
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -170,10 +171,18 @@ def data_management(request):
             info['category'] = parts[0] if parts else 'unknown'
             backups.append(info)
 
+    # Area Allowance percentages (zone + project location category)
+    try:
+        from core.models import AreaAllowanceUpload
+        area_allowance_current = AreaAllowanceUpload.current()
+    except Exception:
+        area_allowance_current = None
+
     context = {
         'module_backends_data': module_backends_data,
         'legacy_files': legacy_files,
         'bill_templates': bill_templates,
+        'area_allowance': area_allowance_current,
         'backups': backups,
         'data_dir': str(DATA_DIR),
         'modules': backend_modules,
@@ -908,3 +917,346 @@ def toggle_backend_default(request, backend_id):
     
     return redirect('admin_data_management')
 
+
+
+# ==============================================================================
+# AREA ALLOWANCE UPLOAD
+# ==============================================================================
+# The Area Allowance percentage applied to an estimate depends on the Zone and
+# Project Location Category the user selects. Those percentages are maintained
+# entirely through the Excel sheet uploaded here -- a new upload replaces the
+# previous one outright, and every estimate generated afterwards uses the new
+# figures.
+
+AREA_ALLOWANCE_TEMPLATE_COLUMNS = ['Zone', 'Project Location Category', 'Area Allowance Percentage']
+
+# Matches the row of the cross-tab layout that carries the percentages.
+AREA_ALLOWANCE_ROW_RE = re.compile(r'area\s*allowance', re.I)
+
+
+def _parse_area_allowance_workbook(filepath):
+    """
+    Read and validate an Area Allowance sheet in either accepted layout:
+
+      * the **cross-tab** the SOR publishes -- a ZONE-I/II/III header row,
+        one or more heading rows naming each location category beneath its
+        zone, and an "Area Allowance" row of percentages; or
+      * a flat three-column list (Zone | Project Location Category |
+        Area Allowance Percentage).
+
+    Returns ``(rows, errors)``. ``rows`` is the parsed payload for
+    :meth:`core.models.AreaAllowanceUpload.replace`; a non-empty ``errors``
+    list means the upload must be rejected.
+    """
+    from openpyxl import load_workbook
+
+    try:
+        workbook = load_workbook(filepath, data_only=True)
+        worksheet = workbook.worksheets[0]
+    except Exception as exc:
+        return [], [f'Could not read the Excel file: {exc}']
+
+    try:
+        if _find_allowance_row(worksheet):
+            return _finalize_area_allowance(_parse_area_allowance_matrix(worksheet))
+        return _finalize_area_allowance(_parse_area_allowance_columns(filepath))
+    finally:
+        workbook.close()
+
+
+def _cell_reader(worksheet):
+    """
+    Reader that resolves merged cells to their anchor value, so a heading
+    merged across two columns reads the same from either of them.
+    """
+    merged = {}
+    for cell_range in worksheet.merged_cells.ranges:
+        anchor = worksheet.cell(row=cell_range.min_row, column=cell_range.min_col).value
+        for row in range(cell_range.min_row, cell_range.max_row + 1):
+            for col in range(cell_range.min_col, cell_range.max_col + 1):
+                merged[(row, col)] = anchor
+
+    def read(row, col):
+        if (row, col) in merged:
+            return merged[(row, col)]
+        return worksheet.cell(row=row, column=col).value
+
+    return read
+
+
+def _find_allowance_row(worksheet, search_depth=30):
+    """Row number of the "Area Allowance" row in a cross-tab sheet, else None."""
+    read = _cell_reader(worksheet)
+    for row in range(1, min(worksheet.max_row, search_depth) + 1):
+        for col in (1, 2):
+            value = read(row, col)
+            if isinstance(value, str) and AREA_ALLOWANCE_ROW_RE.search(value):
+                return row
+    return None
+
+
+def _parse_area_allowance_matrix(worksheet):
+    """Read the cross-tab layout. Returns ``(by_pair, errors)``."""
+    from core import zone_policy
+
+    read = _cell_reader(worksheet)
+    allowance_row = _find_allowance_row(worksheet)
+
+    # The zone header is the topmost row above the percentages that names a zone.
+    zone_row = None
+    for row in range(1, allowance_row):
+        for col in range(1, worksheet.max_column + 1):
+            if zone_policy.normalize_zone(read(row, col)):
+                zone_row = row
+                break
+        if zone_row:
+            break
+    if zone_row is None:
+        return {}, ['Could not find a ZONE-I / ZONE-II / ZONE-III header row above '
+                    'the "Area Allowance" row.']
+
+    errors = []
+    by_pair = {}
+    for col in range(1, worksheet.max_column + 1):
+        percent = zone_policy.normalize_percent(read(allowance_row, col))
+        if percent is None:
+            continue  # Label column, or an empty column past the table
+
+        column_name = worksheet.cell(row=allowance_row, column=col).column_letter
+        zone_code = zone_policy.normalize_zone(read(zone_row, col))
+        if not zone_code:
+            errors.append(f'Column {column_name}: no zone header above the percentage.')
+            continue
+
+        # Heading rows between the zone header and the percentages, innermost
+        # first -- e.g. ["Upto 16 Kms", "Agency or Tribal Area"]. A category
+        # is named either by its own heading alone or by the group heading
+        # plus its own, so both readings are tried.
+        headings = []
+        for row in range(allowance_row - 1, zone_row, -1):
+            value = read(row, col)
+            text = str(value).strip() if value is not None else ''
+            if text and text not in headings:
+                headings.append(text)
+
+        candidates = list(headings)
+        for outer in headings[1:]:
+            candidates.append(f'{outer} {headings[0]}')
+        location_code = next(
+            (code for code in map(zone_policy.normalize_location, candidates) if code),
+            None,
+        )
+        if not location_code:
+            errors.append(
+                f'Column {column_name}: unrecognised Project Location Category '
+                f'"{" / ".join(headings) or "(blank)"}".'
+            )
+            continue
+
+        if not zone_policy.is_valid_pair(zone_code, location_code):
+            errors.append(
+                f'Column {column_name}: "{zone_policy.location_label(location_code)}" '
+                f'does not belong to {zone_policy.zone_label(zone_code)}.'
+            )
+            continue
+        if percent < 0:
+            errors.append(f'Column {column_name}: percentage cannot be negative.')
+            continue
+
+        by_pair[(zone_code, location_code)] = percent
+
+    return by_pair, errors
+
+
+def _finalize_area_allowance(parsed):
+    """Turn ``(by_pair, errors)`` into the stored row payload, rejecting a
+    sheet that doesn't cover every zone/location combination."""
+    from core import zone_policy
+
+    by_pair, errors = parsed
+    if errors:
+        return [], errors
+
+    missing_pairs = [pair for pair in zone_policy.expected_pairs() if pair not in by_pair]
+    if missing_pairs:
+        return [], [
+            'Missing entr(y/ies) for: ' + ', '.join(
+                f'{zone_policy.zone_label(z)} / {zone_policy.location_label(l)}'
+                for z, l in missing_pairs
+            ) + '.'
+        ]
+
+    rows = [
+        zone_policy.build_row(z, l, by_pair[(z, l)])
+        for z, l in zone_policy.expected_pairs()
+    ]
+    return rows, []
+
+
+def _parse_area_allowance_columns(filepath):
+    """Read the flat three-column layout. Returns ``(by_pair, errors)``."""
+    from core import zone_policy
+
+    try:
+        df = pd.read_excel(filepath)
+    except Exception as exc:
+        return {}, [f'Could not read the Excel file: {exc}']
+
+    # Map the sheet's headings onto the three fields we need.
+    column_for_field = {}
+    for column in df.columns:
+        field = zone_policy.normalize_header(column)
+        if field and field not in column_for_field:
+            column_for_field[field] = column
+
+    missing = [
+        label for field, label in (
+            ('zone', 'Zone'),
+            ('location', 'Project Location Category'),
+            ('percent', 'Area Allowance Percentage'),
+        ) if field not in column_for_field
+    ]
+    if missing:
+        return {}, [
+            'Missing required column(s): ' + ', '.join(missing)
+            + '. Expected either the SOR cross-tab layout (an "Area Allowance" row '
+            + 'under ZONE-I/II/III headers) or the columns: '
+            + ', '.join(AREA_ALLOWANCE_TEMPLATE_COLUMNS) + '.'
+        ]
+
+    errors = []
+    by_pair = {}
+    for position, record in enumerate(df.to_dict('records'), start=2):  # +1 for the header row
+        raw_zone = record.get(column_for_field['zone'])
+        raw_location = record.get(column_for_field['location'])
+        raw_percent = record.get(column_for_field['percent'])
+
+        # Skip fully blank rows -- trailing empties are common in hand-edited sheets.
+        if all(not str(v).strip() if isinstance(v, str) else pd.isna(v)
+               for v in (raw_zone, raw_location, raw_percent)):
+            continue
+
+        zone_code = zone_policy.normalize_zone(raw_zone)
+        if not zone_code:
+            errors.append(f'Row {position}: unrecognised Zone "{raw_zone}".')
+            continue
+
+        location_code = zone_policy.normalize_location(raw_location)
+        if not location_code:
+            errors.append(f'Row {position}: unrecognised Project Location Category "{raw_location}".')
+            continue
+
+        if not zone_policy.is_valid_pair(zone_code, location_code):
+            errors.append(
+                f'Row {position}: "{zone_policy.location_label(location_code)}" does not '
+                f'belong to {zone_policy.zone_label(zone_code)}.'
+            )
+            continue
+
+        percent = zone_policy.normalize_percent(raw_percent)
+        if percent is None:
+            errors.append(f'Row {position}: "{raw_percent}" is not a valid percentage.')
+            continue
+        if percent < 0:
+            errors.append(f'Row {position}: percentage cannot be negative.')
+            continue
+
+        by_pair[(zone_code, location_code)] = percent
+
+    return by_pair, errors
+
+
+@admin_required
+@require_http_methods(["GET", "POST"])
+def area_allowance(request):
+    """
+    Area Allowance Upload page: upload/replace the sheet, see what's currently
+    in force, and download the current file back.
+    """
+    from core import zone_policy
+    from core.models import AreaAllowanceUpload
+
+    if request.method == 'POST':
+        uploaded_file = request.FILES.get('file')
+
+        if not uploaded_file:
+            messages.error(request, 'No file uploaded.')
+            return redirect('admin_area_allowance')
+
+        if not uploaded_file.name.lower().endswith(('.xlsx', '.xls')):
+            messages.error(request, 'Please upload an Excel file (.xlsx or .xls)')
+            return redirect('admin_area_allowance')
+
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        temp_path = DATA_DIR / 'temp_area_allowance.xlsx'
+        try:
+            file_bytes = uploaded_file.read()
+            with open(temp_path, 'wb') as fh:
+                fh.write(file_bytes)
+
+            rows, errors = _parse_area_allowance_workbook(temp_path)
+            if errors:
+                for error in errors[:10]:
+                    messages.error(request, error)
+                if len(errors) > 10:
+                    messages.error(request, f'...and {len(errors) - 10} more problem(s).')
+                return redirect('admin_area_allowance')
+
+            AreaAllowanceUpload.replace(uploaded_file.name, file_bytes, rows, user=request.user)
+
+            try:
+                from datasets.models import AuditLog
+                AuditLog.log(
+                    user=request.user,
+                    action='upload',
+                    obj='AreaAllowance',
+                    changes=None,
+                    metadata={'filename': uploaded_file.name, 'rows': len(rows)},
+                    request=request,
+                )
+            except Exception:
+                pass  # Audit logging is best-effort
+
+            messages.success(
+                request,
+                f'Area Allowance updated from "{uploaded_file.name}". '
+                f'{len(rows)} zone/location combinations are now in force.'
+            )
+            return redirect('admin_area_allowance')
+
+        except Exception as exc:
+            messages.error(request, f'Error processing file: {exc}')
+            return redirect('admin_area_allowance')
+        finally:
+            try:
+                if temp_path.exists():
+                    temp_path.unlink()
+            except OSError:
+                pass  # Windows may still hold the handle; harmless
+
+    current = AreaAllowanceUpload.current()
+    context = {
+        'current': current,
+        'rows': current.rows if current else [],
+        'zones': zone_policy.ZONES,
+        'template_columns': AREA_ALLOWANCE_TEMPLATE_COLUMNS,
+    }
+    return render(request, 'admin_panel/data/area_allowance.html', context)
+
+
+@admin_required
+def download_area_allowance(request):
+    """Download the Area Allowance sheet currently in force."""
+    from io import BytesIO
+    from core.models import AreaAllowanceUpload
+
+    current = AreaAllowanceUpload.current()
+    if not current or not current.file_data:
+        messages.error(request, 'No Area Allowance file has been uploaded yet.')
+        return redirect('admin_area_allowance')
+
+    return FileResponse(
+        BytesIO(bytes(current.file_data)),
+        as_attachment=True,
+        filename=current.file_name or 'area_allowance.xlsx',
+    )

@@ -34,6 +34,7 @@ from ..decorators import org_required, role_required
 logger = logging.getLogger(__name__)
 from ..tasks import process_excel_upload, generate_bill_pdf, generate_workslip_pdf, generate_bill_document_task
 from ..utils_excel import load_backend, copy_block_with_styles_and_formulas, build_temp_day_rates, compute_block_rate, apply_policy_to_copied_block
+from .. import zone_policy
 
 p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
@@ -83,7 +84,7 @@ def datas(request):
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
     request.session["estimate_token"] = get_random_string(24)  # rotate local-backup namespace
-    request.session["project_area"] = "municipal"
+    request.session["project_area"] = zone_policy.DEFAULT_AREA
     request.session["selected_backend_id"] = None  # Clear any previous backend selection
     request.session["current_saved_work_id"] = None  # Clear any resumed work so new estimate doesn't show "Update Work"
     # Clear uploaded custom items
@@ -125,7 +126,7 @@ def select_project(request):
         request.session["estimate_locations"] = []
         request.session["item_location_breakdown"] = {}
         request.session["estimate_token"] = get_random_string(24)
-        request.session["project_area"] = "municipal"
+        request.session["project_area"] = zone_policy.DEFAULT_AREA
         return redirect("choose_category")
 
     if request.method == "POST":
@@ -138,7 +139,7 @@ def select_project(request):
             request.session["estimate_locations"] = []
             request.session["item_location_breakdown"] = {}
             request.session["estimate_token"] = get_random_string(24)
-            request.session["project_area"] = "municipal"
+            request.session["project_area"] = zone_policy.DEFAULT_AREA
             return redirect("choose_category")
 
     return render(request, "core/select_project.html", {"projects": projects})
@@ -309,13 +310,16 @@ def datas_items(request, category, group):
     detected_names = {i["name"] for i in items_list}
     display_items = [name for name in group_items if name in detected_names]
 
-    project_area = request.session.get("project_area", "municipal") or "municipal"
+    project_area = request.session.get("project_area") or zone_policy.DEFAULT_AREA
     work_type_for_rate = request.session.get("work_type", "original") or "original"
 
     # Warm-cache lookup for the non-custom main-backend rates/descs. On a hit we
     # skip the (expensive) data_only workbook load and the per-item recompute.
     from core.utils_excel import _file_mtime
-    _rate_key = (filepath, _file_mtime(filepath), project_area, work_type_for_rate)
+    # The allowance version is part of the key so an admin re-uploading the
+    # Area Allowance sheet doesn't leave stale rates memoised here.
+    _rate_key = (filepath, _file_mtime(filepath), project_area, work_type_for_rate,
+                 zone_policy.allowance_version())
     _main_cache = _DATAS_RATE_CACHE.get(_rate_key)
     _computing = _main_cache is None
     ws_vals = None
@@ -559,6 +563,9 @@ def datas_items(request, category, group):
             estimate_token = get_random_string(24)
             request.session["estimate_token"] = estimate_token
 
+    _sel_zone, _sel_location = zone_policy.split(project_area)
+    _sel_allowance = zone_policy.resolve(project_area)["allowance_percent"]
+
     return render(request, "core/items.html", {
         "category": category,
         "group": group,
@@ -570,6 +577,13 @@ def datas_items(request, category, group):
         "grand_total": grand_total,
         "work_type": work_type,
         "project_area": project_area,
+        # Two-level Project Location control (Zone -> location category)
+        "zones": zone_policy.ZONES,
+        "project_zone": _sel_zone,
+        "project_location": _sel_location,
+        "project_location_label": zone_policy.describe(project_area),
+        "area_allowance_percent": _sel_allowance,
+        "area_allowance_uploaded": zone_policy.has_area_allowance_data(),
         "excess_tp_percent": excess_tp_percent,
         "ls_special_name": ls_special_name,
         "ls_special_amount": ls_special_amount,
@@ -725,7 +739,7 @@ def ajax_items_meta(request, category):
         return JsonResponse({"error": "Could not load backend data"}, status=500)
 
     name_to_info = {it["name"]: it for it in items_list}
-    project_area = request.session.get("project_area", "municipal") or "municipal"
+    project_area = request.session.get("project_area") or zone_policy.DEFAULT_AREA
     work_type_for_rate = request.session.get("work_type", "original") or "original"
 
     try:
@@ -887,7 +901,7 @@ def ajax_toggle_item(request, category):
                 wb_vals = load_workbook(filepath, data_only=True)
                 ws_vals = wb_vals["Master Datas"]
                 
-                project_area = request.session.get("project_area", "municipal") or "municipal"
+                project_area = request.session.get("project_area") or zone_policy.DEFAULT_AREA
                 work_type_for_rate = request.session.get("work_type", "original") or "original"
 
                 item_rate = None
@@ -1096,18 +1110,23 @@ def save_locations(request, category):
 
 
 # -----------------------
-# AJAX: MUNICIPAL / NON-MUNICIPAL AREA (GHMC allowance applicability)
+# AJAX: PROJECT LOCATION (zone + location category)
 # -----------------------
 @login_required(login_url='login')
 def set_project_area(request, category):
     """
-    AJAX endpoint to set the estimate's project area, which determines
-    whether the backend's "Add GHMC allowance @40%" rows apply. Only
+    AJAX endpoint to set the estimate's Project Location -- a Zone plus the
+    location category within it. That pair drives the zone labour rates and
+    the Area Allowance percentage used by every rate calculation. Only
     callable while the estimate has no items yet (enforced by the frontend
     disabling the control once items exist) -- this view itself doesn't
     need to recompute anything since there's nothing selected to adjust.
-    POST with JSON or form: { "area": "municipal" | "non_municipal" }
-    Returns JSON: { "status": "ok", "project_area": "..." }
+
+    POST with JSON or form: { "zone": "zone_2", "location": "industrial_area" }
+    The legacy { "area": "municipal" | "non_municipal" } form is still
+    accepted so older clients keep working.
+    Returns JSON: { "status": "ok", "project_area": "...", "zone": "...",
+                    "location": "...", "allowance_percent": ... }
     """
     if request.method != "POST":
         return JsonResponse({"status": "error", "message": "POST required"}, status=405)
@@ -1117,12 +1136,32 @@ def set_project_area(request, category):
     else:
         data = request.POST
 
-    area = (data.get("area") or "").strip()
-    if area not in ("municipal", "non_municipal"):
-        return JsonResponse({"status": "error", "message": "Invalid area"}, status=400)
+    zone = (data.get("zone") or "").strip()
+    location = (data.get("location") or "").strip()
+
+    if zone or location:
+        if not zone_policy.is_valid_pair(zone, location):
+            return JsonResponse(
+                {"status": "error",
+                 "message": "Select a zone and its project location category."},
+                status=400,
+            )
+        area = zone_policy.encode(zone, location)
+    else:
+        area = (data.get("area") or "").strip()
+        if area not in (zone_policy.LEGACY_MUNICIPAL, zone_policy.LEGACY_NON_MUNICIPAL):
+            return JsonResponse({"status": "error", "message": "Invalid area"}, status=400)
 
     request.session["project_area"] = area
-    return JsonResponse({"status": "ok", "project_area": area})
+    zone_code, location_code = zone_policy.split(area)
+    return JsonResponse({
+        "status": "ok",
+        "project_area": area,
+        "zone": zone_code,
+        "location": location_code,
+        "label": zone_policy.describe(area),
+        "allowance_percent": zone_policy.resolve(area)["allowance_percent"],
+    })
 
 
 @login_required(login_url='login')
@@ -2155,7 +2194,7 @@ def download_output(request, category):
             'spec_overrides': request.session.get('item_spec_overrides', {}) or {},
             'item_location_breakdown': request.session.get('item_location_breakdown', {}) or {},
             'estimate_locations': request.session.get('estimate_locations', []) or [],
-            'project_area': request.session.get('project_area', 'municipal') or 'municipal',
+            'project_area': request.session.get('project_area') or zone_policy.DEFAULT_AREA,
         }
         job.save()
 
@@ -2244,7 +2283,7 @@ def download_multi_estimate(request, category):
                   for g in session_estimates]
 
     work_type = (request.session.get("work_type") or "original").lower()
-    project_area = request.session.get("project_area", "municipal") or "municipal"
+    project_area = request.session.get("project_area") or zone_policy.DEFAULT_AREA
     selected_backend_id = request.session.get("selected_backend_id")
     org = get_org_from_request(request)
 
@@ -2458,7 +2497,7 @@ def clear_output(request, category):
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
     request.session["estimate_token"] = get_random_string(24)
-    request.session["project_area"] = "municipal"
+    request.session["project_area"] = zone_policy.DEFAULT_AREA
     # Clear uploaded custom items
     request.session["uploaded_items"] = []
     request.session["uploaded_file_id"] = None
@@ -2794,7 +2833,7 @@ def new_project(request):
     request.session["estimate_locations"] = []
     request.session["item_location_breakdown"] = {}
     request.session["estimate_token"] = get_random_string(24)
-    request.session["project_area"] = "municipal"
+    request.session["project_area"] = zone_policy.DEFAULT_AREA
     return redirect("datas")
 
 

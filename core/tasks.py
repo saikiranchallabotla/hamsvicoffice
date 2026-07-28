@@ -633,11 +633,11 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
                 external_sheets=external_sheets_all,
             )
 
-            # Rewrite the GHMC-allowance/Overhead row formulas (if present)
-            # for the project's Municipal/Non-Municipal area and Original/
-            # Repair work type, so Excel's own recalculation on open shows
-            # the correct Sub-total/Total Rate. No-op if the block has
-            # neither row, or if municipal+repair (today's baked-in default).
+            # Rewrite the block's labour rates for the project's Zone and the
+            # Area-allowance/Overhead row formulas (if present) for its
+            # project location and Original/Repair work type, so Excel's own
+            # recalculation on open shows the correct Sub-total/Total Rate.
+            # No-op for Zone 1 / GHMC + repair (the baked-in default).
             apply_policy_to_copied_block(ws_out, dst_start, src_min, src_max, project_area, work_type)
 
             ws_out.cell(row=dst_start, column=1).value = f"Data {data_serial}"

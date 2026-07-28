@@ -1,0 +1,297 @@
+{% extends "admin_panel/base.html" %}
+
+{% block title %}Area Allowance Upload{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'admin_data_management' %}">Data Management</a></li>
+<li class="breadcrumb-item active">Area Allowance</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .upload-zone {
+        border: 2px dashed #cbd5e1;
+        border-radius: 8px;
+        padding: 1.5rem 1rem;
+        text-align: center;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+        border-color: #2563eb;
+        background: #f0f9ff;
+    }
+    .upload-zone i {
+        font-size: 1.75rem;
+        color: #94a3b8;
+        margin-bottom: 0.5rem;
+    }
+    .upload-zone.dragover i { color: #2563eb; }
+    .current-file-preview {
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    .new-file-preview {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: none;
+    }
+    .file-input-hidden { display: none; }
+    .allowance-table { font-size: 0.85rem; }
+    .allowance-table th {
+        background: #f8fafc;
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">
+        <i class="bi bi-percent me-2"></i>
+        Area Allowance Upload
+    </h4>
+    <a href="{% url 'admin_data_management' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="upload-card">
+            <!-- Current File Info -->
+            {% if current %}
+            <div class="current-file-preview">
+                <h6><i class="bi bi-file-earmark-excel me-2 text-success"></i>Current File</h6>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <span class="fw-medium">{{ current.file_name|default:"(unnamed)" }}</span>
+                    <span class="text-muted small">
+                        Uploaded: {{ current.uploaded_at|date:"d M Y, h:i A" }}
+                        {% if current.uploaded_by %}by {{ current.uploaded_by.username }}{% endif %}
+                    </span>
+                    <a href="{% url 'admin_download_area_allowance' %}" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-download me-1"></i>Download Current File
+                    </a>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm allowance-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Zone</th>
+                                <th>Project Location Category</th>
+                                <th class="text-end">Area Allowance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr>
+                                <td>{{ row.zone_label }}</td>
+                                <td>{{ row.location_label }}</td>
+                                <td class="text-end fw-medium">{{ row.percent|floatformat:"-2" }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                No Area Allowance sheet has been uploaded yet. Until one is uploaded,
+                estimates on <strong>Zone 1 / GHMC</strong> use the backend workbook's own
+                allowance percentage and every other zone/location combination uses 0%.
+            </div>
+            {% endif %}
+
+            <!-- Upload Form -->
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                {% csrf_token %}
+
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                    <h5>Drop the Area Allowance Excel here</h5>
+                    <p class="text-muted mb-3">or click to browse</p>
+                    <span class="badge bg-light text-dark">.xlsx or .xls files only</span>
+                </div>
+
+                <input type="file" name="file" id="fileInput" class="file-input-hidden" accept=".xlsx,.xls">
+
+                <div class="new-file-preview" id="newFilePreview">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                            <span id="newFileName" class="fw-medium"></span>
+                            <span id="newFileSize" class="badge bg-secondary ms-2"></span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                        <i class="bi bi-arrow-repeat me-2"></i>
+                        {% if current %}Replace Existing File{% else %}Upload Area Allowance Excel{% endif %}
+                    </button>
+                    <a href="{% url 'admin_data_management' %}" class="btn btn-outline-secondary btn-lg">Cancel</a>
+                </div>
+
+                <div class="alert alert-warning mt-3 mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> Uploading replaces the existing Area Allowance data
+                    outright. Estimates generated afterwards use the new percentages.
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="upload-card">
+            <h6><i class="bi bi-table me-2"></i>Accepted Excel Formats</h6>
+            <p class="small text-muted mb-2">
+                <strong>1. The SOR cross-tab</strong> — zone headers across the top, category
+                headings beneath them (merged cells are fine), and an
+                <em>Area Allowance</em> row of percentages:
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered allowance-table">
+                    <tbody>
+                        <tr>
+                            <td rowspan="2" class="align-middle">Type of Area</td>
+                            {% for zone in zones %}
+                            <td colspan="{{ zone.locations|length }}" class="text-center">{{ zone.label }}</td>
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            {% for zone in zones %}{% for loc in zone.locations %}
+                            <td class="small">{{ loc.label }}</td>
+                            {% endfor %}{% endfor %}
+                        </tr>
+                        <tr>
+                            <td>Area Allowance</td>
+                            {% for zone in zones %}{% for loc in zone.locations %}
+                            <td>xx%</td>
+                            {% endfor %}{% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="small text-muted mb-2 mt-3">
+                <strong>2. A flat list</strong> with these column headings:
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm allowance-table">
+                    <thead>
+                        <tr>
+                            {% for col in template_columns %}<th>{{ col }}</th>{% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for zone in zones %}
+                            {% for loc in zone.locations %}
+                            <tr>
+                                <td>{{ zone.label }}</td>
+                                <td>{{ loc.label }}</td>
+                                <td>xx%</td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <hr>
+
+            <h6><i class="bi bi-info-circle me-2"></i>Validation Rules</h6>
+            <ul class="small text-muted ps-3">
+                <li class="mb-2">Every zone/location combination above must be present</li>
+                <li class="mb-2">Each category must sit under its own zone</li>
+                <li class="mb-2">Zones may be written <code>ZONE-I</code>, <code>Zone 1</code> or <code>1</code></li>
+                <li class="mb-2">Percentages may be written <code>40</code>, <code>40%</code> or as a percent-formatted cell</li>
+                <li class="mb-2">Nothing is replaced unless the whole sheet validates</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const newFilePreview = document.getElementById('newFilePreview');
+const submitBtn = document.getElementById('submitBtn');
+
+uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFileSelect();
+    }
+});
+
+fileInput.addEventListener('change', handleFileSelect);
+
+function handleFileSelect() {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    if (!file.name.match(/\.(xlsx|xls)$/i)) {
+        alert('Please upload an Excel file (.xlsx or .xls)');
+        clearFile();
+        return;
+    }
+
+    document.getElementById('newFileName').textContent = file.name;
+    document.getElementById('newFileSize').textContent = formatSize(file.size);
+    newFilePreview.style.display = 'block';
+    uploadZone.style.display = 'none';
+    submitBtn.disabled = false;
+}
+
+function clearFile() {
+    fileInput.value = '';
+    newFilePreview.style.display = 'none';
+    uploadZone.style.display = 'block';
+    submitBtn.disabled = true;
+}
+
+function formatSize(bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) {
+        bytes /= 1024;
+        i++;
+    }
+    return bytes.toFixed(1) + ' ' + units[i];
+}
+</script>
+{% endblock %}

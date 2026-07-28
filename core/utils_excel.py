@@ -1527,17 +1527,33 @@ def _safe_eval_arith(s):
         raise ValueError("Invalid arithmetic expression")
 
 
-# ---------- GHMC allowance / Overhead percentage policy adjustment ----------
+# ---------- Zone / Area-allowance / Overhead percentage policy adjustment ----------
 # Backend item blocks sometimes contain two specific calculated rows:
-#   "Add GHMC allowance @40%"  -- only applicable inside Municipal (GHMC) limits
+#   "Add GHMC allowance @40%"  -- the Area Allowance row. Its percentage now
+#                                  depends on the estimate's Zone + Project
+#                                  Location Category (see core.zone_policy).
 #   "Add Overhead @10.615%"    -- the file bakes in the *repair*-work percentage;
 #                                  original works use 13.615% instead.
 # Both are simple "<prior row> * <percent>" formulas, and the row immediately
 # after is always a SUM of the preceding rows. Most item blocks have neither
 # row, in which case these helpers are no-ops and today's cached rate is used
 # unchanged.
+#
+# Blocks also carry an "a) Labour charges :" section whose per-day rates
+# (column I) are stored as Zone-1 rates. For Zone 2 / Zone 3 a flat deduction
+# is applied to each of those rates before the block is evaluated.
 
 _GHMC_LABEL_RE = re.compile(r"add\s+ghmc\s+allowance\s*@?\s*[\d.]+\s*%", re.I)
+_GHMC_LABEL_NUM_RE = re.compile(r"(add\s+ghmc\s+allowance\s*@?\s*)([\d.]+)(\s*%)", re.I)
+# Start of the labour section inside an item block, e.g. "a) Labour charges :"
+_LABOUR_HEADER_RE = re.compile(r"labour\s+charges\s*:", re.I)
+# The zone marker some backends put in column B of each labour line, e.g.
+# "Zone-I". It's a label only -- the rates themselves are always Zone 1 -- so
+# it is rewritten to match whichever zone the estimate is for.
+_ZONE_MARKER_RE = re.compile(r"^(\s*zone\s*[-\s]*)(?:[ivx]+|\d+)(\s*)$", re.I)
+_ZONE_ROMAN = {"zone_1": "I", "zone_2": "II", "zone_3": "III"}
+# First row after the labour section: the material sub-heading, e.g. "b) Material"
+_MATERIAL_HEADER_RE = re.compile(r"^\s*[b-z]\s*\)\s*material", re.I)
 _OVERHEAD_LABEL_RE = re.compile(r"add\s+overhead\s*@?\s*[\d.]+\s*%", re.I)
 # The GHMC/Overhead percentage appears in formulas in either decimal form
 # (=J85*0.4, =(J98)*0.10615) or Excel percent-literal form (=J623*10.615%),
@@ -1558,10 +1574,76 @@ _PERCENT_LITERAL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 _OVERHEAD_LABEL_NUM_RE = re.compile(r"(add\s+overhead\s*@?\s*)([\d.]+)(\s*%)", re.I)
 
 
-def _zero_out_ghmc(expr):
-    expr = _GHMC_DECIMAL_RE.sub("0", expr)
-    expr = _GHMC_PERCENT_RE.sub("0%", expr)
+def _fmt_num(value):
+    """Compact decimal string: 40.0 -> '40', 0.4 -> '0.4', 12.75 -> '12.75'."""
+    s = f"{float(value):.10f}".rstrip("0").rstrip(".")
+    return s or "0"
+
+
+def _allowance_literal_res(baked_percent):
+    """
+    Regexes matching the block's own baked-in allowance percentage in either
+    of the two forms it appears in a column-J formula: decimal factor
+    (``=J10*0.4``) or Excel percent literal (``=J10*40%``).
+
+    ``baked_percent`` comes from the row's own label text, so blocks that use
+    something other than 40% are handled too. Falls back to the historical
+    40% literals when the label has no readable number.
+    """
+    if baked_percent is None:
+        return _GHMC_DECIMAL_RE, _GHMC_PERCENT_RE
+    dec = _fmt_num(baked_percent / 100.0)
+    pct = _fmt_num(baked_percent)
+    dec_re = re.compile(r"(?<![\d.])" + re.escape(dec) + r"0*(?![\d])")
+    pct_re = re.compile(r"(?<![\d.])" + re.escape(pct) + r"(?:\.0*)?\s*%")
+    return dec_re, pct_re
+
+
+def _substitute_allowance(expr, baked_percent, new_percent):
+    """
+    Rewrite an allowance row's formula to use ``new_percent`` instead of the
+    percentage baked into the workbook. ``new_percent=0`` zeroes the row.
+    """
+    dec_re, pct_re = _allowance_literal_res(baked_percent)
+    expr = dec_re.sub(_fmt_num(new_percent / 100.0), expr)
+    expr = pct_re.sub(_fmt_num(new_percent) + "%", expr)
     return expr
+
+
+def zone_labour_rate(zone1_rate, deduction):
+    """
+    The selected zone's labour rate, derived from the Zone-1 rate the backend
+    stores. Never goes below zero, and non-numeric cells are passed through
+    untouched.
+    """
+    value = _safe_float(zone1_rate)
+    if value is None or not deduction:
+        return zone1_rate if value is None else value
+    return max(0.0, value - float(deduction))
+
+
+def _literal_labour_amount(ws_vals, row, deduction, fallback):
+    """Recompute ``qty * rate / per-unit`` for a labour line stored as a
+    literal amount. Returns ``fallback`` when the row isn't shaped that way."""
+    qty = _safe_float(ws_vals.cell(row=row, column=5).value)
+    per = _safe_float(ws_vals.cell(row=row, column=7).value)
+    rate = _safe_float(ws_vals.cell(row=row, column=9).value)
+    if qty is None or rate is None or not per:
+        return fallback
+    return qty * max(0.0, rate - float(deduction)) / per
+
+
+def _baked_allowance_percent(label):
+    """Read the percentage out of an allowance row's own label text."""
+    if not isinstance(label, str):
+        return None
+    m = _GHMC_LABEL_NUM_RE.search(label)
+    if not m:
+        return None
+    try:
+        return float(m.group(2))
+    except ValueError:
+        return None
 
 
 def _swap_overhead_to_original(expr):
@@ -1586,6 +1668,45 @@ def find_policy_rows(ws_vals, start_row, end_row):
         elif overhead_row is None and _OVERHEAD_LABEL_RE.search(label):
             overhead_row = r
     return ghmc_row, overhead_row
+
+
+def find_labour_rate_rows(ws_vals, start_row, end_row):
+    """
+    Row numbers of the individual labour lines inside an item block -- the
+    rows between the "a) Labour charges :" sub-heading and the "b) Material"
+    sub-heading that carry an actual per-unit rate in column I.
+
+    Only the contiguous run of rate-bearing rows is taken, so the section's
+    summary rows ("Labour Rate Per 100 Rm", "Add GHMC allowance@40%", "Labour
+    Sub total") end the scan -- they carry no column-I rate, are computed from
+    the labour lines, and follow automatically once those change. That also
+    guarantees the scan can never reach the material rates below.
+
+    Returns [] for blocks with no labour section, which makes every
+    zone adjustment a no-op for them.
+    """
+    labour_header = None
+    for r in range(start_row, end_row + 1):
+        label = ws_vals.cell(row=r, column=4).value
+        # Guard against a long item description that happens to contain the
+        # words -- the real sub-heading is a short label like "a) Labour charges :"
+        if isinstance(label, str) and len(label) <= 60 and _LABOUR_HEADER_RE.search(label):
+            labour_header = r
+            break
+    if labour_header is None:
+        return []
+
+    rows = []
+    for r in range(labour_header + 1, end_row + 1):
+        label = ws_vals.cell(row=r, column=4).value
+        if isinstance(label, str) and _MATERIAL_HEADER_RE.match(label):
+            break
+        rate = ws_vals.cell(row=r, column=9).value
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool):
+            rows.append(r)
+        elif rows:
+            break
+    return rows
 
 
 def _block_cached_rate(ws_vals, start_row, end_row):
@@ -1662,16 +1783,37 @@ def compute_block_rate(ws_vals, ws_formulas, start_row, end_row, area="municipal
     """
     Returns the rate for item block [start_row, end_row] -- the same cached
     'last non-empty column J cell' value as today, UNLESS the block contains
-    a GHMC-allowance and/or Overhead row. When it does, that row's formula is
-    re-evaluated with the policy-adjusted percentage and the change cascades
-    through every dependent row (Sub-total, Total Rate, etc.) by
-    re-evaluating each row's formula top-down against the rows already
-    recomputed in this pass. No-op (returns the unchanged cached rate) if
-    neither row is present in this block.
+    an Area-allowance ("Add GHMC allowance @N%") row, an Overhead row, or
+    labour rates that the selected Zone shifts. When it does, the affected
+    rows are re-evaluated and the change cascades through every dependent row
+    (Sub-total, Total Rate, etc.) by re-evaluating each row's formula top-down
+    against the rows already recomputed in this pass. No-op (returns the
+    unchanged cached rate) when nothing applies to this block.
+
+    ``area`` is the estimate's project-location value -- either a
+    ``"<zone>:<location>"`` pair or one of the legacy
+    ``"municipal"``/``"non_municipal"`` strings (see core.zone_policy).
     """
+    from core.zone_policy import resolve as _resolve_zone_policy
+
+    policy = _resolve_zone_policy(area)
+    labour_deduction = policy["labour_deduction"]
+    allowance_percent = policy["allowance_percent"]
+
     ghmc_row, overhead_row = find_policy_rows(ws_vals, start_row, end_row)
-    if ghmc_row is None and overhead_row is None:
+    labour_rows = (
+        set(find_labour_rate_rows(ws_vals, start_row, end_row))
+        if labour_deduction else set()
+    )
+    adjust_allowance = ghmc_row is not None and allowance_percent is not None
+    adjust_overhead = overhead_row is not None and work_type == "original"
+    if not adjust_allowance and not adjust_overhead and not labour_rows:
         return _block_cached_rate(ws_vals, start_row, end_row)
+
+    baked_allowance = (
+        _baked_allowance_percent(ws_vals.cell(row=ghmc_row, column=4).value)
+        if ghmc_row is not None else None
+    )
 
     computed = {}
     has_content = {}
@@ -1687,6 +1829,8 @@ def compute_block_rate(ws_vals, ws_formulas, start_row, end_row, area="municipal
         r = int(row)
         if col == 10 and start_row <= r <= end_row:
             return col_j_value(r)
+        if col == 9 and r in labour_rows:
+            return zone_labour_rate(ws_vals.cell(row=r, column=9).value, labour_deduction)
         return _get_cell_value(ws_vals, ws_formulas, addr)
 
     for r in range(start_row, end_row + 1):
@@ -1696,8 +1840,8 @@ def compute_block_rate(ws_vals, ws_formulas, start_row, end_row, area="municipal
 
         if isinstance(j_formula, str) and j_formula.startswith("="):
             expr = j_formula[1:].upper()
-            if r == ghmc_row and area == "non_municipal":
-                expr = _zero_out_ghmc(expr)
+            if r == ghmc_row and adjust_allowance:
+                expr = _substitute_allowance(expr, baked_allowance, allowance_percent)
             elif r == overhead_row and work_type == "original":
                 expr = _swap_overhead_to_original(expr)
 
@@ -1709,6 +1853,12 @@ def compute_block_rate(ws_vals, ws_formulas, start_row, end_row, area="municipal
                 computed[r] = float(_safe_eval_arith(re.sub(r"[^0-9.\+\-\*/()\s]", "", expr)))
             except Exception:
                 computed[r] = _safe_float(j_value) or 0.0
+        elif r in labour_rows:
+            # Labour line whose amount is a literal rather than a formula --
+            # rebuild it from the zone-adjusted rate (qty * rate / per-unit).
+            computed[r] = _literal_labour_amount(
+                ws_vals, r, labour_deduction, _safe_float(j_value) or 0.0
+            )
         else:
             computed[r] = _safe_float(j_value) or 0.0
 
@@ -1722,34 +1872,67 @@ def apply_policy_to_copied_block(ws_dst, dst_start_row, src_min_row, src_max_row
     """
     Call AFTER copy_block_with_styles_and_formulas() has copied
     [src_min_row, src_max_row] into ws_dst starting at dst_start_row.
-    Rewrites the GHMC-allowance and/or Overhead row's column-J FORMULA TEXT
-    in place (literal percentage substitution only -- cell positions and
-    every other row are otherwise untouched, so Excel's own recalculation on
-    file-open cascades the change through every dependent Sub-total/Total
-    Rate row automatically). No-op if neither row exists in this block, or
-    if area/work_type don't require any change.
+    Applies three in-place edits, all of them literal-value substitutions --
+    cell positions and every other row are otherwise untouched, so Excel's
+    own recalculation on file-open cascades the changes through every
+    dependent Sub-total/Total Rate row automatically:
 
-    For non-municipal areas, the now-zeroed GHMC row is hidden (row height 0)
-    rather than physically deleted -- deleting it would require rewriting
-    every other row's formula text in this block to fix up cell references,
-    which risks silently corrupting unrelated SUM ranges. Hiding achieves the
-    same visual result (no visible row, no gap, not printed/exported) while
-    keeping every formula's cell references intact and correct.
+      * each labour line's column-I rate is replaced by the selected zone's
+        rate (Zone-1 rate minus the zone deduction), and its column-B
+        "Zone-I" marker -- where the backend has one -- is relabelled to
+        match;
+      * the Area-allowance row's column-J percentage is replaced by the one
+        the uploaded Area Allowance sheet gives for this zone + location, and
+        its label is rewritten to match;
+      * for original works, the Overhead row's percentage and label are
+        switched from the baked-in 10.615% to 13.615%.
 
-    For original works, the Overhead row's own label text (column D) is also
-    rewritten so it reads "...@13.615%" instead of the baked-in
-    "...@10.615%", matching the substituted formula.
+    No-op for whatever doesn't apply to this block.
+
+    When the applicable allowance is 0% the now-zeroed row is hidden (row
+    height 0) rather than physically deleted -- deleting it would require
+    rewriting every other row's formula text in this block to fix up cell
+    references, which risks silently corrupting unrelated SUM ranges. Hiding
+    achieves the same visual result (no visible row, no gap, not
+    printed/exported) while keeping every formula's cell references intact.
     """
-    if area != "non_municipal" and work_type != "original":
+    from core.zone_policy import resolve as _resolve_zone_policy
+
+    policy = _resolve_zone_policy(area)
+    labour_deduction = policy["labour_deduction"]
+    allowance_percent = policy["allowance_percent"]
+
+    if not labour_deduction and allowance_percent is None and work_type != "original":
         return
     dst_end_row = dst_start_row + (src_max_row - src_min_row)
     ghmc_row, overhead_row = find_policy_rows(ws_dst, dst_start_row, dst_end_row)
 
-    if ghmc_row is not None and area == "non_municipal":
+    if labour_deduction:
+        zone_roman = _ZONE_ROMAN.get(policy["zone"])
+        for r in find_labour_rate_rows(ws_dst, dst_start_row, dst_end_row):
+            rate_cell = ws_dst.cell(row=r, column=9)
+            rate_cell.value = zone_labour_rate(rate_cell.value, labour_deduction)
+            # Keep the row's "Zone-I" marker (column B, where present) honest.
+            marker_cell = ws_dst.cell(row=r, column=2)
+            if zone_roman and isinstance(marker_cell.value, str):
+                marker_cell.value = _ZONE_MARKER_RE.sub(
+                    lambda m: m.group(1) + zone_roman + m.group(2),
+                    marker_cell.value,
+                )
+
+    if ghmc_row is not None and allowance_percent is not None:
+        label_cell = ws_dst.cell(row=ghmc_row, column=4)
+        baked = _baked_allowance_percent(label_cell.value)
         cell = ws_dst.cell(row=ghmc_row, column=10)
         if isinstance(cell.value, str) and cell.value.startswith("="):
-            cell.value = _zero_out_ghmc(cell.value)
-        ws_dst.row_dimensions[ghmc_row].hidden = True
+            cell.value = _substitute_allowance(cell.value, baked, allowance_percent)
+        if isinstance(label_cell.value, str):
+            label_cell.value = _GHMC_LABEL_NUM_RE.sub(
+                lambda m: m.group(1) + _fmt_num(allowance_percent) + m.group(3),
+                label_cell.value,
+            )
+        if not allowance_percent:
+            ws_dst.row_dimensions[ghmc_row].hidden = True
 
     if overhead_row is not None and work_type == "original":
         cell = ws_dst.cell(row=overhead_row, column=10)

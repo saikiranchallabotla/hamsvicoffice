@@ -1007,3 +1007,67 @@ class UserGroupOrder(models.Model):
 
     def __str__(self):
         return f'{self.user_id}/{self.scope}/{self.category} ({len(self.order)})'
+
+
+class AreaAllowanceUpload(models.Model):
+    """
+    Admin-uploaded Area Allowance percentages, keyed by (zone, project
+    location category).
+
+    Only ONE row is ever kept -- uploading a new sheet replaces the previous
+    one entirely (see :meth:`replace`). The parsed percentages live in
+    ``rows``; the original workbook bytes are kept in ``file_data`` so the
+    admin can download the current file back.
+
+    ``rows`` layout::
+
+        [{"zone": "zone_1", "zone_label": "Zone 1",
+          "location": "ghmc", "location_label": "GHMC",
+          "percent": 40.0}, ...]
+    """
+    file_name = models.CharField(max_length=255, blank=True, default="")
+    file_data = models.BinaryField(blank=True, null=True)
+    rows = models.JSONField(default=list, blank=True)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='area_allowance_uploads',
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+        verbose_name = "Area Allowance Upload"
+
+    def __str__(self):
+        return f'AreaAllowance({self.file_name or "unnamed"}, {len(self.rows or [])} rows)'
+
+    @classmethod
+    def current(cls):
+        """The active upload, or None when the admin hasn't uploaded one yet."""
+        return cls.objects.order_by('-uploaded_at', '-id').first()
+
+    @classmethod
+    def replace(cls, file_name, file_bytes, rows, user=None):
+        """Swap in a freshly uploaded sheet, discarding the previous one."""
+        from django.db import transaction
+        with transaction.atomic():
+            cls.objects.all().delete()
+            obj = cls.objects.create(
+                file_name=file_name or '',
+                file_data=file_bytes,
+                rows=rows or [],
+                uploaded_by=user if (user is not None and getattr(user, 'is_authenticated', False)) else None,
+            )
+        from core.zone_policy import invalidate_area_allowance_cache
+        invalidate_area_allowance_cache()
+        return obj
+
+    def percent_map(self):
+        """{(zone_code, location_code): percent}"""
+        out = {}
+        for row in (self.rows or []):
+            try:
+                out[(row['zone'], row['location'])] = float(row['percent'])
+            except (KeyError, TypeError, ValueError):
+                continue
+        return out

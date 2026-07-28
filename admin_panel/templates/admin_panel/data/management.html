@@ -492,6 +492,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="allowance-tab" data-bs-toggle="tab" data-bs-target="#allowance" type="button" role="tab">
+            <i class="bi bi-percent me-1"></i>Area Allowance
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="backups-tab" data-bs-toggle="tab" data-bs-target="#backups" type="button" role="tab">
             <i class="bi bi-archive me-1"></i>Backups
         </button>
@@ -695,6 +700,50 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+    </div>
+
+    <!-- Area Allowance Tab -->
+    <div class="tab-pane fade" id="allowance" role="tabpanel">
+        <div class="data-card">
+            <h5><i class="bi bi-percent me-2"></i>Area Allowance</h5>
+            <p class="text-muted small mb-3">
+                The Area Allowance percentage applied to an estimate is looked up from this
+                sheet by the Zone and Project Location Category the user selects. Uploading a
+                new sheet replaces the previous data outright.
+            </p>
+
+            {% if area_allowance %}
+            <div class="file-info">
+                <div class="file-icon civil">
+                    <i class="bi bi-file-earmark-excel"></i>
+                </div>
+                <div class="file-details">
+                    <div class="file-name">{{ area_allowance.file_name|default:"(unnamed)" }}</div>
+                    <div class="file-meta">
+                        {{ area_allowance.rows|length }} combinations •
+                        Uploaded: {{ area_allowance.uploaded_at|date:"d M Y, h:i A" }}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="no-file">
+                <i class="bi bi-exclamation-circle me-2"></i>
+                No Area Allowance file uploaded yet
+            </div>
+            {% endif %}
+
+            <div class="file-actions">
+                <a href="{% url 'admin_area_allowance' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-upload me-1"></i>
+                    {% if area_allowance %}Manage / Replace{% else %}Upload Area Allowance Excel{% endif %}
+                </a>
+                {% if area_allowance %}
+                <a href="{% url 'admin_download_area_allowance' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-download me-1"></i>Download Current File
+                </a>
+                {% endif %}
+            </div>
         </div>
     </div>
 
