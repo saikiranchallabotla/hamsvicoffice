@@ -581,6 +581,9 @@ def datas_items(request, category, group):
         "zones": zone_policy.ZONES,
         "project_zone": _sel_zone,
         "project_location": _sel_location,
+        # Rendered server-side so the category select is populated on first
+        # paint; the JS only rebuilds it when the zone changes.
+        "project_zone_locations": zone_policy.locations_for_zone(_sel_zone),
         "project_location_label": zone_policy.describe(project_area),
         "area_allowance_percent": _sel_allowance,
         "area_allowance_uploaded": zone_policy.has_area_allowance_data(),

@@ -535,7 +535,149 @@
         margin-bottom: 0.3rem;
         border: 1px solid #e9d8fd;
     }
-    
+
+    /* ---- Project Location: Zone -> Category picker ---------------------- */
+    /* Bootstrap's .form-select is far too tall for this 0.7rem row, so the two
+       selects are restyled and butted together into one segmented control that
+       reads as a single path: Zone > Category > allowance. */
+    .project-location-row {
+        background: linear-gradient(180deg, #f5fbff 0%, #eff8ff 100%);
+        border-color: #bae6fd;
+        padding: 0.35rem 0.55rem;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .project-location-row .total-label {
+        color: #075985;
+        letter-spacing: 0.02em;
+    }
+
+    .location-picker {
+        display: inline-flex;
+        align-items: stretch;
+        background: #fff;
+        border: 1px solid #bae6fd;
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(2, 132, 199, 0.08);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .location-picker:hover {
+        border-color: #7dd3fc;
+        box-shadow: 0 1px 5px rgba(2, 132, 199, 0.16);
+    }
+
+    .location-picker:focus-within {
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+    }
+
+    .location-picker select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        border: 0;
+        outline: none;
+        margin: 0;
+        background-color: transparent;
+        /* Chevron drawn here so the control doesn't inherit the OS arrow well. */
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%230284c7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.4rem center;
+        background-size: 0.62rem;
+        padding: 0.3rem 1.35rem 0.3rem 0.6rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #0c4a6e;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    /* Steady widths so swapping zones doesn't make the control jump. */
+    #project-zone-select { min-width: 5.6rem; }
+    #project-location-select { min-width: 8.5rem; }
+
+    .location-picker select:hover {
+        background-color: #f0f9ff;
+    }
+
+    /* Hairline joining the two halves of the segmented control. */
+    .location-picker .picker-sep {
+        width: 1px;
+        background: #e0f2fe;
+        flex: 0 0 auto;
+    }
+
+    .allowance-chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.28rem;
+        background: #0ea5e9;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 0.65rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        padding: 0.24rem 0.6rem;
+        border-radius: 999px;
+        white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(2, 132, 199, 0.25);
+    }
+
+    /* The figure itself carries the emphasis, not the whole chip. */
+    .allowance-chip b {
+        color: #fff;
+        font-weight: 700;
+    }
+
+    /* No uploaded figure for this combination -- the workbook's own applies. */
+    .allowance-chip.is-muted {
+        background: #e0f2fe;
+        color: #0369a1;
+        box-shadow: none;
+    }
+
+    .allowance-chip.is-muted b { color: #075985; }
+
+    .location-locked {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #fff;
+        border: 1px solid #bae6fd;
+        border-radius: 6px;
+        padding: 0.26rem 0.6rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #0c4a6e;
+    }
+
+    .location-locked .bi-lock-fill {
+        color: #0284c7;
+        font-size: 0.68rem;
+    }
+
+    .location-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.35rem;
+        font-size: 0.68rem;
+        line-height: 1.35;
+        color: #0369a1;
+        background: #f0f9ff;
+        border: 1px dashed #bae6fd;
+        border-radius: 5px;
+        padding: 0.3rem 0.5rem;
+        margin: -0.1rem 0 0.4rem;
+    }
+
+    @media (max-width: 575.98px) {
+        .project-location-row { justify-content: flex-start; }
+        .location-picker { flex: 1 1 100%; }
+        .location-picker select { flex: 1 1 0; min-width: 0; }
+    }
+
     .total-label {
         font-weight: 600;
         color: #4a5568;
@@ -1439,43 +1581,61 @@
                 <!-- Project Location: Zone -> location category.
                      Drives the zone labour rates and the Area Allowance percentage. -->
                 {{ zones|json_script:"project-zones-data" }}
-                <div class="estimate-total-row" style="background: #f0f9ff; border-color: #7dd3fc; align-items: center;">
-                    <label class="total-label" style="color: #075985;">
-                        <i class="bi bi-geo me-1"></i>
+                <div class="estimate-total-row project-location-row">
+                    <label class="total-label" for="project-zone-select">
+                        <i class="bi bi-geo-alt-fill me-1"></i>
                         Project Location
                     </label>
                     {% if not estimate_rows %}
-                    <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;" id="project-area-control">
-                        <select id="project-zone-select" class="form-select form-select-sm"
-                                style="width: auto; min-width: 120px;"
-                                onchange="onProjectZoneChange()"
-                                aria-label="Zone">
-                            {% for z in zones %}
-                            <option value="{{ z.code }}" {% if z.code == project_zone %}selected{% endif %}>{{ z.label }}</option>
-                            {% endfor %}
-                        </select>
-                        <select id="project-location-select" class="form-select form-select-sm"
-                                style="width: auto; min-width: 180px;"
-                                onchange="onProjectLocationChange()"
-                                aria-label="Project Location Category">
-                        </select>
-                        <span class="total-label" id="area-allowance-badge" style="color: #075985; font-weight: 600;"></span>
+                    <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;" id="project-area-control">
+                        <div class="location-picker">
+                            <select id="project-zone-select"
+                                    onchange="onProjectZoneChange()"
+                                    aria-label="Zone"
+                                    title="Zone — sets the labour rates">
+                                {% for z in zones %}
+                                <option value="{{ z.code }}" {% if z.code == project_zone %}selected{% endif %}>{{ z.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="picker-sep"></span>
+                            <select id="project-location-select"
+                                    onchange="onProjectLocationChange()"
+                                    aria-label="Project Location Category"
+                                    title="Project Location Category — sets the Area Allowance">
+                                {% for loc in project_zone_locations %}
+                                <option value="{{ loc.code }}" {% if loc.code == project_location %}selected{% endif %}>{{ loc.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% if area_allowance_percent is not None %}
+                        <span class="allowance-chip" id="area-allowance-badge"
+                              title="Area Allowance applied to this estimate">
+                            Area Allowance <b>{{ area_allowance_percent|floatformat:"-2" }}%</b>
+                        </span>
+                        {% else %}
+                        <span class="allowance-chip is-muted" id="area-allowance-badge"
+                              title="No uploaded figure for this combination — the backend workbook's own percentage applies">
+                            Allowance as per backend
+                        </span>
+                        {% endif %}
                     </div>
                     {% else %}
-                    <span class="total-label" style="color: #075985;" title="Locked once items are added -- start a new estimate to change this">
-                        <i class="bi bi-lock-fill me-1"></i>
+                    <span class="location-locked" title="Locked once items are added — start a new estimate to change this">
+                        <i class="bi bi-lock-fill"></i>
                         {{ project_location_label }}
                         {% if area_allowance_percent is not None %}
-                        &nbsp;&middot;&nbsp;Area Allowance {{ area_allowance_percent|floatformat:"-2" }}%
+                        <span class="allowance-chip">{{ area_allowance_percent|floatformat:"-2" }}%</span>
                         {% endif %}
                     </span>
                     {% endif %}
                 </div>
                 {% if not estimate_rows and not area_allowance_uploaded %}
-                <div class="text-muted" style="font-size: 0.8rem; margin: -0.4rem 0 0.6rem 0.2rem;">
-                    <i class="bi bi-info-circle me-1"></i>
-                    No Area Allowance sheet has been uploaded yet — Zone 1 / GHMC uses the
-                    backend workbook's own percentage and every other combination uses 0%.
+                <div class="location-hint">
+                    <i class="bi bi-info-circle-fill" style="margin-top: 0.08rem;"></i>
+                    <span>
+                        No Area Allowance sheet uploaded yet — Zone 1 / GHMC uses the backend
+                        workbook's own percentage and every other combination uses 0%.
+                    </span>
                 </div>
                 {% endif %}
 
@@ -2072,17 +2232,11 @@ function saveProjectLocation(zone, location) {
 }
 
 function initProjectLocationControl() {
+    // The allowance chip is rendered server-side; only the second-level
+    // options need building, since they depend on the chosen zone.
     var zoneSel = document.getElementById('project-zone-select');
     if (!zoneSel) return;
     renderProjectLocationOptions(zoneSel.value, "{{ project_location|default:'' }}");
-    var badge = document.getElementById('area-allowance-badge');
-    if (badge) {
-        {% if area_allowance_percent is not None %}
-        badge.textContent = 'Area Allowance {{ area_allowance_percent|floatformat:"-2" }}%';
-        {% else %}
-        badge.textContent = 'Area Allowance as per backend';
-        {% endif %}
-    }
 }
 
 if (document.readyState === 'loading') {
