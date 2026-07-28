@@ -460,3 +460,135 @@ def test_legacy_non_municipal_leaves_the_label_name_alone(monkeypatch):
     # No location category to name, and the row is hidden anyway.
     assert wf.cell(row=11, column=4).value == " Add GHMC allowance@0%"
     assert wf.row_dimensions[11].hidden
+
+
+# ---------------------------------------------------------------------------
+# The selection follows the work down the Estimate -> Workslip -> Bill chain
+# ---------------------------------------------------------------------------
+
+class _Work:
+    """Stand-in for SavedWork: the resolvers only read .work_data and .parent."""
+
+    def __init__(self, work_data=None, parent=None):
+        self.work_data = work_data or {}
+        self.parent = parent
+
+
+def test_estimate_area_is_read_from_its_own_work_data():
+    from core.saved_works_views import resolve_work_project_area
+
+    estimate = _Work({'project_area': 'zone_2:industrial_area'})
+    assert resolve_work_project_area(estimate) == 'zone_2:industrial_area'
+
+
+def test_workslip_inherits_the_estimate_area_when_it_has_none():
+    from core.saved_works_views import resolve_work_project_area
+
+    estimate = _Work({'project_area': 'zone_3:upto_16_kms'})
+    # A workslip saved before ws_project_area was persisted.
+    workslip = _Work({}, parent=estimate)
+    assert resolve_work_project_area(workslip) == 'zone_3:upto_16_kms'
+
+
+def test_bill_inherits_through_the_workslip():
+    from core.saved_works_views import resolve_work_project_area
+
+    estimate = _Work({'project_area': 'zone_2:municipal_area'})
+    workslip = _Work({'ws_project_area': 'zone_2:municipal_area'}, parent=estimate)
+    bill = _Work({}, parent=workslip)
+    assert resolve_work_project_area(bill) == 'zone_2:municipal_area'
+
+
+def test_workslips_own_area_wins_over_the_parents():
+    from core.saved_works_views import resolve_work_project_area
+
+    estimate = _Work({'project_area': 'zone_1:ghmc'})
+    workslip = _Work({'ws_project_area': 'zone_3:beyond_16_kms'}, parent=estimate)
+    assert resolve_work_project_area(workslip) == 'zone_3:beyond_16_kms'
+
+
+def test_works_predating_the_feature_fall_back_to_legacy_pricing():
+    from core.saved_works_views import resolve_work_project_area
+
+    estimate = _Work({})
+    workslip = _Work({}, parent=estimate)
+    area = resolve_work_project_area(workslip)
+    assert area == zone_policy.LEGACY_MUNICIPAL
+    # Which is exactly how those works were priced before zones existed.
+    assert zone_policy.resolve(area)['labour_deduction'] == 0.0
+    assert zone_policy.resolve(area)['allowance_percent'] is None
+
+
+def test_resolution_terminates_on_a_broken_chain():
+    from core.saved_works_views import resolve_work_project_area
+
+    orphan = _Work({}, parent=None)
+    assert resolve_work_project_area(orphan) == zone_policy.LEGACY_MUNICIPAL
+
+
+@pytest.mark.parametrize("chain,expected", [
+    # Workslip's own mode.
+    ([{'ws_work_mode': 'repair'}], 'repair'),
+    # Inherited from the estimate, which stores it as work_type.
+    ([{}, {'work_type': 'repair'}], 'repair'),
+    ([{}, {'work_type': 'original'}], 'original'),
+    # Nothing anywhere -> the historical default.
+    ([{}, {}], 'original'),
+    # SavedWork.work_type values must not be mistaken for the rate mode.
+    ([{}, {'work_type': 'workslip'}], 'original'),
+])
+def test_resolve_work_mode_walks_the_same_chain(chain, expected):
+    from core.saved_works_views import resolve_work_mode
+
+    node = None
+    for data in reversed(chain):
+        node = _Work(data, parent=node)
+    assert resolve_work_mode(node) == expected
+
+
+def test_explicit_work_data_argument_overrides_the_record():
+    """Callers pass the work_data they already loaded; it must take priority."""
+    from core.saved_works_views import resolve_work_project_area
+
+    work = _Work({'ws_project_area': 'zone_1:ghmc'})
+    assert resolve_work_project_area(work, {'ws_project_area': 'zone_2:industrial_area'}) \
+        == 'zone_2:industrial_area'
+
+
+@pytest.mark.django_db
+def test_selection_follows_a_real_saved_work_chain():
+    """
+    End-to-end over actual SavedWork records: an estimate on Zone 3, a
+    workslip that stored the area, a second workslip saved before the field
+    existed, and a bill below it. Every one of them must price supplemental
+    items at the estimate's zone.
+    """
+    from django.contrib.auth.models import User
+    from core.models import Organization, SavedWork
+    from core.saved_works_views import resolve_work_project_area, resolve_work_mode
+
+    user = User.objects.create_user('zone-chain', password='x')
+    org = Organization.objects.create(name='T', slug='t-zone-chain', owner=user)
+
+    def mk(name, work_type, work_data, parent=None):
+        return SavedWork.objects.create(
+            organization=org, user=user, name=name, work_type=work_type,
+            work_data=work_data, parent=parent, category='electrical',
+        )
+
+    estimate = mk('E', 'new_estimate',
+                  {'project_area': 'zone_3:beyond_16_kms', 'work_type': 'repair'})
+    w1 = mk('E - W1', 'workslip',
+            {'ws_project_area': 'zone_3:beyond_16_kms', 'ws_work_mode': 'repair'},
+            parent=estimate)
+    w2_legacy = mk('E - W2', 'workslip', {}, parent=w1)   # saved before the fix
+    bill = mk('E - B1', 'bill', {}, parent=w2_legacy)
+
+    for work in (estimate, w1, w2_legacy, bill):
+        assert resolve_work_project_area(work) == 'zone_3:beyond_16_kms', work.name
+        assert resolve_work_mode(work) == 'repair', work.name
+
+    # A chain created before zones existed keeps its original pricing.
+    old_estimate = mk('Old', 'new_estimate', {})
+    old_workslip = mk('Old - W1', 'workslip', {}, parent=old_estimate)
+    assert resolve_work_project_area(old_workslip) == zone_policy.LEGACY_MUNICIPAL

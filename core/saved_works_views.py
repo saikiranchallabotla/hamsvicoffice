@@ -1145,6 +1145,9 @@ def collect_work_data(request, work_type):
             'selected_backend_id': request.session.get('ws_selected_backend_id'),
             'ws_source_estimate_id': request.session.get('ws_source_estimate_id'),
             'ws_work_mode': request.session.get('ws_work_mode', 'original'),
+            # Zone / project location carried down from the estimate, so
+            # reopening this workslip prices supplemental items the same way.
+            'ws_project_area': request.session.get('ws_project_area'),
             'ws_category': request.session.get('ws_category', 'electrical'),
             'ws_work_type': request.session.get('ws_work_type', 'new_estimate'),
         }
@@ -1427,6 +1430,9 @@ def restore_work_data(request, saved_work):
         if not ws_work_mode and saved_work.parent and saved_work.parent.work_data:
             ws_work_mode = saved_work.parent.work_data.get('work_type', 'original')
         request.session['ws_work_mode'] = ws_work_mode or 'original'
+        # Restore the Zone / project location the same way, falling back up
+        # the chain for workslips saved before it was persisted here.
+        request.session['ws_project_area'] = resolve_work_project_area(saved_work, work_data)
         request.session['ws_lc_percent'] = work_data.get('ws_lc_percent', 0.0)
         request.session['ws_qc_percent'] = work_data.get('ws_qc_percent', 0.0)
         request.session['ws_nac_percent'] = work_data.get('ws_nac_percent', 0.0)
@@ -2072,6 +2078,57 @@ def load_item_rates_from_backend(category, item_names, backend_id=None, user=Non
         return {name: {'rate': 0, 'unit': 'Nos', 'group': '', 'desc': name} for name in item_names}
 
 
+def resolve_work_project_area(saved_work, work_data=None):
+    """
+    The Zone / project location category a saved work's rates were computed
+    at, so supplemental items added further down the workflow (Workslip, Bill)
+    are priced the same way the estimate was.
+
+    Workslips and bills carry it as 'ws_project_area'; the estimate at the
+    root of the chain carries it as 'project_area'. When a record predates
+    this field the walk climbs to its parent, and ultimately falls back to
+    the legacy value -- which resolves to Zone 1 / GHMC, exactly how those
+    older works were originally priced.
+    """
+    from core import zone_policy
+
+    data = work_data if work_data is not None else (getattr(saved_work, 'work_data', None) or {})
+    area = data.get('ws_project_area') or data.get('project_area')
+    if area:
+        return area
+
+    node = getattr(saved_work, 'parent', None)
+    while node is not None:
+        node_data = node.work_data or {}
+        area = node_data.get('ws_project_area') or node_data.get('project_area')
+        if area:
+            return area
+        node = node.parent
+    return zone_policy.LEGACY_MUNICIPAL
+
+
+def resolve_work_mode(saved_work, work_data=None):
+    """
+    The original/repair mode a saved work's rates were computed at, resolved
+    the same way as :func:`resolve_work_project_area`. Note this is the
+    *rate* mode stored inside work_data, not SavedWork.work_type (which says
+    estimate/workslip/bill).
+    """
+    data = work_data if work_data is not None else (getattr(saved_work, 'work_data', None) or {})
+    mode = data.get('ws_work_mode') or data.get('work_type')
+    if mode in ('original', 'repair'):
+        return mode
+
+    node = getattr(saved_work, 'parent', None)
+    while node is not None:
+        node_data = node.work_data or {}
+        mode = node_data.get('ws_work_mode') or node_data.get('work_type')
+        if mode in ('original', 'repair'):
+            return mode
+        node = node.parent
+    return 'original'
+
+
 def load_prefix_map(category, backend_id=None, user=None, module_code='new_estimate'):
     """
     Load {item_name: prefix} mapping from the backend Excel's Groups sheet.
@@ -2284,8 +2341,8 @@ def generate_workslip_from_saved(request, work_id):
                 backend_id=saved_backend_id,
                 user=request.user,
                 module_code=ws_module_code,
-                area=work_data.get('project_area', 'municipal'),
-                work_type=work_data.get('work_type', 'original'),
+                area=resolve_work_project_area(saved_work, work_data),
+                work_type=resolve_work_mode(saved_work, work_data),
             )
         
         # Convert to workslip format - match the format from estimate upload
@@ -2432,7 +2489,7 @@ def generate_workslip_from_saved(request, work_id):
     # Area-allowance rows for any supplemental items added at the Workslip
     # stage are adjusted consistently with how the estimate's own rates were
     # computed.
-    request.session['ws_project_area'] = work_data.get('project_area', 'municipal')
+    request.session['ws_project_area'] = resolve_work_project_area(saved_work, work_data)
 
     # ── Pre-create the SavedWork record for Workslip-1 so
     #    quickSaveWorkslip() finds it and auto-updates without asking
@@ -2548,7 +2605,11 @@ def generate_next_workslip_from_saved(request, work_id):
             category, current_supp_items,
             backend_id=saved_backend_id,
             user=request.user,
-            module_code='new_estimate'
+            module_code='new_estimate',
+            # Price these the way the estimate was priced, not at the
+            # Zone 1 / GHMC + original defaults.
+            area=resolve_work_project_area(saved_work, work_data),
+            work_type=resolve_work_mode(saved_work, work_data),
         )
         
         for supp_name in current_supp_items:
@@ -2608,6 +2669,9 @@ def generate_next_workslip_from_saved(request, work_id):
                 break
             root = root.parent
     request.session['ws_work_mode'] = ws_work_mode or 'original'
+    # Carry the Zone / project location into the next workslip phase too, so
+    # its supplemental items price the same as the estimate's items.
+    request.session['ws_project_area'] = resolve_work_project_area(saved_work, work_data)
 
     # Carry over metadata from previous workslip (Name of work, Agency, Sanctions, Agreement, etc.)
     prev_metadata = work_data.get('ws_metadata', {})
@@ -3073,6 +3137,8 @@ def bill_generate(request, work_id):
                 backend_id=saved_backend_id,
                 user=request.user,
                 module_code='new_estimate',
+                area=resolve_work_project_area(workslip, work_data),
+                work_type=resolve_work_mode(workslip, work_data),
             )
         except Exception:
             backend_descs = {}
@@ -3213,6 +3279,8 @@ def bill_generate(request, work_id):
             backend_id=saved_backend_id,
             user=request.user,
             module_code='new_estimate',
+            area=resolve_work_project_area(workslip, work_data),
+            work_type=resolve_work_mode(workslip, work_data),
         )
         for supp_name in current_supp_names:
             supp_key = f"supp:{supp_name}"

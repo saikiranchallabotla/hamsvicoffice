@@ -16,7 +16,9 @@ from django.urls import reverse
 from django.db.models import Q
 
 from .models import SavedWork, Organization
-from .saved_works_views import get_org_from_request, check_saved_work_access, load_item_rates_from_backend, load_prefix_map, apply_prefix_to_desc
+from .saved_works_views import (get_org_from_request, check_saved_work_access,
+    load_item_rates_from_backend, load_prefix_map, apply_prefix_to_desc,
+    resolve_work_project_area, resolve_work_mode)
 
 
 def _estimate_fetched_items_to_rows(work_data):
@@ -205,6 +207,11 @@ def bill_entry(request, work_id):
                 backend_id=saved_backend_id,
                 user=request.user,
                 module_code='new_estimate',
+                # Inherited from the estimate at the root of this chain, so a
+                # supplemental item added at the Bill stage costs what the
+                # same item would have cost in the estimate.
+                area=resolve_work_project_area(source_work, work_data),
+                work_type=resolve_work_mode(source_work, work_data),
             )
             for supp_name in current_supp_items:
                 supp_key = f"supp:{supp_name}"
