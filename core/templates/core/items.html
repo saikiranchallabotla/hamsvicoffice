@@ -1565,6 +1565,8 @@
                 <input type="hidden" name="ls_special_name" id="ls-special-name-field" value="">
                 <input type="hidden" name="ls_special_amount" id="ls-special-amount-field" value="">
                 <input type="hidden" name="deduct_old_material" id="deduct-old-material-field" value="">
+                <input type="hidden" name="estimate_locations_json" id="estimate-locations-field" value="">
+                <input type="hidden" name="item_location_breakdown_json" id="item-location-breakdown-field" value="">
 
                 <!-- Name of the work field -->
                 <label class="work-name-label">
@@ -2414,6 +2416,17 @@ document.addEventListener('keydown', function(e) {
 
         // Populate additional options
         populateAdditionalOptions();
+
+        // Send the locations + per-location break-up the page is holding, so
+        // the Break-up sheet is written even if the server session lost them.
+        var locField = document.getElementById("estimate-locations-field");
+        if (locField) {
+            locField.value = JSON.stringify(window.currentEstimateLocations || []);
+        }
+        var bdField = document.getElementById("item-location-breakdown-field");
+        if (bdField) {
+            bdField.value = JSON.stringify(window.currentEstimateBreakdown || {});
+        }
 
         // Smooth download — no white screen, no blank tab
         var action = form.getAttribute("action") || "";

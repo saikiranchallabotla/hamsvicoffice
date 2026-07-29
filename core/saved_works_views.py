@@ -1308,6 +1308,68 @@ def get_last_step(request, work_type):
     return "Started"
 
 
+# Minimum session content a work type must have before an autosave is allowed to
+# overwrite the stored record. Guards against a half-initialised page (or a
+# beacon fired after the session was cleared) blanking out saved work.
+_AUTOSAVE_REQUIRED_KEYS = {
+    'new_estimate': 'fetched_items',
+    'workslip': 'ws_estimate_rows',
+    'amc': 'amc_fetched_items',
+    'temporary_works': 'temp_entries',
+    'temp_workslip': 'tw_ws_entries',
+    'temp_bill': 'tw_bill_entries',
+}
+
+
+def autosave_current_work(request, work_type):
+    """Persist the live session into the SavedWork the user is currently on.
+
+    Called from the session-level autosave endpoints (quantities, locations,
+    per-location break-ups, …) so any manual edit sticks straight away instead
+    of waiting for the user to press Save. Returns the SavedWork it wrote to, or
+    None when there is nothing safe to write.
+    """
+    work_id = request.session.get('current_saved_work_id')
+    if not work_id or not request.user.is_authenticated:
+        return None
+
+    required_key = _AUTOSAVE_REQUIRED_KEYS.get(work_type)
+    if required_key and not request.session.get(required_key):
+        return None
+
+    try:
+        org = get_org_from_request(request)
+        saved_work = SavedWork.objects.get(id=work_id, organization=org, user=request.user)
+    except Exception:
+        return None
+
+    # Never let one module's autosave overwrite another module's record — the
+    # estimate page must not flatten a workslip it happens to be linked to.
+    if saved_work.work_type != work_type:
+        return None
+
+    work_data = collect_work_data(request, work_type)
+
+    # Autosave posts don't carry the 'group' field an explicit save does, so
+    # keep the group the user was last on rather than blanking it.
+    previous = saved_work.work_data or {}
+    if not work_data.get('last_group') and previous.get('last_group'):
+        work_data['last_group'] = previous['last_group']
+
+    saved_work.work_data = work_data
+    saved_work.progress_percent = calculate_progress(work_data, work_type)
+    saved_work.last_step = get_last_step(request, work_type)
+    saved_work.save(update_fields=['work_data', 'progress_percent', 'last_step', 'updated_at'])
+
+    # Keep the chain consistent the same way an explicit save does.
+    if work_type == 'new_estimate':
+        _propagate_estimate_to_children(saved_work, work_data)
+    elif work_type == 'workslip' and saved_work.parent_id:
+        _backpropagate_metadata_to_estimate(saved_work, work_data)
+
+    return saved_work
+
+
 # ==============================================================================
 # RESUME WORK FUNCTIONALITY
 # ==============================================================================
@@ -1384,10 +1446,11 @@ def restore_work_data(request, saved_work):
             request.session['item_descs'] = work_data['item_descs']
         if work_data.get('item_spec_overrides'):
             request.session['item_spec_overrides'] = work_data['item_spec_overrides']
-        if work_data.get('estimate_locations'):
-            request.session['estimate_locations'] = work_data['estimate_locations']
-        if work_data.get('item_location_breakdown'):
-            request.session['item_location_breakdown'] = work_data['item_location_breakdown']
+        # Locations and their per-item break-up are always written, empty
+        # included: leaving the previous work's list in the session would show
+        # its locations against this estimate's items.
+        request.session['estimate_locations'] = work_data.get('estimate_locations', []) or []
+        request.session['item_location_breakdown'] = work_data.get('item_location_breakdown', {}) or {}
         # Restore estimate-level metadata (admin sanction, tech sanction, etc.)
         request.session['estimate_metadata'] = work_data.get('estimate_metadata', {})
         # Restore estimate source (uploaded vs datas)

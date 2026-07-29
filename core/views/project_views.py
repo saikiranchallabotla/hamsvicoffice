@@ -1107,6 +1107,10 @@ def save_locations(request, category):
         request.session["estimate_locations"] = locations
         request.session.modified = True
 
+        # Persist into the linked saved work so the list survives a resume.
+        from core.saved_works_views import autosave_current_work
+        autosave_current_work(request, 'new_estimate')
+
         return JsonResponse({"status": "ok", "locations": locations})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
@@ -1228,6 +1232,10 @@ def save_item_location_breakdown(request, category):
             breakdown_map.pop(item, None)
         request.session["item_location_breakdown"] = breakdown_map
         request.session.modified = True
+
+        # Persist into the linked saved work so the break-up survives a resume.
+        from core.saved_works_views import autosave_current_work
+        autosave_current_work(request, 'new_estimate')
 
         return JsonResponse({"status": "ok", "total": total})
     except Exception as e:
@@ -2072,6 +2080,35 @@ def download_output(request, category):
             except Exception:
                 pass
 
+        # Locations and their per-item break-up are posted from the page, which
+        # holds the authoritative (localStorage-backed) copy. Trust it over the
+        # session so the Break-up sheet is still written when the session lost
+        # them, and sync it back for the rest of the flow.
+        posted_locations = request.POST.get("estimate_locations_json", "")
+        if posted_locations:
+            try:
+                locs = json.loads(posted_locations)
+                if isinstance(locs, list):
+                    request.session["estimate_locations"] = [
+                        str(n).strip() for n in locs if str(n).strip()
+                    ]
+                    request.session.modified = True
+            except Exception:
+                pass
+
+        posted_breakdown = request.POST.get("item_location_breakdown_json", "")
+        if posted_breakdown:
+            try:
+                bd = json.loads(posted_breakdown)
+                if isinstance(bd, dict):
+                    request.session["item_location_breakdown"] = {
+                        str(item): per_loc for item, per_loc in bd.items()
+                        if isinstance(per_loc, dict) and per_loc
+                    }
+                    request.session.modified = True
+            except Exception:
+                pass
+
     if not fetched:
         return JsonResponse({"error": "No items selected"}, status=400)
 
@@ -2574,10 +2611,16 @@ def save_qty_map(request, category):
             
             if work_type:
                 request.session["work_type"] = work_type
-            
+
             # Ensure session is flushed to DB before the response is sent
             request.session.modified = True
-            
+
+            # Every edit the user makes reaches this endpoint (debounced input,
+            # group switch, page unload), so persist it into the linked saved
+            # work too — no manual Save needed for the change to stick.
+            from core.saved_works_views import autosave_current_work
+            autosave_current_work(request, 'new_estimate')
+
             return JsonResponse({"status": "ok"})
         except Exception as e:
             return JsonResponse({"status": "error", "message": str(e)}, status=400)

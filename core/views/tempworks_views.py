@@ -737,6 +737,12 @@ def temp_save_state(request, category):
     request.session["temp_entries"] = entries
     request.session["temp_work_name"] = work_name or ""
     request.session["temp_grand_total"] = grand_total or ""
+    request.session.modified = True
+
+    # Persist the edit into the linked saved work too, so it sticks without
+    # the user pressing Save.
+    from core.saved_works_views import autosave_current_work
+    autosave_current_work(request, 'temporary_works')
 
     return JsonResponse({"ok": True})
 

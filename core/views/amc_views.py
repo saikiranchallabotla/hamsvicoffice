@@ -1078,7 +1078,14 @@ def amc_save_qty_map(request, category):
             
             if work_name:
                 request.session["amc_work_name"] = work_name
-            
+
+            request.session.modified = True
+
+            # Persist the edit into the linked saved work too, so it sticks
+            # without the user pressing Save.
+            from core.saved_works_views import autosave_current_work
+            autosave_current_work(request, 'amc')
+
             return JsonResponse({"status": "ok"})
         except Exception as e:
             return JsonResponse({"status": "error", "message": str(e)}, status=400)
