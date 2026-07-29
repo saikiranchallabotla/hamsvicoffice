@@ -1405,7 +1405,66 @@ def restore_work_data(request, saved_work):
         logger.info(f"[RESTORE DEBUG] ws_estimate_rows count={len(ws_estimate_rows)}")
         if ws_estimate_rows:
             logger.info(f"[RESTORE DEBUG] First row: {ws_estimate_rows[0]}")
-        
+
+        # Fallback for workslips that were opened but never saved (older records
+        # were created with empty work_data): rebuild the item list by walking up
+        # to the previous workslip, then to the root estimate.
+        if not ws_estimate_rows:
+            ancestor = saved_work.parent
+            source = None
+            while ancestor:
+                awd = ancestor.work_data or {}
+                if ancestor.work_type == 'workslip' and awd.get('ws_estimate_rows'):
+                    ws_estimate_rows = awd['ws_estimate_rows']
+                    source = ancestor
+                    break
+                if ancestor.work_type in ('new_estimate', 'amc', 'temporary_works'):
+                    ws_estimate_rows = build_ws_rows_from_estimate(saved_work.user, ancestor)
+                    source = ancestor
+                    break
+                ancestor = ancestor.parent
+            if ws_estimate_rows:
+                logger.info(f"[RESTORE DEBUG] Rebuilt {len(ws_estimate_rows)} rows from '{source.name}'")
+                swd = source.work_data or {}
+                work_data = dict(work_data or {})
+                work_data['ws_estimate_rows'] = ws_estimate_rows
+                # Carry the header fields across too, so the rebuilt workslip
+                # isn't left with a blank work name / estimate amount.
+                if source.work_type == 'workslip':
+                    for _k in ('ws_work_name', 'ws_estimate_grand_total', 'ws_metadata',
+                               'selected_backend_id', 'ws_source_estimate_id',
+                               'ws_work_mode', 'ws_project_area', 'ws_category', 'ws_work_type'):
+                        if not work_data.get(_k) and swd.get(_k):
+                            work_data[_k] = swd[_k]
+                else:
+                    _est_meta = swd.get('estimate_metadata', {}) or {}
+                    _grand_total = swd.get('grand_total', 0) or 0
+                    try:
+                        _grand_total = float(_grand_total)
+                    except (ValueError, TypeError):
+                        _grand_total = 0.0
+                    work_data.setdefault('ws_work_name', swd.get('work_name', '') or '')
+                    work_data.setdefault('ws_estimate_grand_total', _grand_total)
+                    work_data.setdefault('ws_source_estimate_id', source.id)
+                    work_data.setdefault('ws_work_mode', swd.get('work_type', 'original'))
+                    if not work_data.get('selected_backend_id') and swd.get('selected_backend_id'):
+                        work_data['selected_backend_id'] = swd['selected_backend_id']
+                    if not work_data.get('ws_metadata'):
+                        work_data['ws_metadata'] = {
+                            'work_name': swd.get('work_name', '') or '',
+                            'estimate_amount': str(_grand_total) if _grand_total else '',
+                            'admin_sanction': _est_meta.get('admin_sanction', ''),
+                            'tech_sanction': _est_meta.get('tech_sanction', ''),
+                            'agreement': _est_meta.get('agreement', ''),
+                            'agency_name': _est_meta.get('agency_name', ''),
+                            'tp_percent': work_data.get('ws_tp_percent', 0.0),
+                            'tp_type': work_data.get('ws_tp_type', 'Excess'),
+                            'grand_total': _grand_total,
+                        }
+                # Persist so this record isn't empty again next time.
+                saved_work.work_data = work_data
+                saved_work.save(update_fields=['work_data', 'updated_at'])
+
         request.session['ws_estimate_rows'] = ws_estimate_rows
         request.session['ws_exec_map'] = work_data.get('ws_exec_map', {})
         request.session['ws_tp_percent'] = work_data.get('ws_tp_percent', 0.0)
@@ -2200,6 +2259,137 @@ def apply_prefix_to_desc(desc, item_name, prefix_map):
     return desc
 
 
+def build_ws_rows_from_estimate(user, saved_work):
+    """Build the workslip item rows for a saved estimate / AMC / temporary work.
+
+    Shared by generate_workslip_from_saved() and by restore_work_data(), which
+    uses it to rebuild a Workslip-1 that was opened but never explicitly saved.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    work_data = saved_work.work_data or {}
+
+    # fetched_items can be either a list of names (strings) or a list of dicts
+    fetched_items = work_data.get('fetched_items', [])
+    qty_map = work_data.get('qty_map', {})
+    category = saved_work.category or 'electrical'
+    saved_backend_id = work_data.get('selected_backend_id')
+
+    # Determine module_code for backend loading
+    if saved_work.work_type == 'amc':
+        ws_module_code = 'amc'
+    elif saved_work.work_type == 'temporary_works':
+        ws_module_code = 'temp_works'
+    else:
+        ws_module_code = 'new_estimate'
+
+    # Saved rates / units / descriptions from the estimate session (exact values the user saw)
+    saved_item_rates = work_data.get('item_rates', {})
+    saved_item_units = work_data.get('item_units', {})
+    saved_item_descs = work_data.get('item_descs', {})
+    spec_overrides = work_data.get('item_spec_overrides', {})
+
+    # Check if fetched_items is a list of strings (item names) or dicts
+    if fetched_items and isinstance(fetched_items[0], str):
+        item_names = fetched_items
+
+        # Fetch descriptions from backend for ALL items (desc always comes from backend row+2)
+        item_info_map = {}
+        if item_names:
+            logger.info(f"[GEN_WORKSLIP DEBUG] Fetching descriptions from backend for {len(item_names)} items")
+            item_info_map = load_item_rates_from_backend(
+                category, item_names,
+                backend_id=saved_backend_id,
+                user=user,
+                module_code=ws_module_code,
+                area=resolve_work_project_area(saved_work, work_data),
+                work_type=resolve_work_mode(saved_work, work_data),
+            )
+
+        # Convert to workslip format - match the format from estimate upload
+        ws_estimate_rows = []
+        for idx, item_name in enumerate(item_names):
+            qty = qty_map.get(item_name, 0)
+            try:
+                qty = float(qty) if qty else 0.0
+            except (ValueError, TypeError):
+                qty = 0.0
+
+            # Get backend info (always has description from row+2)
+            info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
+            backend_desc = str(info.get('desc', item_name) or item_name)
+            # If backend returned header name as desc, prefer saved item_descs
+            if backend_desc == item_name and item_name in saved_item_descs:
+                backend_desc = saved_item_descs[item_name]
+            # User-edited specification overrides backend/saved text verbatim
+            spec_overridden = item_name in spec_overrides
+            if spec_overridden:
+                backend_desc = spec_overrides[item_name]
+
+            # Priority for rate: 1) saved rates from estimate, 2) backend re-fetch
+            if item_name in saved_item_rates and saved_item_rates[item_name]:
+                rate = float(saved_item_rates[item_name])
+                unit = str(saved_item_units.get(item_name, info.get('unit', 'Nos')))
+            else:
+                rate = float(info.get('rate', 0) or 0)
+                unit = str(info.get('unit', 'Nos'))
+
+            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate}, desc={backend_desc[:50] if backend_desc else 'N/A'}")
+
+            ws_estimate_rows.append({
+                'key': f"saved_{idx}",
+                'item_name': str(item_name),       # Item header name for UI
+                'display_name': str(item_name),    # Item header name for UI
+                'item_desc': backend_desc,         # Backend row+2 description for downloads
+                'desc': backend_desc,              # Backend row+2 description for downloads
+                'unit': unit,
+                'qty_est': qty,
+                'rate': rate,
+                'spec_overridden': spec_overridden,
+            })
+    else:
+        # It's already a list of dicts with full item info (from estimate upload)
+        ws_estimate_rows = []
+        for idx, item in enumerate(fetched_items):
+            if isinstance(item, dict):
+                item_id = item.get('id') or item.get('item_name') or item.get('name') or str(idx)
+                qty = qty_map.get(str(item_id), item.get('qty', item.get('qty_est', 0)))
+                try:
+                    qty = float(qty) if qty else 0.0
+                except (ValueError, TypeError):
+                    qty = 0.0
+                rate = float(item.get('rate', 0)) if item.get('rate') else 0.0
+
+                # UI display: use display_name (yellow header)
+                ui_name = str(item.get('display_name') or item.get('item_name') or item.get('name', ''))
+                # Download description: use item_desc (row+2 content) preferentially
+                download_desc = str(item.get('item_desc') or item.get('desc') or item.get('description') or '')
+                # If no desc stored in item dict, check saved_item_descs map
+                if (not download_desc or download_desc == ui_name) and ui_name in saved_item_descs:
+                    download_desc = saved_item_descs[ui_name]
+                if not download_desc:
+                    download_desc = ui_name
+                # User-edited specification overrides backend/saved text verbatim
+                spec_overridden = ui_name in spec_overrides
+                if spec_overridden:
+                    download_desc = spec_overrides[ui_name]
+
+                ws_estimate_rows.append({
+                    'key': f"saved_{idx}",
+                    'item_name': ui_name,            # Item header name for UI
+                    'display_name': ui_name,         # Item header name for UI
+                    'item_desc': download_desc,      # Backend row+2 description for downloads
+                    'desc': download_desc,           # Backend row+2 description for downloads
+                    'unit': str(item.get('unit', 'Nos')),
+                    'qty_est': qty,
+                    'rate': rate,
+                    'spec_overridden': spec_overridden,
+                })
+
+    return ws_estimate_rows
+
+
 @login_required(login_url='login')
 def generate_workslip_from_saved(request, work_id):
     """
@@ -2300,131 +2490,15 @@ def generate_workslip_from_saved(request, work_id):
     work_data = saved_work.work_data or {}
     
     # Get item names and quantities from saved data
-    # fetched_items can be either a list of names (strings) or a list of dicts
-    fetched_items = work_data.get('fetched_items', [])
-    qty_map = work_data.get('qty_map', {})
     category = saved_work.category or 'electrical'
-    
+
     # Get saved backend_id from estimate work_data for correct rate lookup
     saved_backend_id = work_data.get('selected_backend_id')
-    
-    logger.info(f"[GEN_WORKSLIP DEBUG] fetched_items={fetched_items}")
-    logger.info(f"[GEN_WORKSLIP DEBUG] qty_map={qty_map}")
+
     logger.info(f"[GEN_WORKSLIP DEBUG] category={category}, backend_id={saved_backend_id}")
-    
-    # Determine module_code for backend loading
-    if saved_work.work_type == 'amc':
-        ws_module_code = 'amc'
-    elif saved_work.work_type == 'temporary_works':
-        ws_module_code = 'temp_works'
-    else:
-        ws_module_code = 'new_estimate'
-    
-    # Saved rates / units / descriptions from the estimate session (exact values the user saw)
-    saved_item_rates = work_data.get('item_rates', {})
-    saved_item_units = work_data.get('item_units', {})
-    saved_item_descs = work_data.get('item_descs', {})
-    spec_overrides = work_data.get('item_spec_overrides', {})
 
-    logger.info(f"[GEN_WORKSLIP DEBUG] saved_item_rates keys={list(saved_item_rates.keys())[:10]}")
-    
-    # Check if fetched_items is a list of strings (item names) or dicts
-    if fetched_items and isinstance(fetched_items[0], str):
-        item_names = fetched_items
-        
-        # Fetch descriptions from backend for ALL items (desc always comes from backend row+2)
-        item_info_map = {}
-        if item_names:
-            logger.info(f"[GEN_WORKSLIP DEBUG] Fetching descriptions from backend for {len(item_names)} items")
-            item_info_map = load_item_rates_from_backend(
-                category, item_names,
-                backend_id=saved_backend_id,
-                user=request.user,
-                module_code=ws_module_code,
-                area=resolve_work_project_area(saved_work, work_data),
-                work_type=resolve_work_mode(saved_work, work_data),
-            )
-        
-        # Convert to workslip format - match the format from estimate upload
-        ws_estimate_rows = []
-        for idx, item_name in enumerate(item_names):
-            qty = qty_map.get(item_name, 0)
-            try:
-                qty = float(qty) if qty else 0.0
-            except (ValueError, TypeError):
-                qty = 0.0
-            
-            # Get backend info (always has description from row+2)
-            info = item_info_map.get(item_name, {'rate': 0, 'unit': 'Nos', 'desc': item_name})
-            backend_desc = str(info.get('desc', item_name) or item_name)
-            # If backend returned header name as desc, prefer saved item_descs
-            if backend_desc == item_name and item_name in saved_item_descs:
-                backend_desc = saved_item_descs[item_name]
-            # User-edited specification overrides backend/saved text verbatim
-            spec_overridden = item_name in spec_overrides
-            if spec_overridden:
-                backend_desc = spec_overrides[item_name]
+    ws_estimate_rows = build_ws_rows_from_estimate(user, saved_work)
 
-            # Priority for rate: 1) saved rates from estimate, 2) backend re-fetch
-            if item_name in saved_item_rates and saved_item_rates[item_name]:
-                rate = float(saved_item_rates[item_name])
-                unit = str(saved_item_units.get(item_name, info.get('unit', 'Nos')))
-            else:
-                rate = float(info.get('rate', 0) or 0)
-                unit = str(info.get('unit', 'Nos'))
-            
-            logger.info(f"[GEN_WORKSLIP DEBUG] Item '{item_name}': qty={qty}, rate={rate}, desc={backend_desc[:50] if backend_desc else 'N/A'}")
-            
-            ws_estimate_rows.append({
-                'key': f"saved_{idx}",
-                'item_name': str(item_name),       # Item header name for UI
-                'display_name': str(item_name),    # Item header name for UI
-                'item_desc': backend_desc,         # Backend row+2 description for downloads
-                'desc': backend_desc,              # Backend row+2 description for downloads
-                'unit': unit,
-                'qty_est': qty,
-                'rate': rate,
-                'spec_overridden': spec_overridden,
-            })
-    else:
-        # It's already a list of dicts with full item info (from estimate upload)
-        ws_estimate_rows = []
-        for idx, item in enumerate(fetched_items):
-            if isinstance(item, dict):
-                item_id = item.get('id') or item.get('item_name') or item.get('name') or str(idx)
-                qty = qty_map.get(str(item_id), item.get('qty', item.get('qty_est', 0)))
-                try:
-                    qty = float(qty) if qty else 0.0
-                except (ValueError, TypeError):
-                    qty = 0.0
-                rate = float(item.get('rate', 0)) if item.get('rate') else 0.0
-                
-                # UI display: use display_name (yellow header)
-                ui_name = str(item.get('display_name') or item.get('item_name') or item.get('name', ''))
-                # Download description: use item_desc (row+2 content) preferentially
-                download_desc = str(item.get('item_desc') or item.get('desc') or item.get('description') or '')
-                # If no desc stored in item dict, check saved_item_descs map
-                if (not download_desc or download_desc == ui_name) and ui_name in saved_item_descs:
-                    download_desc = saved_item_descs[ui_name]
-                if not download_desc:
-                    download_desc = ui_name
-                # User-edited specification overrides backend/saved text verbatim
-                spec_overridden = ui_name in spec_overrides
-                if spec_overridden:
-                    download_desc = spec_overrides[ui_name]
-
-                ws_estimate_rows.append({
-                    'key': f"saved_{idx}",
-                    'item_name': ui_name,            # Item header name for UI
-                    'display_name': ui_name,         # Item header name for UI
-                    'item_desc': download_desc,      # Backend row+2 description for downloads
-                    'desc': download_desc,           # Backend row+2 description for downloads
-                    'unit': str(item.get('unit', 'Nos')),
-                    'qty_est': qty,
-                    'rate': rate,
-                    'spec_overridden': spec_overridden,
-                })
-    
     # Convert grand_total to float (it might be stored as string)
     grand_total = work_data.get('grand_total', 0)
     logger.info(f"[GEN_WORKSLIP DEBUG] Raw grand_total from work_data: '{grand_total}' (type: {type(grand_total).__name__})")
@@ -2496,6 +2570,12 @@ def generate_workslip_from_saved(request, work_id):
     #    for a name. Use get_or_create to prevent duplicates. ──
     new_ws_name = f"{saved_work.name} - W1"
 
+    # Autosave the freshly-seeded session as this workslip's work_data.  Without
+    # it the record is created empty, and reopening it (the W1 button →
+    # resume_saved_work) would restore an empty item list for anyone who never
+    # pressed Save.
+    seed_ws_data = collect_work_data(request, 'workslip')
+
     new_ws, ws_created = SavedWork.objects.get_or_create(
         organization=org,
         user=user,
@@ -2505,13 +2585,18 @@ def generate_workslip_from_saved(request, work_id):
         defaults={
             'folder': saved_work.folder,
             'name': new_ws_name,
-            'work_data': {},  # will be filled on first quickSave
+            'work_data': seed_ws_data,
             'category': category,
             'notes': '',
-            'progress_percent': 0,
+            'progress_percent': calculate_progress(seed_ws_data, 'workslip'),
             'last_step': 'workslip',
         },
     )
+    if not ws_created and not (new_ws.work_data or {}).get('ws_estimate_rows'):
+        # Record exists from an earlier visit but was never saved — backfill it.
+        new_ws.work_data = seed_ws_data
+        new_ws.progress_percent = calculate_progress(seed_ws_data, 'workslip')
+        new_ws.save(update_fields=['work_data', 'progress_percent', 'updated_at'])
 
     request.session['current_saved_work_id'] = new_ws.id
     request.session['current_saved_work_name'] = new_ws_name
@@ -2724,6 +2809,10 @@ def generate_next_workslip_from_saved(request, work_id):
 
     new_ws_name = f"{base_name} - W{next_workslip_number}"
 
+    # Autosave the seeded session straight away so reopening this workslip
+    # restores its items even if the user never pressed Save.
+    seed_ws_data = collect_work_data(request, 'workslip')
+
     # Use get_or_create to prevent duplicate workslip records on repeat visits
     new_ws, ws_created = SavedWork.objects.get_or_create(
         organization=org,
@@ -2734,13 +2823,18 @@ def generate_next_workslip_from_saved(request, work_id):
         defaults={
             'folder': saved_work.folder,
             'name': new_ws_name,
-            'work_data': {},  # will be filled on first quickSave
+            'work_data': seed_ws_data,
             'category': saved_work.category or 'electrical',
             'notes': '',
-            'progress_percent': 0,
+            'progress_percent': calculate_progress(seed_ws_data, 'workslip'),
             'last_step': 'workslip',
         },
     )
+    if not ws_created and not (new_ws.work_data or {}).get('ws_estimate_rows'):
+        # Record exists from an earlier visit but was never saved — backfill it.
+        new_ws.work_data = seed_ws_data
+        new_ws.progress_percent = calculate_progress(seed_ws_data, 'workslip')
+        new_ws.save(update_fields=['work_data', 'progress_percent', 'updated_at'])
 
     request.session['current_saved_work_id'] = new_ws.id
     request.session['current_saved_work_name'] = new_ws_name
