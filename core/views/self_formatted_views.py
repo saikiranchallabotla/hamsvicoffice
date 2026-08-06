@@ -35,7 +35,7 @@ p_engine = inflect.engine()
 BILL_TEMPLATES_DIR = os.path.join(settings.BASE_DIR, "core", "templates", "core", "bill_templates")
 _inflect_engine = inflect.engine()
 
-from .utils import get_org_from_request, _get_current_financial_year
+from .utils import get_org_from_request, _get_current_financial_year, _apply_print_settings
 
 def _extract_value_part_from_line(s: str) -> str:
     """
@@ -1635,6 +1635,16 @@ def _extract_labels_per_work(uploaded_file):
 
     Returns: list of (source_name, labels) tuples
     """
+    return [(name, labels) for name, labels, _lines in _extract_works_with_lines(uploaded_file)]
+
+
+def _extract_works_with_lines(uploaded_file):
+    """
+    Same split as _extract_labels_per_work, but also returns the raw text lines
+    of each work so custom placeholders can be resolved against them.
+
+    Returns: list of (source_name, labels, lines) tuples
+    """
     filename = uploaded_file.name or ""
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
 
@@ -1668,12 +1678,12 @@ def _extract_labels_per_work(uploaded_file):
                 # --- Bill-specific extraction from structured header rows ---
                 _extract_bill_specific_fields(ws, labels, max_r, max_c)
 
-                results.append((source_name, labels))
-        return results if results else [(filename, {})]
+                results.append((source_name, labels, lines))
+        return results if results else [(filename, {}, [])]
     else:
         # Non-Excel: delegate to existing function (one work per file)
         labels, lines = _extract_labels_from_source_file(uploaded_file)
-        return [(filename, labels)]
+        return [(filename, labels, lines)]
 
 
 def _extract_bill_specific_fields(ws, labels, max_r, max_c):
@@ -2081,77 +2091,398 @@ _LABEL_TO_PLACEHOLDER = [
 ]
 
 
-def _fill_template_by_labels(wb, placeholder_map):
+def _fill_worksheet_by_labels(ws, placeholder_map):
     """
-    For Excel templates without {{PLACEHOLDER}} markers:
-    scan cells for known label text (e.g. "Name of the work :") and fill
-    the value either after the colon in the same cell or in the adjacent cell
-    to the right.
+    Label-detection fill for a single worksheet: scan cells for known label
+    text (e.g. "Name of the work :") and write the value into the first
+    writable cell to the right (or append to the label cell itself).
     """
-    import logging
-    logger = logging.getLogger(__name__)
     from openpyxl.cell.cell import MergedCell
 
-    for ws in wb.worksheets:
-        max_r = ws.max_row or 0
-        max_c = ws.max_column or 0
-        for r in range(1, max_r + 1):
-            for c in range(1, max_c + 1):
-                cell = ws.cell(row=r, column=c)
-                # Skip merged cells (read-only)
-                if isinstance(cell, MergedCell):
-                    continue
-                if not isinstance(cell.value, str):
-                    continue
-                cell_text = cell.value.strip()
-                if not cell_text:
-                    continue
+    max_r = ws.max_row or 0
+    max_c = ws.max_column or 0
+    for r in range(1, max_r + 1):
+        for c in range(1, max_c + 1):
+            cell = ws.cell(row=r, column=c)
+            # Skip merged cells (read-only)
+            if isinstance(cell, MergedCell):
+                continue
+            if not isinstance(cell.value, str):
+                continue
+            cell_text = cell.value.strip()
+            if not cell_text:
+                continue
 
-                cell_lower = cell_text.lower()
-                # Remove trailing colons/dashes for matching
-                cell_clean = re.sub(r'[\s:;\-]+$', '', cell_lower).strip()
+            cell_lower = cell_text.lower()
+            # Remove trailing colons/dashes for matching
+            cell_clean = re.sub(r'[\s:;\-]+$', '', cell_lower).strip()
 
-                matched_key = None
-                for label_variants, ph_key in _LABEL_TO_PLACEHOLDER:
-                    for label in label_variants:
-                        if label in cell_clean or cell_clean.endswith(label):
-                            matched_key = ph_key
-                            break
-                    if matched_key:
+            matched_key = None
+            for label_variants, ph_key in _LABEL_TO_PLACEHOLDER:
+                for label in label_variants:
+                    if label in cell_clean or cell_clean.endswith(label):
+                        matched_key = ph_key
                         break
+                if matched_key:
+                    break
 
-                if not matched_key:
+            if not matched_key:
+                continue
+
+            value = placeholder_map.get(matched_key, '')
+            if not value:
+                continue
+
+            value = str(value)
+
+            # Find the first writable (non-merged, empty) cell to the right
+            def _find_writable_right(row, start_col):
+                for cc in range(start_col, start_col + 10):
+                    try:
+                        rc = ws.cell(row=row, column=cc)
+                        if isinstance(rc, MergedCell):
+                            continue
+                        if rc.value is None or str(rc.value).strip() == '':
+                            return rc
+                    except Exception:
+                        pass
+                return None
+
+            # Determine where to put the value
+            right_cell = _find_writable_right(r, c + 1)
+            if right_cell:
+                right_cell.value = value
+                logger.debug(f"Label fill: [{ws.title}] R{r}C{right_cell.column} = {value[:50]}")
+            else:
+                # Append to the label cell itself
+                cell.value = cell_text + ' ' + value
+                logger.debug(f"Label fill (append): [{ws.title}] R{r}C{c} = {cell.value[:50]}")
+
+
+def _replace_placeholders_in_worksheet(ws, placeholder_map):
+    """
+    Replace explicit {{PLACEHOLDER}} markers in one worksheet.
+    Returns True if at least one marker was found.
+    """
+    found = False
+    max_r = ws.max_row or 0
+    max_c = ws.max_column or 0
+    for r in range(1, max_r + 1):
+        for c in range(1, max_c + 1):
+            cell = ws.cell(row=r, column=c)
+            if isinstance(cell.value, str):
+                txt = cell.value
+                changed = False
+                for ph, val in placeholder_map.items():
+                    if ph in txt:
+                        txt = txt.replace(ph, str(val) if val is not None else "")
+                        changed = True
+                        found = True
+                if changed:
+                    cell.value = txt
+    return found
+
+
+def _fill_worksheets(sheets, placeholder_map):
+    """
+    Fill a set of worksheets (one copy of the template) with one work's values:
+    pass 1 replaces {{PLACEHOLDER}} markers, and if none were present at all,
+    pass 2 falls back to label detection.
+    """
+    any_placeholder_found = False
+    for ws in sheets:
+        if _replace_placeholders_in_worksheet(ws, placeholder_map):
+            any_placeholder_found = True
+
+    if not any_placeholder_found:
+        for ws in sheets:
+            _fill_worksheet_by_labels(ws, placeholder_map)
+
+
+DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Characters that are illegal in XML 1.0 (OCR of scans can produce control chars)
+_XML_ILLEGAL_RE = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\x7f￾￿]')
+
+# Paragraph that pushes the next work onto a fresh page in a merged DOCX
+_DOCX_PAGE_BREAK = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+
+
+def _xml_safe_placeholder_map(placeholder_map):
+    """XML-escape placeholder values and strip characters illegal in XML 1.0."""
+    from xml.sax.saxutils import escape as xml_escape
+
+    safe_map = {}
+    for ph, val in (placeholder_map or {}).items():
+        clean = _XML_ILLEGAL_RE.sub('', str(val) if val is not None else "")
+        safe_map[ph] = xml_escape(clean)
+    return safe_map
+
+
+def _download_response(payload, filename, content_type):
+    resp = HttpResponse(payload, content_type=content_type)
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
+def _template_ext(template_name):
+    return template_name.lower().rsplit(".", 1)[-1] if "." in (template_name or "") else ""
+
+
+def _build_filled_docx(original_data, placeholder_map):
+    """Return the bytes of a DOCX template filled with one work's values.
+
+    Works at ZIP level so every document feature (themes, fonts, styles,
+    images, headers/footers, compatibility settings) is preserved.
+    """
+    import zipfile
+
+    safe_map = _xml_safe_placeholder_map(placeholder_map)
+    input_buf = io.BytesIO(original_data)
+    output_buf = io.BytesIO()
+
+    with zipfile.ZipFile(input_buf, 'r') as zin:
+        with zipfile.ZipFile(output_buf, 'w', zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+
+                # Only modify XML parts inside word/ that may contain text
+                if item.filename.startswith('word/') and item.filename.endswith('.xml'):
+                    try:
+                        xml_str = data.decode('utf-8')
+                        xml_str = _replace_placeholders_in_docx_xml(xml_str, safe_map)
+                        data = xml_str.encode('utf-8')
+                    except Exception:
+                        pass  # Not a text XML, skip
+
+                zout.writestr(item, data)
+
+    return output_buf.getvalue()
+
+
+def _split_docx_body(doc_xml):
+    """Split word/document.xml into (prefix, body_inner, trailing_sect_pr, suffix).
+
+    ``body_inner`` is the repeatable content; ``trailing_sect_pr`` is the final
+    section properties, which must stay at the very end of <w:body>.
+    """
+    start = doc_xml.find('<w:body')
+    if start == -1:
+        return None
+    body_open_end = doc_xml.find('>', start)
+    end = doc_xml.rfind('</w:body>')
+    if body_open_end == -1 or end == -1 or end < body_open_end:
+        return None
+
+    prefix = doc_xml[:body_open_end + 1]
+    inner = doc_xml[body_open_end + 1:end]
+    suffix = doc_xml[end:]
+
+    # The last <w:sectPr> directly inside <w:body> holds the page setup
+    sect_pr = ''
+    sect_idx = inner.rfind('<w:sectPr')
+    if sect_idx != -1:
+        tail = inner[sect_idx:].rstrip()
+        if tail.endswith('</w:sectPr>') or tail.endswith('/>'):
+            sect_pr = inner[sect_idx:]
+            inner = inner[:sect_idx]
+
+    return prefix, inner, sect_pr, suffix
+
+
+def _uniquify_docx_ids(xml_str, copy_index):
+    """Make duplicated element ids unique across repeated body copies.
+
+    Repeating the same body N times duplicates bookmark ids/names and drawing
+    ids, which some Word versions report as corrupt content.
+    """
+    if copy_index == 0:
+        return xml_str
+
+    offset = copy_index * 100000
+
+    xml_str = re.sub(
+        r'(<w:bookmark(?:Start|End)\b[^>]*?)w:id="(\d+)"',
+        lambda m: f'{m.group(1)}w:id="{int(m.group(2)) + offset}"',
+        xml_str,
+    )
+    xml_str = re.sub(
+        r'(<w:bookmarkStart\b[^>]*?)w:name="([^"]*)"',
+        lambda m: f'{m.group(1)}w:name="{m.group(2)}_{copy_index}"',
+        xml_str,
+    )
+    xml_str = re.sub(
+        r'(<wp:docPr\b[^>]*?)id="(\d+)"',
+        lambda m: f'{m.group(1)}id="{int(m.group(2)) + offset}"',
+        xml_str,
+    )
+    return xml_str
+
+
+def _build_multi_docx(original_data, works):
+    """Return the bytes of one DOCX holding a filled copy of the template per
+    work, each starting on a new page.
+
+    ``works`` is a list of ``(label, placeholder_map)``. Headers and footers are
+    document-wide, so they are filled from the first work.
+    """
+    import zipfile
+
+    if len(works) == 1:
+        return _build_filled_docx(original_data, works[0][1])
+
+    input_buf = io.BytesIO(original_data)
+    output_buf = io.BytesIO()
+
+    with zipfile.ZipFile(input_buf, 'r') as zin:
+        try:
+            doc_xml = zin.read('word/document.xml').decode('utf-8')
+        except Exception:
+            doc_xml = None
+        parts = _split_docx_body(doc_xml) if doc_xml else None
+
+        if not parts:
+            logger.warning("Multi-DOCX: could not split document body; using first work only")
+            return _build_filled_docx(original_data, works[0][1])
+
+        prefix, body_inner, sect_pr, suffix = parts
+        merged = []
+        for i, (_label, pmap) in enumerate(works):
+            filled = _replace_placeholders_in_docx_xml(
+                body_inner, _xml_safe_placeholder_map(pmap)
+            )
+            filled = _uniquify_docx_ids(filled, i)
+            if i:
+                merged.append(_DOCX_PAGE_BREAK)
+            merged.append(filled)
+
+        new_doc_xml = prefix + ''.join(merged) + sect_pr + suffix
+        first_safe_map = _xml_safe_placeholder_map(works[0][1])
+
+        with zipfile.ZipFile(output_buf, 'w', zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                if item.filename == 'word/document.xml':
+                    zout.writestr(item, new_doc_xml.encode('utf-8'))
                     continue
 
-                value = placeholder_map.get(matched_key, '')
-                if not value:
-                    continue
+                data = zin.read(item.filename)
+                if item.filename.startswith('word/') and item.filename.endswith('.xml'):
+                    try:
+                        xml_str = data.decode('utf-8')
+                        xml_str = _replace_placeholders_in_docx_xml(xml_str, first_safe_map)
+                        data = xml_str.encode('utf-8')
+                    except Exception:
+                        pass
+                zout.writestr(item, data)
 
-                value = str(value)
+    return output_buf.getvalue()
 
-                # Find the first writable (non-merged, empty) cell to the right
-                def _find_writable_right(row, start_col):
-                    for cc in range(start_col, start_col + 10):
-                        try:
-                            rc = ws.cell(row=row, column=cc)
-                            if isinstance(rc, MergedCell):
-                                continue
-                            if rc.value is None or str(rc.value).strip() == '':
-                                return rc
-                        except Exception:
-                            pass
-                    return None
 
-                # Determine where to put the value
-                right_cell = _find_writable_right(r, c + 1)
-                if right_cell:
-                    right_cell.value = value
-                    logger.debug(f"Label fill: [{ws.title}] R{r}C{right_cell.column} = {value[:50]}")
-                else:
-                    # Append to the label cell itself
-                    if not isinstance(cell, MergedCell):
-                        cell.value = cell_text + ' ' + value
-                        logger.debug(f"Label fill (append): [{ws.title}] R{r}C{c} = {cell.value[:50]}")
+_INVALID_SHEET_CHARS = re.compile(r'[\\/*?:\[\]]')
+
+
+def _safe_sheet_title(raw, used_titles):
+    """Excel-safe, unique worksheet title (max 31 chars)."""
+    title = _INVALID_SHEET_CHARS.sub('-', str(raw or 'Sheet')).strip() or 'Sheet'
+    title = title[:31]
+    if title not in used_titles:
+        used_titles.add(title)
+        return title
+    for n in range(2, 1000):
+        suffix = f' ({n})'
+        candidate = title[:31 - len(suffix)] + suffix
+        if candidate not in used_titles:
+            used_titles.add(candidate)
+            return candidate
+    candidate = get_random_string(8)
+    used_titles.add(candidate)
+    return candidate
+
+
+def _build_multi_xlsx(template_bytes, works, keep_vba=False):
+    """Return the bytes of one workbook holding a filled copy of the template's
+    sheets per work.
+
+    ``works`` is a list of ``(label, placeholder_map)``. A single-sheet template
+    yields one sheet per source, named after it; a multi-sheet template repeats
+    the whole set, numbered per work.
+    """
+    wb = load_workbook(io.BytesIO(template_bytes), keep_vba=keep_vba)
+    template_sheets = list(wb.worksheets)
+    original_titles = [ws.title for ws in template_sheets]
+
+    # Duplicate the pristine template sheets first - copies have to be taken
+    # before any of them are filled in.
+    sheet_sets = [template_sheets]
+    for _ in range(1, len(works)):
+        sheet_sets.append([wb.copy_worksheet(ws) for ws in template_sheets])
+
+    multi_sheet_template = len(template_sheets) > 1
+    used_titles = set()
+    for idx, ((label, pmap), sheets) in enumerate(zip(works, sheet_sets), start=1):
+        # A single work keeps the template's own sheet names untouched
+        if len(works) > 1:
+            for pos, ws in enumerate(sheets):
+                # copy_worksheet appends " Copy" to titles - name from the original
+                base = (f"{original_titles[pos]} ({idx})" if multi_sheet_template
+                        else (label or f"Work {idx}"))
+                ws.title = _safe_sheet_title(base, used_titles)
+        _fill_worksheets(sheets, pmap)
+
+    _apply_print_settings(wb)
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def _build_filled_text(template_bytes, placeholder_map):
+    """Return a text/CSV template filled with one work's values."""
+    try:
+        text = template_bytes.decode("utf-8", errors="ignore")
+    except Exception:
+        text = str(template_bytes)
+    for ph, val in (placeholder_map or {}).items():
+        text = text.replace(ph, str(val) if val is not None else "")
+    return text
+
+
+def _build_multi_text(template_bytes, works):
+    """Concatenate one filled copy of a text/CSV template per work."""
+    blocks = []
+    for idx, (label, pmap) in enumerate(works, start=1):
+        header = f"===== {idx}. {label} =====" if label else f"===== {idx} ====="
+        blocks.append(f"{header}\n{_build_filled_text(template_bytes, pmap)}")
+    return "\n\n".join(blocks)
+
+
+def _fill_template_bytes(template_bytes, template_name, placeholder_map):
+    """Single-work fill of template bytes -> HttpResponse download."""
+    ext = _template_ext(template_name)
+    out_name = f"Filled_{os.path.basename(template_name)}"
+
+    if ext == "docx":
+        return _download_response(
+            _build_filled_docx(template_bytes, placeholder_map), out_name, DOCX_CONTENT_TYPE
+        )
+
+    if ext in ("xlsx", "xlsm"):
+        data = _build_multi_xlsx(
+            template_bytes, [("", placeholder_map)], keep_vba=(ext == "xlsm")
+        )
+        return _download_response(data, out_name, XLSX_CONTENT_TYPE)
+
+    if ext in ("txt", "csv"):
+        return _download_response(
+            _build_filled_text(template_bytes, placeholder_map),
+            out_name,
+            "text/plain; charset=utf-8",
+        )
+
+    return HttpResponse(
+        f"Unsupported template type .{ext}. Use DOCX / XLSX / XLSM / TXT / CSV.",
+        status=400,
+    )
 
 
 def _fill_template_file(template_file, placeholder_map):
@@ -2165,116 +2496,91 @@ def _fill_template_file(template_file, placeholder_map):
     a second pass: detects label text (e.g. "Name of the work:") and fills the
     value from the source either after the colon or in the adjacent cell.
     """
-    import zipfile
-    from xml.sax.saxutils import escape as xml_escape
-
     template_name = template_file.name or "template"
-    ext = template_name.lower().rsplit(".", 1)[-1] if "." in template_name else ""
+    try:
+        template_file.seek(0)
+    except Exception:
+        pass
+    template_bytes = template_file.read()
+    return _fill_template_bytes(template_bytes, template_name, placeholder_map)
 
-    # -------- DOCX --------
+
+def _fill_template_multi(template_bytes, template_name, works, separate_files=False):
+    """
+    Fill one template with several works at once.
+
+    ``works``: list of ``(label, placeholder_map)`` - one entry per source file,
+    or per sheet when a source workbook holds several works.
+
+    By default everything comes back as a single download: an Excel template
+    produces one sheet-set per work, a Word template one page per work, a text
+    template one block per work. With ``separate_files`` the individual filled
+    documents are returned as a ZIP instead.
+    """
+    ext = _template_ext(template_name)
+    base_name = os.path.basename(template_name) or "template"
+    stem = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
+
+    if not works:
+        return HttpResponse("No data could be extracted from the uploaded files.", status=400)
+
+    if ext not in ("docx", "xlsx", "xlsm", "txt", "csv"):
+        return HttpResponse(
+            f"Unsupported template type .{ext}. Use DOCX / XLSX / XLSM / TXT / CSV.",
+            status=400,
+        )
+
+    if separate_files:
+        return _zip_filled_outputs(template_bytes, template_name, works, stem, ext)
+
+    if len(works) == 1:
+        return _fill_template_bytes(template_bytes, template_name, works[0][1])
+
     if ext == "docx":
-        # Build XML-safe replacement map
-        # Strip characters illegal in XML 1.0 (OCR can produce control chars)
-        _xml_illegal = re.compile(
-            r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFE\uFFFF]'
+        return _download_response(
+            _build_multi_docx(template_bytes, works),
+            f"Filled_{stem}_{len(works)}_works.docx",
+            DOCX_CONTENT_TYPE,
         )
-        safe_map = {}
-        for ph, val in placeholder_map.items():
-            clean = _xml_illegal.sub('', str(val) if val is not None else "")
-            safe_map[ph] = xml_escape(clean)
 
-        # Read original file bytes
-        original_data = template_file.read()
-
-        # Process DOCX as ZIP — only touch XML text, preserve everything else
-        input_buf = io.BytesIO(original_data)
-        output_buf = io.BytesIO()
-
-        with zipfile.ZipFile(input_buf, 'r') as zin:
-            with zipfile.ZipFile(output_buf, 'w', zipfile.ZIP_DEFLATED) as zout:
-                for item in zin.infolist():
-                    data = zin.read(item.filename)
-
-                    # Only modify XML parts inside word/ that may contain text
-                    if item.filename.startswith('word/') and item.filename.endswith('.xml'):
-                        try:
-                            xml_str = data.decode('utf-8')
-                            xml_str = _replace_placeholders_in_docx_xml(xml_str, safe_map)
-                            data = xml_str.encode('utf-8')
-                        except Exception:
-                            pass  # Not a text XML, skip
-
-                    zout.writestr(item, data)
-
-        output_buf.seek(0)
-        resp = HttpResponse(
-            output_buf.getvalue(),
-            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-        resp["Content-Disposition"] = f'attachment; filename="Filled_{os.path.basename(template_name)}"'
-        return resp
-
-    # -------- Excel (XLSX / XLSM) --------
     if ext in ("xlsx", "xlsm"):
-        wb = load_workbook(template_file)
-
-        # PASS 1: Replace explicit {{PLACEHOLDER}} markers
-        any_placeholder_found = False
-        for ws in wb.worksheets:
-            max_r = ws.max_row or 0
-            max_c = ws.max_column or 0
-            for r in range(1, max_r + 1):
-                for c in range(1, max_c + 1):
-                    cell = ws.cell(row=r, column=c)
-                    if isinstance(cell.value, str):
-                        txt = cell.value
-                        changed = False
-                        for ph, val in placeholder_map.items():
-                            if ph in txt:
-                                txt = txt.replace(ph, str(val) if val is not None else "")
-                                changed = True
-                                any_placeholder_found = True
-                        if changed:
-                            cell.value = txt
-
-        # PASS 2: If NO {{PLACEHOLDER}} was found, do smart label detection.
-        # Scan cells for known label text and fill value after colon or in adjacent cell.
-        if not any_placeholder_found:
-            _fill_template_by_labels(wb, placeholder_map)
-
-        _apply_print_settings(wb)
-        resp = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return _download_response(
+            _build_multi_xlsx(template_bytes, works, keep_vba=(ext == "xlsm")),
+            f"Filled_{stem}_{len(works)}_works.{ext}",
+            XLSX_CONTENT_TYPE,
         )
-        resp["Content-Disposition"] = f'attachment; filename="Filled_{os.path.basename(template_name)}"'
-        wb.save(resp)
-        return resp
 
-    # -------- Text / CSV --------
-    if ext in ("txt", "csv"):
-        try:
-            content = template_file.read()
-        except Exception:
-            content = b""
-        try:
-            text = content.decode("utf-8", errors="ignore")
-        except Exception:
-            text = str(content)
-
-        for ph, val in placeholder_map.items():
-            text = text.replace(ph, str(val) if val is not None else "")
-
-        resp = HttpResponse(text, content_type="text/plain; charset=utf-8")
-        resp["Content-Disposition"] = f'attachment; filename="Filled_{os.path.basename(template_name)}"'
-        return resp
-
-    return HttpResponse(
-        f"Unsupported template type .{ext}. Use DOCX / XLSX / XLSM / TXT / CSV.",
-        status=400,
+    return _download_response(
+        _build_multi_text(template_bytes, works),
+        f"Filled_{stem}_{len(works)}_works.{ext}",
+        "text/plain; charset=utf-8",
     )
 
 
-# ============================================
-#  SELF-FORMATTED FORMS  -  VIEWS
-# ============================================
+def _zip_filled_outputs(template_bytes, template_name, works, stem, ext):
+    """One filled document per work, delivered as a ZIP archive."""
+    import zipfile
 
+    buf = io.BytesIO()
+    used_names = set()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for idx, (label, pmap) in enumerate(works, start=1):
+            if ext == "docx":
+                payload = _build_filled_docx(template_bytes, pmap)
+            elif ext in ("xlsx", "xlsm"):
+                payload = _build_multi_xlsx(
+                    template_bytes, [(label, pmap)], keep_vba=(ext == "xlsm")
+                )
+            else:
+                payload = _build_filled_text(template_bytes, pmap).encode("utf-8")
+
+            safe_label = re.sub(r'[\\/:*?"<>|]+', '_', str(label or '')).strip() or stem
+            name = f"{idx:02d}_{safe_label[:60]}.{ext}"
+            while name in used_names:
+                name = f"{idx:02d}_{get_random_string(4)}_{safe_label[:50]}.{ext}"
+            used_names.add(name)
+            zf.writestr(name, payload)
+
+    return _download_response(
+        buf.getvalue(), f"Filled_{stem}_{len(works)}_works.zip", "application/zip"
+    )

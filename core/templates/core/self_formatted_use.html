@@ -56,12 +56,27 @@
         {% csrf_token %}
 
         <div class="form-group">
-            <h4>Upload Source File to read from (Bill / Estimate / MB / PDF / Image)</h4>
+            <h4>Upload Source File(s) to read from (Bill / Estimate / MB / PDF / Image)</h4>
             <p style="font-size:0.85rem; color:#666; margin-bottom:10px;">
-                <i class="bi bi-magic"></i> Supports blurred/scanned documents with smart OCR
+                <i class="bi bi-magic"></i> Supports blurred/scanned documents with smart OCR.
+                Select several files to fill the format once per file.
             </p>
-            <input type="file" name="source_file" 
+            <input type="file" name="source_files" multiple
                    accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv" required>
+        </div>
+
+        <div class="form-group">
+            <label style="display:block; margin-bottom:6px;">
+                <input type="checkbox" name="split_sheets" value="1" checked>
+                Treat each sheet of an Excel source as a separate work
+            </label>
+            <label style="display:block;">
+                Output:
+                <select name="output_mode">
+                    <option value="combined">One file — a page / sheet per uploaded file</option>
+                    <option value="separate">Separate files (ZIP)</option>
+                </select>
+            </label>
         </div>
 
         <div class="form-group">
@@ -72,6 +87,8 @@
     <p>
         This will use the template and custom placeholders stored for this format,
         plus all built-in placeholders (Name of work, Agreement, MB, T.P, Amount, etc.)
+        With several sources, an Excel template produces one sheet per work and a Word
+        template one page per work.
     </p>
 
     <p class="back-link"><a href="{% url 'self_formatted_form_page' %}">← Back to Self-Formatted Forms</a></p>

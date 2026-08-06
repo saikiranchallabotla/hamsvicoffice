@@ -39,9 +39,9 @@ _inflect_engine = inflect.engine()
 from .utils import (get_org_from_request, _get_letter_settings,
     _get_current_financial_year, _format_indian_number)
 from .self_formatted_views import (_extract_labels_from_source_file,
-    _build_placeholder_map, _fill_template_file,
+    _build_placeholder_map, _fill_template_file, _fill_template_multi,
     _replace_placeholders_in_docx_xml,
-    _extract_labels_per_work,
+    _extract_labels_per_work, _extract_works_with_lines,
     _extract_labels_from_lines)
 
 # Pre-migration-safe columns for SelfFormattedTemplate queries.
@@ -231,12 +231,88 @@ def self_formatted_save_format(request):
     return redirect("self_formatted_form_page")
 
 
+def _source_label(raw_name):
+    """Short human label for a source file / sheet, used to name output sheets."""
+    name = os.path.basename(str(raw_name or "").strip())
+    # A per-sheet source is named "report.xlsx — Sheet1"; keep the sheet name
+    if " — " in name:
+        base, _, sheet = name.rpartition(" — ")
+        base = base.rsplit(".", 1)[0] if "." in base else base
+        return f"{base} - {sheet}".strip(" -")
+    return name.rsplit(".", 1)[0] if "." in name else name
+
+
+def _collect_works_from_sources(files, placeholder_source, split_sheets):
+    """
+    Build the (label, placeholder_map) list for a set of uploaded source files.
+
+    With ``split_sheets`` each sheet of an Excel source is treated as its own
+    work; otherwise the whole file yields a single work.
+
+    Returns ``(works, failed_names)``.
+    """
+    works = []
+    failed = []
+
+    for f in files:
+        try:
+            if split_sheets:
+                extracted = _extract_works_with_lines(f)
+            else:
+                labels, lines = _extract_labels_from_source_file(f)
+                extracted = [(f.name, labels, lines)] if lines else []
+
+            if not extracted:
+                failed.append(f.name)
+                continue
+
+            added = 0
+            for source_name, labels, lines in extracted:
+                # Skip sheets that carry no recognisable data (rate tables etc.)
+                if split_sheets and len(extracted) > 1 and not any(labels.values()):
+                    continue
+                works.append((
+                    _source_label(source_name),
+                    _build_placeholder_map(labels, lines, placeholder_source),
+                ))
+                added += 1
+
+            if not added:
+                failed.append(f.name)
+        except Exception as e:
+            logger.error(f"Source extraction failed for {getattr(f, 'name', '?')}: {e}")
+            failed.append(getattr(f, 'name', '?'))
+
+    return works, failed
+
+
+def _get_template_bytes_and_name(fmt):
+    """Saved template content + filename, falling back to the DB backup."""
+    data = fmt.get_template_content()
+    if not data:
+        return None, None
+
+    template_name = ""
+    try:
+        template_name = fmt.template_file.name if fmt.template_file else ""
+    except Exception:
+        pass
+    if not template_name:
+        template_name = getattr(fmt, 'template_file_name', '') or f"template_{fmt.pk}.docx"
+    return data, os.path.basename(template_name)
+
+
 @org_required
 def self_formatted_use_format(request, pk):
     """
     Use a saved format:
-      GET  -> show page asking only for source_file upload.
-      POST -> generate document using saved template + placeholders.
+      GET  -> show page asking for source file upload(s).
+      POST -> generate document(s) using saved template + placeholders.
+
+    Several source files may be uploaded at once (``source_files``). They are
+    merged into one download by default — one sheet per work for Excel
+    templates, one page per work for Word templates — or returned as a ZIP of
+    separate documents when ``output_mode=separate``.
     """
     fmt = _safe_get_template(pk, request.user)
     if fmt is None:
@@ -248,25 +324,32 @@ def self_formatted_use_format(request, pk):
         })
 
     if request.method == "POST":
-        source_file = request.FILES.get("source_file")
-        if not source_file:
+        files = request.FILES.getlist("source_files")
+        if not files:
+            single = request.FILES.get("source_file")
+            files = [single] if single else []
+        if not files:
             return HttpResponse("Please upload a source file.", status=400)
 
-        try:
-            labels, lines = _extract_labels_from_source_file(source_file)
-        except Exception as e:
-            logger.error(f"Source file extraction failed in use_format: {e}")
-            return HttpResponse("Failed to read source file. Please check the file format.", status=400)
+        split_sheets = request.POST.get("split_sheets", "").lower() in ("1", "true", "on", "yes")
+        separate_files = request.POST.get("output_mode", "") == "separate"
 
-        if not lines:
-            return HttpResponse("No text could be extracted from the source file.", status=400)
+        works, failed = _collect_works_from_sources(
+            files, fmt.custom_placeholders or "", split_sheets
+        )
 
-        placeholder_source = fmt.custom_placeholders or ""
-        placeholder_map = _build_placeholder_map(labels, lines, placeholder_source)
+        if not works:
+            if len(files) == 1:
+                return HttpResponse(
+                    "No text could be extracted from the source file.", status=400
+                )
+            return HttpResponse(
+                "No text could be extracted from the uploaded files: "
+                + ", ".join(failed),
+                status=400,
+            )
 
-        # Use the new get_template_content method which falls back to backup
-        data = fmt.get_template_content()
-
+        data, template_name = _get_template_bytes_and_name(fmt)
         if not data:
             # Template file was not found in file storage OR database backup
             return redirect(
@@ -275,30 +358,19 @@ def self_formatted_use_format(request, pk):
                 "Please re-create this format."
             )
 
-        # Determine filename safely - use backup name or fallback
-        template_name = ""
         try:
-            template_name = fmt.template_file.name if fmt.template_file else ""
-        except Exception:
-            pass
-        if not template_name:
-            template_name = getattr(fmt, 'template_file_name', '') or f"template_{fmt.pk}.docx"
-        template_name = os.path.basename(template_name)
-
-        mem = io.BytesIO(data)
-        uploaded = InMemoryUploadedFile(
-            mem,
-            field_name="template_file",
-            name=template_name,
-            content_type="application/octet-stream",
-            size=len(data),
-            charset=None,
-        )
-        try:
-            return _fill_template_file(uploaded, placeholder_map)
+            resp = _fill_template_multi(
+                data, template_name, works, separate_files=separate_files
+            )
         except Exception as e:
-            logger.error(f"Template fill failed in use_format: {e}")
+            logger.error(f"Template fill failed in use_format: {e}", exc_info=True)
             return HttpResponse("Failed to fill template. Please check the template file.", status=500)
+
+        # Let the browser report partially-processed batches
+        resp["X-Works-Generated"] = str(len(works))
+        if failed:
+            resp["X-Sources-Skipped"] = ", ".join(failed)[:500]
+        return resp
 
     return HttpResponseNotAllowed(["GET", "POST"])
 

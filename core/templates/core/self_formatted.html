@@ -869,14 +869,37 @@
         <form id="dialog-use-format-form" onsubmit="submitUseFormatForm(event)">
             {% csrf_token %}
             <input type="hidden" id="dialog-format-pk" value="">
-            <div style="margin-bottom:1rem;">
+            <div style="margin-bottom:0.75rem;">
                 <label style="display:block; font-weight:600; color:#2d3748; margin-bottom:0.4rem; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">
-                    <i class="bi bi-file-earmark-arrow-up" style="color:#667eea; margin-right:0.3rem;"></i> Select File
+                    <i class="bi bi-file-earmark-arrow-up" style="color:#667eea; margin-right:0.3rem;"></i> Select File(s)
                 </label>
-                <p style="font-size:0.7rem; color:#718096; margin:0 0 0.4rem 0;">PDF/Image/Excel/Word (supports blurred scans)</p>
-                <input type="file" id="dialog-use-source-file" class="sf-input"
+                <p style="font-size:0.7rem; color:#718096; margin:0 0 0.4rem 0;">
+                    PDF/Image/Excel/Word (supports blurred scans). Pick several files — you can
+                    browse more than once, files accumulate.
+                </p>
+                <input type="file" id="dialog-use-source-file" class="sf-input" multiple
                        accept=".xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.gif,.webp,.txt,.csv"
-                       required style="padding:0.6rem; border:2px dashed #667eea; border-radius:8px; cursor:pointer; font-size:0.85rem; width:100%; box-sizing:border-box;">
+                       style="padding:0.6rem; border:2px dashed #667eea; border-radius:8px; cursor:pointer; font-size:0.85rem; width:100%; box-sizing:border-box;">
+                <div id="dialog-use-file-list" style="margin-top:0.4rem; display:flex; flex-wrap:wrap; gap:5px; max-height:110px; overflow-y:auto;"></div>
+                <p style="font-size:0.7rem; color:#718096; margin:0.3rem 0 0 0;" id="dialog-use-file-count"></p>
+            </div>
+
+            <div style="margin-bottom:1rem; background:#f7fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.5rem 0.6rem;">
+                <label style="display:block; font-size:0.75rem; color:#2d3748; margin-bottom:0.35rem;">
+                    <input type="checkbox" id="dialog-split-sheets" checked style="vertical-align:middle;">
+                    Each sheet of an Excel source is a separate work
+                </label>
+                <label style="display:block; font-size:0.75rem; color:#2d3748;">
+                    Output
+                    <select id="dialog-output-mode" style="margin-left:0.3rem; font-size:0.75rem; padding:0.15rem 0.3rem; border:1px solid #e2e8f0; border-radius:5px;">
+                        <option value="combined">One file — a page / sheet per upload</option>
+                        <option value="separate">Separate files (ZIP)</option>
+                    </select>
+                </label>
+                <p style="font-size:0.65rem; color:#718096; margin:0.3rem 0 0 0;">
+                    The template is filled once per uploaded file — Word formats put each one on its
+                    own page, Excel formats on its own sheet.
+                </p>
             </div>
             <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
                 <button type="button" onclick="closeUseFormatDialog()"
@@ -1174,6 +1197,9 @@ dialog::backdrop { background: rgba(0,0,0,0.3); }
             <div>
                 <strong>Tips:</strong>
                 Use <strong>Save Reusable Format</strong> (right side) to save your template so you only upload the source file next time.
+                A saved format accepts <strong>several source files at once</strong> — you get one filled
+                sheet per work for Excel templates, one page per work for Word templates, or a ZIP of
+                separate documents.
                 The <strong>Preview</strong> button lets you verify extracted values before generating.
                 Supported source files: Excel, Word, PDF (including scanned), Images.
             </div>
@@ -1417,10 +1443,53 @@ window.copyLivePreview = function(btn) {
     };
     
     // Modal functions for inline Use Format
+    // Source files accumulate across multiple browses, so a batch can be built
+    // from several folders before generating.
+    var useFormatFiles = [];
+
+    function renderUseFormatFiles() {
+        var list = document.getElementById('dialog-use-file-list');
+        var count = document.getElementById('dialog-use-file-count');
+        if (!list) return;
+        list.innerHTML = '';
+        useFormatFiles.forEach(function(file, idx) {
+            var chip = document.createElement('span');
+            chip.style.cssText = 'display:inline-flex; align-items:center; gap:4px; background:#edf2f7; border:1px solid #e2e8f0; border-radius:6px; padding:3px 7px; font-size:0.7rem; color:#2d3748;';
+            chip.innerHTML = '<i class="bi bi-file-earmark" style="color:#667eea;"></i>' +
+                '<span style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>' +
+                '<button type="button" style="border:none; background:none; color:#e53e3e; cursor:pointer; padding:0 2px; font-size:0.8rem; line-height:1;" title="Remove">&times;</button>';
+            chip.querySelector('span').textContent = file.name;
+            chip.querySelector('button').addEventListener('click', function() {
+                useFormatFiles.splice(idx, 1);
+                renderUseFormatFiles();
+            });
+            list.appendChild(chip);
+        });
+        var n = useFormatFiles.length;
+        if (count) count.textContent = n ? n + ' file' + (n > 1 ? 's' : '') + ' selected' : '';
+    }
+
+    var useSourceInput = document.getElementById('dialog-use-source-file');
+    if (useSourceInput) {
+        useSourceInput.addEventListener('change', function() {
+            for (var i = 0; i < useSourceInput.files.length; i++) {
+                var f = useSourceInput.files[i];
+                var dup = useFormatFiles.some(function(existing) {
+                    return existing.name === f.name && existing.size === f.size && existing.lastModified === f.lastModified;
+                });
+                if (!dup) useFormatFiles.push(f);
+            }
+            useSourceInput.value = ''; // reset so the same folder can be re-browsed
+            renderUseFormatFiles();
+        });
+    }
+
     window.showUseFormatModal = function(formatPk, formatName) {
         document.getElementById('dialog-format-pk').value = formatPk;
         document.getElementById('dialog-format-name').textContent = formatName;
         document.getElementById('dialog-use-source-file').value = '';
+        useFormatFiles = [];
+        renderUseFormatFiles();
         var dlg = document.getElementById('use-format-dialog');
         // Fallback for browsers without native <dialog>.showModal() support
         // (e.g. older Safari versions before 15.4).
@@ -1443,10 +1512,9 @@ window.copyLivePreview = function(btn) {
     window.submitUseFormatForm = async function(event) {
         event.preventDefault();
         const formatPk = document.getElementById('dialog-format-pk').value;
-        const sourceFile = document.getElementById('dialog-use-source-file').files[0];
 
-        if (!sourceFile) {
-            alert('Please select a source file');
+        if (!useFormatFiles.length) {
+            alert('Please select at least one source file');
             return;
         }
 
@@ -1454,8 +1522,13 @@ window.copyLivePreview = function(btn) {
         const submitBtn = event.target.querySelector('button[type="submit"]');
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Generating...'; }
 
+        const splitSheets = document.getElementById('dialog-split-sheets');
+        const outputMode = document.getElementById('dialog-output-mode');
+
         const formData = new FormData();
-        formData.append('source_file', sourceFile);
+        useFormatFiles.forEach(function(f) { formData.append('source_files', f); });
+        formData.append('split_sheets', splitSheets && splitSheets.checked ? '1' : '0');
+        formData.append('output_mode', outputMode ? outputMode.value : 'combined');
         formData.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
 
         try {
@@ -1481,8 +1554,15 @@ window.copyLivePreview = function(btn) {
                 }
                 // Fallback: derive extension from Content-Type
                 if (!filename) {
-                    const ext = contentType.includes('spreadsheet') ? '.xlsx' : contentType.includes('text/plain') ? '.txt' : '.docx';
+                    const ext = contentType.includes('zip') ? '.zip'
+                        : contentType.includes('spreadsheet') ? '.xlsx'
+                        : contentType.includes('text/plain') ? '.txt' : '.docx';
                     filename = 'Filled_document' + ext;
+                }
+
+                const skipped = response.headers.get('X-Sources-Skipped');
+                if (skipped) {
+                    alert('Generated, but no data could be read from: ' + skipped);
                 }
 
                 const blob = await response.blob();
