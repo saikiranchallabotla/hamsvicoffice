@@ -1946,6 +1946,23 @@ def workslip(request):
             request.session["ws_metadata"] = ws_metadata_session
             request.session.modified = True
 
+            # The page sends the supplemental items shown in its table; use
+            # that list so items lost from the session (e.g. by overlapping
+            # add requests) still make it into the download.
+            supp_items_json = request.POST.get("supp_items_json", "")
+            if supp_items_json:
+                try:
+                    _posted_supp = json.loads(supp_items_json)
+                except Exception:
+                    _posted_supp = None
+                if isinstance(_posted_supp, list):
+                    ws_supp_items = []
+                    for _nm in _posted_supp:
+                        _nm = str(_nm).strip()
+                        if _nm and _nm not in ws_supp_items:
+                            ws_supp_items.append(_nm)
+                    request.session["ws_supp_items"] = ws_supp_items
+
             # helper to safely fetch execution quantity for base estimate rows
             def get_exec_qty_for_base(row_key, item_name, desc):
                 candidates = [
