@@ -1161,6 +1161,7 @@
                 <input type="hidden" name="tp_percent" id="ws-tp-percent-field">
                 <input type="hidden" name="tp_type" id="ws-tp-type-field">
                 <input type="hidden" name="deduct_old_material" id="ws-deduct-old-material-field">
+                <input type="hidden" name="supp_items_json" id="ws-supp-items-field">
                 <!-- Metadata hidden fields (only used for Workslip-1) -->
                 <input type="hidden" name="ws_estimate_amount" id="ws-estimate-amount-field">
                 <input type="hidden" name="ws_agency_name" id="ws-agency-name-field">
@@ -2143,14 +2144,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST', body: saveData,
                 headers: { 'X-CSRFToken': csrfToken }, redirect: 'manual'
             }).then(function() {
-                var addPromises = selectedItems.map(function(itemName) {
-                    return fetch(ajaxToggleSuppUrl, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
-                        body: JSON.stringify({ item: itemName, action: "add" })
-                    }).then(function(r) { return r.json(); });
-                });
-                return Promise.all(addPromises);
+                // Add items one after another, not in parallel: each request
+                // rewrites the session's supplemental list, so concurrent
+                // requests overwrite each other and items silently drop out
+                // of the download.
+                var results = [];
+                return selectedItems.reduce(function(chain, itemName) {
+                    return chain.then(function() {
+                        return fetch(ajaxToggleSuppUrl, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+                            body: JSON.stringify({ item: itemName, action: "add" })
+                        }).then(function(r) { return r.json(); })
+                          .then(function(data) { results.push(data); });
+                    });
+                }, Promise.resolve()).then(function() { return results; });
             }).then(function(results) {
                 results.forEach(function(data) {
                     if (data.status === 'ok' && data.action_taken === 'added' && data.item_info) {
@@ -2427,6 +2435,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
+
+            // Supplemental items exactly as shown in the table, so the
+            // download contains every item the user sees.
+            var suppNames = [];
+            document.querySelectorAll('#ws-table tbody tr[data-row-type="supp"]').forEach(function(row) {
+                var nm = row.getAttribute("data-supp-name");
+                if (nm && suppNames.indexOf(nm) === -1) suppNames.push(nm);
+            });
+            var suppField = document.getElementById("ws-supp-items-field");
+            if (suppField) suppField.value = JSON.stringify(suppNames);
 
             // Populate hidden fields
             var execField = document.getElementById("ws-exec-map-field");
