@@ -586,12 +586,57 @@ def _validate_backend_workbook(uploaded_file, module=None):
         )
 
     mod_code = (getattr(module, 'code', '') or '').lower()
+    if not missing:
+        warnings.extend(_backend_item_warnings(uploaded_file, mod_code))
     if 'temp' in mod_code and 'Daywise Rates' not in sheets:
         warnings.append(
             'Note: no "Daywise Rates" sheet was found — day-based rates may not '
             'work for this Temporary Works backend.'
         )
     return errors, warnings
+
+
+def _backend_item_warnings(uploaded_file, mod_code):
+    """Warn about items that will not appear in the app's item lists."""
+    from openpyxl import load_workbook
+    from core.utils_excel import backend_item_issues
+
+    def _names(names):
+        shown = ', '.join(f'"{n}"' for n in names[:15])
+        return shown + (f' and {len(names) - 15} more' if len(names) > 15 else '')
+
+    try:
+        uploaded_file.seek(0)
+        wb = load_workbook(uploaded_file, data_only=False)
+        in_groups_only, in_datas_only = backend_item_issues(
+            wb['Master Datas'], wb['Groups'],
+            unit_col=3 if 'temp' in mod_code else 4,
+        )
+    except Exception:
+        return []
+    finally:
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+
+    warnings = []
+    if in_groups_only:
+        warnings.append(
+            f'{len(in_groups_only)} item(s) are listed in the "Groups" sheet but have no '
+            'matching heading in "Master Datas", so they will NOT be shown: '
+            + _names(in_groups_only)
+            + '. Check that each item\'s heading row in "Master Datas" has the same name '
+            'and is formatted with a yellow background and red text.'
+        )
+    if in_datas_only:
+        warnings.append(
+            f'{len(in_datas_only)} item(s) in "Master Datas" are not listed in any group in '
+            'the "Groups" sheet, so they will NOT be shown: '
+            + _names(in_datas_only)
+            + '. Add a row for each in "Groups" (column A item name, column B group).'
+        )
+    return warnings
 
 
 @admin_required
