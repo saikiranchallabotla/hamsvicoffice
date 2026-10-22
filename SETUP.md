@@ -112,3 +112,11 @@ After the first deploy, remove this variable. Admin users can upload updated SOR
 ## Support
 
 For questions or issues, contact: support@hamsvic.com
+
+## Automatic deployment
+
+Every push to `main` deploys to the EC2 server through the GitHub Actions
+workflow `.github/workflows/deploy.yml`: it connects over SSH as `ubuntu` and
+runs `redeploy.sh` in the app folder. It needs the server's `.pem` key saved as
+the repository secret `EC2_SSH_KEY`. A deploy can also be started by hand from
+the repository's **Actions** tab ("Deploy to server" → "Run workflow").
