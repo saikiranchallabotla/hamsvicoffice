@@ -1,0 +1,38 @@
+# Deploys main to the EC2 server: on every push to main, or by hand from the
+# Actions tab. Needs the server's .pem key stored as the repository secret
+# EC2_SSH_KEY.
+name: Deploy to server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run redeploy.sh on the server
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: 18.61.167.132
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::Repository secret EC2_SSH_KEY is not set."
+            exit 1
+          fi
+          install -m 600 /dev/null key.pem
+          printf '%s\n' "$SSH_KEY" > key.pem
+          ssh -i key.pem -o StrictHostKeyChecking=accept-new ubuntu@"$HOST" 'bash -s' <<'EOF'
+          set -e
+          for d in ~/hamsvic ~/hamsvicoffice ~/*/; do
+            if [ -f "$d/redeploy.sh" ] && [ -f "$d/manage.py" ]; then
+              cd "$d"
+              break
+            fi
+          done
+          echo "Deploying in $(pwd)"
+          bash redeploy.sh
+          EOF
