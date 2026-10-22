@@ -262,6 +262,63 @@ def read_groups(ws_groups, unit_col=4):
     return groups, units
 
 
+def _item_match_key(name):
+    """Comparison key for item names: spacing and letter case ignored."""
+    return re.sub(r"\s+", " ", str(name or "")).strip().casefold()
+
+
+def align_group_names(groups_map, units_map, item_names):
+    """
+    Rewrite the item names listed in the Groups sheet to the exact heading
+    names found in Master Datas when they differ only in spacing or letter
+    case. Pages show a group's items only when the names match exactly, so
+    without this an item typed slightly differently in the two sheets silently
+    disappears from the UI.
+    """
+    canonical = {}
+    for n in item_names:
+        canonical.setdefault(_item_match_key(n), n)
+    aligned_groups = {}
+    for group, names in groups_map.items():
+        out = []
+        for n in names:
+            n = canonical.get(_item_match_key(n), n)
+            if n not in out:
+                out.append(n)
+        aligned_groups[group] = out
+    aligned_units = dict(units_map)
+    for n, unit in units_map.items():
+        aligned_units.setdefault(canonical.get(_item_match_key(n), n), unit)
+    return aligned_groups, aligned_units
+
+
+def backend_item_issues(ws_data, ws_groups, unit_col=4):
+    """
+    Items that will not show up in the app, for warning the admin on upload:
+      - in_groups_only: listed in Groups but no yellow/red-text heading with
+        that name exists in Master Datas;
+      - in_datas_only: a Master Datas heading that no Groups row lists.
+    """
+    item_names = [it["name"] for it in detect_items(ws_data)]
+    groups_map, _ = read_groups(ws_groups, unit_col=unit_col)
+    data_keys = {_item_match_key(n) for n in item_names}
+    group_keys = set()
+    in_groups_only = []
+    for names in groups_map.values():
+        for n in names:
+            k = _item_match_key(n)
+            group_keys.add(k)
+            if k not in data_keys and n not in in_groups_only:
+                in_groups_only.append(n)
+    in_datas_only = []
+    for n in item_names:
+        if _item_match_key(n) == "end":  # end-of-data marker, not an item
+            continue
+        if _item_match_key(n) not in group_keys and n not in in_datas_only:
+            in_datas_only.append(n)
+    return in_groups_only, in_datas_only
+
+
 # ---------- In-process cache for read-only group navigation ----------
 # Parsing a backend workbook with openpyxl costs ~300-500 ms. Group navigation
 # re-parses the SAME unchanged file on every click, so cache the derived plain
@@ -301,6 +358,7 @@ def _parse_backend_nav(filepath, category_key):
         names = tuple(it["name"] for it in detect_items(wb["Master Datas"]))
         _unit_col = 3 if category_key.startswith('temp_') else 4
         groups_map, units_map = read_groups(wb["Groups"], unit_col=_unit_col)
+        groups_map, units_map = align_group_names(groups_map, units_map, names)
     finally:
         try:
             wb.close()
@@ -523,6 +581,9 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     # Temp-works backends keep units in Groups column C; everywhere else col D.
     _unit_col = 3 if category_key.startswith('temp_') else 4
     groups_map, units_map = read_groups(ws_groups, unit_col=_unit_col)
+    groups_map, units_map = align_group_names(
+        groups_map, units_map, [it["name"] for it in items_list]
+    )
 
     # ---- Merge in user's custom backends (per-user uploaded items/groups) ----
     if user is not None and getattr(user, 'is_authenticated', False) and module_code in ('new_estimate', 'temp_works', 'amc'):
