@@ -626,8 +626,8 @@ def _backend_item_warnings(uploaded_file, mod_code):
             f'{len(in_groups_only)} item(s) are listed in the "Groups" sheet but have no '
             'matching heading in "Master Datas", so they will NOT be shown: '
             + _names(in_groups_only)
-            + '. Check that each item\'s heading row in "Master Datas" has the same name '
-            'and is formatted with a yellow background and red text.'
+            + '. Check that each name is typed the same in both sheets and that the item\'s '
+            'heading in "Master Datas" is within columns A to J.'
         )
     if in_datas_only:
         warnings.append(

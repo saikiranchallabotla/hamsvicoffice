@@ -109,23 +109,36 @@ def _is_yellow_and_red(cell):
 
 
 # ---------- Detect items from "Master Datas" ----------
-def detect_items(ws):
+def detect_items(ws, extra_heading_names=None):
     """
     Detect item blocks:
     - A heading row is a row where ANY cell in A..J is yellow+red.
+    - With extra_heading_names, a row whose A..J cell text equals one of those
+      names (ignoring spacing and case) is a heading too, whatever its
+      formatting.
     - The block continues until the row before the next heading.
     """
+    extra_keys = {_item_match_key(n) for n in (extra_heading_names or ())}
+    extra_keys.discard("")
+
+    def _heading_at(row):
+        for c in range(SCAN_COL_START, SCAN_COL_END + 1):
+            cell = ws.cell(row=row, column=c)
+            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
+                return str(cell.value).strip()
+        if extra_keys:
+            for c in range(SCAN_COL_START, SCAN_COL_END + 1):
+                v = ws.cell(row=row, column=c).value
+                if isinstance(v, str) and _item_match_key(v) in extra_keys:
+                    return v.strip()
+        return None
+
     items = []
     max_row = ws.max_row
     r = 1
 
     while r <= max_row:
-        heading_name = None
-        for c in range(SCAN_COL_START, SCAN_COL_END + 1):
-            cell = ws.cell(row=r, column=c)
-            if _is_yellow_and_red(cell) and str(cell.value or "").strip():
-                heading_name = str(cell.value).strip()
-                break
+        heading_name = _heading_at(r)
 
         if heading_name:
             start_row = r
@@ -134,13 +147,7 @@ def detect_items(ws):
             end_row = max_row
             rr = r + 1
             while rr <= max_row:
-                found_next = False
-                for c in range(SCAN_COL_START, SCAN_COL_END + 1):
-                    cell = ws.cell(row=rr, column=c)
-                    if _is_yellow_and_red(cell) and str(cell.value or "").strip():
-                        found_next = True
-                        break
-                if found_next:
+                if _heading_at(rr):
                     end_row = rr - 1
                     break
                 rr += 1
@@ -318,15 +325,30 @@ def align_group_names(groups_map, units_map, item_names):
     return aligned_groups, aligned_units
 
 
+def detect_backend_items(ws_data, groups_map):
+    """
+    detect_items() for a backend's Master Datas sheet. Items listed in the
+    Groups sheet whose heading isn't formatted yellow with red text are still
+    found by their name, so a formatting slip doesn't hide them.
+    """
+    items = detect_items(ws_data)
+    found = {_item_match_key(it["name"]) for it in items}
+    missing = [n for names in groups_map.values() for n in names
+               if _item_match_key(n) not in found]
+    if not missing:
+        return items
+    return detect_items(ws_data, extra_heading_names=missing)
+
+
 def backend_item_issues(ws_data, ws_groups, unit_col=4):
     """
     Items that will not show up in the app, for warning the admin on upload:
-      - in_groups_only: listed in Groups but no yellow/red-text heading with
-        that name exists in Master Datas;
+      - in_groups_only: listed in Groups but no heading with that name
+        exists in Master Datas (columns A-J);
       - in_datas_only: a Master Datas heading that no Groups row lists.
     """
-    item_names = [it["name"] for it in detect_items(ws_data)]
     groups_map, _ = read_groups(ws_groups, unit_col=unit_col)
+    item_names = [it["name"] for it in detect_backend_items(ws_data, groups_map)]
     data_keys = {_item_match_key(n) for n in item_names}
     group_keys = set()
     in_groups_only = []
@@ -381,9 +403,9 @@ def _parse_backend_nav(filepath, category_key):
             raise ValueError("Sheet 'Master Datas' missing in backend Excel.")
         if "Groups" not in wb.sheetnames:
             raise ValueError("Sheet 'Groups' missing in backend Excel.")
-        names = tuple(it["name"] for it in detect_items(wb["Master Datas"]))
         _unit_col = 3 if category_key.startswith('temp_') else 4
         groups_map, units_map = read_groups(wb["Groups"], unit_col=_unit_col)
+        names = tuple(it["name"] for it in detect_backend_items(wb["Master Datas"], groups_map))
         groups_map, units_map = align_group_names(groups_map, units_map, names)
     finally:
         try:
@@ -603,10 +625,10 @@ def load_backend(category, base_dir, backend_id=None, module_code=None, user=Non
     ws_data = wb["Master Datas"]
     ws_groups = wb["Groups"]
 
-    items_list = detect_items(ws_data)
     # Temp-works backends keep units in Groups column C; everywhere else col D.
     _unit_col = 3 if category_key.startswith('temp_') else 4
     groups_map, units_map = read_groups(ws_groups, unit_col=_unit_col)
+    items_list = detect_backend_items(ws_data, groups_map)
     groups_map, units_map = align_group_names(
         groups_map, units_map, [it["name"] for it in items_list]
     )
