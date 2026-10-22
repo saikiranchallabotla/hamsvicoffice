@@ -41,6 +41,19 @@ SCAN_COL_END = 10
 
 
 # ---------- Color detection helpers ----------
+def _rgb_triplet(rgb):
+    """'FFRRGGBB' / 'RRGGBB' -> (r, g, b), or None when not a plain hex colour."""
+    if not isinstance(rgb, str):
+        return None
+    hexpart = rgb[-6:]
+    if len(hexpart) != 6:
+        return None
+    try:
+        return int(hexpart[0:2], 16), int(hexpart[2:4], 16), int(hexpart[4:6], 16)
+    except ValueError:
+        return None
+
+
 def cell_is_yellow(cell):
     fill = cell.fill
     if not fill or not fill.patternType or fill.patternType.lower() != "solid":
@@ -49,6 +62,13 @@ def cell_is_yellow(cell):
     rgb = getattr(fill.fgColor, "rgb", None)
     if rgb and str(rgb).upper().endswith("FFFF00"):
         return True
+    # Other yellow shades Excel offers (light yellow, gold, ...): strong red
+    # and green, clearly less blue.
+    trip = _rgb_triplet(rgb)
+    if trip:
+        r, g, b = trip
+        if r >= 0xE0 and g >= 0xC0 and b <= 0xA0 and r - b >= 0x60:
+            return True
 
     if getattr(fill.fgColor, "type", None) == "theme":
         if getattr(fill.fgColor, "theme", None) in (4, 5, 6):
@@ -68,6 +88,12 @@ def cell_is_red_text(cell):
     rgb = getattr(font.color, "rgb", None)
     if rgb and str(rgb).upper().endswith("FF0000"):
         return True
+    # Other red shades (Excel's "Dark Red" C00000, ...).
+    trip = _rgb_triplet(rgb)
+    if trip:
+        r, g, b = trip
+        if r >= 0x99 and g <= 0x50 and b <= 0x50:
+            return True
 
     if getattr(font.color, "type", None) == "theme":
         return True
