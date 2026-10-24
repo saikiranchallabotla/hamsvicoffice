@@ -931,7 +931,7 @@
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
         min-width: 220px;
         max-width: 320px;
-        max-height: 250px;
+        max-height: 70vh;
         overflow: hidden;
         animation: popupFadeIn 0.15s ease;
     }
@@ -989,17 +989,17 @@
     
     .subtypes-popup-body {
         padding: 0.4rem;
-        max-height: 200px;
+        max-height: calc(70vh - 40px);
         overflow-y: auto;
     }
     
     .subtypes-popup-body::-webkit-scrollbar {
-        width: 4px;
+        width: 8px;
     }
     
     .subtypes-popup-body::-webkit-scrollbar-thumb {
-        background: #cbd5e0;
-        border-radius: 2px;
+        background: #a0aec0;
+        border-radius: 4px;
     }
     
     .subtypes-list {
@@ -2084,6 +2084,11 @@ function openSubtypesModal(labelElement) {
     try {
         // Get subtypes from global data object
         var subtypes = subtypesData[subtypesIndex] || [];
+        // Show sizes in natural order (0.8, 1.0, 1.2 ... 4.6) whatever the Groups sheet order
+        subtypes = subtypes.slice().sort(function(a, b) {
+            var ta = a.replace(/^[^:]*:\s*/, ''), tb = b.replace(/^[^:]*:\s*/, '');
+            return ta.localeCompare(tb, undefined, {numeric: true, sensitivity: 'base'});
+        });
         
         currentParentLabel = labelElement;
         
@@ -2143,14 +2148,11 @@ function openSubtypesModal(labelElement) {
             popup.style.left = (rect.left - popupWidth - 5) + 'px';
         }
         
-        // Check if popup would go off screen at bottom
-        var popupHeight = 200;
-        if (rect.top + popupHeight > window.innerHeight) {
-            popup.style.top = (window.innerHeight - popupHeight - 10) + 'px';
-        }
-        
-        // Show popup
+        // Show first, then keep the whole popup inside the window
         popup.classList.add('active');
+        if (rect.top + popup.offsetHeight + 10 > window.innerHeight) {
+            popup.style.top = Math.max(10, window.innerHeight - popup.offsetHeight - 10) + 'px';
+        }
         
     } catch (e) {
         console.error('Error parsing subtypes:', e);

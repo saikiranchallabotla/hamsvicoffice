@@ -661,7 +661,7 @@
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
         min-width: 220px;
         max-width: 320px;
-        max-height: 250px;
+        max-height: 70vh;
         overflow: hidden;
         animation: popupFadeIn 0.15s ease;
     }
@@ -698,9 +698,18 @@
     .subtypes-popup-close:hover { background: rgba(255,255,255,0.3); }
     .subtypes-popup-body {
         padding: 0.4rem;
-        max-height: 200px;
+        max-height: calc(70vh - 40px);
         overflow-y: auto;
     }
+    .subtypes-popup-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .subtypes-popup-body::-webkit-scrollbar-thumb {
+        background: #a0aec0;
+        border-radius: 4px;
+    }
+    
     .subtypes-list { list-style: none; padding: 0; margin: 0; }
     .subtypes-list li { margin-bottom: 0.25rem; }
     .subtypes-list li:last-child { margin-bottom: 0; }
@@ -1404,6 +1413,11 @@ function openSubtypesModal(labelElement) {
     var subtypesIndex = labelElement.getAttribute('data-subtypes-index');
     try {
         var subtypes = subtypesData[subtypesIndex] || [];
+        // Show sizes in natural order (0.8, 1.0, 1.2 ... 4.6) whatever the Groups sheet order
+        subtypes = subtypes.slice().sort(function(a, b) {
+            var ta = a.replace(/^[^:]*:\s*/, ''), tb = b.replace(/^[^:]*:\s*/, '');
+            return ta.localeCompare(tb, undefined, {numeric: true, sensitivity: 'base'});
+        });
         currentParentLabel = labelElement;
         document.getElementById('modal-parent-name').textContent = parentName;
         var subtypesList = document.getElementById('subtypes-list');
@@ -1468,10 +1482,11 @@ function openSubtypesModal(labelElement) {
         if (rect.right + 280 + 10 > window.innerWidth) {
             popup.style.left = (rect.left - 280 - 5) + 'px';
         }
-        if (rect.top + 200 > window.innerHeight) {
-            popup.style.top = (window.innerHeight - 200 - 10) + 'px';
-        }
+        // Show first, then keep the whole popup inside the window
         popup.classList.add('active');
+        if (rect.top + popup.offsetHeight + 10 > window.innerHeight) {
+            popup.style.top = Math.max(10, window.innerHeight - popup.offsetHeight - 10) + 'px';
+        }
     } catch (e) {
         console.error('Error opening subtypes modal:', e);
     }
