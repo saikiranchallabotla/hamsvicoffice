@@ -3,7 +3,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Profile - Hamsvic</title>
     <style>
         * {
@@ -170,7 +170,31 @@
             padding: 20px;
             margin-top: 40px;
         }
+        @media (max-width: 768px) {
+            header { padding: 14px 16px; }
+            header h1 { font-size: 20px; }
+            nav {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 10px 16px;
+            }
+            nav > div:first-child {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px 16px;
+            }
+            nav a { margin: 0; }
+            .user-menu {
+                flex-wrap: wrap;
+                gap: 8px 16px;
+                padding-top: 8px;
+                border-top: 1px solid #eee;
+            }
+            .container { padding-left: 12px; padding-right: 12px; margin-top: 16px; }
+        }
     </style>
+    <link href="{% static 'css/responsive.css' %}?v=20261029a" rel="stylesheet">
 </head>
 <body>
     <header>

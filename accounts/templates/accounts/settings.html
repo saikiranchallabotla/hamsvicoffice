@@ -145,18 +145,25 @@
 
 .form-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 0.875rem;
 }
 
 .form-row.three-col {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+    .form-row.three-col {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
 }
 
 .form-group {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    min-width: 0;
 }
 
 .form-group label {
@@ -168,6 +175,8 @@
 }
 
 .form-group input {
+    width: 100%;
+    min-width: 0;
     padding: 0.625rem 0.875rem;
     border: 1.5px solid #e5e7eb;
     border-radius: 10px;

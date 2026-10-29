@@ -567,6 +567,61 @@
         font-size: 0.8rem;
         color: #666;
     }
+
+    /* ═══════ Phones & small tablets ═══════ */
+    @media (max-width: 768px) {
+        .explorer {
+            flex-direction: column;
+            min-height: 0;
+        }
+        /* Folder tree becomes a sideways-scrolling row of chips */
+        .explorer-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #e0e0e0;
+            overflow: visible;
+        }
+        .sidebar-header { display: none; }
+        .folder-tree {
+            display: flex;
+            gap: 6px;
+            padding: 8px 10px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .folder-tree > div { display: contents; }
+        .tree-item {
+            flex-shrink: 0;
+            white-space: nowrap;
+            padding: 6px 12px;
+            border: 1px solid #e0e0e0;
+            border-left-width: 1px;
+            border-radius: 20px;
+            background: white;
+        }
+        .tree-item.active { border-color: #1976d2; }
+        .tree-item i { margin-right: 6px; }
+        .tree-item .badge { margin-left: 6px; }
+
+        .explorer-toolbar { padding: 8px 10px; gap: 8px; }
+        .breadcrumb-nav { min-width: 0; flex-basis: 100%; overflow-x: auto; white-space: nowrap; }
+        .explorer-toolbar .toolbar-btn { flex: 1 1 auto; justify-content: center; }
+
+        .filter-bar { padding: 8px 10px; overflow-x: auto; white-space: nowrap; }
+        .file-list { padding: 10px; overflow: visible; }
+
+        .wc-main { padding: 12px; gap: 10px; flex-wrap: wrap; }
+        .wc-icon { width: 36px; height: 36px; font-size: 1rem; }
+        .wc-info { flex-basis: calc(100% - 46px - 38px); }
+        .wc-quick-flow, .wc-badges { order: 5; }
+        .wc-quick-flow { flex-wrap: wrap; }
+        .wc-hub { padding: 14px 12px; }
+        .hub-flow { flex-wrap: wrap; }
+
+        .empty-folder { padding: 40px 16px; text-align: center; }
+        .empty-folder .mt-3 { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .empty-folder .ms-2 { margin-left: 0 !important; }
+    }
 </style>
 
 <div class="explorer">

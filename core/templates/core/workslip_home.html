@@ -169,6 +169,13 @@
         background: #5a6778;
         transform: translateY(-2px);
     }
+
+    @media (max-width: 768px) {
+        .selection-container { margin: 0 auto; padding: 0; }
+        .selection-card { padding: 1.25rem 1rem; }
+        .selection-title { font-size: 1.25rem; }
+        .option-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    }
 </style>
 
 <div class="selection-container">

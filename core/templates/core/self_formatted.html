@@ -676,6 +676,10 @@
     
     @media (max-width: 600px) {
         .sf-tab-btn { padding: 0.4rem 0.6rem; font-size: 0.72rem; }
+        .sf-tab-header { flex-wrap: wrap; }
+        .sf-tab-extras { width: 100%; padding: 0.4rem 0.6rem !important; border-top: 1px solid rgba(255,255,255,0.1); }
+        .sf-two-col { grid-template-columns: 1fr !important; }
+        .sf-input[type=file] { width: 100%; min-width: 0; }
     }
 </style>
 
@@ -687,14 +691,14 @@
 
 <div class="sf-card">
     <!-- Merged Tab Header -->
-    <div style="display:flex; align-items:stretch; background:#2d3748; border-radius:8px 8px 0 0; overflow:hidden; flex-shrink:0;">
+    <div class="sf-tab-header" style="display:flex; align-items:stretch; background:#2d3748; border-radius:8px 8px 0 0; overflow:hidden; flex-shrink:0;">
         <button id="tab-generate" class="sf-tab-btn active" onclick="switchSFTab('generate')">
             <i class="bi bi-magic"></i> Quick Generate
         </button>
         <button id="tab-save" class="sf-tab-btn" onclick="switchSFTab('save')">
             <i class="bi bi-save"></i> Save Reusable Format
         </button>
-        <div style="margin-left:auto; display:flex; align-items:center; gap:0.4rem; padding:0 0.75rem;">
+        <div class="sf-tab-extras" style="margin-left:auto; display:flex; align-items:center; gap:0.4rem; padding:0 0.75rem;">
             <button type="button" class="sf-btn sf-btn-purple" style="padding:0.2rem 0.5rem; font-size:0.65rem;" onclick="toggleHelpPopup()">
                 <i class="bi bi-lightbulb"></i> Placeholders
             </button>
@@ -709,7 +713,7 @@
         <form id="generate-form" method="POST" action="{% url 'self_formatted_generate' %}" enctype="multipart/form-data">
             {% csrf_token %}
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+            <div class="sf-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
                 <div class="sf-row" style="margin-bottom:0;">
                     <div class="sf-row-title"><span class="num">1</span> Source File</div>
                     <p class="sf-hint">Excel/Word/PDF/Image with data to extract (supports blurred scans)</p>
@@ -766,7 +770,7 @@
             {% csrf_token %}
 
             <div class="sf-row">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                <div class="sf-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
                     <div>
                         <label class="sf-label">Format Name</label>
                         <input type="text" name="format_name" class="sf-input" required placeholder="e.g., Bill Format">
