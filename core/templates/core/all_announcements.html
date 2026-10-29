@@ -6,7 +6,6 @@
 {% block page_title %}Announcements{% endblock %}
 
 {% block extra_styles %}
-<style>
     .announcements-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 20px;
@@ -196,7 +195,13 @@
     .empty-state p {
         color: #94a3b8;
     }
-</style>
+
+    @media (max-width: 576px) {
+        .announcements-header { padding: 1.25rem; gap: 1rem; border-radius: 16px; margin-bottom: 1.25rem; }
+        .announcements-header-icon { width: 52px; height: 52px; font-size: 1.5rem; flex-shrink: 0; }
+        .announcements-header h2 { font-size: 1.3rem; }
+        .announcements-header > div { min-width: 0; }
+    }
 {% endblock %}
 
 {% block content %}
