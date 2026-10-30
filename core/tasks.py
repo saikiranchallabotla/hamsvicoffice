@@ -15,6 +15,7 @@ from celery import shared_task
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from core.models import Job, Upload, OutputFile, Organization
+from core.xlsx_values import fill_cached_values
 
 
 def normalize_text(text):
@@ -1090,7 +1091,7 @@ def generate_output_excel(self, job_id, category, qty_map_json, unit_map_json, w
         # Save file to storage
         output_file.file.save(
             f"{job.id}_{category}_output_estimate.xlsx",
-            ContentFile(output_buffer.getvalue()),
+            ContentFile(fill_cached_values(output_buffer.getvalue())),
         )
         
         job.progress = 100
@@ -1209,7 +1210,7 @@ def generate_estimate_excel(self, job_id, category, fetched_items_json, backend_
         # Save file to storage
         output_file.file.save(
             f"{job.id}_{category}_estimate.xlsx",
-            ContentFile(output_buffer.getvalue()),
+            ContentFile(fill_cached_values(output_buffer.getvalue())),
         )
         
         job.progress = 100
@@ -1661,9 +1662,12 @@ def generate_bill_document_task(self, job_id):
             file_size=len(output_buffer.getvalue()),
         )
         
+        file_bytes = output_buffer.getvalue()
+        if download_name.lower().endswith('.xlsx'):
+            file_bytes = fill_cached_values(file_bytes)
         output_file.file.save(
             f"{job.id}_{download_name}",
-            ContentFile(output_buffer.getvalue()),
+            ContentFile(file_bytes),
         )
         
         # Mark job as completed

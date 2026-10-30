@@ -34,3 +34,4 @@ django-cors-headers>=4.3.0
 requests>=2.31.0
 razorpay>=1.4.1
 ezdxf>=1.3.0
+pycel>=1.0b30
