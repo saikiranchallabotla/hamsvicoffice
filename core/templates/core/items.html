@@ -2127,30 +2127,10 @@ function openSubtypesModal(labelElement) {
             subtypesList.appendChild(li);
         });
         
-        // Position popup next to the clicked item
+        // Position popup next to the clicked item (or below it on phones)
         var popup = document.getElementById('subtypes-modal');
-        var rect = labelElement.getBoundingClientRect();
-        
-        // Position to the right of the item
-        popup.style.position = 'fixed';
-        popup.style.top = rect.top + 'px';
-        popup.style.left = (rect.right + 5) + 'px';
-        
-        // Check if popup would go off screen to the right
-        var popupWidth = 280;
-        if (rect.right + popupWidth + 10 > window.innerWidth) {
-            // Position to the left of the item instead
-            popup.style.left = (rect.left - popupWidth - 5) + 'px';
-        }
-        
-        // Check if popup would go off screen at bottom
-        var popupHeight = 200;
-        if (rect.top + popupHeight > window.innerHeight) {
-            popup.style.top = (window.innerHeight - popupHeight - 10) + 'px';
-        }
-        
-        // Show popup
-        popup.classList.add('active');
+        if (window.positionSubtypesPopup) window.positionSubtypesPopup(popup, labelElement);
+        else popup.classList.add('active');
         
     } catch (e) {
         console.error('Error parsing subtypes:', e);

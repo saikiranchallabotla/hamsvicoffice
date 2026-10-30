@@ -128,6 +128,31 @@ img, video, canvas, svg, iframe {
         height: 18px;
     }
 
+    /* "Select type" popup for grouped items: readable and easy to tap */
+    .subtypes-popup-header {
+        font-size: 0.85rem !important;
+        padding: 0.55rem 0.75rem !important;
+    }
+    .subtypes-popup-close {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 1.2rem !important;
+    }
+    .subtypes-popup,
+    .subtypes-popup-body {
+        max-height: 60vh !important;
+    }
+    .subtypes-popup-body {
+        max-height: calc(60vh - 44px) !important;
+    }
+    .subtype-option {
+        padding: 0.6rem 0.65rem !important;
+        min-height: 42px;
+    }
+    .subtype-option .subtype-name {
+        font-size: 0.85rem !important;
+    }
+
     /* SOR rates bar above the pick lists */
     .backend-selection-bar > .d-flex {
         gap: 0.5rem !important;

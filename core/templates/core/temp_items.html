@@ -1481,17 +1481,8 @@ function openSubtypesModal(labelElement) {
             subtypesList.appendChild(li);
         });
         var popup = document.getElementById('subtypes-modal');
-        var rect = labelElement.getBoundingClientRect();
-        popup.style.position = 'fixed';
-        popup.style.top = rect.top + 'px';
-        popup.style.left = (rect.right + 5) + 'px';
-        if (rect.right + 280 + 10 > window.innerWidth) {
-            popup.style.left = (rect.left - 280 - 5) + 'px';
-        }
-        if (rect.top + 200 > window.innerHeight) {
-            popup.style.top = (window.innerHeight - 200 - 10) + 'px';
-        }
-        popup.classList.add('active');
+        if (window.positionSubtypesPopup) window.positionSubtypesPopup(popup, labelElement);
+        else popup.classList.add('active');
     } catch (e) {
         console.error('Error parsing subtypes:', e);
     }
