@@ -213,7 +213,7 @@ def build_estimate_wb(ws_src, blocks):
             is_exec_col = ("execution" in header or "exec" in header or "workslip" in header)
             is_qty = ("qty" in header or "quantity" in header)
             is_amt = ("amount" in header or "amt" in header)
-            is_estimate = ("est" in header or "estimate" in header)
+            is_estimate = ("est" in header or "estimate" in header or "sanction" in header)
             is_rate = ("rate" in header)
             
             # Find estimate rate column

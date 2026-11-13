@@ -332,7 +332,7 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
 
     headers = [
         "Sl.No", "Description of Item", "Unit",
-        "Qty (Estimate)", "Rate", "Amount (Estimate)",
+        "Qty (Technical Sanction)", "Rate (Technical Sanction)", "Amount (Technical Sanction)",
         "Qty (Execution)", "Amount (Execution)",
         "More", "Less", "Remarks",
     ]
@@ -431,7 +431,7 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
             if excess <= 0 and 0 < qty_exec < qty_est:
                 ws.cell(row=out_row, column=9, value="")  # More
                 ws.cell(row=out_row, column=10, value=f"=F{out_row}-H{out_row}")  # Less
-                remark = "Less as per estimated"
+                remark = "Less as per technical sanction"
             elif qty_exec == 0:
                 remark = "Deleted"
             elif excess > 0:
@@ -458,7 +458,7 @@ def _download_workslip_excel(entries, events_list, exec_map, day_rates_by_item, 
                 ws.cell(row=out_row, column=8, value=f"=G{out_row}*E{out_row}")
                 ws.cell(row=out_row, column=9, value=f"=G{out_row}*E{out_row}")  # More
                 ws.cell(row=out_row, column=10, value="")
-                ws.cell(row=out_row, column=11, value="Excess as per estimated")
+                ws.cell(row=out_row, column=11, value="Excess as per technical sanction")
                 for c_idx in range(1, len(headers) + 1):
                     ws.cell(row=out_row, column=c_idx).border = border_all
                 grand_exec += round(excess * rate, 2)

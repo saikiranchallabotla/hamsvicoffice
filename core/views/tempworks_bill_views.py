@@ -458,7 +458,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
             elif qty_bill == 0 and qty_prev > 0:
                 remark = "Deleted"
             elif 0 < qty_bill < qty_est:
-                remark = "Less as per estimated"
+                remark = "Less as per technical sanction"
 
             write_event_row(row_idx, ev_desc, base_qty, rate, min(qty_prev, base_qty), remark, unit=item_unit)
             row_idx += 1
@@ -472,7 +472,7 @@ def _download_bill_excel(entries, exec_map, prev_exec, day_rates_by_item, desc_b
                     excess,
                     rate,
                     ae_prev,
-                    "Excess as per estimated",
+                    "Excess as per technical sanction",
                     is_ae=True,
                     unit=item_unit,
                 )
