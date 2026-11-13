@@ -1071,11 +1071,11 @@ def workslip(request):
                             col_map[f"exec_qty_phase_{phase_count}"] = c
                         elif ("execution" in header or "exec" in header or "workslip" in header) and ("amount" in header or "amt" in header):
                             col_map[f"exec_amt_phase_{phase_count}"] = c
-                        elif "qty" in header and ("est" in header or "estimate" in header):
+                        elif "qty" in header and ("est" in header or "estimate" in header or "sanction" in header):
                             col_map["est_qty"] = c
                         elif "description" in header or "desc" in header:
                             col_map["desc"] = c
-                        elif "rate" in header and ("est" in header or "estimate" in header):
+                        elif "rate" in header and ("est" in header or "estimate" in header or "sanction" in header):
                             col_map["est_rate"] = c
                     
                     if phase_count == 0:
@@ -1718,11 +1718,11 @@ def workslip(request):
                             col_map[f"exec_qty_phase_{phase_count}"] = c
                         elif "amount" in header or "amt" in header:
                             col_map[f"exec_amt_phase_{phase_count}"] = c
-                    elif "qty" in header and "est" in header:
+                    elif "qty" in header and ("est" in header or "sanction" in header):
                         col_map["est_qty"] = c
                     elif "description" in header or "desc" in header:
                         col_map["desc"] = c
-                    elif "rate" in header and "est" in header:
+                    elif "rate" in header and ("est" in header or "sanction" in header):
                         col_map["est_rate"] = c
                 
                 # If no explicit phase columns found, assume standard single-phase layout
@@ -2248,7 +2248,7 @@ def workslip(request):
             # Table header - dynamic based on phases
             header_row = 8
             # Base columns (first 6)
-            base_cols = ["Sl.No", "Description of Item", "Unit", "Qty (Estimate)", "Rate (Estimate)", "Amount (Estimate)"]
+            base_cols = ["Sl.No", "Description of Item", "Unit", "Qty (Technical Sanction)", "Rate (Technical Sanction)", "Amount (Technical Sanction)"]
             
             # Previous phase columns
             phase_cols = []
@@ -2307,9 +2307,9 @@ def workslip(request):
                 if has_ae_split:
                     return ""  # Base row gets no remark when there's an AE row
                 if q_exec > q_est:
-                    return "Excess as per estimated"
+                    return "Excess as per technical sanction"
                 if 0 < q_exec < q_est:
-                    return "Less as per estimated"
+                    return "Less as per technical sanction"
                 return ""
 
             data_start = header_row + 1
@@ -2463,7 +2463,7 @@ def workslip(request):
                     
                     ws_ws.cell(out_row, COL_MORE, f"=IF({col_letter(COL_CURR_AMT)}{out_row}>{col_letter(COL_EST_AMT)}{out_row},{col_letter(COL_CURR_AMT)}{out_row}-{col_letter(COL_EST_AMT)}{out_row},\"\")")
                     ws_ws.cell(out_row, COL_LESS, "")
-                    ws_ws.cell(out_row, COL_REMARKS, "Excess as per estimated")
+                    ws_ws.cell(out_row, COL_REMARKS, "Excess as per technical sanction")
 
                     for cidx in range(1, total_cols + 1):
                         cell = ws_ws.cell(out_row, cidx)
